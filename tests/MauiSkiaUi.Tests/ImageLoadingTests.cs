@@ -715,6 +715,136 @@ public sealed class ImageLoadingTests : IDisposable
     }
 
     [Fact]
+    public async Task DownloadsReportProgressToEveryViewWaitingForThem()
+    {
+        using var _ = SkUiTestHelpers.UseTestDispatcher(); // dispatched reports write the bindable store
+        var bytes = Png(SKColors.Red, 200, 200);
+        var handler = new ChunkedHandler(bytes, chunk: bytes.Length / 4 + 1, sendLength: true);
+        SkUiImageCache.HttpClient = new HttpClient(handler);
+        var uri = new Uri($"https://images.test/{Key()}.png");
+        var image = new SkUiImage();
+        var core = new SkUiCoreImage();
+        var reports = new List<SkUiImageDownloadProgressEventArgs>();
+        var coreReports = 0;
+        image.DownloadProgress += (_, args) => { lock (reports) reports.Add(args); };
+        core.DownloadProgress += (_, _) => Interlocked.Increment(ref coreReports);
+        image.Source = ImageSource.FromUri(uri);
+        core.SetSourceUri(uri); // joins the same download
+        Assert.Equal(0, image.LoadingProgress);
+
+        handler.Release(); // headers and the first chunk
+        await WaitUntil(() => image.LoadingProgress > 0);
+        Assert.InRange(image.LoadingProgress, 0.2, 0.3);
+        Assert.Equal(image.LoadingProgress, (double)image.GetValue(SkUiImage.LoadingProgressProperty));
+        Assert.Equal(image.LoadingProgress, core.LoadingProgress);
+        Assert.True(SkUiImage.LoadingProgressProperty.IsReadOnly);
+
+        handler.Release(3);
+        await image.LoadingTask;
+        await core.LoadingTask;
+        Assert.Equal(1, handler.Requests);
+        Assert.Equal(1, image.LoadingProgress);
+        Assert.Equal(1d, image.GetValue(SkUiImage.LoadingProgressProperty));
+        Assert.Equal(1, core.LoadingProgress);
+        SkUiImageDownloadProgressEventArgs[] seen;
+        lock (reports) seen = [.. reports];
+        Assert.Equal(bytes.Length, seen[^1].BytesReceived);
+        Assert.Equal(bytes.Length, seen[^1].TotalBytes);
+        Assert.Equal(1, seen[^1].Progress);
+        Assert.Equal(seen.Select(report => report.BytesReceived).Order(), seen.Select(report => report.BytesReceived));
+        Assert.Equal(seen.Length, Volatile.Read(ref coreReports));
+
+        // A cache hit does not report, and shows as loaded.
+        reports.Clear();
+        var hit = new SkUiImage();
+        hit.DownloadProgress += (_, args) => reports.Add(args);
+        hit.Source = ImageSource.FromUri(uri);
+        Assert.Equal(1, hit.LoadingProgress);
+        Assert.Empty(reports);
+    }
+
+    [Fact]
+    public async Task ADownloadOfUnknownSizeReportsMinusOneAndAReplacedOneStopsReporting()
+    {
+        var bytes = Png(SKColors.Red, 200, 200);
+        var handler = new ChunkedHandler(bytes, chunk: bytes.Length / 4 + 1, sendLength: false);
+        SkUiImageCache.HttpClient = new HttpClient(handler);
+        var image = new SkUiCoreImage();
+        var reports = new List<SkUiImageDownloadProgressEventArgs>();
+        image.DownloadProgress += (_, args) => { lock (reports) reports.Add(args); };
+        image.SetSourceUri(new Uri($"https://images.test/{Key()}.png"));
+
+        handler.Release();
+        await WaitUntil(() => { lock (reports) return reports.Count > 0 && reports[^1].BytesReceived > 0; });
+        Assert.Equal(-1, image.LoadingProgress);
+        lock (reports)
+        {
+            Assert.Null(reports[^1].TotalBytes);
+            Assert.Null(reports[^1].Progress);
+        }
+
+        int before;
+        lock (reports) before = reports.Count;
+        image.Clear(); // cancels: later chunks are not reported
+        Assert.Equal(0, image.LoadingProgress);
+        handler.Release(3);
+        await Task.Delay(100);
+        lock (reports) Assert.Equal(before, reports.Count);
+    }
+
+    /// <summary>A PNG response whose body arrives one chunk per <see cref="Release"/>, with or without Content-Length.</summary>
+    private sealed class ChunkedHandler(byte[] body, int chunk, bool sendLength) : HttpMessageHandler
+    {
+        private readonly SemaphoreSlim _chunks = new(0);
+        private int _requests;
+
+        public int Requests => Volatile.Read(ref _requests);
+
+        public void Release(int chunks = 1) => _chunks.Release(chunks);
+
+        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            Interlocked.Increment(ref _requests);
+            await _chunks.WaitAsync(cancellationToken); // the headers come with the first chunk
+            _chunks.Release();
+            var content = new StreamContent(new ChunkedStream(body, chunk, _chunks));
+            content.Headers.ContentType = new MediaTypeHeaderValue("image/png");
+            content.Headers.ContentLength = sendLength ? body.Length : null;
+            return new HttpResponseMessage(HttpStatusCode.OK) { Content = content };
+        }
+    }
+
+    private sealed class ChunkedStream(byte[] body, int chunk, SemaphoreSlim chunks) : Stream
+    {
+        private int _position;
+
+        public override async ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
+        {
+            if (_position >= body.Length)
+                return 0;
+            await chunks.WaitAsync(cancellationToken);
+            var count = Math.Min(Math.Min(chunk, buffer.Length), body.Length - _position);
+            body.AsMemory(_position, count).CopyTo(buffer);
+            _position += count;
+            return count;
+        }
+
+        public override Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken) =>
+            ReadAsync(buffer.AsMemory(offset, count), cancellationToken).AsTask();
+
+        public override int Read(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+        public override bool CanRead => true;
+        public override bool CanSeek => false;
+        public override bool CanWrite => false;
+        public override long Length => throw new NotSupportedException();
+        public override long Position { get => _position; set => throw new NotSupportedException(); }
+        public override void Flush() { }
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+        public override void SetLength(long value) => throw new NotSupportedException();
+        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+    }
+
+    [Fact]
     public void WithoutQueryParametersKeepsTheRestInOrder()
     {
         var uri = new Uri("https://cdn.test/a/b.png?w=40&Token=x%20y&h=20&sig=abc#frag");

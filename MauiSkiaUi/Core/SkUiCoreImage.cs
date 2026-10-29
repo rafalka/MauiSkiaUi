@@ -21,8 +21,16 @@ public class SkUiCoreImage : SkUiCoreNode
     public SkUiCoreImage() => _slot = new SkUiImageSlot(this, PublishState)
     {
         LoadingStarted = args => LoadingStarted?.Invoke(this, args),
-        LoadingFinished = args => LoadingFinished?.Invoke(this, args)
+        LoadingFinished = args => LoadingFinished?.Invoke(this, args),
+        DownloadProgress = args =>
+        {
+            OnPropertyChanged(nameof(LoadingProgress));
+            DownloadProgress?.Invoke(this, args);
+        }
     };
+
+    /// <summary>Raised while <see cref="Source"/> downloads, after <see cref="LoadingProgress"/> changed (see <c>SkUiImage.DownloadProgress</c>).</summary>
+    public event EventHandler<SkUiImageDownloadProgressEventArgs>? DownloadProgress;
 
     /// <summary>Raised when a load of <see cref="Source"/> starts (also for a memory-cache hit, which finishes at once).</summary>
     public event EventHandler<SkUiImageLoadStartedEventArgs>? LoadingStarted;
@@ -125,6 +133,12 @@ public class SkUiCoreImage : SkUiCoreNode
 
     /// <summary>Whether the current source is loading.</summary>
     public bool IsLoading => _slot.IsLoading;
+
+    /// <summary>
+    /// How far the load is: the fraction of a download received (0–1), -1 while downloading without a known size, 1 once
+    /// the image is shown, 0 otherwise (see <c>SkUiImage.LoadingProgress</c>).
+    /// </summary>
+    public double LoadingProgress => _slot.LoadingProgress;
 
     /// <summary>Last load error for the current source, or <c>null</c> on success.</summary>
     public Exception? LoadError => _slot.LoadError;
@@ -298,6 +312,7 @@ public class SkUiCoreImage : SkUiCoreNode
     private void PublishState()
     {
         OnPropertyChanged(nameof(IsLoading));
+        OnPropertyChanged(nameof(LoadingProgress));
         OnPropertyChanged(nameof(LoadError));
         OnPropertyChanged(nameof(ImageSize));
         OnPropertyChanged(nameof(IsShowingPlaceholder));

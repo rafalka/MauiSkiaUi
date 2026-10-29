@@ -82,6 +82,7 @@ public sealed class ImageDemoPage : ComponentDemoPage
             UpdateImageStatus();
         };
         _skia.PropertyChanged += (_, args) => { if (args.PropertyName is nameof(SkUiImage.IsLoading) or nameof(SkUiImage.LoadError)) UpdateImageStatus(); };
+        _skia.DownloadProgress += (_, _) => UpdateImageStatus(); // the web source shows its percentage while it downloads
         _native.PropertyChanged += (_, args) => { if (args.PropertyName == nameof(Image.IsLoading)) UpdateImageStatus(); };
         AddEditor("Core image, same MAUI source (SkUiCoreImage.SetSource)",
             new SkUiCoreHost { HeightRequest = 80, HorizontalOptions = LayoutOptions.Start, WidthRequest = 160 }.SetContent(_core));
@@ -126,7 +127,13 @@ public sealed class ImageDemoPage : ComponentDemoPage
     {
         var disk = await SkUiImageCache.GetDiskCacheBytesAsync();
         var cache = $"memory {SkUiImageCache.MemoryCacheCount} · {SkUiImageCache.MemoryCacheBytes / 1024} KiB, disk {disk / 1024} KiB";
-        Feedback(_skia.IsLoading ? "Loading" : _skia.LoadError is not null ? "Load failed: " + _skia.LoadError.Message
+        var loading = _skia.LoadingProgress switch
+        {
+            < 0 => "Loading (size unknown)",
+            > 0 => $"Loading {_skia.LoadingProgress:P0}",
+            _ => "Loading"
+        };
+        Feedback(_skia.IsLoading ? loading : _skia.LoadError is not null ? "Load failed: " + _skia.LoadError.Message
                 : $"Image {_skia.ImageSize.Width:F0} x {_skia.ImageSize.Height:F0} {_lastLoad} · {cache}",
             _native.IsLoading ? "Loading" : _native.Source is null ? SampleEmpty : "Source assigned");
     }

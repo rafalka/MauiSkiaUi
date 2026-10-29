@@ -17,8 +17,8 @@ public class SkUiImage : SkUiView
     private SkUiImageOptions _options;
     private bool _downsampleToViewSize;
     private SkUiViewSizedDecode _viewSizedDecode;
-    // Set on the thread pool by a load finished without a dispatcher, read on the view's thread (see PublishState).
-    private volatile bool _isLoadingStoreStale;
+    // Set on the thread pool by a load finished (or reporting) without a dispatcher, read on the view's thread (see PublishState).
+    private volatile bool _stateStoreStale;
     // Image sources and transformation lists are often shared resources: listened to weakly, so they never keep the view alive.
     private SkUiWeakListener<SkUiImage>? _sourceListener;
     private SkUiWeakListener<SkUiImage> SourceListener => _sourceListener ??= new(this, static (image, change) =>
@@ -36,7 +36,8 @@ public class SkUiImage : SkUiView
     private SkUiImageSlot Slot => _slot ??= new SkUiImageSlot(this, PublishState)
     {
         LoadingStarted = args => LoadingStarted?.Invoke(this, args),
-        LoadingFinished = args => LoadingFinished?.Invoke(this, args)
+        LoadingFinished = args => LoadingFinished?.Invoke(this, args),
+        DownloadProgress = OnDownloadProgress
     };
 
     /// <summary>Creates an image.</summary>
@@ -163,6 +164,50 @@ public class SkUiImage : SkUiView
 
     /// <summary>Whether the current source is loading.</summary>
     public bool IsLoading => Slot.IsLoading;
+
+    private static readonly BindablePropertyKey LoadingProgressPropertyKey =
+        BindableProperty.CreateReadOnly(nameof(LoadingProgress), typeof(double), typeof(SkUiImage), 0d);
+
+    /// <summary>Read-only bindable <see cref="LoadingProgress"/>, for a progress bar or a trigger.</summary>
+    public static readonly BindableProperty LoadingProgressProperty = LoadingProgressPropertyKey.BindableProperty;
+
+    /// <summary>
+    /// How far the load of <see cref="Source"/> is: the fraction of a download received (0–1), -1 while downloading
+    /// without a known size, 1 once the image is shown, 0 otherwise (no source, failed, or a load that has not reported).
+    /// Only URIs report while loading; other sources go from 0 to 1.
+    /// </summary>
+    public double LoadingProgress => Slot.LoadingProgress;
+
+    /// <summary>
+    /// Raised while <see cref="Source"/> downloads, after <see cref="LoadingProgress"/> changed: on the UI thread, at most
+    /// once per dispatcher turn. Cache hits raise none; a view that joined another view's download of the same image
+    /// hears it too.
+    /// </summary>
+    public event EventHandler<SkUiImageDownloadProgressEventArgs>? DownloadProgress;
+
+    private void OnDownloadProgress(SkUiImageDownloadProgressEventArgs args)
+    {
+        PublishStore();
+        DownloadProgress?.Invoke(this, args);
+    }
+
+    // The bindable store of the read-only state; left alone on a thread without a dispatcher (it is not thread-safe):
+    // the stored values follow on the view's next change (OnPropertyChanged), such as its layout once it is shown.
+    private void PublishStore()
+    {
+        if (SkUiImageSlot.CompletingWithoutDispatcher)
+        {
+            _stateStoreStale = true;
+            OnPropertyChanged(nameof(IsLoading));
+            OnPropertyChanged(nameof(LoadingProgress));
+        }
+        else
+        {
+            _stateStoreStale = false;
+            SetValue(IsLoadingPropertyKey, Slot.IsLoading);
+            SetValue(LoadingProgressPropertyKey, Slot.LoadingProgress);
+        }
+    }
 
     /// <summary>Bindable <see cref="IsOpaque"/>.</summary>
     public static readonly BindableProperty IsOpaqueProperty = BindableProperty.Create(nameof(IsOpaque), typeof(bool), typeof(SkUiImage), false);
@@ -366,19 +411,7 @@ public class SkUiImage : SkUiView
 
     private void PublishState()
     {
-        // Reports IsLoading when it changed. A load started without a dispatcher finishes on the thread pool, where the
-        // bindable store (not thread-safe) is left alone: the stored value follows on the view's next change
-        // (OnPropertyChanged), such as its layout once it is shown.
-        if (SkUiImageSlot.CompletingWithoutDispatcher)
-        {
-            _isLoadingStoreStale = true;
-            OnPropertyChanged(nameof(IsLoading));
-        }
-        else
-        {
-            _isLoadingStoreStale = false;
-            SetValue(IsLoadingPropertyKey, Slot.IsLoading);
-        }
+        PublishStore();
         OnPropertyChanged(nameof(LoadError));
         OnPropertyChanged(nameof(ImageSize));
         OnPropertyChanged(nameof(IsShowingPlaceholder));
@@ -390,10 +423,11 @@ public class SkUiImage : SkUiView
     {
         base.OnPropertyChanged(propertyName);
         // The view's thread changes it: the stored IsLoading catches up with a load finished on the thread pool.
-        if (_isLoadingStoreStale && !SkUiImageSlot.CompletingWithoutDispatcher)
+        if (_stateStoreStale && !SkUiImageSlot.CompletingWithoutDispatcher)
         {
-            _isLoadingStoreStale = false;
+            _stateStoreStale = false;
             SetValue(IsLoadingPropertyKey, Slot.IsLoading);
+            SetValue(LoadingProgressPropertyKey, Slot.LoadingProgress);
         }
     }
 

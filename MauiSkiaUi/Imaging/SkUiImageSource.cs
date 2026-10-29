@@ -207,7 +207,7 @@ public sealed record SkUiUriImageSource : SkUiImageSource
         var bytes = useDisk ? await SkUiImageDiskCache.TryReadAsync(diskKey, CacheValidity, token).ConfigureAwait(false) : null;
         var fromDisk = bytes is not null;
         context.Origin = fromDisk ? SkUiImageOrigin.DiskCache : SkUiImageOrigin.Network;
-        bytes ??= await SkUiImageLoader.DownloadAsync(Uri, token).ConfigureAwait(false);
+        bytes ??= await SkUiImageLoader.DownloadAsync(Uri, token, context.Progress).ConfigureAwait(false);
         SkUiDecodedImage decoded;
         try
         {

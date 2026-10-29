@@ -47,6 +47,9 @@ internal sealed class SkUiImageLoadContext(float displayScale, bool useDiskCache
     /// <summary>Whether <see cref="MaxPixels"/> is covered (aspect fill) rather than fitted.</summary>
     public bool Fill { get; } = fill;
 
+    /// <summary>Told the bytes received and the total (<c>null</c>: unknown) while a download runs, on its thread.</summary>
+    public Action<long, long?>? Progress { get; set; }
+
     /// <summary>Decodes off the UI thread, a few images at a time so a list of images does not flood the thread pool.</summary>
     public async Task<SkUiDecodedImage> DecodeAsync(byte[] bytes, float sourceScale, CancellationToken token)
     {
@@ -113,10 +116,13 @@ internal static class SkUiImageLoader
     /// <summary>
     /// A lease on the image for <paramref name="source"/>. A memory-cache hit (and a font glyph) completes synchronously.
     /// Concurrent loads of one key share the work, which is cancelled only when every waiter cancelled.
+    /// <paramref name="progress"/> is told how a download goes (bytes received, total or <c>null</c>), on the download's
+    /// thread, also when the download is another waiter's; not while the caller holds a lock the reports could need.
     /// </summary>
-    internal static Task<SkUiImageLoad> LoadAsync(SkUiImageSource source, in SkUiImageOptions options, CancellationToken token)
+    internal static Task<SkUiImageLoad> LoadAsync(SkUiImageSource source, in SkUiImageOptions options, CancellationToken token,
+        Action<long, long?>? progress = null)
     {
-        var load = Load(source, options, token, out var cached);
+        var load = Load(source, options, token, progress, out var cached);
         if (load.IsCompletedSuccessfully)
             return Task.FromResult(new SkUiImageLoad(load.Result, cached ? SkUiImageOrigin.MemoryCache : load.Result.Origin));
         return WithOrigin(load);
@@ -128,7 +134,8 @@ internal static class SkUiImageLoader
         return new SkUiImageLoad(image, image.Origin);
     }
 
-    private static Task<SkUiCachedImage> Load(SkUiImageSource source, in SkUiImageOptions options, CancellationToken token, out bool cached)
+    private static Task<SkUiCachedImage> Load(SkUiImageSource source, in SkUiImageOptions options, CancellationToken token,
+        Action<long, long?>? progress, out bool cached)
     {
         cached = false;
         var scale = DisplayScale;
@@ -149,13 +156,16 @@ internal static class SkUiImageLoader
         var key = options.CacheType is SkUiImageCacheType.All or SkUiImageCacheType.Memory
             ? KeyFor(sourceKey, options with { Transformations = transformations, DownsampleToFill = fill }, maxPixels) : null;
         if (key is null)
+        {
+            context.Progress = progress;
             return LoadCoreAsync(source, transformations, context, null, token);
+        }
         if (SkUiImageMemoryCache.TryGet(key) is { } hit)
         {
             cached = true;
             return Task.FromResult(hit);
         }
-        return LoadSharedAsync(source, transformations, context, key, token);
+        return LoadSharedAsync(source, transformations, context, key, progress, token);
     }
 
     private static int Pixels(double dips, float scale) =>
@@ -198,7 +208,7 @@ internal static class SkUiImageLoader
     }
 
     private static async Task<SkUiCachedImage> LoadSharedAsync(SkUiImageSource source, IReadOnlyList<ISkUiImageTransformation>? transformations,
-        SkUiImageLoadContext context, string key, CancellationToken token)
+        SkUiImageLoadContext context, string key, Action<long, long?>? progress, CancellationToken token)
     {
         Pending pending;
         var created = false;
@@ -210,9 +220,14 @@ internal static class SkUiImageLoader
                 created = true;
             }
             pending.Waiters++;
+            if (progress is not null)
+                pending.Listen(progress);
         }
         if (created)
+        {
+            context.Progress = pending.Report;
             _ = RunAsync(pending, LoadCoreAsync(source, transformations, context, key, pending.Cancellation.Token));
+        }
 
         SkUiCachedImage image;
         try
@@ -221,10 +236,10 @@ internal static class SkUiImageLoader
         }
         catch
         {
-            Leave(pending, acquire: false);
+            Leave(pending, acquire: false, progress);
             throw;
         }
-        Leave(pending, acquire: true);
+        Leave(pending, acquire: true, progress);
         return image;
     }
 
@@ -265,10 +280,12 @@ internal static class SkUiImageLoader
         pending.Cancellation.Dispose();
     }
 
-    private static void Leave(Pending pending, bool acquire)
+    private static void Leave(Pending pending, bool acquire, Action<long, long?>? progress)
     {
         lock (Gate)
         {
+            if (progress is not null)
+                pending.Unlisten(progress);
             if (acquire)
                 pending.Result!.TryAcquire(); // cannot fail: the shared reference lives until the last waiter leaves
             if (--pending.Waiters > 0)
@@ -378,11 +395,12 @@ internal static class SkUiImageLoader
     }
 
     /// <summary>Reads and disposes <paramref name="stream"/>; at most <see cref="MaxEncodedBytes"/>.</summary>
-    internal static async Task<byte[]> ReadAllAsync(Stream stream, CancellationToken token)
+    /// <summary>Reads <paramref name="stream"/> to the end, telling <paramref name="progress"/> after each chunk.</summary>
+    internal static async Task<byte[]> ReadAllAsync(Stream stream, CancellationToken token, long? total = null, Action<long, long?>? progress = null)
     {
         await using (stream.ConfigureAwait(false))
         {
-            using var bytes = new MemoryStream();
+            using var bytes = new MemoryStream(total is > 0 and <= MaxEncodedBytes ? (int)total.Value : 0);
             var buffer = new byte[81920];
             int read;
             while ((read = await stream.ReadAsync(buffer, token).ConfigureAwait(false)) != 0)
@@ -390,13 +408,17 @@ internal static class SkUiImageLoader
                 if (bytes.Length + read > MaxEncodedBytes)
                     throw new InvalidDataException("Image exceeds the 32 MiB encoded limit.");
                 bytes.Write(buffer, 0, read);
+                progress?.Invoke(bytes.Length, total);
             }
             return bytes.ToArray();
         }
     }
 
-    /// <summary>Downloads an image; a non-success status or a text / JSON response fails.</summary>
-    internal static async Task<byte[]> DownloadAsync(Uri uri, CancellationToken token)
+    /// <summary>
+    /// Downloads an image; a non-success status or a text / JSON response fails. <paramref name="progress"/> hears 0 when
+    /// the headers arrived, then the bytes received after each chunk, with <c>Content-Length</c> as the total.
+    /// </summary>
+    internal static async Task<byte[]> DownloadAsync(Uri uri, CancellationToken token, Action<long, long?>? progress = null)
     {
         using var response = await SkUiImageCache.HttpClient.GetAsync(uri, HttpCompletionOption.ResponseHeadersRead, token).ConfigureAwait(false);
         response.EnsureSuccessStatusCode();
@@ -404,8 +426,10 @@ internal static class SkUiImageLoader
         if (mediaType is not null && (mediaType.StartsWith("text/", StringComparison.OrdinalIgnoreCase)
             || mediaType.Contains("json", StringComparison.OrdinalIgnoreCase)))
             throw new InvalidDataException($"The response is not an image ({mediaType}).");
+        var total = response.Content.Headers.ContentLength;
+        progress?.Invoke(0, total);
         var stream = await response.Content.ReadAsStreamAsync(token).ConfigureAwait(false);
-        return await ReadAllAsync(stream, token).ConfigureAwait(false);
+        return await ReadAllAsync(stream, token, total, progress).ConfigureAwait(false);
     }
 
     private sealed class Pending(string key)
@@ -416,5 +440,22 @@ internal static class SkUiImageLoader
         public int Waiters;
         public bool Done;
         public SkUiCachedImage? Result;
+        // Copied on write under Gate; reports read it without a lock (they run on the download's thread).
+        private Action<long, long?>[] _listeners = [];
+
+        public void Listen(Action<long, long?> listener) => Volatile.Write(ref _listeners, [.. _listeners, listener]);
+
+        public void Unlisten(Action<long, long?> listener)
+        {
+            var index = Array.IndexOf(_listeners, listener);
+            if (index >= 0)
+                Volatile.Write(ref _listeners, [.. _listeners[..index], .. _listeners[(index + 1)..]]);
+        }
+
+        public void Report(long received, long? total)
+        {
+            foreach (var listener in Volatile.Read(ref _listeners))
+                listener(received, total);
+        }
     }
 }

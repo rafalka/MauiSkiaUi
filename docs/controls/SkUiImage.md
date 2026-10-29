@@ -106,6 +106,27 @@ image.LoadingFinished += (_, e) =>
   `ImageSize` are updated.
 - **Scope:** placeholder loads raise no events.
 
+### Download progress
+
+**`LoadingProgress`** (read-only, bindable) and **`DownloadProgress`** (FFImageLoading's) follow a URI download:
+
+```xml
+<Grid>
+    <sk:SkUiImage x:Name="photo" Source="{Binding PhotoUrl}" />
+    <sk:SkUiProgressBar Progress="{Binding LoadingProgress, Source={x:Reference photo}}"
+                        IsVisible="{Binding IsLoading, Source={x:Reference photo}}" VerticalOptions="End" />
+</Grid>
+```
+
+- `LoadingProgress` is the fraction received (0–1) while downloading, **-1** while downloading from a server that sent
+  no `Content-Length`, 1 once the image shows, and 0 otherwise (no source, a failed load). Sources other than URIs,
+  disk-cache reads and memory-cache hits go from 0 to 1 without reports in between.
+- `DownloadProgress` (`SkUiImageDownloadProgressEventArgs`: `Source`, `BytesReceived`, `TotalBytes` (`null` when
+  unknown), `Progress` (`null` when unknown)) is raised on the UI thread after `LoadingProgress` changed, at most once
+  per dispatcher turn: the chunks received meanwhile are one report.
+- Views that share one load (the same cache key, decode size and transformations, started while it runs) all hear it; a view whose source changed hears no
+  more of the old one.
+
 ## Caching
 
 `SkUiImageCache` configures the caches shared by every image, image button and slider thumb on both layers:
@@ -196,7 +217,7 @@ Transformations change the decoded pixels once. For clipping that follows the la
 
 ## Key properties
 
-`Source`, `Aspect`, `IsAnimationPlaying`, `Transformations`, `CacheType`, `CacheKey`, `DownsampleWidth`, `DownsampleHeight`, `DownsampleToViewSize`, `LoadingPlaceholder`, `ErrorPlaceholder`, `TransformPlaceholders`, `IsLoading`, `LoadError`, `ImageSize`, `IsShowingPlaceholder`, `LoadingTask`, `ReloadAsync()`. Events: `LoadingStarted`, `LoadingFinished`. Fluent: `SetSource`, `SetAspect`, `SetIsAnimationPlaying`, `SetTransformations(...)`, `SetCacheType`, `SetCacheKey`, `SetDownsample(width, height)`, `SetDownsampleToViewSize`, `SetPlaceholders(loading, error)`, `SetTransformPlaceholders`.
+`Source`, `Aspect`, `IsAnimationPlaying`, `Transformations`, `CacheType`, `CacheKey`, `DownsampleWidth`, `DownsampleHeight`, `DownsampleToViewSize`, `LoadingPlaceholder`, `ErrorPlaceholder`, `TransformPlaceholders`, `IsLoading`, `LoadingProgress`, `LoadError`, `ImageSize`, `IsShowingPlaceholder`, `LoadingTask`, `ReloadAsync()`. Events: `LoadingStarted`, `LoadingFinished`, `DownloadProgress`. Fluent: `SetSource`, `SetAspect`, `SetIsAnimationPlaying`, `SetTransformations(...)`, `SetCacheType`, `SetCacheKey`, `SetDownsample(width, height)`, `SetDownsampleToViewSize`, `SetPlaceholders(loading, error)`, `SetTransformPlaceholders`.
 
 `DownsampleWidth` / `DownsampleHeight` are DIPs at the display density (FFImageLoading's with `DownsampleUseDipUnits`). The image is decoded no larger than that, aspect kept, never upscaled. Use them for thumbnails of large photos.
 
@@ -215,7 +236,7 @@ Animated GIF / WebP play on the view's UI clock while `IsAnimationPlaying` is tr
 | Topic | SkiaUi |
 | --- | --- |
 | Caching | Memory cache of decoded images shared by all views; download cache with MAUI's `CachingEnabled` / `CacheValidity`; plus `CacheType` per view |
-| Transformations, downsampling, placeholders, load events | SkiaUi extensions (from FFImageLoading); MAUI has only `IsLoading` |
+| Transformations, downsampling, placeholders, load events, download progress | SkiaUi extensions (from FFImageLoading); MAUI has only `IsLoading` |
 | `MauiImage` lookup | The file Resizetizer generated for the display density; Android vector (XML) drawables are not decoded |
 | `FontImageSource.FontAutoScalingEnabled` | As MAUI's: the glyph follows the system text size (default `true`). The size is fixed when the source is set: after a change of the system text size or `SkUiLook.FontScale`, images already shown keep their size (labels re-measure); set the source again to draw the glyph at the new size |
 | Screen readers | An image is read only with `SemanticProperties.Description` (or `AutomationProperties.IsInAccessibleTree="True"`); an image button is a button named by its description |

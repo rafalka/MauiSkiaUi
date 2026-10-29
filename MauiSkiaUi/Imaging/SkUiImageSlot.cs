@@ -35,6 +35,11 @@ internal sealed class SkUiImageSlot
     private SkUiImageSource? _pending;
     private long _pendingStarted;
 
+    // The download's latest report, published on the dispatcher (one dispatch at a time coalesces the chunks).
+    private long _received;
+    private long? _total;
+    private bool _progressScheduled;
+
     // Placeholders: shown by a nested slot while the main image loads or after it failed.
     private SkUiImageOptions _options;
     private SkUiImageSource? _loadingPlaceholder;
@@ -69,6 +74,18 @@ internal sealed class SkUiImageSlot
 
     /// <summary>Raised once per started load: succeeded, failed or cancelled (after the state is published).</summary>
     public Action<SkUiImageLoadFinishedEventArgs>? LoadingFinished { get; set; }
+
+    /// <summary>
+    /// Raised while a URI downloads, after <see cref="LoadingProgress"/> changed; <c>null</c>: the slot does not follow
+    /// downloads (placeholders).
+    /// </summary>
+    public Action<SkUiImageDownloadProgressEventArgs>? DownloadProgress { get; set; }
+
+    /// <summary>
+    /// How far the load is: 0 when none or while it has not reported, the fraction downloaded, -1 while downloading
+    /// without a known size, 1 once the image is shown.
+    /// </summary>
+    public double LoadingProgress { get; private set; }
 
     /// <summary>The current load, including the publication of its result (completed when idle).</summary>
     public Task LoadingTask { get; private set; } = Task.CompletedTask;
@@ -154,6 +171,7 @@ internal sealed class SkUiImageSlot
             {
                 Replace(null);
                 ShowPlaceholder(null);
+                LoadingProgress = 0;
                 Publish(error: null);
                 return LoadingTask = Task.CompletedTask;
             }
@@ -162,10 +180,13 @@ internal sealed class SkUiImageSlot
             var cancellation = _loading = new CancellationTokenSource();
             _pending = source;
             _pendingStarted = Stopwatch.GetTimestamp();
+            _received = 0;
+            _total = null;
+            LoadingProgress = 0;
             Task<SkUiImageLoad> load;
             try
             {
-                load = SkUiImageLoader.LoadAsync(source, options, cancellation.Token);
+                load = SkUiImageLoader.LoadAsync(source, options, cancellation.Token, ProgressListener(source, version, dispatcher));
             }
             catch (Exception error)
             {
@@ -306,6 +327,7 @@ internal sealed class SkUiImageSlot
             {
                 Replace(load.Result.Image);
                 ShowPlaceholder(null);
+                LoadingProgress = 1;
                 Publish(error: null);
                 Finish(source, SkUiImageLoadStatus.Succeeded, load.Result.Origin, error: null);
                 return;
@@ -315,9 +337,62 @@ internal sealed class SkUiImageSlot
             Replace(null);
             LoadError = error;
             ShowPlaceholder(_errorPlaceholder);
+            LoadingProgress = 0;
             Publish(error);
             Finish(source, SkUiImageLoadStatus.Failed, origin: null, error);
         }
+    }
+
+    // Only downloads report, and only to a slot that follows them: no listener is allocated for other loads.
+    private Action<long, long?>? ProgressListener(SkUiImageSource source, int version, IDispatcher? dispatcher) =>
+        DownloadProgress is not null && source is SkUiUriImageSource
+            ? (received, total) => OnProgress(source, version, dispatcher, received, total)
+            : null;
+
+    /// <summary>A download report, on the download's thread: kept, and published on the dispatcher unless already on its way.</summary>
+    private void OnProgress(SkUiImageSource source, int version, IDispatcher? dispatcher, long received, long? total)
+    {
+        lock (_gate)
+        {
+            if (version != _generation || _disposed)
+                return;
+            _received = received;
+            _total = total;
+            // While the load is being started (a download that ran inline), the values wait for the next report.
+            if (!IsLoading || _progressScheduled)
+                return;
+            if (dispatcher is null)
+            {
+                CompletingWithoutDispatcher = true;
+                try
+                {
+                    RaiseProgress(source);
+                }
+                finally
+                {
+                    CompletingWithoutDispatcher = false;
+                }
+                return;
+            }
+            _progressScheduled = true;
+            dispatcher.Dispatch(() => PublishProgress(source, version));
+        }
+    }
+
+    private void PublishProgress(SkUiImageSource source, int version)
+    {
+        lock (_gate)
+        {
+            _progressScheduled = false;
+            if (version == _generation && !_disposed && IsLoading)
+                RaiseProgress(source);
+        }
+    }
+
+    private void RaiseProgress(SkUiImageSource source)
+    {
+        LoadingProgress = _total is > 0 and var total ? Math.Min(1, _received / (double)total) : -1;
+        DownloadProgress?.Invoke(new SkUiImageDownloadProgressEventArgs(source, _received, _total));
     }
 
     private void Finish(SkUiImageSource source, SkUiImageLoadStatus status, SkUiImageOrigin? origin, Exception? error)
