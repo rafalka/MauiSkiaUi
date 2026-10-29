@@ -21,6 +21,10 @@ Publishing (the NuGet publish workflow, [docs/Releasing.md](docs/Releasing.md)) 
 - **Image fade-in:** `FadeAnimationEnabled`, `FadeAnimationDuration` and `FadeAnimationForCachedImages` on `SkUiImage` / `SkUiImageButton` (bindable, `SetFadeAnimation`, `SetFadeAnimationForCachedImages`) and `SkUiCoreImage` (FFImageLoading's; off by default). A loaded image fades in over its placeholder on the render thread, with the look's new `SkUiTransitionKind.ImageFadeIn` (200 ms in `DefaultSkUiLook`); memory-cache hits, images loaded before the view was drawn and images replacing a shown one show at once, and nothing fades under reduced motion ([doc](docs/controls/SkUiImage.md#fade-in)).
 - **Android XML drawables in images:** on Android a file source that names a drawable defined in XML (a vector, a shape, a layer list) is drawn by Android, at its intrinsic size or at the decode bounds (sharp in a larger view), as MAUI's `Image` shows it; before, it failed to decode ([doc](docs/controls/SkUiImage.md#android-xml-drawables)).
 
+### Fixes
+
+- **Android (Material 2) progress bars have square ends,** as MAUI's: `AndroidSkUiLook.GetProgressBarCornerRadius` returns 0 (the Material 3 look keeps its round ends). Measured against MAUI 10.0.120 on Android (Material 2 and 3), iOS 26 and Mac Catalyst, where the bars' heights already matched.
+
 ### Other
 
 - Benchmarks: `skui-images` and `core-images` (1,000 images of eight photos in a grid) and their `-viewsized` variants with `DownsampleToViewSize`.

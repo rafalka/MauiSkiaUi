@@ -136,6 +136,25 @@ public class PlatformLookShapeTests
         Assert.Equal(SKColors.Black, bitmap.GetPixel(75, 0)); // above the 1 DIP line
     }
 
+    [Fact]
+    public void Material2ProgressBarsHaveSquareEndsAndMaterial3RoundOnes()
+    {
+        // The 4 DIP bar centered in 16: its first column is fully drawn with square ends, half covered with round ones.
+        SKColor FirstColumn(DefaultSkUiLook look)
+        {
+            using var bitmap = new SKBitmap(100, 16);
+            using var canvas = new SKCanvas(bitmap);
+            canvas.Clear(SKColors.Black);
+            look.DrawProgressBar(canvas, new SkUiProgressBarPaint(new SKRect(0, 0, 100, 16), 0.5f, false, SKColors.Gray, SKColors.Blue, 0, true));
+            return bitmap.GetPixel(0, 6);
+        }
+
+        Assert.Equal(0, AndroidSkUiLook.Instance.GetProgressBarCornerRadius(4));
+        Assert.Equal(SKColors.Blue, FirstColumn(AndroidSkUiLook.Instance));
+        Assert.Equal(2, AndroidMaterial3SkUiLook.Instance.GetProgressBarCornerRadius(4));
+        Assert.Equal(2, IosSkUiLook.Instance.GetProgressBarCornerRadius(4));
+    }
+
     [Theory]
     [MemberData(nameof(Looks))]
     public void EveryLookDrawsIndicatorsFieldsAndFocusRings(DefaultSkUiLook look)

@@ -138,6 +138,10 @@ public class AndroidSkUiLook : DefaultSkUiLook
     public override float ProgressBarTrackHeight => 4;
 
     /// <inheritdoc />
+    /// <remarks>Square ends, as the platform's horizontal progress bar.</remarks>
+    public override float GetProgressBarCornerRadius(float height) => 0;
+
+    /// <inheritdoc />
     /// <remarks>Android's progress bar: 48 dp with the ring 4 dp in.</remarks>
     public override Size DefaultActivityIndicatorSize => new(48, 48);
 

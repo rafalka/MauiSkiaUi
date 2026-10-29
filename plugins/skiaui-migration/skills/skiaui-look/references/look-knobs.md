@@ -66,6 +66,7 @@ Override these in a `DefaultSkUiLook` subclass (or a stock platform look's). Siz
 | `DefaultProgressBarHeight` (base), `ProgressBarTrackHeight` | Control height and bar thickness centered in it [4, – / same / 16, 4 / 4, – / 3, –] |
 | `ProgressBarTrackLineHeight` | A thinner track line under the fill [– / – / – / – / 1] |
 | `ProgressBarGap`, `ProgressBarHasStopIndicator` | Material 3's gap and end dot |
+| `GetProgressBarCornerRadius(height)` | Rounding of the bar's ends [height / 2 / same / 0 (square) / height / 2 / height / 2] |
 
 ## ActivityIndicator
 
