@@ -177,6 +177,7 @@ public class DefaultSkUiLook : SkUiLook
         SkUiTransitionKind.PickerOpen => SkUiTransition.FromMilliseconds(200, Easing.CubicInOut),
         SkUiTransitionKind.ReorderLift => SkUiTransition.FromMilliseconds(150, Easing.CubicOut),
         SkUiTransitionKind.ReorderMove => SkUiTransition.FromMilliseconds(200, Easing.CubicOut),
+        SkUiTransitionKind.ImageFadeIn => SkUiTransition.FromMilliseconds(200, Easing.CubicOut),
         // Determinate progress follows Progress at once, as MAUI's ProgressBar (ProgressTo animates).
         _ => SkUiTransition.None
     };

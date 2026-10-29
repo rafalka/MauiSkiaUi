@@ -82,6 +82,16 @@ internal sealed class SkUiImageSlot
     public Action<SkUiImageDownloadProgressEventArgs>? DownloadProgress { get; set; }
 
     /// <summary>
+    /// Asked when a load succeeds while no image showed, with where the image came from: <c>true</c> when the view
+    /// starts a fade (<see cref="IsFading"/>), during which the placeholder that was showing stays for
+    /// <see cref="PaintPlaceholder"/> until <see cref="EndFade"/>.
+    /// </summary>
+    public Func<SkUiImageOrigin, bool>? FadesIn { get; set; }
+
+    /// <summary>Whether the image just loaded fades in: the view draws the placeholder as its content and the image over it.</summary>
+    public bool IsFading { get; private set; }
+
+    /// <summary>
     /// How far the load is: 0 when none or while it has not reported, the fraction downloaded, -1 while downloading
     /// without a known size, 1 once the image is shown.
     /// </summary>
@@ -161,6 +171,7 @@ internal sealed class SkUiImageSlot
         lock (_gate)
         {
             ObjectDisposedException.ThrowIf(_disposed, this);
+            IsFading = false;
             // The view's cache key is the source's only (ShowPlaceholder): changing it keeps the placeholder.
             var placeholderOptionsChanged = (_options with { CacheKey = null }) != (options with { CacheKey = null });
             _options = options;
@@ -211,12 +222,33 @@ internal sealed class SkUiImageSlot
         }
     }
 
+    /// <summary>The fade ended: the placeholder kept for it goes.</summary>
+    public void EndFade()
+    {
+        lock (_gate)
+        {
+            if (!IsFading)
+                return;
+            IsFading = false;
+            if (!_disposed)
+                ShowPlaceholder(null);
+        }
+    }
+
+    /// <summary>Draws the placeholder kept while the image fades in (nothing when none showed).</summary>
+    public void PaintPlaceholder(SKCanvas canvas, SKRect area, Aspect aspect)
+    {
+        lock (_gate)
+            _placeholder?.Paint(canvas, area, aspect);
+    }
+
     /// <summary>Shows <paramref name="image"/> directly (Core's <c>SetImage</c>); disposed with the slot when <paramref name="ownsImage"/>.</summary>
     public void SetImage(SKImage? image, bool ownsImage)
     {
         lock (_gate)
         {
             ObjectDisposedException.ThrowIf(_disposed, this);
+            IsFading = false;
             CancelLoad();
             if (image is null)
             {
@@ -258,6 +290,7 @@ internal sealed class SkUiImageSlot
             if (_disposed)
                 return;
             _disposed = true;
+            IsFading = false;
             CancelLoad();
             Replace(null);
             _placeholder?.Dispose();
@@ -325,8 +358,12 @@ internal sealed class SkUiImageSlot
             var source = _pending!;
             if (load.IsCompletedSuccessfully)
             {
+                // An image replacing a shown one (a cache hit set in its place, a larger decode) does not fade: nothing to fade over.
+                var fades = _image is null && FadesIn?.Invoke(load.Result.Origin) == true;
                 Replace(load.Result.Image);
-                ShowPlaceholder(null);
+                IsFading = fades;
+                if (!fades)
+                    ShowPlaceholder(null);
                 LoadingProgress = 1;
                 Publish(error: null);
                 Finish(source, SkUiImageLoadStatus.Succeeded, load.Result.Origin, error: null);

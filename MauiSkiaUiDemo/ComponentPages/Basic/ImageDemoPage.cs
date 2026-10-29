@@ -66,6 +66,8 @@ public sealed class ImageDemoPage : ComponentDemoPage
         Choice(nameof(SkUiImage.Transformations) + " (SkiaUi)", [.. TransformationChoices.Keys], TransformNone, SetTransformation, () => _transformation);
         Number(nameof(SkUiImage.DownsampleWidth) + " (SkiaUi)", 0, 300, 0, value => _skia.DownsampleWidth = value, () => _skia.DownsampleWidth, whole: true);
         // Resize the preview area: a larger size decodes again, a smaller one keeps the image ("loaded from …" below).
+        Toggle(nameof(SkUiImage.FadeAnimationEnabled) + " (SkiaUi)", false, value => _skia.SetFadeAnimation(value).SetFadeAnimationForCachedImages(value),
+            () => _skia.FadeAnimationEnabled); // cached images too: pick Empty, then an image (one replacing a shown image does not fade)
         Toggle(nameof(SkUiImage.DownsampleToViewSize) + " (SkiaUi)", false, value => _skia.DownsampleToViewSize = value, () => _skia.DownsampleToViewSize);
         Toggle("Placeholders (SkiaUi)", true, value => _skia.SetPlaceholders(
                 value ? ImageSource.FromStream(() => new MemoryStream(Spinner)) : null,

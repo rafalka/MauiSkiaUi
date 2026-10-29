@@ -56,6 +56,7 @@ public static class LeakScenarios
         new("DateTimePickersOpened", Controls, "SkUiDatePicker, SkUiTimePicker and SkUiDateTimePicker, and the Core date and time pickers, with long-lived blackout dates and a long-lived day rule, on a long-lived presenter that keeps the last request: tapped open, wheels turned (a month without the chosen day, a time before the minimum), a date and a time set and completed through the typed requests, a draft accepted (UpdateMode WhenFinished), cleared, dismissed, the range changed while open; closed with a popup open.", () => new DateTimePickersRun()),
         new("GesturesMixed", Input, "Tap, double tap, long press, swipe, pan and pinch recognizers (drawn and Core); closed with a finger still down.", () => new GesturesRun()),
         new("AnimationsRunning", Rendering, "Render-thread animations (fade-in from 0, move, rotate, scale), a spinner; closed while they run; a node detached mid-animation.", () => new AnimationsRun()),
+        new("ImageFadingIn", Rendering, "SkUiImage, SkUiImageButton and SkUiCoreImage with FadeAnimationEnabled (a long fade) over a long-lived loading placeholder: sources set once the page is drawn, so they fade in on the render thread; an image and a Core image removed mid-fade; closed while the others still fade.", () => new ImageFadeRun()),
         new("SurfaceReplaced", Rendering, "A page replaces its GPU surface with a software one and back; the discarded surfaces are disconnected.", () => new SurfaceReplacedRun()),
         new("MovedBetweenSurfaces", Rendering, "A subtree with gestures, a scroller and a native Entry moves between two surfaces and back.", () => new MoveRun()),
         new("TextFieldsEdited", Input, "Drawn entries (a password, a search bar with a long-lived command; a leading label and a trailing image button with a long-lived command), an editor, steppers (on double, a typed decimal one with texts, a typed uint Core one) and numeric entries (a typed int one with split buttons, a Core decimal one with end buttons), with their Core twins: focused (the platform's text input attached), typed in, a word long-pressed (selection handles and the edit menu), tabbed through, the editor scrolled, the steppers and numeric entries stepped, text set by code; closed with a field focused.", () => new TextFieldsRun()),
@@ -2665,6 +2666,58 @@ public static class LeakScenarios
             _fadeIn is { IsCompletedSuccessfully: true, Result: true } && _boxes[0].Opacity > 0.99
                 ? null
                 : $"The fade-in did not run to completion (opacity {_boxes[0].Opacity:F2}).";
+    }
+
+    private sealed class ImageFadeRun : LeakScenarioRun
+    {
+        private const int Fade = 5000; // still fading when the page closes
+        private static readonly FontImageSource Placeholder = new() { Glyph = "…", Size = 32, Color = LeakColors.Ink };
+        private readonly List<SkUiImage> _images = [];
+        private SkUiCoreImage? _coreImage;
+        private SkUiCoreHost? _host;
+        private SkUiVerticalStackLayout? _stack;
+        private bool _faded;
+
+        public override View Build(LeakScenarioContext context)
+        {
+            _stack = new SkUiVerticalStackLayout { Spacing = 8, Padding = new Thickness(12) };
+            for (var index = 0; index < 3; index++)
+            {
+                SkUiImage image = index == 2 ? new SkUiImageButton() : new SkUiImage();
+                image.WidthRequest = image.HeightRequest = 48;
+                image.LoadingPlaceholder = context.LongLived(Placeholder);
+                image.SetFadeAnimation(true, Fade).SetFadeAnimationForCachedImages(true); // other runs may have cached the glyphs
+                _images.Add(image);
+                _stack.Children.Add(image);
+            }
+            _coreImage = new SkUiCoreImage().SetFadeAnimation(true, Fade).SetFadeAnimationForCachedImages(true);
+            _host = new SkUiCoreHost { HeightRequest = 48 };
+            _host.SetContent(_coreImage);
+            _stack.Children.Add(_host);
+            return Root(_stack);
+        }
+
+        public override async Task InteractAsync(LeakScenarioContext context)
+        {
+            await context.SettleAsync(); // drawn: loads from now on fade in
+            for (var index = 0; index < _images.Count; index++)
+                _images[index].Source = new FontImageSource { Glyph = ((char)('A' + index)).ToString(), Size = 40, Color = LeakColors.Accent };
+            _coreImage!.SetSourceFont("Z", size: 40);
+            await context.WaitForAsync(Task.WhenAll(_images.Select(image => image.LoadingTask).Append(_coreImage.LoadingTask)));
+            _faded = _images.All(image => image.IsFadingIn) && _coreImage.IsFadingIn;
+            await context.WaitAsync(100);
+            var removed = _images[0];
+            _images.RemoveAt(0);
+            _stack!.Children.Remove(removed);
+            context.TrackDetached(removed);
+            var core = _coreImage;
+            _coreImage = null;
+            _host!.SetContent(null);
+            context.TrackDetached(core);
+            await context.SettleAsync();
+        }
+
+        public override string? CheckInteraction() => _faded ? null : "The images did not fade in.";
     }
 
     private sealed class SurfaceReplacedRun : LeakScenarioRun

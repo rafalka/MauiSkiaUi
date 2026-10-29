@@ -106,6 +106,25 @@ image.LoadingFinished += (_, e) =>
   `ImageSize` are updated.
 - **Scope:** placeholder loads raise no events.
 
+### Fade-in
+
+`FadeAnimationEnabled` (FFImageLoading's; default `false`, as MAUI's `Image` does not fade) fades a loaded image in
+over the placeholder it replaces:
+
+```xml
+<sk:SkUiImage Source="{Binding PhotoUrl}" LoadingPlaceholder="photo_loading.png" FadeAnimationEnabled="True" />
+```
+
+- The fade takes the look's `ImageFadeIn` transition (200 ms, cubic out); `FadeAnimationDuration` (milliseconds)
+  replaces its length. Under reduced motion nothing fades.
+- It runs on the render thread: nothing is recorded per frame, so a list of rows can fade while it scrolls. The
+  placeholder stays under the image until the fade ends (`IsShowingPlaceholder` is already `false`).
+- What shows at once: images from the memory cache (unless `FadeAnimationForCachedImages`), images loaded before the
+  view was first drawn (a page that is not shown yet), and an image that replaces a shown one (another source set in
+  its place, a larger decode with `DownsampleToViewSize`).
+- A fade ends early, showing the image, when the page closes, the view leaves the tree, or a new source or `null` is
+  set.
+
 ### Download progress
 
 **`LoadingProgress`** (read-only, bindable) and **`DownloadProgress`** (FFImageLoading's) follow a URI download:
@@ -217,7 +236,7 @@ Transformations change the decoded pixels once. For clipping that follows the la
 
 ## Key properties
 
-`Source`, `Aspect`, `IsAnimationPlaying`, `Transformations`, `CacheType`, `CacheKey`, `DownsampleWidth`, `DownsampleHeight`, `DownsampleToViewSize`, `LoadingPlaceholder`, `ErrorPlaceholder`, `TransformPlaceholders`, `IsLoading`, `LoadingProgress`, `LoadError`, `ImageSize`, `IsShowingPlaceholder`, `LoadingTask`, `ReloadAsync()`. Events: `LoadingStarted`, `LoadingFinished`, `DownloadProgress`. Fluent: `SetSource`, `SetAspect`, `SetIsAnimationPlaying`, `SetTransformations(...)`, `SetCacheType`, `SetCacheKey`, `SetDownsample(width, height)`, `SetDownsampleToViewSize`, `SetPlaceholders(loading, error)`, `SetTransformPlaceholders`.
+`Source`, `Aspect`, `IsAnimationPlaying`, `Transformations`, `CacheType`, `CacheKey`, `DownsampleWidth`, `DownsampleHeight`, `DownsampleToViewSize`, `LoadingPlaceholder`, `ErrorPlaceholder`, `TransformPlaceholders`, `FadeAnimationEnabled`, `FadeAnimationDuration`, `FadeAnimationForCachedImages`, `IsLoading`, `LoadingProgress`, `LoadError`, `ImageSize`, `IsShowingPlaceholder`, `LoadingTask`, `ReloadAsync()`. Events: `LoadingStarted`, `LoadingFinished`, `DownloadProgress`. Fluent: `SetSource`, `SetAspect`, `SetIsAnimationPlaying`, `SetTransformations(...)`, `SetCacheType`, `SetCacheKey`, `SetDownsample(width, height)`, `SetDownsampleToViewSize`, `SetFadeAnimation(enabled, duration)`, `SetFadeAnimationForCachedImages`, `SetPlaceholders(loading, error)`, `SetTransformPlaceholders`.
 
 `DownsampleWidth` / `DownsampleHeight` are DIPs at the display density (FFImageLoading's with `DownsampleUseDipUnits`). The image is decoded no larger than that, aspect kept, never upscaled. Use them for thumbnails of large photos.
 
@@ -236,7 +255,7 @@ Animated GIF / WebP play on the view's UI clock while `IsAnimationPlaying` is tr
 | Topic | SkiaUi |
 | --- | --- |
 | Caching | Memory cache of decoded images shared by all views; download cache with MAUI's `CachingEnabled` / `CacheValidity`; plus `CacheType` per view |
-| Transformations, downsampling, placeholders, load events, download progress | SkiaUi extensions (from FFImageLoading); MAUI has only `IsLoading` |
+| Transformations, downsampling, placeholders, load events, download progress, fade-in | SkiaUi extensions (from FFImageLoading); MAUI has only `IsLoading` |
 | `MauiImage` lookup | The file Resizetizer generated for the display density; Android vector (XML) drawables are not decoded |
 | `FontImageSource.FontAutoScalingEnabled` | As MAUI's: the glyph follows the system text size (default `true`). The size is fixed when the source is set: after a change of the system text size or `SkUiLook.FontScale`, images already shown keep their size (labels re-measure); set the source again to draw the glyph at the new size |
 | Screen readers | An image is read only with `SemanticProperties.Description` (or `AutomationProperties.IsInAccessibleTree="True"`); an image button is a button named by its description |

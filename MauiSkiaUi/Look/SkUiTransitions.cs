@@ -38,7 +38,12 @@ public enum SkUiTransitionKind
     /// <summary>
     /// While a collection view item is reordered, the items it passes move aside, and on the drop it moves to its new place.
     /// </summary>
-    ReorderMove
+    ReorderMove,
+    /// <summary>
+    /// A loaded image fades in over its placeholder (<c>FadeAnimationEnabled</c>; its <c>FadeAnimationDuration</c>
+    /// replaces this duration, the easing stays the look's).
+    /// </summary>
+    ImageFadeIn
 }
 
 /// <summary>
