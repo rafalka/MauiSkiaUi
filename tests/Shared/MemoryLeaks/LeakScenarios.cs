@@ -2671,12 +2671,15 @@ public static class LeakScenarios
     private sealed class ImageFadeRun : LeakScenarioRun
     {
         private const int Fade = 5000; // still fading when the page closes
-        private static readonly FontImageSource Placeholder = new() { Glyph = "…", Size = 32, Color = LeakColors.Ink };
+        // PNGs, not font glyphs: Linux CI has no system fonts to draw a glyph with.
+        private static readonly ImageSource Placeholder = LeakImages.Cached(SKColors.LightGray);
+        private static readonly SKColor[] FadeColors = [SKColors.Teal, SKColors.Purple, SKColors.Gold, SKColors.Olive];
         private readonly List<SkUiImage> _images = [];
         private SkUiCoreImage? _coreImage;
         private SkUiCoreHost? _host;
         private SkUiVerticalStackLayout? _stack;
         private bool _faded;
+        private string? _problem;
 
         public override View Build(LeakScenarioContext context)
         {
@@ -2686,7 +2689,7 @@ public static class LeakScenarios
                 SkUiImage image = index == 2 ? new SkUiImageButton() : new SkUiImage();
                 image.WidthRequest = image.HeightRequest = 48;
                 image.LoadingPlaceholder = context.LongLived(Placeholder);
-                image.SetFadeAnimation(true, Fade).SetFadeAnimationForCachedImages(true); // other runs may have cached the glyphs
+                image.SetFadeAnimation(true, Fade).SetFadeAnimationForCachedImages(true); // other runs may have cached the images
                 _images.Add(image);
                 _stack.Children.Add(image);
             }
@@ -2699,12 +2702,21 @@ public static class LeakScenarios
 
         public override async Task InteractAsync(LeakScenarioContext context)
         {
-            await context.SettleAsync(); // drawn: loads from now on fade in
+            // In the memory cache first, so the loads below complete on the UI thread, also headless (where a load from
+            // a file completes on the thread pool, with no dispatcher to marshal back to, and does not fade).
+            var warm = FadeColors.Select(color => new SkUiCoreImage().SetSourceFile(LeakImages.CachedPath(color)).LoadingTask);
+            await context.WaitForAsync(Task.WhenAll(warm));
+            // Drawn (committed): loads from now on fade in. A slow device can take more than one frame to get there.
+            for (var frame = 0; frame < 60 && !_images.Append<ISkUiTransitionHost>(_coreImage!).All(host => host.TransitionClock is not null); frame++)
+                await context.SettleAsync();
             for (var index = 0; index < _images.Count; index++)
-                _images[index].Source = new FontImageSource { Glyph = ((char)('A' + index)).ToString(), Size = 40, Color = LeakColors.Accent };
-            _coreImage!.SetSourceFont("Z", size: 40);
+                _images[index].Source = LeakImages.Cached(FadeColors[index]);
+            _coreImage!.SetSourceFile(LeakImages.CachedPath(FadeColors[^1]));
             await context.WaitForAsync(Task.WhenAll(_images.Select(image => image.LoadingTask).Append(_coreImage.LoadingTask)));
             _faded = _images.All(image => image.IsFadingIn) && _coreImage.IsFadingIn;
+            if (!_faded)
+                _problem = string.Join("; ", _images.Select(image => $"{image.GetType().Name}: fading {image.IsFadingIn}, loaded {image.CachedImage is not null}, error {image.LoadError?.Message}")
+                    .Append($"core: fading {_coreImage.IsFadingIn}, loaded {_coreImage.CachedImage is not null}, error {_coreImage.LoadError?.Message}"));
             await context.WaitAsync(100);
             var removed = _images[0];
             _images.RemoveAt(0);
@@ -2717,7 +2729,7 @@ public static class LeakScenarios
             await context.SettleAsync();
         }
 
-        public override string? CheckInteraction() => _faded ? null : "The images did not fade in.";
+        public override string? CheckInteraction() => _faded ? null : $"The images did not fade in ({_problem}).";
     }
 
     private sealed class SurfaceReplacedRun : LeakScenarioRun
@@ -3219,12 +3231,15 @@ public static class LeakImages
     }
 
     /// <summary>A file source in the cache folder (absolute path: memory-cached by path).</summary>
-    public static ImageSource Cached(SKColor color)
+    public static ImageSource Cached(SKColor color) => ImageSource.FromFile(CachedPath(color));
+
+    /// <summary>The PNG file <see cref="Cached"/> loads, written on first use.</summary>
+    public static string CachedPath(SKColor color)
     {
         var path = Path.Combine(Path.GetTempPath(), $"skiaui-leak-{(uint)color:X8}.png");
         if (!File.Exists(path))
             File.WriteAllBytes(path, Png(color));
-        return ImageSource.FromFile(path);
+        return path;
     }
 
     /// <summary>A looping 1×1 GIF of two frames (red, blue), 100 ms each.</summary>
