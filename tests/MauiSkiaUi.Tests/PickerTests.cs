@@ -938,6 +938,15 @@ public sealed class ToolkitPopupPresenterTests : IDisposable
             Assert.Equal(default, pane.CornerRadius);
             Assert.Null(pane.Content!.Clip);
             Assert.Equal(new CornerRadius(10), Request(SkUiPopupPlacement.Window).CornerRadius);
+
+            // Fluent's flyouts: 8 corners and a light, short shadow (measured against a WinUI combo box's list).
+            SkUiLook.Current = WindowsSkUiLook.Instance;
+            var flyout = Request(SkUiPopupPlacement.Anchored);
+            Assert.Equal(new CornerRadius(8), flyout.CornerRadius);
+            Assert.Equal(new CornerRadius(8), Request(SkUiPopupPlacement.Window).CornerRadius);
+            Assert.Equal(default, Request(SkUiPopupPlacement.BottomPane).CornerRadius);
+            Assert.Equal(0.06f, flyout.Shadow!.Opacity);
+            Assert.Equal(8, flyout.Shadow.Radius);
         }
         finally
         {

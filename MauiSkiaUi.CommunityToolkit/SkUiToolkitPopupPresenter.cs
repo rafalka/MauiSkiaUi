@@ -17,7 +17,7 @@ namespace MauiSkiaUi.CommunityToolkit;
 /// aligned with the request's <see cref="SkUiPopupRequest.HorizontalOptions"/> / <see cref="SkUiPopupRequest.VerticalOptions"/>
 /// inside the window's safe area, over a page dimmed by <see cref="SkUiPopupRequest.OverlayColor"/>, and stays aligned as the
 /// window turns. An anchored or absolute one (a combo box) sits at <see cref="SkUiPopupRequest.Bounds"/> through its margins, over a
-/// transparent page; a bottom pane is aligned to the page's bottom (so its height always fits), square and undimmed. The toolkit's popup page may be inset from the window (on iOS by the bottom safe area), so once
+/// transparent page (on Windows without the layer fill MAUI puts behind modal pages, which would wash the page out); a bottom pane is aligned to the page's bottom (so its height always fits), square and undimmed. The toolkit's popup page may be inset from the window (on iOS by the bottom safe area), so once
 /// shown every popup is moved by the difference between where it landed and <see cref="SkUiPopupRequest.Bounds"/>.
 /// </para>
 /// <para>
@@ -70,6 +70,9 @@ public sealed class SkUiToolkitPopupPresenter : ISkUiPopupPresenter
                 return;
             }
             CorrectOffset(popup, content, bounds);
+#if WINDOWS
+            ClearModalLayerFill(popup);
+#endif
         };
         await using var registration = cancellationToken.Register(() => _ = CloseAsync(popup));
         await page.ShowPopupAsync(popup, options, CancellationToken.None);
@@ -148,6 +151,30 @@ public sealed class SkUiToolkitPopupPresenter : ISkUiPopupPresenter
     /// <summary>Margins that move a popup by (<paramref name="dx"/>, <paramref name="dy"/>) whatever its alignment.</summary>
     internal static Thickness Moved(Thickness margin, double dx, double dy) =>
         new(margin.Left + dx, margin.Top + dy, margin.Right - dx, margin.Bottom - dy);
+
+#if WINDOWS
+    /// <summary>
+    /// MAUI shows a modal page on Windows inside a navigation view of its own, whose content area has Fluent's layer fill (white
+    /// at 50 % in the light theme): over a transparent popup page it washes out the whole page below, also under an anchored
+    /// popup, which dims nothing, and on top of a window popup's <see cref="SkUiPopupRequest.OverlayColor"/>. Clears the
+    /// backgrounds between the popup's page and that modal's root (the popup's own frame is inside the page, not touched).
+    /// </summary>
+    private static void ClearModalLayerFill(Popup popup)
+    {
+        Element? element = popup;
+        while (element is not null and not Page)
+            element = element.Parent;
+        if (element?.Handler?.PlatformView is not Microsoft.UI.Xaml.DependencyObject pageView)
+            return;
+        for (var node = Microsoft.UI.Xaml.Media.VisualTreeHelper.GetParent(pageView);
+             node is not null and not Microsoft.Maui.Platform.WindowRootView;
+             node = Microsoft.UI.Xaml.Media.VisualTreeHelper.GetParent(node))
+        {
+            if (node is Microsoft.UI.Xaml.Controls.Panel { Background: not null } panel)
+                panel.Background = null;
+        }
+    }
+#endif
 
     private static async Task CloseAsync(Popup popup)
     {

@@ -180,6 +180,16 @@ public class WindowsSkUiLook : DefaultSkUiLook
     public override double PopupAnchorGap => 0;
 
     /// <inheritdoc />
+    /// <remarks>Fluent's flyouts and dialogs (a combo box's list, Windows 11): 8 epx; bottom panes square.</remarks>
+    public override CornerRadius GetPopupCornerRadius(SkUiPopupPlacement placement) =>
+        placement == SkUiPopupPlacement.BottomPane ? default : new CornerRadius(8);
+
+    /// <inheritdoc />
+    /// <remarks>Fluent's flyout shadow: light and short (about 10 epx around a combo box's list, a little more below).</remarks>
+    public override Shadow? GetPopupShadow(SkUiPopupPlacement placement) =>
+        new() { Brush = Brush.Black, Opacity = 0.06f, Radius = 8, Offset = new Point(0, 2) };
+
+    /// <inheritdoc />
     /// <remarks>Fluent's body text, 14 epx.</remarks>
     public override double DefaultFontSize => 14;
 
