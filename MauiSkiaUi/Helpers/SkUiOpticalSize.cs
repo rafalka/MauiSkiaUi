@@ -18,6 +18,8 @@ namespace MauiSkiaUi;
 internal static class SkUiOpticalSize
 {
     private static readonly SKFourByteTag Tag = SKFourByteTag.Parse("opsz");
+    // CoreText returns some fractional optical sizes slightly off (20.3 reads back as 20.2999).
+    private const float OpticalSizeTolerance = 0.01f;
     private static readonly ConditionalWeakTable<SKTypeface, Axis> Axes = new();
     private static readonly ConditionalWeakTable<SKTypeface, Axis>.CreateValueCallback ReadAxis = Read;
     // Instances are kept for the process, as the fonts that draw them (SkUiTextResources): one per typeface and size drawn.
@@ -46,7 +48,8 @@ internal static class SkUiOpticalSize
     private static SKTypeface Create(SKTypeface typeface, float size)
     {
         var instance = SkUiFontData.Typeface(typeface)?.Clone(Position(typeface, size));
-        if (instance is null || OpticalSize(instance) != size)
+        // Negated: a missing axis (NaN) is not at the size either.
+        if (instance is null || !(Math.Abs(OpticalSize(instance) - size) < OpticalSizeTolerance))
         {
             instance?.Dispose();
             return typeface; // the platform cannot draw it at another optical size

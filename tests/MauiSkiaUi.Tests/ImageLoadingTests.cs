@@ -792,6 +792,18 @@ public sealed class ImageLoadingTests : IDisposable
         lock (reports) Assert.Equal(before, reports.Count);
     }
 
+    [Fact]
+    public void ACoreImageSetDirectlyReportsItsProgressAsLoaded()
+    {
+        var image = new SkUiCoreImage();
+        using var bitmap = new SKBitmap(4, 4);
+        bitmap.Erase(SKColors.Red);
+        image.SetImage(SKImage.FromBitmap(bitmap));
+        Assert.Equal(1, image.LoadingProgress);
+        image.SetImage(null);
+        Assert.Equal(0, image.LoadingProgress);
+    }
+
     /// <summary>A PNG response whose body arrives one chunk per <see cref="Release"/>, with or without Content-Length.</summary>
     private sealed class ChunkedHandler(byte[] body, int chunk, bool sendLength) : HttpMessageHandler
     {

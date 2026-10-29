@@ -56,6 +56,10 @@ public sealed class TextKerningAndOpticalSizeTests
         Assert.Same(display, SkUiOpticalSize.At(system, 28)); // one instance per size
         Assert.Same(system, SkUiOpticalSize.Original(display));
         Assert.Same(SkUiOpticalSize.At(system, 17), SkUiOpticalSize.At(system, 12)); // clamped to the axis' 17
+        // A fractional size CoreText reads back slightly off (22.2999) still gets its instance.
+        var fractional = SkUiOpticalSize.At(system, 22.3f);
+        Assert.NotSame(system, fractional);
+        Assert.Equal(22.3, OpticalSize(fractional), 0.01);
 
         var previous = SkUiLook.Current;
         try

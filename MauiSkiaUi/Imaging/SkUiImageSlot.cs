@@ -262,6 +262,7 @@ internal sealed class SkUiImageSlot
                 Replace(new SkUiCachedImage(new SkUiDecodedImage([image], [], new Size(image.Width, image.Height)), key: null, ownsImage));
             }
             ShowPlaceholder(null);
+            LoadingProgress = image is null ? 0 : 1;
             Publish(error: null);
         }
     }
