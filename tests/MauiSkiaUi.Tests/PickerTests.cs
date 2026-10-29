@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using MauiSkiaUi.Core;
+using Microsoft.Maui.Controls.Shapes;
 using SkiaSharp;
 using Xunit;
 
@@ -903,6 +904,54 @@ public sealed class ToolkitPopupPresenterTests : IDisposable
         var safe = request.SafeAreaInsets;
         Assert.Equal(new Thickness(margin.Left + safe.Left, margin.Top + safe.Top, margin.Right + safe.Right, margin.Bottom + safe.Bottom), popup.Margin);
         Assert.Equal(request.OverlayColor, options.PageOverlayColor);
+    }
+
+    [Fact]
+    public void PopupsTakeTheLooksCornersAndShadowAndThePresenterFollowsThem()
+    {
+        var previous = SkUiLook.Current;
+        try
+        {
+            SkUiLook.Current = AndroidMaterial3SkUiLook.Instance;
+            var window = Request(SkUiPopupPlacement.Window);
+            Assert.Equal(new CornerRadius(28), window.CornerRadius);
+            Assert.NotNull(window.Shadow);
+            var clip = Assert.IsType<RoundRectangleGeometry>(window.Content!.Clip);
+            Assert.Equal(new CornerRadius(28), clip.CornerRadius);
+            Assert.Equal(new Rect(0, 0, window.Bounds.Width, window.Bounds.Height), clip.Rect);
+            var (_, options) = MauiSkiaUi.CommunityToolkit.SkUiToolkitPopupPresenter.Instance.Create(window, window.Content);
+            Assert.Equal(new CornerRadius(28), ((RoundRectangle)options.Shape!).CornerRadius);
+            Assert.Same(window.Shadow, options.Shadow);
+
+            var anchored = Request(SkUiPopupPlacement.Anchored);
+            Assert.Equal(new CornerRadius(4), anchored.CornerRadius);
+            Assert.NotSame(window.Shadow, anchored.Shadow); // a new shadow for each popup
+
+            // The presenter's own values win over the look's.
+            var own = new MauiSkiaUi.CommunityToolkit.SkUiToolkitPopupPresenter { CornerRadius = 12, Shadow = null };
+            (_, options) = own.Create(anchored, anchored.Content!);
+            Assert.Equal(new CornerRadius(12), ((RoundRectangle)options.Shape!).CornerRadius);
+            Assert.Null(options.Shadow);
+
+            SkUiLook.Current = DefaultSkUiLook.Instance;
+            var pane = Request(SkUiPopupPlacement.BottomPane);
+            Assert.Equal(default, pane.CornerRadius);
+            Assert.Null(pane.Content!.Clip);
+            Assert.Equal(new CornerRadius(10), Request(SkUiPopupPlacement.Window).CornerRadius);
+
+            // Fluent's flyouts: 8 corners and a light, short shadow (measured against a WinUI combo box's list).
+            SkUiLook.Current = WindowsSkUiLook.Instance;
+            var flyout = Request(SkUiPopupPlacement.Anchored);
+            Assert.Equal(new CornerRadius(8), flyout.CornerRadius);
+            Assert.Equal(new CornerRadius(8), Request(SkUiPopupPlacement.Window).CornerRadius);
+            Assert.Equal(default, Request(SkUiPopupPlacement.BottomPane).CornerRadius);
+            Assert.Equal(0.06f, flyout.Shadow!.Opacity);
+            Assert.Equal(8, flyout.Shadow.Radius);
+        }
+        finally
+        {
+            SkUiLook.Current = previous;
+        }
     }
 
     [Fact]

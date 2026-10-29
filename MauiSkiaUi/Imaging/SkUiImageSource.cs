@@ -152,6 +152,14 @@ public sealed record SkUiFileImageSource : SkUiImageSource
     private async Task<SkUiDecodedImage> LoadPackageAsync(SkUiImageLoadContext context, CancellationToken token)
     {
         // MAUI's rule: a FileImageSource names a MauiImage; SkiaUi also finds MauiAsset files (Resources/Raw) by name.
+        // An Android drawable defined in XML (a vector) is drawn by Android at the size the view decodes at.
+        if (SkUiPackageImages.FindXmlDrawable(File) is var drawable and not 0)
+        {
+            context.Origin = SkUiImageOrigin.MauiImage;
+            var bounds = context.MaxPixels;
+            var fill = context.Fill;
+            return await context.RenderAsync(() => SkUiPackageImages.RenderXmlDrawable(drawable, bounds, fill), token).ConfigureAwait(false);
+        }
         var scale = 1f;
         Stream stream;
         if (SkUiPackageImages.TryOpen(File, context.DisplayScale) is { } image)
@@ -207,7 +215,7 @@ public sealed record SkUiUriImageSource : SkUiImageSource
         var bytes = useDisk ? await SkUiImageDiskCache.TryReadAsync(diskKey, CacheValidity, token).ConfigureAwait(false) : null;
         var fromDisk = bytes is not null;
         context.Origin = fromDisk ? SkUiImageOrigin.DiskCache : SkUiImageOrigin.Network;
-        bytes ??= await SkUiImageLoader.DownloadAsync(Uri, token).ConfigureAwait(false);
+        bytes ??= await SkUiImageLoader.DownloadAsync(Uri, token, context.Progress).ConfigureAwait(false);
         SkUiDecodedImage decoded;
         try
         {

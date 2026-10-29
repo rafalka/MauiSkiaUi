@@ -604,6 +604,9 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
         if (_container is not { } container)
             return;
         container.KeyboardFocus = null;
+#if WINDOWS
+        container.Loaded -= OnContainerLoadedFocus;
+#endif
 #if IOS || MACCATALYST
         container.TextInput?.Dispose();
         container.TextInput = null;
@@ -639,11 +642,31 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
             return true;
         // A text field takes focus also while accessibility (keyboard focus of other drawn controls) is off.
         container.IsTabStop = true;
+        if (!container.IsLoaded)
+        {
+            // Not in a window yet (a popup's surface focused as it is shown, a field focused in OnAppearing): WinUI refuses
+            // focus until it is, so the container takes it once loaded. The drawn node is focused now.
+            container.Loaded -= OnContainerLoadedFocus;
+            container.Loaded += OnContainerLoadedFocus;
+            return true;
+        }
         return container.Focus(Microsoft.UI.Xaml.FocusState.Programmatic);
 #else
         return false;
 #endif
     }
+
+#if WINDOWS
+    /// <summary>The container entered a window after a drawn node was focused: it takes the platform's keyboard focus now.</summary>
+    private void OnContainerLoadedFocus(object sender, Microsoft.UI.Xaml.RoutedEventArgs args)
+    {
+        if (_container is not { } container)
+            return;
+        container.Loaded -= OnContainerLoadedFocus;
+        if (VirtualView.FocusManager.Focused is not null)
+            container.Focus(Microsoft.UI.Xaml.FocusState.Programmatic);
+    }
+#endif
 
     /// <summary>The focused drawn node was unfocused: the container gives the platform's keyboard focus up.</summary>
     private void ReleaseNativeFocus()

@@ -35,6 +35,11 @@ internal sealed class SkUiImageSlot
     private SkUiImageSource? _pending;
     private long _pendingStarted;
 
+    // The download's latest report, published on the dispatcher (one dispatch at a time coalesces the chunks).
+    private long _received;
+    private long? _total;
+    private bool _progressScheduled;
+
     // Placeholders: shown by a nested slot while the main image loads or after it failed.
     private SkUiImageOptions _options;
     private SkUiImageSource? _loadingPlaceholder;
@@ -69,6 +74,28 @@ internal sealed class SkUiImageSlot
 
     /// <summary>Raised once per started load: succeeded, failed or cancelled (after the state is published).</summary>
     public Action<SkUiImageLoadFinishedEventArgs>? LoadingFinished { get; set; }
+
+    /// <summary>
+    /// Raised while a URI downloads, after <see cref="LoadingProgress"/> changed; <c>null</c>: the slot does not follow
+    /// downloads (placeholders).
+    /// </summary>
+    public Action<SkUiImageDownloadProgressEventArgs>? DownloadProgress { get; set; }
+
+    /// <summary>
+    /// Asked when a load succeeds while no image showed, with where the image came from: <c>true</c> when the view
+    /// starts a fade (<see cref="IsFading"/>), during which the placeholder that was showing stays for
+    /// <see cref="PaintPlaceholder"/> until <see cref="EndFade"/>.
+    /// </summary>
+    public Func<SkUiImageOrigin, bool>? FadesIn { get; set; }
+
+    /// <summary>Whether the image just loaded fades in: the view draws the placeholder as its content and the image over it.</summary>
+    public bool IsFading { get; private set; }
+
+    /// <summary>
+    /// How far the load is: 0 when none or while it has not reported, the fraction downloaded, -1 while downloading
+    /// without a known size, 1 once the image is shown.
+    /// </summary>
+    public double LoadingProgress { get; private set; }
 
     /// <summary>The current load, including the publication of its result (completed when idle).</summary>
     public Task LoadingTask { get; private set; } = Task.CompletedTask;
@@ -144,7 +171,9 @@ internal sealed class SkUiImageSlot
         lock (_gate)
         {
             ObjectDisposedException.ThrowIf(_disposed, this);
-            var placeholderOptionsChanged = _options != options;
+            IsFading = false;
+            // The view's cache key is the source's only (ShowPlaceholder): changing it keeps the placeholder.
+            var placeholderOptionsChanged = (_options with { CacheKey = null }) != (options with { CacheKey = null });
             _options = options;
             if (placeholderOptionsChanged)
                 _shownPlaceholder = null;
@@ -153,6 +182,7 @@ internal sealed class SkUiImageSlot
             {
                 Replace(null);
                 ShowPlaceholder(null);
+                LoadingProgress = 0;
                 Publish(error: null);
                 return LoadingTask = Task.CompletedTask;
             }
@@ -161,10 +191,13 @@ internal sealed class SkUiImageSlot
             var cancellation = _loading = new CancellationTokenSource();
             _pending = source;
             _pendingStarted = Stopwatch.GetTimestamp();
+            _received = 0;
+            _total = null;
+            LoadingProgress = 0;
             Task<SkUiImageLoad> load;
             try
             {
-                load = SkUiImageLoader.LoadAsync(source, options, cancellation.Token);
+                load = SkUiImageLoader.LoadAsync(source, options, cancellation.Token, ProgressListener(source, version, dispatcher));
             }
             catch (Exception error)
             {
@@ -173,7 +206,7 @@ internal sealed class SkUiImageSlot
             if (load.IsCompleted)
             {
                 LoadingStarted?.Invoke(new SkUiImageLoadStartedEventArgs(source));
-                Complete(load, version);
+                Complete(load, version, keepShown);
                 return LoadingTask = Task.CompletedTask;
             }
             if (!keepShown || _image is null)
@@ -185,8 +218,28 @@ internal sealed class SkUiImageSlot
             IsLoading = true;
             _changed();
             LoadingStarted?.Invoke(new SkUiImageLoadStartedEventArgs(source));
-            return LoadingTask = CompleteAsync(load, version, dispatcher);
+            return LoadingTask = CompleteAsync(load, version, keepShown, dispatcher);
         }
+    }
+
+    /// <summary>The fade ended: the placeholder kept for it goes.</summary>
+    public void EndFade()
+    {
+        lock (_gate)
+        {
+            if (!IsFading)
+                return;
+            IsFading = false;
+            if (!_disposed)
+                ShowPlaceholder(null);
+        }
+    }
+
+    /// <summary>Draws the placeholder kept while the image fades in (nothing when none showed).</summary>
+    public void PaintPlaceholder(SKCanvas canvas, SKRect area, Aspect aspect)
+    {
+        lock (_gate)
+            _placeholder?.Paint(canvas, area, aspect);
     }
 
     /// <summary>Shows <paramref name="image"/> directly (Core's <c>SetImage</c>); disposed with the slot when <paramref name="ownsImage"/>.</summary>
@@ -195,6 +248,7 @@ internal sealed class SkUiImageSlot
         lock (_gate)
         {
             ObjectDisposedException.ThrowIf(_disposed, this);
+            IsFading = false;
             CancelLoad();
             if (image is null)
             {
@@ -208,6 +262,7 @@ internal sealed class SkUiImageSlot
                 Replace(new SkUiCachedImage(new SkUiDecodedImage([image], [], new Size(image.Width, image.Height)), key: null, ownsImage));
             }
             ShowPlaceholder(null);
+            LoadingProgress = image is null ? 0 : 1;
             Publish(error: null);
         }
     }
@@ -236,6 +291,7 @@ internal sealed class SkUiImageSlot
             if (_disposed)
                 return;
             _disposed = true;
+            IsFading = false;
             CancelLoad();
             Replace(null);
             _placeholder?.Dispose();
@@ -260,7 +316,7 @@ internal sealed class SkUiImageSlot
         return generation;
     }
 
-    private async Task CompleteAsync(Task<SkUiImageLoad> load, int version, IDispatcher? dispatcher)
+    private async Task CompleteAsync(Task<SkUiImageLoad> load, int version, bool keepShown, IDispatcher? dispatcher)
     {
         try
         {
@@ -275,7 +331,7 @@ internal sealed class SkUiImageSlot
             CompletingWithoutDispatcher = true;
             try
             {
-                Complete(load, version);
+                Complete(load, version, keepShown);
             }
             finally
             {
@@ -283,12 +339,12 @@ internal sealed class SkUiImageSlot
             }
         }
         else if (!dispatcher.IsDispatchRequired)
-            Complete(load, version);
+            Complete(load, version, keepShown);
         else
-            await dispatcher.DispatchAsync(() => Complete(load, version)).ConfigureAwait(false);
+            await dispatcher.DispatchAsync(() => Complete(load, version, keepShown)).ConfigureAwait(false);
     }
 
-    private void Complete(Task<SkUiImageLoad> load, int version)
+    private void Complete(Task<SkUiImageLoad> load, int version, bool keepShown)
     {
         lock (_gate)
         {
@@ -303,20 +359,93 @@ internal sealed class SkUiImageSlot
             var source = _pending!;
             if (load.IsCompletedSuccessfully)
             {
+                // An image replacing a shown one (a cache hit set in its place, a larger decode) does not fade: nothing to fade over.
+                var fades = _image is null && FadesIn?.Invoke(load.Result.Origin) == true;
                 Replace(load.Result.Image);
-                ShowPlaceholder(null);
+                IsFading = fades;
+                if (!fades)
+                    ShowPlaceholder(null);
+                LoadingProgress = 1;
                 Publish(error: null);
                 Finish(source, SkUiImageLoadStatus.Succeeded, load.Result.Origin, error: null);
                 return;
             }
             // Not cancelled by this slot (that changes the generation): a timeout or the source's own cancellation is an error.
             var error = load.Exception?.InnerException ?? new OperationCanceledException("The image load was cancelled.");
+            if (keepShown && _image is not null)
+            {
+                // The same source at another size failed: the image shown is still valid, so it stays (no error state).
+                LoadingProgress = 1;
+                Publish(error: null);
+                Finish(source, SkUiImageLoadStatus.Failed, origin: null, error);
+                return;
+            }
             Replace(null);
             LoadError = error;
             ShowPlaceholder(_errorPlaceholder);
+            LoadingProgress = 0;
             Publish(error);
             Finish(source, SkUiImageLoadStatus.Failed, origin: null, error);
         }
+    }
+
+    // Only downloads report, and only to a slot that follows them: no listener is allocated for other loads.
+    private Action<long, long?>? ProgressListener(SkUiImageSource source, int version, IDispatcher? dispatcher) =>
+        DownloadProgress is not null && source is SkUiUriImageSource
+            ? (received, total) => OnProgress(source, version, dispatcher, received, total)
+            : null;
+
+    /// <summary>A download report, on the download's thread: kept, and published on the dispatcher unless already on its way.</summary>
+    private void OnProgress(SkUiImageSource source, int version, IDispatcher? dispatcher, long received, long? total)
+    {
+        SkUiImageDownloadProgressEventArgs report;
+        lock (_gate)
+        {
+            if (version != _generation || _disposed)
+                return;
+            _received = received;
+            _total = total;
+            // While the load is being started (a download that ran inline), the values wait for the next report.
+            if (!IsLoading || _progressScheduled)
+                return;
+            if (dispatcher is not null)
+            {
+                _progressScheduled = true;
+                dispatcher.Dispatch(() => PublishProgress(source, version));
+                return;
+            }
+            report = TakeProgress(source);
+        }
+        CompletingWithoutDispatcher = true;
+        try
+        {
+            DownloadProgress?.Invoke(report);
+        }
+        finally
+        {
+            CompletingWithoutDispatcher = false;
+        }
+    }
+
+    private void PublishProgress(SkUiImageSource source, int version)
+    {
+        SkUiImageDownloadProgressEventArgs report;
+        lock (_gate)
+        {
+            _progressScheduled = false;
+            if (version != _generation || _disposed || !IsLoading)
+                return;
+            report = TakeProgress(source);
+        }
+        // Outside the gate: the view's handlers (bindings, the public event) run app code, which may load again.
+        DownloadProgress?.Invoke(report);
+    }
+
+    /// <summary>Sets <see cref="LoadingProgress"/> from the latest report and returns the report to raise (under the gate).</summary>
+    private SkUiImageDownloadProgressEventArgs TakeProgress(SkUiImageSource source)
+    {
+        LoadingProgress = _total is > 0 and var total ? Math.Min(1, _received / (double)total) : -1;
+        return new SkUiImageDownloadProgressEventArgs(source, _received, _total);
     }
 
     private void Finish(SkUiImageSource source, SkUiImageLoadStatus status, SkUiImageOrigin? origin, Exception? error)
@@ -348,7 +477,7 @@ internal sealed class SkUiImageSlot
         // Animated placeholders are loading indicators: they always play.
         _placeholder ??= new SkUiImageSlot(_host, _changed, _gate) { _playing = true };
         _shownPlaceholder = source;
-        _placeholder.Load(source, _transformPlaceholders ? _options : _options with { Transformations = null });
+        _placeholder.Load(source, _transformPlaceholders ? _options with { CacheKey = null } : _options with { Transformations = null, CacheKey = null });
     }
 
     private void Replace(SkUiCachedImage? image)

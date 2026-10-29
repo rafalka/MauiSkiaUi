@@ -1196,10 +1196,27 @@ public partial class SkUiCoreNode : ISkUiCoreNode, INotifyPropertyChanged, ISkUi
     /// <inheritdoc cref="ISkUiInputNode.HitsOutsideBounds" />
     internal virtual bool HitsOutsideBounds(Point local) => false;
 
-    void ISkUiInputNode.SetPointerOver(bool isOver) => OnPointerOverChanged(isOver);
+    void ISkUiInputNode.SetPointerOver(bool isOver)
+    {
+        OnPointerOverChanged(isOver);
+        if (!isOver && TracksHover)
+            OnHovered(null);
+    }
+
+    void ISkUiInputNode.PointerHovered(SkUiPointerRouter router, Point position)
+    {
+        if (TracksHover)
+            OnHovered(router.MapToNode(this, position));
+    }
 
     /// <summary>A hovering pointer entered (<c>true</c>) or left this node or one of its descendants.</summary>
     internal virtual void OnPointerOverChanged(bool isOver) { }
+
+    /// <summary>Whether the node follows a hovering pointer (<see cref="OnHovered"/>): only nodes that draw where it is.</summary>
+    internal virtual bool TracksHover => false;
+
+    /// <summary>A hovering pointer moved to <paramref name="position"/> (local), or left (<c>null</c>); with <see cref="TracksHover"/>.</summary>
+    internal virtual void OnHovered(Point? position) { }
 
     void ISkUiInputNode.CollectGestureRecognizers(List<SkUiGestureRecognizer> recognizers) => CollectGestureRecognizers(recognizers);
 

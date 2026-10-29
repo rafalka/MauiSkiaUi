@@ -192,7 +192,7 @@ internal sealed class SkUiRichTextLayout : ISkUiTextSpanFonts, ISkUiTextFitLayou
     SKFont ISkUiTextSpanFonts.Font(int span, SKTypeface face)
     {
         var style = _text.Styles[span];
-        return SkUiTextResources.Font(face, (float)style.FontSize, style.FontAttributes);
+        return _style.Font(face, (float)style.FontSize, style.FontAttributes);
     }
 
     float ISkUiTextSpanFonts.Spacing(int span)

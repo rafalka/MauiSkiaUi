@@ -62,7 +62,8 @@ public class SkUiLook
     public virtual double ReorderLiftScale => 1;           // DefaultSkUiLook: 1.03; and GetReorderLiftShadow() (DefaultSkUiLook: a soft shadow)
     public virtual double ReorderAutoScrollZone => 48;     // and ReorderAutoScrollSpeed (1200 DIPs/s at the very end)
     // Indicator views (C4): the whole row, laid out by the control (SkUiIndicatorPaint.GetIndicatorBounds / GetSelection /
-    // GetColor, as hit-tested); drawn again while the selection moves. DefaultSkUiLook: dots or a pill (IndicatorStyle).
+    // GetColor, as hit-tested); drawn again while the selection moves. DefaultSkUiLook: dots, a pill or pips (IndicatorStyle),
+    //                                                     and the previous / next buttons (DrawIndicatorButton, IndicatorNavigationButtonSize).
     public void DrawIndicators(SKCanvas canvas, SkUiIndicatorPaint paint) { … } // → IndicatorPainter ?? DrawIndicatorsCore
     public virtual double DefaultIndicatorSpacing => 8;    // and GetSelectedIndicatorExtraLength(size, shape) (a pill's room)
     // Avatars (C8): the intrinsic size, the text size for the content area, colors by mode and name (palette index by a
@@ -105,7 +106,8 @@ public class SkUiLook
     public virtual SkUiPopupPlacement DefaultPopupPlacement => SkUiPopupPlacement.Anchored; // DefaultSkUiLook: the device's
     public virtual Thickness PopupMargin => new(8);         // and PopupAnchorGap (4), PopupPreferredWidth (320),
                                                            // PopupHorizontalOptions / PopupVerticalOptions, PopupItemHeight (44),
-                                                           // PopupItemPadding, PopupHighlightColor, GetPopupOverlayColor(placement)
+                                                           // PopupItemPadding, PopupHighlightColor, GetPopupOverlayColor(placement),
+                                                           // GetPopupCornerRadius(placement), GetPopupShadow(placement)
     // Keyboard focus ring over the focused drawn control (P10), inside its bounds, while focus came from the keyboard.
     public void DrawFocusRing(SKCanvas canvas, SkUiFocusRingPaint ring) { … }        // → FocusRingPainter ?? DrawFocusRingCore
     public virtual double ScrollBarThickness => 4;         // and ScrollBarMargin (2), ScrollBarMinimumThumbLength (24),
@@ -178,7 +180,7 @@ Looks draw every point of a transition, not only the resting states. Switches, c
 
 Drawing the blend makes interruptions free: a switch toggled back mid-way reverses from where it is. (A third state mid-way, only possible with three-state toggles, starts again from the nearer of the two states.)
 
-**How long, which curve.** `GetTransition(kind)` returns a `SkUiTransition(Duration, Easing)`; `None` (zero duration) turns a transition off. Kinds: `Switch`, `CheckBox`, `RadioButton`, `Press`, `Release`, `Ripple`, `SliderThumb`, `Progress`, `IndicatorPosition`, `FieldFocus`, `PickerOpen`, `ReorderLift`, `ReorderMove`.
+**How long, which curve.** `GetTransition(kind)` returns a `SkUiTransition(Duration, Easing)`; `None` (zero duration) turns a transition off. Kinds: `Switch`, `CheckBox`, `RadioButton`, `Press`, `Release`, `Ripple`, `SliderThumb`, `Progress`, `IndicatorPosition`, `FieldFocus`, `PickerOpen`, `ReorderLift`, `ReorderMove`, `ImageFadeIn`.
 
 | Kind | `DefaultSkUiLook` |
 | --- | --- |
@@ -192,6 +194,7 @@ Drawing the blend makes interruptions free: a switch toggled back mid-way revers
 | PickerOpen | 200 ms, cubic in-out (a picker's chevron turns while its popup opens and closes) |
 | ReorderLift | 150 ms, cubic out (a collection view item lifted to be reordered scales to `ReorderLiftScale`, and back when put down) |
 | ReorderMove | 200 ms, cubic out (items move aside from a dragged item; the dropped item goes to its place) |
+| ImageFadeIn | 200 ms, cubic out (a loaded image fades in, with `FadeAnimationEnabled`; its `FadeAnimationDuration` replaces the duration) |
 | Progress | None, as MAUI's `ProgressBar` (`ProgressTo` animates on its own) |
 
 **Press feedback on any control.** `ShowsPressEffect` (every `SkUiView` and Core node) draws the look's press overlay (`DrawPressOverlay`) over the node and its children while it is pressed, clipped to its rounded shape (a label's `CornerRadii`, a border's `CornerRadius` or rounded-rectangle `StrokeShape`). This is for containers that act as one button: a card, or a composite button built from several Core nodes. The node needs a tap handler (`Tapped`, or `TappedCommand` on SkUi*) to be pressed. A button inside it still takes its own presses. `DefaultSkUiLook` dims the content or spreads a dark ripple. On dark content (a dark icon glyph) a dark tint hardly shows: `PressFeedback = Fade` draws no overlay and fades the node and its children to the look's `PressedContentOpacity` (0.4) with the press and release transitions instead. The fade is a composite-time factor (`SkUiRenderProps.PressOpacity`, apart from `Opacity`, so an opacity animation and the fade leave each other alone): its frames mark only the node's props dirty and re-record nothing.
@@ -266,7 +269,7 @@ A control can override such an option for itself (M5): a text field's or picker'
 
 The platform looks take their sizes from MAUI's native controls as they measure and draw on each platform, not from the design guidelines alone (MAUI's iOS buttons have square corners, its Android check box sits in 32 dp, its pickers have no arrow). `SkUiLookComparisonPage` is the tool: one row per control with the native control (the platform the app runs on) next to the drawn one under a chosen look, both measured sizes (green when they match within 0.5 DIP), side by side or overlaid at half opacity, with the app's implicit styles or the platform's defaults (empty implicit styles on both sides), and optionally the look's color scheme. Apps add their own look (`AddLook`) and their own pairs of styled controls (`AddRow`). After each layout it writes a report to the console (`[SkUiLookComparison]` lines) and keeps it for "Copy report"; the `skiaui-look` agent skill (plugins/skiaui-migration) runs it on simulators and emulators, summarizes the reports and tunes a look until every row matches. The demo shows it as "Look comparison" (route `look-comparison`, `SKUI_LOOK` / `SKUI_APP_STYLES` / `SKUI_OVERLAY` for scripted runs).
 
-Text needed two engine options to measure as native labels do, both look members: `TextIncludesFontPadding` (Android's TextView adds the font's top and bottom extents to the first and last lines: Roboto's 14 sp line is 18.7, not 16.4; spans and HTML too, from the tallest span's font on those lines) and `AppliesFontTracking` (CoreText applies the font's `trak` table, which HarfBuzz does not: SF is 0.43 pt tighter per character at 17 pt; `FontTrackingSizeScale` looks the tracking up at Mac Catalyst's drawn size, 77%). On Apple platforms text that sets no family uses `.AppleSystemUIFont` (SF with UIKit's metrics); Skia's default face there is Helvetica.
+Text needed four engine options to measure as native labels do, all look members: `TextIncludesFontPadding` (Android's TextView adds the font's top and bottom extents to the first and last lines: Roboto's 14 sp line is 18.7, not 16.4; spans and HTML too, from the tallest span's font on those lines) and `AppliesFontTracking` (CoreText applies the font's `trak` table, which HarfBuzz does not: SF is 0.43 pt tighter per character at 17 pt; `FontTrackingSizeScale` looks the tracking up at Mac Catalyst's drawn size, 77%, below `FontTrackingScaledBelow`, 20 pt, where Catalyst tracks the display design as iOS does), and `AppliesOpticalSize` (CoreText draws fonts with an `opsz` axis at the optical size of their point size: SF at 28 pt is about 11% narrower than at its text design; the instance is made from the font's data, since CoreText does not move its system font when Skia clones it; the Windows look applies it too, with `OpticalSizeScale` 0.75: DirectWrite sizes Segoe UI Variable optically in points). On Apple platforms text that sets no family uses `.AppleSystemUIFont` (SF with UIKit's metrics); Skia's default face there is Helvetica.
 
 <img src="../images/look-comparison-ios.png" width="270" alt="SkUiLookComparisonPage on iOS 26: MAUI's native controls and the iOS look's drawn ones with matching sizes"> <img src="../images/look-comparison-android.png" width="270" alt="SkUiLookComparisonPage on Android: MAUI's Material 2 controls and AndroidSkUiLook's drawn ones">
 
@@ -274,7 +277,7 @@ On Windows the native controls keep WinUI's own minimums: a check box and a radi
 
 <img src="../images/look-comparison-windows.png" width="360" alt="SkUiLookComparisonPage on Windows 11: MAUI's WinUI controls and WindowsSkUiLook's drawn ones with matching sizes">
 
-Known differences: Android text measures up to 1–2% wider than a TextView's; the radio button label is about 2 DIPs wider than MAUI's template on Apple; on Android and Windows the Stepper keeps SkiaUi's segmented look instead of MAUI's two separate buttons (a choice, not a gap). Colors are the color scheme's: the platform schemes' control tokens (`ButtonBackground`, `ButtonForeground`, `ButtonBorder`, `ActivityIndicator`; [ColorScheme.md](ColorScheme.md#built-in-schemes)) give buttons and activity indicators the native colors, and the look draws the button's border (`DefaultButtonBorderWidth`, `ButtonHasElevationBorder`: Windows' 1 epx border, darker along the bottom). Compare them with the page's "Look's colors" on. The schemes do not read the user's system accent (Windows, Android 12+): pass it to `WithAccent`.
+Text kerns as native text does: plain Latin text is shaped with HarfBuzz as one run (`SkUiTextRendering.Auto`; until 1.4 it was measured unkerned, 1–5% wider than native text with kerned pairs). Known differences: native text sizes are rounded to the device pixel (Android) or half point (Mac Catalyst), so a row can differ by a pixel; iOS breaks lines to avoid a single word on the last line, which SkiaUi's greedy wrapping does not; on Android and Windows the Stepper keeps SkiaUi's segmented look instead of MAUI's two separate buttons (a choice, not a gap). Colors are the color scheme's: the platform schemes' control tokens (`ButtonBackground`, `ButtonForeground`, `ButtonBorder`, `ActivityIndicator`; [ColorScheme.md](ColorScheme.md#built-in-schemes)) give buttons and activity indicators the native colors, and the look draws the button's border (`DefaultButtonBorderWidth`, `ButtonHasElevationBorder`: Windows' 1 epx border, darker along the bottom). Compare them with the page's "Look's colors" on. The schemes do not read the user's system accent (Windows, Android 12+): pass it to `WithAccent`.
 
 ## Core
 

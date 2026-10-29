@@ -180,12 +180,33 @@ public class WindowsSkUiLook : DefaultSkUiLook
     public override double PopupAnchorGap => 0;
 
     /// <inheritdoc />
+    /// <remarks>Fluent's flyouts and dialogs (a combo box's list, Windows 11): 8 epx; bottom panes square.</remarks>
+    public override CornerRadius GetPopupCornerRadius(SkUiPopupPlacement placement) =>
+        placement == SkUiPopupPlacement.BottomPane ? default : new CornerRadius(8);
+
+    /// <inheritdoc />
+    /// <remarks>Fluent's flyout shadow: light and short (about 10 epx around a combo box's list, a little more below).</remarks>
+    public override Shadow? GetPopupShadow(SkUiPopupPlacement placement) =>
+        new() { Brush = Brush.Black, Opacity = 0.06f, Radius = 8, Offset = new Point(0, 2) };
+
+    /// <inheritdoc />
     /// <remarks>Fluent's body text, 14 epx.</remarks>
     public override double DefaultFontSize => 14;
 
     /// <inheritdoc />
-    /// <remarks>Segoe UI Variable; Windows 10 and headless runs, without it, use the system font.</remarks>
-    public override string? DefaultFontFamily => "Segoe UI Variable";
+    /// <remarks>
+    /// Segoe UI Variable's text design, by the family name DirectWrite lists for Skia (the name "Segoe UI Variable" matches
+    /// the static Segoe UI); Windows 10 and headless runs, without it, use the system font.
+    /// </remarks>
+    public override string? DefaultFontFamily => "Segoe UI Variable Text";
+
+    /// <inheritdoc />
+    /// <remarks>DirectWrite draws Segoe UI Variable at the optical size of its size in points (its axis: 5 to 36).</remarks>
+    public override bool AppliesOpticalSize => true;
+
+    /// <inheritdoc />
+    /// <remarks>DirectWrite's optical size is in points: 0.75 of the size in epx (14 epx text is at 10.5).</remarks>
+    public override double OpticalSizeScale => 0.75;
 
     /// <inheritdoc />
     public override SkUiColorScheme GetColorScheme(bool isDark) => isDark ? WindowsSkUiColorScheme.Dark : WindowsSkUiColorScheme.Light;

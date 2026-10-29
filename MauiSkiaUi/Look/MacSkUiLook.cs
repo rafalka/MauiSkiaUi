@@ -20,6 +20,10 @@ public class MacSkUiLook : IosSkUiLook
     public override double FontTrackingSizeScale => 0.77;
 
     /// <inheritdoc />
+    /// <remarks>Measured: from 20 pt up, Catalyst's text is as wide as iOS's.</remarks>
+    public override double FontTrackingScaledBelow => 20;
+
+    /// <inheritdoc />
     /// <remarks>Catalyst rounds a system button to 35.</remarks>
     public override double DefaultButtonMinimumHeight => 35;
 

@@ -11,6 +11,8 @@ Override these in a `DefaultSkUiLook` subclass (or a stock platform look's). Siz
 | `TextIncludesFontPadding` (base) | Android's TextView font padding above the first line and below the last [false / false / true / true / false] |
 | `AppliesFontTracking` (base) | Apply the font's `trak` table, as CoreText does [true / true / false / false / false] |
 | `FontTrackingSizeScale` (base) | Size the tracking is looked up at, relative to the font size [1 / 0.77 / – / – / –] |
+| `FontTrackingScaledBelow` (base) | Text at least this large tracks at its point size [∞ / 20 / – / – / –] |
+| `AppliesOpticalSize` (base) | Draw fonts with an `opsz` axis at the optical size of their point size, as CoreText [true / true / false / false / false] |
 
 ## Button
 
@@ -48,7 +50,7 @@ Override these in a `DefaultSkUiLook` subclass (or a stock platform look's). Siz
 | `RadioButtonStyle` | `Dot` (a dot of the ring's color) or `Filled` (Fluent: the ring fills around a white dot) |
 | `RadioRingFraction`, `RadioDotRadiusFraction` | Ring width and dot radius as fractions of the ring's size [Windows: 0.05, 0.3] |
 | `DefaultRadioButtonContentSpacing` (base) | Between circle and content [6 / 6 / 0 / 0 / 8] |
-| `RadioButtonPadding` (base) | Around circle and content, added to the control's Padding [8 × 7 / same / 0 / 0 / 0 × 6] |
+| `RadioButtonPadding` (base) | Around circle and content, added to the control's Padding [7 / same / 0 / 0 / 0 × 6] |
 | `DefaultRadioButtonMinimumWidth` (base) | WinUI's MinWidth; a `MinimumWidthRequest` replaces it, as natively [0 / 0 / 0 / 0 / 120] |
 
 ## Slider and ProgressBar
@@ -66,6 +68,7 @@ Override these in a `DefaultSkUiLook` subclass (or a stock platform look's). Siz
 | `DefaultProgressBarHeight` (base), `ProgressBarTrackHeight` | Control height and bar thickness centered in it [4, – / same / 16, 4 / 4, – / 3, –] |
 | `ProgressBarTrackLineHeight` | A thinner track line under the fill [– / – / – / – / 1] |
 | `ProgressBarGap`, `ProgressBarHasStopIndicator` | Material 3's gap and end dot |
+| `GetProgressBarCornerRadius(height)` | Rounding of the bar's ends [height / 2 / same / 0 (square) / height / 2 / height / 2] |
 
 ## ActivityIndicator
 

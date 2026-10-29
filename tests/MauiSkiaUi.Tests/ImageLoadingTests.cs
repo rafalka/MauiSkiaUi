@@ -513,6 +513,410 @@ public sealed class ImageLoadingTests : IDisposable
     }
 
     [Fact]
+    public async Task AViewsCacheKeySharesOneEntryAcrossSourcesAndIsRemovedByKey()
+    {
+        var handler = new StubHandler(Png(SKColors.Red));
+        SkUiImageCache.HttpClient = new HttpClient(handler);
+        SkUiImageCache.CacheKeyFactory = _ => throw new FormatException("not consulted while a view has a key");
+        var key = Key();
+
+        var first = new SkUiImage { CacheKey = key, Source = ImageSource.FromUri(new Uri($"https://images.test/{Key()}.png")) };
+        await first.LoadingTask;
+        Assert.Null(first.LoadError);
+        var second = new SkUiCoreImage().SetCacheKey(key).SetSourceUri(new Uri($"https://images.test/{Key()}.png"));
+        Assert.Same(first.CachedImage, second.CachedImage); // another URL, the same key: a memory hit
+        var opens = 0;
+        var stream = new SkUiCoreImage().SetCacheKey(key).SetSourceStream(Open(Png(SKColors.Blue), () => opens++));
+        Assert.Same(first.CachedImage, stream.CachedImage); // a stream source is cacheable under a key
+        Assert.Equal(0, opens);
+        Assert.Equal(1, handler.Requests);
+        var file = await WaitForSingleFile(SkUiImageCache.DiskCacheDirectory);
+
+        SkUiImageCache.ClearMemoryCache();
+        {
+            var fromDisk = new SkUiCoreImage().SetCacheKey(key).SetSourceUri(new Uri($"https://images.test/{Key()}.png"));
+            await fromDisk.LoadingTask;
+            fromDisk.Clear();
+        }
+        Assert.Equal(1, handler.Requests); // the download is shared on disk too
+
+        await SkUiImageCache.RemoveByKeyAsync(key);
+        Assert.False(File.Exists(file));
+        Assert.Equal(0, SkUiImageCache.MemoryCacheCount);
+        await Assert.ThrowsAsync<ArgumentException>(() => SkUiImageCache.RemoveByKeyAsync(""));
+    }
+
+    [Fact]
+    public async Task ChangingTheCacheKeyReloadsAndPlaceholdersKeepTheirOwnKeys()
+    {
+        var path = Path.Combine(_testDirectory, "placeholder.png");
+        Directory.CreateDirectory(_testDirectory);
+        await File.WriteAllBytesAsync(path, Png(SKColors.Green));
+        var bytes = Png(SKColors.Red);
+        var opens = 0;
+        var image = new SkUiImage
+        {
+            Source = ImageSource.FromStream(() => { opens++; return new MemoryStream(bytes); }),
+            CacheKey = "a"
+        };
+        await image.LoadingTask;
+        var a = image.CachedImage;
+        Assert.NotNull(a);
+
+        image.CacheKey = "b";
+        await image.LoadingTask;
+        Assert.NotSame(a, image.CachedImage);
+        image.SetCacheKey("a");
+        Assert.Same(a, image.CachedImage); // back to "a": a memory hit
+        var openedBefore = opens;
+        image.CacheKey = "";
+        await image.LoadingTask;
+        Assert.Null(image.CachedImage!.Key); // no key: an unkeyed stream is decoded but not cached
+        Assert.Equal(openedBefore + 1, opens);
+
+        var pending = new SkUiImage
+        {
+            LoadingPlaceholder = ImageSource.FromFile(path),
+            CacheKey = Key(),
+            Source = ImageSource.FromStream(async token => { await Task.Delay(Timeout.Infinite, token); return Stream.Null; })
+        };
+        await WaitUntil(() => pending.IsShowingPlaceholder); // decoded and cached under its own key, not the view's
+        var loads = SkUiImageLoader.LoadCount;
+        var placeholderAsSource = new SkUiImage { Source = ImageSource.FromFile(path) };
+        Assert.True(placeholderAsSource.LoadingTask.IsCompleted);
+        Assert.Equal(loads, SkUiImageLoader.LoadCount);
+        pending.Source = null;
+    }
+
+    private static ImageSource WideStream() =>
+        new StreamImageSource { Stream = _ => Task.FromResult<Stream>(new MemoryStream(Png(SKColors.Red, 400, 200))) };
+
+    private static SkUiImage ViewSized(Aspect aspect = Aspect.AspectFit) =>
+        new() { WidthRequest = 100, HeightRequest = 100, Aspect = aspect, DownsampleToViewSize = true, CacheKey = Key() };
+
+    [Fact]
+    public async Task DownsampleToViewSizeWaitsForTheArrangeAndDecodesForIt()
+    {
+        var image = ViewSized();
+        image.Source = WideStream();
+        Assert.Null(image.CachedImage); // waits for the arrange
+        Assert.False(image.IsLoading);
+
+        SkUiTestHelpers.Arrange(image, 100, 100); // bounds 112 × 112 (steps of 16)
+        await image.LoadingTask;
+        var fitted = image.CachedImage!.Frames[0];
+        Assert.Equal((112, 56), (fitted.Width, fitted.Height)); // fits inside the bounds
+        Assert.Equal(new Size(400, 200), image.ImageSize); // the intrinsic size stays the source's
+
+        var covering = ViewSized(Aspect.AspectFill);
+        covering.Source = WideStream();
+        SkUiTestHelpers.Arrange(covering, 100, 100);
+        await covering.LoadingTask;
+        Assert.Equal((224, 112), (covering.CachedImage!.Frames[0].Width, covering.CachedImage.Frames[0].Height));
+    }
+
+    [Fact]
+    public async Task DownsampleToViewSizeDecodesAgainOnlyWhenTheViewGrows()
+    {
+        var image = ViewSized();
+        image.Source = WideStream();
+        SkUiTestHelpers.Arrange(image, 100, 100);
+        await image.LoadingTask;
+        var small = image.CachedImage!;
+
+        image.WidthRequest = image.HeightRequest = 200;
+        SkUiTestHelpers.Arrange(image, 200, 200);
+        Assert.Same(small, image.CachedImage); // the smaller image shows until the larger one has loaded
+        await image.LoadingTask;
+        Assert.Equal(208, image.CachedImage!.Frames[0].Width);
+
+        var loads = SkUiImageLoader.LoadCount;
+        image.WidthRequest = image.HeightRequest = 50;
+        SkUiTestHelpers.Arrange(image, 50, 50);
+        SkUiTestHelpers.Arrange(image, 201, 201); // within the step
+        Assert.Equal(loads, SkUiImageLoader.LoadCount);
+
+        // A row of the same size with the same source: a memory hit at its arrange.
+        var row = new SkUiImage { WidthRequest = 200, HeightRequest = 200, DownsampleToViewSize = true, CacheKey = image.CacheKey };
+        row.Source = WideStream();
+        SkUiTestHelpers.Arrange(row, 200, 200);
+        Assert.Same(image.CachedImage, row.CachedImage);
+        Assert.Equal(loads, SkUiImageLoader.LoadCount);
+    }
+
+    [Fact]
+    public async Task DownsampleToViewSizeKeepsTheImageShownWhenTheLargerDecodeFails()
+    {
+        var bytes = Png(SKColors.Red, 400, 200);
+        var opened = 0;
+        var image = ViewSized();
+        image.ErrorPlaceholder = new StreamImageSource { Stream = _ => Task.FromResult<Stream>(new MemoryStream(Png(SKColors.Blue, 8, 8))) };
+        image.Source = new StreamImageSource
+        {
+            Stream = _ => ++opened == 1 ? Task.FromResult<Stream>(new MemoryStream(bytes)) : Task.FromException<Stream>(new IOException("Gone."))
+        };
+        SkUiTestHelpers.Arrange(image, 100, 100);
+        await image.LoadingTask;
+        var small = image.CachedImage!;
+        SkUiImageLoadFinishedEventArgs? finished = null;
+        image.LoadingFinished += (_, args) => finished = args;
+
+        image.WidthRequest = image.HeightRequest = 200;
+        SkUiTestHelpers.Arrange(image, 200, 200);
+        await image.LoadingTask;
+        Assert.Equal(SkUiImageLoadStatus.Failed, finished?.Status); // reported…
+        Assert.IsType<IOException>(finished!.Error);
+        Assert.Same(small, image.CachedImage); // …but the image shown is still valid: it stays, with no error state
+        Assert.Null(image.LoadError);
+        Assert.False(image.IsShowingPlaceholder);
+        Assert.Equal(1, image.LoadingProgress);
+    }
+
+    [Fact]
+    public async Task DownsampleToViewSizeDoesNotDecodeAFullSizeImageAgainWhenTheViewGrows()
+    {
+        var image = ViewSized();
+        image.Source = new StreamImageSource { Stream = _ => Task.FromResult<Stream>(new MemoryStream(Png(SKColors.Red, 40, 20))) };
+        SkUiTestHelpers.Arrange(image, 100, 100);
+        await image.LoadingTask;
+        var full = image.CachedImage!;
+        Assert.Equal(40, full.Frames[0].Width); // all the source has: smaller than the 112 bounds
+        Assert.False(full.IsReduced);
+
+        var loads = SkUiImageLoader.LoadCount;
+        image.WidthRequest = image.HeightRequest = 300;
+        SkUiTestHelpers.Arrange(image, 300, 300);
+        await image.LoadingTask;
+        Assert.Same(full, image.CachedImage); // larger bounds would give no more pixels
+        Assert.Equal(loads, SkUiImageLoader.LoadCount);
+    }
+
+    [Fact]
+    public async Task DownsampleToViewSizeLeavesSizesFromTheImageAndExplicitBoundsAlone()
+    {
+        // Sized by its image: arranged at 0 × 0 while empty, so not bounded; arranged at its image size afterwards.
+        var auto = new SkUiImage { DownsampleToViewSize = true, HorizontalOptions = LayoutOptions.Start, VerticalOptions = LayoutOptions.Start, CacheKey = Key() };
+        auto.Source = WideStream();
+        SkUiTestHelpers.Arrange(auto, 1000, 1000);
+        await auto.LoadingTask;
+        Assert.Equal(400, auto.CachedImage!.Frames[0].Width);
+        var loads = SkUiImageLoader.LoadCount;
+        SkUiTestHelpers.Arrange(auto, 1000, 1000);
+        Assert.Equal(new Size(400, 200), auto.Frame.Size);
+        Assert.Equal(loads, SkUiImageLoader.LoadCount);
+
+        // Fixed width, height from the image: only the width is bounded.
+        var stack = new SkUiVerticalStackLayout();
+        var inStack = new SkUiImage { DownsampleToViewSize = true, CacheKey = Key() };
+        stack.Add(inStack);
+        inStack.Source = WideStream();
+        SkUiTestHelpers.Arrange(stack, 150, 1000);
+        await inStack.LoadingTask;
+        Assert.Equal((160, 80), (inStack.CachedImage!.Frames[0].Width, inStack.CachedImage.Frames[0].Height));
+
+        // Explicit bounds win: the load starts at once.
+        var explicitBounds = new SkUiImage { DownsampleToViewSize = true, DownsampleWidth = 50, CacheKey = Key() };
+        explicitBounds.Source = WideStream();
+        await explicitBounds.LoadingTask;
+        Assert.Equal(50, explicitBounds.CachedImage!.Frames[0].Width);
+
+        // Centered images are drawn unscaled: not downsampled to the view.
+        var centered = ViewSized(Aspect.Center);
+        centered.Source = WideStream();
+        await centered.LoadingTask;
+        Assert.Equal(400, centered.CachedImage!.Frames[0].Width);
+    }
+
+    [Fact]
+    public async Task DownsampleToViewSizeStartsAtTheSurfacesLayoutAndOnCoreNodes()
+    {
+        var root = new SkUiVerticalStackLayout();
+        var image = new SkUiImage { HeightRequest = 60, DownsampleToViewSize = true, CacheKey = Key() };
+        root.Add(image);
+        SkUiTestHelpers.Arrange(root, 120, 400);
+        var frames = new Queue<Action>();
+        using (var renderer = new SkUiFrameRenderer(root, frames.Enqueue, () => { }, () => { }))
+        {
+            renderer.RequestFrame();
+            while (frames.TryDequeue(out var frame))
+                frame();
+            image.Source = WideStream();
+            Assert.Null(image.CachedImage);
+            Assert.NotEmpty(frames); // emptying the image asked for a frame, which lays the surface out again
+            while (frames.TryDequeue(out var frame))
+                frame();
+            await image.LoadingTask;
+        }
+        Assert.Equal((128, 64), (image.CachedImage!.Frames[0].Width, image.CachedImage.Frames[0].Height));
+
+        var core = new SkUiCoreImage().SetDownsampleToViewSize(true).SetCacheKey(Key());
+        core.SetSourceStream(Open(Png(SKColors.Red, 400, 200)));
+        Assert.Null(core.CachedImage);
+        core.Measure(100, 100);
+        core.Arrange(new Rect(0, 0, 100, 100));
+        await core.LoadingTask;
+        Assert.Equal((112, 56), (core.CachedImage!.Frames[0].Width, core.CachedImage.Frames[0].Height));
+        core.SetAspect(Aspect.AspectFill); // covering needs other bounds: loads again at the same size
+        await core.LoadingTask;
+        Assert.Equal((224, 112), (core.CachedImage!.Frames[0].Width, core.CachedImage.Frames[0].Height));
+    }
+
+    [Fact]
+    public async Task DownloadsReportProgressToEveryViewWaitingForThem()
+    {
+        using var _ = SkUiTestHelpers.UseTestDispatcher(); // dispatched reports write the bindable store
+        var bytes = Png(SKColors.Red, 200, 200);
+        var handler = new ChunkedHandler(bytes, chunk: bytes.Length / 4 + 1, sendLength: true);
+        SkUiImageCache.HttpClient = new HttpClient(handler);
+        var uri = new Uri($"https://images.test/{Key()}.png");
+        var image = new SkUiImage();
+        var core = new SkUiCoreImage();
+        var reports = new List<SkUiImageDownloadProgressEventArgs>();
+        var coreReports = 0;
+        image.DownloadProgress += (_, args) => { lock (reports) reports.Add(args); };
+        core.DownloadProgress += (_, _) => Interlocked.Increment(ref coreReports);
+        image.Source = ImageSource.FromUri(uri);
+        core.SetSourceUri(uri); // joins the same download
+        Assert.Equal(0, image.LoadingProgress);
+
+        handler.Release(); // headers and the first chunk
+        await WaitUntil(() => image.LoadingProgress > 0);
+        Assert.InRange(image.LoadingProgress, 0.2, 0.3);
+        Assert.Equal(image.LoadingProgress, (double)image.GetValue(SkUiImage.LoadingProgressProperty));
+        Assert.Equal(image.LoadingProgress, core.LoadingProgress);
+        Assert.True(SkUiImage.LoadingProgressProperty.IsReadOnly);
+
+        handler.Release(3);
+        await image.LoadingTask;
+        await core.LoadingTask;
+        Assert.Equal(1, handler.Requests);
+        Assert.Equal(1, image.LoadingProgress);
+        Assert.Equal(1d, image.GetValue(SkUiImage.LoadingProgressProperty));
+        Assert.Equal(1, core.LoadingProgress);
+        SkUiImageDownloadProgressEventArgs[] seen;
+        lock (reports) seen = [.. reports];
+        Assert.Equal(bytes.Length, seen[^1].BytesReceived);
+        Assert.Equal(bytes.Length, seen[^1].TotalBytes);
+        Assert.Equal(1, seen[^1].Progress);
+        Assert.Equal(seen.Select(report => report.BytesReceived).Order(), seen.Select(report => report.BytesReceived));
+        Assert.Equal(seen.Length, Volatile.Read(ref coreReports));
+
+        // A cache hit does not report, and shows as loaded.
+        reports.Clear();
+        var hit = new SkUiImage();
+        hit.DownloadProgress += (_, args) => reports.Add(args);
+        hit.Source = ImageSource.FromUri(uri);
+        Assert.Equal(1, hit.LoadingProgress);
+        Assert.Empty(reports);
+    }
+
+    [Fact]
+    public async Task ADownloadOfUnknownSizeReportsMinusOneAndAReplacedOneStopsReporting()
+    {
+        var bytes = Png(SKColors.Red, 200, 200);
+        var handler = new ChunkedHandler(bytes, chunk: bytes.Length / 4 + 1, sendLength: false);
+        SkUiImageCache.HttpClient = new HttpClient(handler);
+        var image = new SkUiCoreImage();
+        var reports = new List<SkUiImageDownloadProgressEventArgs>();
+        image.DownloadProgress += (_, args) => { lock (reports) reports.Add(args); };
+        image.SetSourceUri(new Uri($"https://images.test/{Key()}.png"));
+
+        handler.Release();
+        await WaitUntil(() => { lock (reports) return reports.Count > 0 && reports[^1].BytesReceived > 0; });
+        Assert.Equal(-1, image.LoadingProgress);
+        lock (reports)
+        {
+            Assert.Null(reports[^1].TotalBytes);
+            Assert.Null(reports[^1].Progress);
+        }
+
+        int before;
+        lock (reports) before = reports.Count;
+        image.Clear(); // cancels: later chunks are not reported
+        Assert.Equal(0, image.LoadingProgress);
+        handler.Release(3);
+        await Task.Delay(100);
+        lock (reports) Assert.Equal(before, reports.Count);
+    }
+
+    [Fact]
+    public void ACoreImageSetDirectlyReportsItsProgressAsLoaded()
+    {
+        var image = new SkUiCoreImage();
+        using var bitmap = new SKBitmap(4, 4);
+        bitmap.Erase(SKColors.Red);
+        image.SetImage(SKImage.FromBitmap(bitmap));
+        Assert.Equal(1, image.LoadingProgress);
+        image.SetImage(null);
+        Assert.Equal(0, image.LoadingProgress);
+    }
+
+    /// <summary>A PNG response whose body arrives one chunk per <see cref="Release"/>, with or without Content-Length.</summary>
+    private sealed class ChunkedHandler(byte[] body, int chunk, bool sendLength) : HttpMessageHandler
+    {
+        private readonly SemaphoreSlim _chunks = new(0);
+        private int _requests;
+
+        public int Requests => Volatile.Read(ref _requests);
+
+        public void Release(int chunks = 1) => _chunks.Release(chunks);
+
+        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            Interlocked.Increment(ref _requests);
+            await _chunks.WaitAsync(cancellationToken); // the headers come with the first chunk
+            _chunks.Release();
+            var content = new StreamContent(new ChunkedStream(body, chunk, _chunks));
+            content.Headers.ContentType = new MediaTypeHeaderValue("image/png");
+            content.Headers.ContentLength = sendLength ? body.Length : null;
+            return new HttpResponseMessage(HttpStatusCode.OK) { Content = content };
+        }
+    }
+
+    private sealed class ChunkedStream(byte[] body, int chunk, SemaphoreSlim chunks) : Stream
+    {
+        private int _position;
+
+        public override async ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
+        {
+            if (_position >= body.Length)
+                return 0;
+            await chunks.WaitAsync(cancellationToken);
+            var count = Math.Min(Math.Min(chunk, buffer.Length), body.Length - _position);
+            body.AsMemory(_position, count).CopyTo(buffer);
+            _position += count;
+            return count;
+        }
+
+        public override Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken) =>
+            ReadAsync(buffer.AsMemory(offset, count), cancellationToken).AsTask();
+
+        public override int Read(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+        public override bool CanRead => true;
+        public override bool CanSeek => false;
+        public override bool CanWrite => false;
+        public override long Length => throw new NotSupportedException();
+        public override long Position { get => _position; set => throw new NotSupportedException(); }
+        public override void Flush() { }
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+        public override void SetLength(long value) => throw new NotSupportedException();
+        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+    }
+
+    [Fact]
+    public void XmlDrawablesRenderAtTheirBoundsUpToTheDecodeLimitAndNotElsewhere()
+    {
+        var intrinsic = new SKSizeI(144, 72); // 48 × 24 dp at 3x
+        Assert.Equal(intrinsic, SkUiPackageImages.RenderSize(intrinsic, default, fill: false));
+        Assert.Equal(new SKSizeI(600, 300), SkUiPackageImages.RenderSize(intrinsic, new SKSizeI(600, 600), fill: false)); // a vector scales up
+        Assert.Equal(new SKSizeI(1200, 600), SkUiPackageImages.RenderSize(intrinsic, new SKSizeI(600, 600), fill: true));
+        Assert.Equal(new SKSizeI(72, 36), SkUiPackageImages.RenderSize(intrinsic, new SKSizeI(0, 36), fill: false));
+        var limit = SkUiImageDecoder.MaxDecodeDimension;
+        Assert.Equal(limit, SkUiPackageImages.RenderSize(intrinsic, new SKSizeI(limit * 4, 0), fill: false).Width);
+        Assert.Equal(0, SkUiPackageImages.FindXmlDrawable("skui_vector_star")); // only Android has drawables
+    }
+
+    [Fact]
     public void WithoutQueryParametersKeepsTheRestInOrder()
     {
         var uri = new Uri("https://cdn.test/a/b.png?w=40&Token=x%20y&h=20&sig=abc#frag");

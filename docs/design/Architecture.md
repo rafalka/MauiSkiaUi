@@ -75,7 +75,7 @@ One scroll engine for both layers: render-thread fling and animated scroll, nest
 
 ## Text
 
-One engine for both label layers ([SkUiLabel.md](../controls/SkUiLabel.md)): `SkUiTextLayout` (HarfBuzz shaping with a simple Latin fast path, bidi, per-character font fallback, wrapping and truncation, custom line breakers, lines cached by style and width), `SkUiRichTextLayout` (spans, and HTML through SkiaUi's own parser), `SkUiShaping`, and `SkUiTextFit` (shrink, tighten or grow text to fit). Buttons derive from the labels.
+One engine for both label layers ([SkUiLabel.md](../controls/SkUiLabel.md)): `SkUiTextLayout` (HarfBuzz shaping, plain Latin text as one run, bidi, per-character font fallback, wrapping and truncation, custom line breakers, lines cached by style and width), `SkUiRichTextLayout` (spans, and HTML through SkiaUi's own parser), `SkUiShaping`, and `SkUiTextFit` (shrink, tighten or grow text to fit). Buttons derive from the labels.
 
 **Text input** is drawn too: one editing engine and field model for `SkUiEntry`, `SkUiEditor`, `SkUiSearchBar` and their Core twins, with the platform keyboard, input methods, autocorrect, dictation, clipboard and edit menu reached through one proxy per surface (an `InputConnection` on Android, a hidden `UITextInput` view on Apple, a hidden `TextBox` on Windows). Details: [TextInput.md](TextInput.md).
 

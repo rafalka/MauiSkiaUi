@@ -21,6 +21,7 @@ internal sealed class SkUiCachedImage
         Durations = decoded.Durations;
         Size = decoded.Size;
         Bytes = decoded.Bytes;
+        IsReduced = decoded.IsReduced;
         Key = key;
         _ownsFrames = ownsFrames;
         _references = 1;
@@ -33,6 +34,9 @@ internal sealed class SkUiCachedImage
 
     /// <summary>Where the image was loaded from when it was decoded.</summary>
     public SkUiImageOrigin Origin { get; }
+
+    /// <summary>Whether larger decode bounds would give more pixels (<see cref="SkUiDecodedImage.IsReduced"/>).</summary>
+    public bool IsReduced { get; }
 
     /// <summary>Frames to draw; one for a still image.</summary>
     public SKImage[] Frames { get; }

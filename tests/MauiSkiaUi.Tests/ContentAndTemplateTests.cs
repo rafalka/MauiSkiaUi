@@ -223,11 +223,14 @@ public class ContentAndTemplateTests
         Assert.True(clearedEntry.IsReleased); // a stream image is not cached: the button's lease was the only reference
 
         // Never disposed, just dropped: the lease goes with the button. (Plain helpers: an async method's state machine
-        // would keep the button alive.)
-        Task? loads = Task.WhenAll(StartSkUiButton(out var skiaButton), StartCoreButton(out var coreButton));
+        // would keep the button alive.) Held strongly through the loads (a collection meanwhile, by any test, would take
+        // a button before its image is read), and through this array only, which the state machine lets go of at once.
+        var held = new object?[2];
+        Task? loads = Task.WhenAll(StartSkUiButton(held, out var skiaButton), StartCoreButton(held, out var coreButton));
         await loads;
         loads = null; // a load task references its image slot
         var entries = new[] { CachedImage(skiaButton), CachedImage(coreButton) };
+        Array.Clear(held);
         skiaButton = null;
         coreButton = null;
         Assert.All(entries, entry => Assert.False(entry.IsReleased));
@@ -245,18 +248,20 @@ public class ContentAndTemplateTests
     private static ImageSource RedStream() => ImageSource.FromStream(() => new MemoryStream(ImageBytes(SKColors.Red, 20, 20)));
 
     [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
-    private static Task StartSkUiButton(out WeakReference<SkUiButton>? button)
+    private static Task StartSkUiButton(object?[] held, out WeakReference<SkUiButton>? button)
     {
         var created = new SkUiButton { Text = "Go", ImageSource = RedStream() };
+        held[0] = created;
         button = new WeakReference<SkUiButton>(created);
         return created.ImageLoadingTask;
     }
 
     [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
-    private static Task StartCoreButton(out WeakReference<SkUiCoreButton>? button)
+    private static Task StartCoreButton(object?[] held, out WeakReference<SkUiCoreButton>? button)
     {
         var created = new SkUiCoreButton();
         created.SetImageSource(SkUiImageSource.FromStream(_ => Task.FromResult<Stream>(new MemoryStream(ImageBytes(SKColors.Red, 20, 20)))));
+        held[1] = created;
         button = new WeakReference<SkUiCoreButton>(created);
         return created.ImageLoadingTask;
     }

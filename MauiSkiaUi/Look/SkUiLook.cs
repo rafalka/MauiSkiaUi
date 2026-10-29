@@ -136,6 +136,27 @@ public class SkUiLook
     /// </summary>
     public virtual double FontTrackingSizeScale => 1;
 
+    /// <summary>
+    /// Text at least this large (in points) tracks at its point size, not at <see cref="FontTrackingSizeScale"/> of it
+    /// (default: no limit, the scale applies to all text; Mac Catalyst: 20, where Apple's system font turns to its display
+    /// design and Catalyst tracks it as iOS does).
+    /// </summary>
+    public virtual double FontTrackingScaledBelow => double.PositiveInfinity;
+
+    /// <summary>
+    /// Whether fonts with an optical size axis (<c>opsz</c>) are drawn at the optical size of their drawn size, as CoreText
+    /// does on Apple platforms (default <c>false</c>; the iOS and Mac looks: <c>true</c>). Apple's system font has one:
+    /// above 17 pt it gets tighter, so 28 pt text is about 11% narrower than at the text design. The optical size is the point
+    /// size, also on Mac Catalyst (unlike the tracking, <see cref="FontTrackingSizeScale"/>, which follows the drawn size).
+    /// </summary>
+    public virtual bool AppliesOpticalSize => false;
+
+    /// <summary>
+    /// With <see cref="AppliesOpticalSize"/>, the optical size of text relative to its font size (default 1: CoreText's
+    /// point is a DIP; Windows: 0.75, since DirectWrite sizes Segoe UI Variable optically in points, 0.75 of an epx).
+    /// </summary>
+    public virtual double OpticalSizeScale => 1;
+
     /// <summary>A control's font size field: <paramref name="size"/>, or the look's <see cref="DefaultFontSize"/> when it is NaN (not set).</summary>
     internal static double FontSizeOrDefault(double size) => double.IsNaN(size) ? Current.DefaultFontSize : size;
 
@@ -969,6 +990,9 @@ public class SkUiLook
     /// </summary>
     public virtual double GetSelectedIndicatorExtraLength(double indicatorSize, IndicatorShape shape) => 0;
 
+    /// <summary>The size of an indicator view's previous / next buttons (<c>NavigationButtonVisibility</c>), in DIPs (default 20).</summary>
+    public virtual double IndicatorNavigationButtonSize => 20;
+
     /// <summary>Optional indicator view painter; when set, replaces <see cref="DrawIndicatorsCore"/>.</summary>
     public Action<SKCanvas, SkUiIndicatorPaint>? IndicatorPainter { get; set; }
 
@@ -1216,6 +1240,21 @@ public class SkUiLook
     /// </summary>
     public virtual Color? GetPopupOverlayColor(SkUiPopupPlacement placement) =>
         placement is SkUiPopupPlacement.Anchored or SkUiPopupPlacement.BottomPane ? null : Color.FromRgba(0, 0, 0, 0.32);
+
+    /// <summary>
+    /// The corner radii of a popup of <paramref name="placement"/> (<see cref="SkUiPopupRequest.CornerRadius"/>), in DIPs: the
+    /// drawn content is clipped to them, and presenters shape their container the same. Default 10, and square for bottom
+    /// panes (docked to the window's edges, as a keyboard).
+    /// </summary>
+    public virtual CornerRadius GetPopupCornerRadius(SkUiPopupPlacement placement) =>
+        placement == SkUiPopupPlacement.BottomPane ? default : new CornerRadius(10);
+
+    /// <summary>
+    /// The shadow under a popup of <paramref name="placement"/> (<see cref="SkUiPopupRequest.Shadow"/>), or <c>null</c> for
+    /// none; a new object for each call. Default: a soft black drop shadow (25 %, blurred 16, 4 down).
+    /// </summary>
+    public virtual Shadow? GetPopupShadow(SkUiPopupPlacement placement) =>
+        new() { Brush = Brush.Black, Opacity = 0.25f, Radius = 16, Offset = new Point(0, 4) };
 
     /// <summary>A popup list's highlighted row background (the selection and the keyboard's position): default the accent at 12 %.</summary>
     public virtual Color PopupHighlightColor => SkUiColors.Accent.WithAlpha(0.12f);

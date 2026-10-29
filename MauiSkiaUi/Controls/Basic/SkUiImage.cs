@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.ComponentModel;
+using MauiSkiaUi.Rendering;
 using SkiaSharp;
 
 namespace MauiSkiaUi;
@@ -15,14 +16,21 @@ public class SkUiImage : SkUiView
     private ImageSource? _source;
     private Aspect _aspect = Aspect.AspectFit;
     private SkUiImageOptions _options;
-    // Set on the thread pool by a load finished without a dispatcher, read on the view's thread (see PublishState).
-    private volatile bool _isLoadingStoreStale;
+    private bool _downsampleToViewSize;
+    private SkUiViewSizedDecode _viewSizedDecode;
+    private bool _fadeAnimationEnabled;
+    private int? _fadeAnimationDuration;
+    private bool _fadeAnimationForCachedImages;
+    private SkUiImageFade? _fade;
+    private Action<SKCanvas>? _paintFadeLayer;
+    // Set on the thread pool by a load finished (or reporting) without a dispatcher, read on the view's thread (see PublishState).
+    private volatile bool _stateStoreStale;
     // Image sources and transformation lists are often shared resources: listened to weakly, so they never keep the view alive.
     private SkUiWeakListener<SkUiImage>? _sourceListener;
     private SkUiWeakListener<SkUiImage> SourceListener => _sourceListener ??= new(this, static (image, change) =>
     {
         if (SkUiMauiImageSources.AffectsImage(change.PropertyName))
-            image.Reload();
+            image.LoadNewSource();
     });
     private SkUiWeakListener<SkUiImage>? _transformationsListener;
     private SkUiWeakListener<SkUiImage> TransformationsListener => _transformationsListener ??= new(this, static (image, _) => image.OnTransformationItemsChanged());
@@ -34,7 +42,9 @@ public class SkUiImage : SkUiView
     private SkUiImageSlot Slot => _slot ??= new SkUiImageSlot(this, PublishState)
     {
         LoadingStarted = args => LoadingStarted?.Invoke(this, args),
-        LoadingFinished = args => LoadingFinished?.Invoke(this, args)
+        LoadingFinished = args => LoadingFinished?.Invoke(this, args),
+        DownloadProgress = OnDownloadProgress,
+        FadesIn = StartsFade
     };
 
     /// <summary>Creates an image.</summary>
@@ -68,6 +78,22 @@ public class SkUiImage : SkUiView
     public static readonly BindableProperty DownsampleHeightProperty = BindableProperty.Create(nameof(DownsampleHeight), typeof(double), typeof(SkUiImage), 0d,
         validateValue: SkUiValidate.NonNegative,
         propertyChanged: (view, _, value) => ((SkUiImage)view).OnOptionsChanged(((SkUiImage)view)._options with { DownsampleHeight = (double)value }));
+    /// <summary>Bindable <see cref="DownsampleToViewSize"/>.</summary>
+    public static readonly BindableProperty DownsampleToViewSizeProperty = BindableProperty.Create(nameof(DownsampleToViewSize), typeof(bool), typeof(SkUiImage), false,
+        propertyChanged: (view, _, value) => ((SkUiImage)view).OnDownsampleToViewSizeChanged((bool)value));
+    /// <summary>Bindable <see cref="FadeAnimationEnabled"/>.</summary>
+    public static readonly BindableProperty FadeAnimationEnabledProperty = BindableProperty.Create(nameof(FadeAnimationEnabled), typeof(bool), typeof(SkUiImage), false,
+        propertyChanged: (view, _, value) => ((SkUiImage)view)._fadeAnimationEnabled = (bool)value);
+    /// <summary>Bindable <see cref="FadeAnimationDuration"/>.</summary>
+    public static readonly BindableProperty FadeAnimationDurationProperty = BindableProperty.Create(nameof(FadeAnimationDuration), typeof(int?), typeof(SkUiImage), null,
+        validateValue: SkUiValidate.OptionalNonNegative,
+        propertyChanged: (view, _, value) => ((SkUiImage)view)._fadeAnimationDuration = (int?)value);
+    /// <summary>Bindable <see cref="FadeAnimationForCachedImages"/>.</summary>
+    public static readonly BindableProperty FadeAnimationForCachedImagesProperty = BindableProperty.Create(nameof(FadeAnimationForCachedImages), typeof(bool), typeof(SkUiImage), false,
+        propertyChanged: (view, _, value) => ((SkUiImage)view)._fadeAnimationForCachedImages = (bool)value);
+    /// <summary>Bindable <see cref="CacheKey"/>.</summary>
+    public static readonly BindableProperty CacheKeyProperty = BindableProperty.Create(nameof(CacheKey), typeof(string), typeof(SkUiImage), null,
+        propertyChanged: (view, _, value) => ((SkUiImage)view).OnOptionsChanged(((SkUiImage)view)._options with { CacheKey = (string?)value }));
 
     /// <summary>Bindable <see cref="LoadingPlaceholder"/>.</summary>
     public static readonly BindableProperty LoadingPlaceholderProperty = BindableProperty.Create(nameof(LoadingPlaceholder), typeof(ImageSource), typeof(SkUiImage), null,
@@ -128,6 +154,35 @@ public class SkUiImage : SkUiView
     public double DownsampleWidth { get => (double)GetValue(DownsampleWidthProperty); set => SetValue(DownsampleWidthProperty, value); }
     /// <summary>Decode at most this high, in DIPs at the display density (0: no bound).</summary>
     public double DownsampleHeight { get => (double)GetValue(DownsampleHeightProperty); set => SetValue(DownsampleHeightProperty, value); }
+    /// <summary>
+    /// Decode no larger than the view is arranged (FFImageLoading's <c>DownsampleToViewSize</c>; default <c>false</c>):
+    /// fitting inside it, or covering it for <see cref="Aspect.AspectFill"/> and <see cref="Aspect.Fill"/>. A new source
+    /// starts loading at the view's next arrange; a larger arrange decodes again (the smaller image shows meanwhile), a
+    /// smaller one keeps the image. Bounds round up to steps of 16 DIPs, so rows of one size share cache entries. A
+    /// dimension whose size comes from the image is not bounded; <see cref="DownsampleWidth"/> /
+    /// <see cref="DownsampleHeight"/> win, and <see cref="Aspect.Center"/> (drawn unscaled) decodes as without it.
+    /// </summary>
+    public bool DownsampleToViewSize { get => (bool)GetValue(DownsampleToViewSizeProperty); set => SetValue(DownsampleToViewSizeProperty, value); }
+    /// <summary>
+    /// Whether a loaded image fades in over its loading placeholder (FFImageLoading's; default <c>false</c>, as MAUI's
+    /// <c>Image</c>). The fade runs on the render thread with the look's <see cref="SkUiTransitionKind.ImageFadeIn"/>
+    /// transition (200 ms), none while motion is reduced. Images already in the memory cache show at once (see
+    /// <see cref="FadeAnimationForCachedImages"/>), and so do images loaded before the view was first drawn and images
+    /// replacing a shown one (another source set in its place, a larger decode): there is nothing to fade over.
+    /// </summary>
+    public bool FadeAnimationEnabled { get => (bool)GetValue(FadeAnimationEnabledProperty); set => SetValue(FadeAnimationEnabledProperty, value); }
+    /// <summary>The fade's length in milliseconds (<c>null</c>: the look's; 0: no fade).</summary>
+    public int? FadeAnimationDuration { get => (int?)GetValue(FadeAnimationDurationProperty); set => SetValue(FadeAnimationDurationProperty, value); }
+    /// <summary>Whether images from the memory cache fade in too (default <c>false</c>: they show at once).</summary>
+    public bool FadeAnimationForCachedImages { get => (bool)GetValue(FadeAnimationForCachedImagesProperty); set => SetValue(FadeAnimationForCachedImagesProperty, value); }
+    /// <summary>
+    /// This view's cache identity for <see cref="Source"/> (FFImageLoading's <c>CacheKey</c>; <c>null</c> or empty: the
+    /// app's <see cref="SkUiImageCache.CacheKeyFactory"/>, else the source's own key). Views with the same key share one
+    /// entry in memory (per decode size and transformations) and, for a URI, one download on disk, whatever their
+    /// sources: a URL with a token that changes, or a stream source, which is otherwise not cached. Placeholders keep
+    /// their own keys. Changing it reloads; <see cref="SkUiImageCache.RemoveByKeyAsync"/> forgets it.
+    /// </summary>
+    public string? CacheKey { get => (string?)GetValue(CacheKeyProperty); set => SetValue(CacheKeyProperty, value); }
     /// <summary>Current asynchronous load, including error-state publication.</summary>
     public Task LoadingTask => Slot.LoadingTask;
     private static readonly BindablePropertyKey IsLoadingPropertyKey =
@@ -138,6 +193,50 @@ public class SkUiImage : SkUiView
 
     /// <summary>Whether the current source is loading.</summary>
     public bool IsLoading => Slot.IsLoading;
+
+    private static readonly BindablePropertyKey LoadingProgressPropertyKey =
+        BindableProperty.CreateReadOnly(nameof(LoadingProgress), typeof(double), typeof(SkUiImage), 0d);
+
+    /// <summary>Read-only bindable <see cref="LoadingProgress"/>, for a progress bar or a trigger.</summary>
+    public static readonly BindableProperty LoadingProgressProperty = LoadingProgressPropertyKey.BindableProperty;
+
+    /// <summary>
+    /// How far the load of <see cref="Source"/> is: the fraction of a download received (0–1), -1 while downloading
+    /// without a known size, 1 once the image is shown, 0 otherwise (no source, failed, or a load that has not reported).
+    /// Only URIs report while loading; other sources go from 0 to 1.
+    /// </summary>
+    public double LoadingProgress => Slot.LoadingProgress;
+
+    /// <summary>
+    /// Raised while <see cref="Source"/> downloads, after <see cref="LoadingProgress"/> changed: on the UI thread, at most
+    /// once per dispatcher turn. Cache hits raise none; a view that joined another view's download of the same image
+    /// hears it too.
+    /// </summary>
+    public event EventHandler<SkUiImageDownloadProgressEventArgs>? DownloadProgress;
+
+    private void OnDownloadProgress(SkUiImageDownloadProgressEventArgs args)
+    {
+        PublishStore();
+        DownloadProgress?.Invoke(this, args);
+    }
+
+    // The bindable store of the read-only state; left alone on a thread without a dispatcher (it is not thread-safe):
+    // the stored values follow on the view's next change (OnPropertyChanged), such as its layout once it is shown.
+    private void PublishStore()
+    {
+        if (SkUiImageSlot.CompletingWithoutDispatcher)
+        {
+            _stateStoreStale = true;
+            OnPropertyChanged(nameof(IsLoading));
+            OnPropertyChanged(nameof(LoadingProgress));
+        }
+        else
+        {
+            _stateStoreStale = false;
+            SetValue(IsLoadingPropertyKey, Slot.IsLoading);
+            SetValue(LoadingProgressPropertyKey, Slot.LoadingProgress);
+        }
+    }
 
     /// <summary>Bindable <see cref="IsOpaque"/>.</summary>
     public static readonly BindableProperty IsOpaqueProperty = BindableProperty.Create(nameof(IsOpaque), typeof(bool), typeof(SkUiImage), false);
@@ -158,6 +257,9 @@ public class SkUiImage : SkUiView
     /// </summary>
     /// <remarks>Large sources are decoded at reduced resolution (<see cref="SkUiImageDecoder.MaxDecodeDimension"/>, downsampling); this still reports the source size.</remarks>
     public Size ImageSize => Slot.Size;
+
+    /// <summary>Whether the image is fading in (tests).</summary>
+    internal bool IsFadingIn => _fade is { IsActive: true };
 
     /// <summary>The shown cache entry (tests: views of one source share it).</summary>
     internal SkUiCachedImage? CachedImage => Slot.Entry;
@@ -225,6 +327,22 @@ public class SkUiImage : SkUiView
     }
     /// <summary>Sets <see cref="CacheType"/> (same as the property setter).</summary>
     public SkUiImage SetCacheType(SkUiImageCacheType value) { CacheType = value; return this; }
+    /// <summary>Sets <see cref="FadeAnimationEnabled"/> and, when given, <see cref="FadeAnimationDuration"/> (milliseconds).</summary>
+    public SkUiImage SetFadeAnimation(bool enabled, int? duration = null)
+    {
+        if (duration is < 0)
+            throw new ArgumentOutOfRangeException(nameof(duration), duration, "The fade duration cannot be negative.");
+        FadeAnimationEnabled = enabled;
+        if (duration is not null)
+            FadeAnimationDuration = duration;
+        return this;
+    }
+    /// <summary>Sets <see cref="FadeAnimationForCachedImages"/> (same as the property setter).</summary>
+    public SkUiImage SetFadeAnimationForCachedImages(bool value) { FadeAnimationForCachedImages = value; return this; }
+    /// <summary>Sets <see cref="DownsampleToViewSize"/> (same as the property setter).</summary>
+    public SkUiImage SetDownsampleToViewSize(bool value) { DownsampleToViewSize = value; return this; }
+    /// <summary>Sets <see cref="CacheKey"/> (same as the property setter).</summary>
+    public SkUiImage SetCacheKey(string? value) { CacheKey = value; return this; }
     /// <summary>Sets <see cref="DownsampleWidth"/> and <see cref="DownsampleHeight"/> in DIPs (0: no bound).</summary>
     public SkUiImage SetDownsample(double width, double height)
     {
@@ -243,10 +361,24 @@ public class SkUiImage : SkUiView
         _source = value;
         AdoptImageSource(UsesSource(previous) ? null : previous, value);
         SourceListener.Listen(value);
-        Reload();
+        LoadNewSource();
     }
 
-    private void OnAspectChanged(Aspect value) { _aspect = value; InvalidatePaint(); }
+    private void OnAspectChanged(Aspect value)
+    {
+        var old = _aspect;
+        _aspect = value;
+        InvalidatePaint();
+        // Fitting and covering decode to different bounds; a centered image is not downsampled to the view.
+        if (_downsampleToViewSize && (SkUiViewSizedDecode.Fills(old) != SkUiViewSizedDecode.Fills(value) || (old == Aspect.Center) != (value == Aspect.Center)))
+            Reload();
+    }
+
+    private void OnDownsampleToViewSizeChanged(bool value)
+    {
+        _downsampleToViewSize = value;
+        Reload();
+    }
 
     private void OnTransformationsChanged(IList<ISkUiImageTransformation>? value)
     {
@@ -265,11 +397,15 @@ public class SkUiImage : SkUiView
     private void OnOptionsChanged(SkUiImageOptions options)
     {
         if (_options.CacheType == options.CacheType && _options.DownsampleWidth == options.DownsampleWidth
-            && _options.DownsampleHeight == options.DownsampleHeight && SameItems(_options.Transformations, options.Transformations))
+            && _options.DownsampleHeight == options.DownsampleHeight && SameItems(_options.Transformations, options.Transformations)
+            && SameKey(_options.CacheKey, options.CacheKey))
             return;
         _options = options;
         Reload();
     }
+
+    // null and empty both mean "no key of the view's own".
+    private static bool SameKey(string? a, string? b) => string.IsNullOrEmpty(a) ? string.IsNullOrEmpty(b) : a == b;
 
     private static bool SameItems(IReadOnlyList<ISkUiImageTransformation>? a, IReadOnlyList<ISkUiImageTransformation>? b)
     {
@@ -280,29 +416,49 @@ public class SkUiImage : SkUiView
         return true;
     }
 
-    private void Reload() => Slot.Load(SkUiImageSource.FromMaui(_source), _options);
+    // A new source waits for the next arrange (with DownsampleToViewSize); new settings reuse the bounds already decided.
+    private void LoadNewSource() => Load(restart: true);
 
-    /// <summary>Reloads the current source; errors are exposed through LoadError, cancellation is not an error.</summary>
-    public Task ReloadAsync()
+    private void Reload() => Load(restart: false);
+
+    /// <summary>
+    /// Reloads the current source; errors are exposed through LoadError, cancellation is not an error. With
+    /// <see cref="DownsampleToViewSize"/> before the view was arranged, the load starts at its arrange.
+    /// </summary>
+    public Task ReloadAsync() => Load(restart: false);
+
+    private Task Load(bool restart)
     {
-        return Slot.Load(SkUiImageSource.FromMaui(_source), _options);
+        var source = SkUiImageSource.FromMaui(_source);
+        if (source is null || !SkUiViewSizedDecode.AppliesTo(_downsampleToViewSize, _options, _aspect))
+        {
+            _viewSizedDecode.Stop();
+            return Slot.Load(source, _options);
+        }
+        if (restart || !_viewSizedDecode.HasBounds)
+        {
+            // Empty until then, so the arrange that starts the load is the layout's size, not the previous image's.
+            _viewSizedDecode.Wait();
+            Slot.Load(null, _options);
+            return Task.CompletedTask;
+        }
+        return Slot.Load(source, _viewSizedDecode.Apply(_options, _aspect));
+    }
+
+    /// <inheritdoc />
+    protected override void ArrangeContent(Size size)
+    {
+        base.ArrangeContent(size);
+        // A view that outgrew an image decoded at full size keeps it: larger bounds give no more pixels.
+        if (_viewSizedDecode.OnArranged(size, out var grew) && !(grew && Slot.Entry is { IsReduced: false }))
+            Slot.Load(SkUiImageSource.FromMaui(_source), _viewSizedDecode.Apply(_options, _aspect), keepShown: grew);
     }
 
     private void PublishState()
     {
-        // Reports IsLoading when it changed. A load started without a dispatcher finishes on the thread pool, where the
-        // bindable store (not thread-safe) is left alone: the stored value follows on the view's next change
-        // (OnPropertyChanged), such as its layout once it is shown.
-        if (SkUiImageSlot.CompletingWithoutDispatcher)
-        {
-            _isLoadingStoreStale = true;
-            OnPropertyChanged(nameof(IsLoading));
-        }
-        else
-        {
-            _isLoadingStoreStale = false;
-            SetValue(IsLoadingPropertyKey, Slot.IsLoading);
-        }
+        if (_fade is { IsActive: true } && !Slot.IsFading)
+            EndFade(); // a new load or image replaced the one fading in
+        PublishStore();
         OnPropertyChanged(nameof(LoadError));
         OnPropertyChanged(nameof(ImageSize));
         OnPropertyChanged(nameof(IsShowingPlaceholder));
@@ -314,10 +470,11 @@ public class SkUiImage : SkUiView
     {
         base.OnPropertyChanged(propertyName);
         // The view's thread changes it: the stored IsLoading catches up with a load finished on the thread pool.
-        if (_isLoadingStoreStale && !SkUiImageSlot.CompletingWithoutDispatcher)
+        if (_stateStoreStale && !SkUiImageSlot.CompletingWithoutDispatcher)
         {
-            _isLoadingStoreStale = false;
+            _stateStoreStale = false;
             SetValue(IsLoadingPropertyKey, Slot.IsLoading);
+            SetValue(LoadingProgressPropertyKey, Slot.LoadingProgress);
         }
     }
 
@@ -331,8 +488,67 @@ public class SkUiImage : SkUiView
     /// <inheritdoc />
     protected override void OnPaintContent(SKCanvas canvas) => PaintImage(canvas, new SKRect(0, 0, (float)Width, (float)Height));
 
-    /// <summary>Draws the current image (frame) into <paramref name="area"/> (local DIPs) with <see cref="Aspect"/>; nothing while none is loaded.</summary>
-    protected void PaintImage(SKCanvas canvas, SKRect area) => Slot.Paint(canvas, area, _aspect);
+    /// <summary>
+    /// Draws the current image (frame) into <paramref name="area"/> (local DIPs) with <see cref="Aspect"/>; nothing while
+    /// none is loaded. While the image fades in, the content shows the placeholder it fades in over (the compositor
+    /// draws the image).
+    /// </summary>
+    protected void PaintImage(SKCanvas canvas, SKRect area)
+    {
+        if (Slot.IsFading && _fade is { PaintsImage: false })
+            Slot.PaintPlaceholder(canvas, area, _aspect);
+        else
+            Slot.Paint(canvas, area, _aspect);
+    }
+
+    // Called by the slot when a load succeeds with nothing shown: whether the image fades in.
+    private bool StartsFade(SkUiImageOrigin origin)
+    {
+        if (!_fadeAnimationEnabled || SkUiImageSlot.CompletingWithoutDispatcher
+            || (origin == SkUiImageOrigin.MemoryCache && !_fadeAnimationForCachedImages))
+            return false;
+        if (!(_fade ??= new SkUiImageFade()).Start(this, _fadeAnimationDuration, EndFade))
+            return false;
+        InvalidateRender(SkUiRenderDirty.Props);
+        return true;
+    }
+
+    private void EndFade()
+    {
+        if (_fade?.Finish() != true)
+            return;
+        _fade.ForgetDrawable();
+        Slot.EndFade();
+        InvalidatePaint();
+        InvalidateRender(SkUiRenderDirty.Props);
+    }
+
+    /// <inheritdoc />
+    internal override void OnGetRenderProps(ref SkUiRenderProps props)
+    {
+        base.OnGetRenderProps(ref props);
+        if (_fade is { IsActive: true } fade)
+            props.Drawable = fade.GetDrawable(Slot.Image, props.Width, props.Height, _aspect, _paintFadeLayer ??= OnPaintContent);
+    }
+
+    /// <inheritdoc />
+    internal override void ReleaseDrawingResources()
+    {
+        base.ReleaseDrawingResources();
+        _fade?.ForgetDrawable();
+    }
+
+    /// <inheritdoc />
+    /// <remarks>A skeleton's bones replaced the fade's drawable (the view disposes it): the next commit makes a new one.</remarks>
+    private protected override void ForgetOwnDrawable() => _fade?.ForgetDrawable();
+
+    /// <inheritdoc />
+    /// <remarks>A fade in progress ends (the image shows): its clock no longer holds the view.</remarks>
+    protected override void OnAnimationRootChanged(bool subtreeDetached = false)
+    {
+        base.OnAnimationRootChanged(subtreeDetached);
+        EndFade();
+    }
 
     /// <inheritdoc />
     protected override void OnPopulateSemantics(SkUiSemanticsInfo info)

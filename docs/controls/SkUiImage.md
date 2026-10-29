@@ -11,7 +11,7 @@ Changing `Source` (or a property of the source object) starts a load through the
 1. **Memory cache.** If the same source with the same decode size and transformations was decoded before, the view shows it **synchronously**: no empty frame and no decode. Views of one source share one decoded image.
 2. **Shared load.** Views that ask for the same image at the same time share one download and one decode. The work is cancelled only when every one of them has let go (source changed or cleared).
 3. **Source.** The bytes come from the disk cache (downloads), the network, the app package, a file or a stream. Font glyphs are drawn through the text engine.
-4. **Decode** happens off the UI thread, a few images at a time. EXIF orientation is applied. Large images are decoded at reduced size (`SkUiImageDecoder.MaxDecodeDimension`, `DownsampleWidth` / `DownsampleHeight`). Animated GIF / WebP decode to all their frames.
+4. **Decode** happens off the UI thread, a few images at a time. EXIF orientation is applied. Large images are decoded at reduced size (`SkUiImageDecoder.MaxDecodeDimension`, `DownsampleWidth` / `DownsampleHeight`, `DownsampleToViewSize`). Animated GIF / WebP decode to all their frames.
 5. **Transformations** run off the UI thread. The result goes into the memory cache.
 
 Completion is applied on the dispatcher that started the load; a load started without one (headless tests, a tree built off the UI thread) completes on the thread pool, serialized with the image's other members (a new source, a placeholder, painting). Errors set `LoadError` and show the `ErrorPlaceholder` (else nothing). While loading, the previous image is cleared and the `LoadingPlaceholder` shows. Drawing goes through `SkUiLook.Current.DrawImage`, the same path as `SkUiCoreImage`. `Aspect.Center` draws the image unscaled (one intrinsic DIP per DIP) in the middle, clipped to the bounds, also when the decoder reduced it.
@@ -106,6 +106,65 @@ image.LoadingFinished += (_, e) =>
   `ImageSize` are updated.
 - **Scope:** placeholder loads raise no events.
 
+### Fade-in
+
+`FadeAnimationEnabled` (FFImageLoading's; default `false`, as MAUI's `Image` does not fade) fades a loaded image in
+over the placeholder it replaces:
+
+```xml
+<sk:SkUiImage Source="{Binding PhotoUrl}" LoadingPlaceholder="photo_loading.png" FadeAnimationEnabled="True" />
+```
+
+- The fade takes the look's `ImageFadeIn` transition (200 ms, cubic out); `FadeAnimationDuration` (milliseconds)
+  replaces its length. Under reduced motion nothing fades.
+- It runs on the render thread: nothing is recorded per frame, so a list of rows can fade while it scrolls. The
+  placeholder stays under the image until the fade ends (`IsShowingPlaceholder` is already `false`).
+- What shows at once: images from the memory cache (unless `FadeAnimationForCachedImages`), images loaded before the
+  view was first drawn (a page that is not shown yet), and an image that replaces a shown one (another source set in
+  its place, a larger decode with `DownsampleToViewSize`).
+- A fade ends early, showing the image, when the page closes, the view leaves the tree, or a new source or `null` is
+  set.
+
+### Download progress
+
+**`LoadingProgress`** (read-only, bindable) and **`DownloadProgress`** (FFImageLoading's) follow a URI download:
+
+```xml
+<Grid>
+    <sk:SkUiImage x:Name="photo" Source="{Binding PhotoUrl}" />
+    <sk:SkUiProgressBar Progress="{Binding LoadingProgress, Source={x:Reference photo}}"
+                        IsVisible="{Binding IsLoading, Source={x:Reference photo}}" VerticalOptions="End" />
+</Grid>
+```
+
+- `LoadingProgress` is the fraction received (0–1) while downloading, **-1** while downloading from a server that sent
+  no `Content-Length`, 1 once the image shows, and 0 otherwise (no source, a failed load). Sources other than URIs,
+  disk-cache reads and memory-cache hits go from 0 to 1 without reports in between.
+- `DownloadProgress` (`SkUiImageDownloadProgressEventArgs`: `Source`, `BytesReceived`, `TotalBytes` (`null` when
+  unknown), `Progress` (`null` when unknown)) is raised on the UI thread after `LoadingProgress` changed, at most once
+  per dispatcher turn: the chunks received meanwhile are one report.
+- Views that share one load (the same cache key, decode size and transformations, started while it runs) all hear it; a view whose source changed hears no
+  more of the old one.
+
+## Android XML drawables
+
+On Android a file source names a drawable by its resource name, as MAUI's `Image` does, and drawables defined in XML
+(`Platforms/Android/Resources/drawable/*.xml`: vectors, shapes, layer lists, insets, with `android:tint`) are drawn by
+Android into the image:
+
+```xml
+<sk:SkUiImage Source="ic_star" />  <!-- Platforms/Android/Resources/drawable/ic_star.xml -->
+```
+
+- The intrinsic size is the drawable's (`android:width` / `android:height` in dp). `?attr/` colors and tints resolve with
+  the current activity's theme, as for a native image.
+- It is drawn at that size in pixels, or at the decode bounds (`DownsampleWidth` / `DownsampleHeight`,
+  `DownsampleToViewSize`), larger ones too: a vector stays sharp in a view larger than its intrinsic size.
+- A drawable without an intrinsic size (a `<shape>` without `<size>`) needs both bounds, or loading fails with a
+  `LoadError` that says so.
+- Animated vectors draw their first frame. Other platforms have no drawables: use a `MauiImage` (an SVG becomes a
+  PNG at build time) for images all platforms share.
+
 ## Caching
 
 `SkUiImageCache` configures the caches shared by every image, image button and slider thumb on both layers:
@@ -117,11 +176,11 @@ image.LoadingFinished += (_, e) =>
 | `ClearAsync(caches)` | Empty the memory cache, the disk cache or both (default), e.g. for a "Clear cache" setting or at sign-out. Views keep their images; the next load decodes and downloads again. |
 | `GetDiskCacheBytesAsync()` | Size of the downloaded files (to show the cache size). |
 | `DiskCacheDirectory`, `DiskCacheMaxBytes` (100 MiB), `ClearDiskCacheAsync()` | Download cache in `FileSystem.CacheDirectory/SkiaUi.Images`. One file per URI, kept only when it decodes (an error page or a corrupt response is not cached; a cached file that no longer decodes is dropped). The oldest files are removed past the budget. Clearing deletes only the cache's own files (`*.img`), so the folder may be shared. |
-| `RemoveAsync(Uri)` / `RemoveAsync(SkUiImageSource)` | Forget one source (all its decode sizes and transformations, and its download), so the next load fetches it again. Call `ReloadAsync()` on views that should refresh. |
+| `RemoveAsync(Uri)` / `RemoveAsync(SkUiImageSource)` / `RemoveByKeyAsync(key)` | Forget one source, or everything cached under an app-chosen key (all its decode sizes and transformations, and its download), so the next load fetches it again. Call `ReloadAsync()` on views that should refresh. |
 | `CacheKeyFactory` | App-wide cache identity: a source → key delegate, `null` for the default key ([below](#custom-cache-keys)). |
 | `HttpClient` | The client that downloads images (set one with your headers, handler or timeout). |
 
-Per view: `CacheType` (`All`, `Memory`, `Disk`, `None`, as FFImageLoading's). For a URI, `UriImageSource.CachingEnabled = false` also skips the disk.
+Per view: `CacheType` (`All`, `Memory`, `Disk`, `None`, as FFImageLoading's) and `CacheKey` ([below](#a-key-per-view)). For a URI, `UriImageSource.CachingEnabled = false` also skips the disk.
 
 ### Custom cache keys
 
@@ -155,6 +214,26 @@ SkUiImageCache.CacheKeyFactory = source => source switch
 - Images cached before the factory changed keep their old keys: set it before images load.
 - `RemoveAsync` removes by key, so it forgets every URL that shares it.
 
+### A key per view
+
+`CacheKey` (FFImageLoading's) sets the cache identity of one view's source, when the view knows it better than a rule
+for all sources can: a list row showing a user's avatar from a signed URL or a stream, keyed by the user's id.
+
+```xml
+<sk:SkUiImage Source="{Binding PhotoUrl}" CacheKey="{Binding PhotoKey}" />
+```
+
+```csharp
+new SkUiCoreImage().SetCacheKey($"avatar-{user.Id}").SetSourceStream(token => photos.OpenAsync(user.Id, token));
+```
+
+- It replaces `CacheKeyFactory` and the source's own key for that view; `null` or empty keeps them. Views with the
+  same key share one entry in memory and, for a URI, one download on disk, whatever their sources, with the same
+  caveat as above: one key, one image.
+- A key equal to one the factory returns names the same entry, so `SkUiImageCache.RemoveByKeyAsync(key)` forgets
+  both.
+- Placeholders keep their own keys. Changing `CacheKey` reloads the source.
+
 ## Transformations
 
 `Transformations` is a list per view, applied in order to the decoded image before it is cached. Adding or removing items reloads. Stock transformations (sizes in the image's DIPs):
@@ -176,9 +255,17 @@ Transformations change the decoded pixels once. For clipping that follows the la
 
 ## Key properties
 
-`Source`, `Aspect`, `IsAnimationPlaying`, `Transformations`, `CacheType`, `DownsampleWidth`, `DownsampleHeight`, `LoadingPlaceholder`, `ErrorPlaceholder`, `TransformPlaceholders`, `IsLoading`, `LoadError`, `ImageSize`, `IsShowingPlaceholder`, `LoadingTask`, `ReloadAsync()`. Events: `LoadingStarted`, `LoadingFinished`. Fluent: `SetSource`, `SetAspect`, `SetIsAnimationPlaying`, `SetTransformations(...)`, `SetCacheType`, `SetDownsample(width, height)`, `SetPlaceholders(loading, error)`, `SetTransformPlaceholders`.
+`Source`, `Aspect`, `IsAnimationPlaying`, `Transformations`, `CacheType`, `CacheKey`, `DownsampleWidth`, `DownsampleHeight`, `DownsampleToViewSize`, `LoadingPlaceholder`, `ErrorPlaceholder`, `TransformPlaceholders`, `FadeAnimationEnabled`, `FadeAnimationDuration`, `FadeAnimationForCachedImages`, `IsLoading`, `LoadingProgress`, `LoadError`, `ImageSize`, `IsShowingPlaceholder`, `LoadingTask`, `ReloadAsync()`. Events: `LoadingStarted`, `LoadingFinished`, `DownloadProgress`. Fluent: `SetSource`, `SetAspect`, `SetIsAnimationPlaying`, `SetTransformations(...)`, `SetCacheType`, `SetCacheKey`, `SetDownsample(width, height)`, `SetDownsampleToViewSize`, `SetFadeAnimation(enabled, duration)`, `SetFadeAnimationForCachedImages`, `SetPlaceholders(loading, error)`, `SetTransformPlaceholders`.
 
 `DownsampleWidth` / `DownsampleHeight` are DIPs at the display density (FFImageLoading's with `DownsampleUseDipUnits`). The image is decoded no larger than that, aspect kept, never upscaled. Use them for thumbnails of large photos.
+
+`DownsampleToViewSize` (FFImageLoading's) takes the bounds from the view instead, for photos in cells whose size the layout decides:
+
+- A new source starts loading at the view's next arrange (the view is empty until then, so that arrange is the layout's size, not the previous image's) and decodes to fit inside the arranged size, or to cover it for `AspectFill` and `Fill`. `ReloadAsync` and changes of other options reuse the bounds already decided.
+- Bounds round up to steps of 16 DIPs, so rows of one size share cache entries. A larger arrange decodes again, showing the smaller image meanwhile (and keeping it, with no `LoadError`, if that decode fails: `LoadingFinished` still reports the failure); a smaller one keeps the image. An image decoded at its full size is not decoded again.
+- A dimension the view takes from its image (arranged at 0 while empty: an image with `Start` alignment, the height in a vertical stack) is not bounded, so auto-sized images measure as without it.
+- `DownsampleWidth` / `DownsampleHeight` win, and `Aspect="Center"` (drawn unscaled) decodes as without it. Placeholders get the same bounds with `TransformPlaceholders`.
+- It saves memory, not time: a cache hit happens at the arrange instead of when the source is set, and a new source takes one more layout pass (`skui-images-viewsized` in the benchmarks).
 
 Animated GIF / WebP play on the view's UI clock while `IsAnimationPlaying` is true, re-recording only this image when its frame changes. Paused, the current frame stays. An animation whose frames would take more than `SkUiImageDecoder.MaxAnimationBytes` (64 MiB) decodes to its first frame and draws still.
 
@@ -187,8 +274,8 @@ Animated GIF / WebP play on the view's UI clock while `IsAnimationPlaying` is tr
 | Topic | SkiaUi |
 | --- | --- |
 | Caching | Memory cache of decoded images shared by all views; download cache with MAUI's `CachingEnabled` / `CacheValidity`; plus `CacheType` per view |
-| Transformations, downsampling, placeholders, load events | SkiaUi extensions (from FFImageLoading); MAUI has only `IsLoading` |
-| `MauiImage` lookup | The file Resizetizer generated for the display density; Android vector (XML) drawables are not decoded |
+| Transformations, downsampling, placeholders, load events, download progress, fade-in | SkiaUi extensions (from FFImageLoading); MAUI has only `IsLoading` |
+| `MauiImage` lookup | The file Resizetizer generated for the display density. On Android, drawables defined in XML (vectors, shapes, layer lists) are drawn by Android, as MAUI's `Image` shows them ([below](#android-xml-drawables)) |
 | `FontImageSource.FontAutoScalingEnabled` | As MAUI's: the glyph follows the system text size (default `true`). The size is fixed when the source is set: after a change of the system text size or `SkUiLook.FontScale`, images already shown keep their size (labels re-measure); set the source again to draw the glyph at the new size |
 | Screen readers | An image is read only with `SemanticProperties.Description` (or `AutomationProperties.IsInAccessibleTree="True"`); an image button is a button named by its description |
 | `IsOpaque` | Accepted for MAUI markup; a hint for platform image views, so drawn images draw the same either way |

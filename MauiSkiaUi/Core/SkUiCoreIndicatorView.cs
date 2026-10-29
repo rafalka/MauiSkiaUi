@@ -8,7 +8,7 @@ namespace MauiSkiaUi.Core;
 /// <see cref="SkUiTransitionKind.IndicatorPosition"/> transition. Drive it from a pager of your own with
 /// <see cref="Position"/> and <see cref="Count"/>.
 /// </summary>
-public class SkUiCoreIndicatorView : SkUiCoreNode
+public class SkUiCoreIndicatorView : SkUiCoreNode, ISkUiKeyHandler
 {
     /// <summary>
     /// Whether <see cref="SkUiCoreNode.InputTransparent"/> covers the children too (<c>true</c>, the default, as MAUI's
@@ -72,6 +72,9 @@ public class SkUiCoreIndicatorView : SkUiCoreNode
 
     /// <summary>The row's direction (default horizontal).</summary>
     public StackOrientation Orientation { get => _model.Orientation; set => SetOrientation(value); }
+
+    /// <summary>Previous / next buttons at the row's ends (see <c>SkUiIndicatorView.NavigationButtonVisibility</c>).</summary>
+    public SkUiIndicatorButtonVisibility NavigationButtonVisibility { get => _model.NavigationButtons; set => SetNavigationButtonVisibility(value); }
 
     /// <summary>Sets <see cref="Position"/>.</summary>
     public SkUiCoreIndicatorView SetPosition(int value)
@@ -188,6 +191,15 @@ public class SkUiCoreIndicatorView : SkUiCoreNode
         return this;
     }
 
+    /// <summary>Sets when the previous / next buttons show.</summary>
+    public SkUiCoreIndicatorView SetNavigationButtonVisibility(SkUiIndicatorButtonVisibility value)
+    {
+        if (!Enum.IsDefined(value)) throw new ArgumentOutOfRangeException(nameof(value));
+        if (SetProperty(ref _model.NavigationButtons, value, nameof(NavigationButtonVisibility)))
+            InvalidateMeasure();
+        return this;
+    }
+
     /// <summary>The selection drawn now (tests).</summary>
     internal double DisplayedPosition => _model.Displayed;
 
@@ -204,9 +216,34 @@ public class SkUiCoreIndicatorView : SkUiCoreNode
     /// <inheritdoc />
     internal override void OnIntrinsicTap(SkUiTappedEventArgs args)
     {
-        var index = _model.HitTest(args.Position, (float)Frame.Width, (float)Frame.Height, IsRightToLeft);
+        var (width, height) = ((float)Frame.Width, (float)Frame.Height);
+        if (_model.HitTestButton(args.Position, width, height, IsRightToLeft) is not 0 and var step)
+        {
+            if (_model.Step(step) is var target and >= 0)
+                SetPosition(target);
+            return;
+        }
+        var index = _model.HitTest(args.Position, width, height, IsRightToLeft);
         if (index >= 0)
             SetPosition(index);
+    }
+
+    /// <inheritdoc />
+    internal override bool TracksHover => true;
+
+    /// <inheritdoc />
+    internal override void OnHovered(Point? position)
+    {
+        if (_model.Hover(position, (float)Frame.Width, (float)Frame.Height, IsRightToLeft))
+            InvalidatePaint();
+    }
+
+    bool ISkUiKeyHandler.OnKeyDown(in SkUiKeyEvent key)
+    {
+        if (!IsEnabled || _model.KeyTarget(key, IsRightToLeft) is not (var target and >= 0) || target == _model.ClampedPosition)
+            return false;
+        SetPosition(target);
+        return true;
     }
 
     /// <inheritdoc />

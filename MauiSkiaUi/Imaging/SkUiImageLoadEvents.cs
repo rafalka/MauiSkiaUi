@@ -49,6 +49,25 @@ public sealed class SkUiImageLoadStartedEventArgs(SkUiImageSource source) : Even
 }
 
 /// <summary>
+/// A download in progress (<c>DownloadProgress</c>): raised on the UI thread, at most once per dispatcher turn (later
+/// chunks are coalesced into the next report). Cache hits and sources other than URIs raise none.
+/// </summary>
+public sealed class SkUiImageDownloadProgressEventArgs(SkUiImageSource source, long bytesReceived, long? totalBytes) : EventArgs
+{
+    /// <summary>The source being downloaded.</summary>
+    public SkUiImageSource Source { get; } = source;
+
+    /// <summary>Bytes received so far.</summary>
+    public long BytesReceived { get; } = bytesReceived;
+
+    /// <summary>The download's size (its <c>Content-Length</c>), or <c>null</c> when the server did not say.</summary>
+    public long? TotalBytes { get; } = totalBytes;
+
+    /// <summary>The fraction received (0–1), or <c>null</c> when the size is unknown.</summary>
+    public double? Progress => TotalBytes is > 0 and var total ? Math.Min(1, BytesReceived / (double)total) : null;
+}
+
+/// <summary>
 /// An image load ended (<c>LoadingFinished</c>): raised exactly once for every <c>LoadingStarted</c>, on the UI thread,
 /// after the view's state (<c>IsLoading</c>, <c>LoadError</c>, <c>ImageSize</c>) is updated.
 /// </summary>

@@ -9,7 +9,8 @@ What the next releases bring, and the work after them. What has shipped is in th
 | **1.0.0** | 10.0.110 | 26 | 10.0.400 | iOS 15, Mac Catalyst 15, Android 5.0 (API 21), Windows 10 1809 | `master`, released 22 October 2026 |
 | **1.1.0** | 10.0.120 | 27 | 10.0.402 | iOS 15, **Mac Catalyst 17**, Android 5.0 (API 21), Windows 10 1809 | `master`, released 26 October 2026 |
 | **1.2.0** | 10.0.120 | 27 | 10.0.402 | As 1.1.0 | `master`, released 27 October 2026 |
-| **1.3.0** | 10.0.120 or a later 10.0.x | 27 | 10.0.402 | As 1.1.0 | `devel` (in progress) |
+| **1.3.0** | 10.0.120 | 27 | 10.0.402 | As 1.1.0 | `master`, released 28 October 2026 |
+| **1.4.0** | 10.0.120 or a later 10.0.x | 27 | 10.0.402 | As 1.1.0 | `devel` (in progress) |
 
 SkiaUi stays on MAUI 10.x. Development happens on `devel`; `master` holds stable releases ([Releasing.md](../Releasing.md#branches-and-versions)).
 
@@ -32,7 +33,7 @@ Work merged into `devel` after 1.0.0 shipped with 1.1.0 too.
 
 More MAUI pages port by changing the XAML prefix: MAUI's pan, swipe, pinch and pointer recognizers on drawn views; the collection view's and carousel's `ItemsLayout`, `ScrollTo`, snap points, `ItemsUpdatingScrollMode` and text headers; `IndicatorTemplate`; MAUI 10's new members (`SafeAreaEdges` on the surface root, `Switch.OffColor`, `CheckBox.Command`); and a test that compares the drawn controls' API with MAUI's. `TemplateBinding`, data headers and platform-specifics become conversions in the migration checker. Collection view reordering follows in 1.3. Steps, order and decisions: [the archived plan](../archive/ImplementationPlan-1.2.md); what it left open is below ([1.3.0](#130-reordering-and-drawn-form-controls-next-on-devel), [backlog](#backlog-1x), [verification backlog](#verification-backlog), [held for 2.0](#held-for-20), [not planned](#not-planned)).
 
-### 1.3.0: reordering and drawn form controls (next, on `devel`)
+### 1.3.0: reordering and drawn form controls (shipped)
 
 Collection view reordering, moved from 1.2 (a new feature rather than a port by prefix, and the only L-sized step), and what building drawn form controls on 1.x asked for ([milestone](https://github.com/rafalka/MauiSkiaUi/milestone/1)):
 
@@ -43,6 +44,13 @@ Collection view reordering, moved from 1.2 (a new feature rather than a port by 
   - Leak scenario `CollectionViewReordered`; device runs in the [verification backlog](#verification-backlog).
 - **Fixed on `devel`:** centered single lines in fonts with a line gap ([#61](https://github.com/rafalka/MauiSkiaUi/issues/61)), the dim press on light and transparent buttons ([#62](https://github.com/rafalka/MauiSkiaUi/issues/62)), and `RunsTappedCommand`, so a host that hands its `TappedCommand` to the node it draws is one element and focus stop ([#63](https://github.com/rafalka/MauiSkiaUi/issues/63)).
 - **Added:** `PressFeedback = Fade` for `ShowsPressEffect`, a composited fade to the look's `PressedContentOpacity` for dark content the tint hardly changes ([#64](https://github.com/rafalka/MauiSkiaUi/issues/64)); `DefaultMinimumHeight`, a protected virtual on both button layers used while no minimum height is set ([#65](https://github.com/rafalka/MauiSkiaUi/issues/65)); and `SkUiDisplayBinding`, the public item-text reader the pickers now share, which lets go of the last item ([#66](https://github.com/rafalka/MauiSkiaUi/issues/66)); `SkUiDragger` / `SkUiCoreDragger`, a handle that reports drags in its parent's coordinates for an app's own resizing ([doc](../controls/SkUiDragger.md)), and the grid splitters built on it, which resize grid rows or columns in drawn grids, MAUI's `Grid` and Core tables (column grips in the header) ([doc](../controls/SkUiGridSplitter.md)); the demo's component pages resize their preview area with one.
+
+### 1.4.0: images and look details (next, on `devel`)
+
+Steps, order and open decisions: [ImplementationPlan-1.4.md](ImplementationPlan-1.4.md).
+
+- **Images:** a cache key per view (done: `CacheKey`, `SkUiImageCache.RemoveByKeyAsync`), downsampling to the view's size (done: `DownsampleToViewSize`), download progress (done: `LoadingProgress`, `DownloadProgress`), fade-in (done: `FadeAnimationEnabled`), Android vector (XML) drawables (done).
+- **Look details:** progress bar heights (done: they matched; Material 2's square ends fixed), popup chrome (done: look members, Android's corners measured), Android text 1–2 % wider than a `TextView` (done: plain text kerns; Apple's optical size), the radio label about 2 DIPs wider than MAUI's on Apple (done: padding 7, not 8), an opt-in Fluent pips pager (done: `SkUiIndicatorStyle.Pips`, `NavigationButtonVisibility`).
 
 ## Backlog (1.x)
 
@@ -61,7 +69,6 @@ Taken up when a real app needs it, roughly in this order within each area. Items
 - **CollectionView:** a selected-item template, extended selection, keyboard item navigation, animated insert and remove.
 - **CarouselView / IndicatorView:** `VisibleViews`; autoplay, several items per snap point, a Core carousel.
 - **Gesture recognizers on drawn views:** `PanGestureRecognizer` with `TouchPoints` other than 1 (reported and not run since 1.2).
-- **Images:** fade-in, download progress, a per-view cache key, downsampling to the view's size, Android vector drawables.
 - **Labels:** span press feedback, HTML images, `sub` / `sup`, block indents; one fitted size for a group of labels.
 - **Templates:** button image tint.
 - **Drawn meanings of platform-specifics,** as SkiaUi members on both layers: a tap on a slider's track that moves the thumb, swipe view transition modes (reveal / drag), the press ripple's color, search bar chrome (minimal / prominent); pulling from other edges is under [Lists and scrolling](#lists-and-scrolling).
@@ -84,7 +91,6 @@ Taken up when a real app needs it, roughly in this order within each area. Items
 ### Looks, colors and motion
 
 - Per-tree color schemes (looks already work per tree); reading the device's dynamic color (Android 12+), the Windows and Mac accent colors and the OS dark mode into the schemes.
-- Look details: a Fluent pips pager, progress bar heights, popup chrome (shadows, corner radii); Android text 1–2 % wider than a TextView; the radio label about 2 DIPs wider than MAUI's on Apple.
 - Transitions: several ripples at once, press scale, opt-in render-thread painters; render-thread animation of shadow properties.
 
 ### Accessibility
@@ -106,10 +112,10 @@ Taken up when a real app needs it, roughly in this order within each area. Items
 
 Device runs that are still open. How to run them: [Testing.md](Testing.md#device-acceptance-checklists-still-open).
 
-- **Text input:** CJK and Korean composition, dictation, Google / iOS / third-party password managers and Android autofill on devices; Windows runs (compiled only); VoiceOver text navigation on a device; the Windows touch keyboard; drawn popups over a focused field.
+- **Text input:** dictation, Google / iOS / third-party password managers on devices; drawn popups over a focused field. (CJK and Korean composition, Android autofill on devices, Windows runs, VoiceOver text navigation on a device and the Windows touch keyboard: verified, reported 29 October 2026.)
 - **Accessibility:** TalkBack, VoiceOver (iOS) and Narrator on devices; keyboards on Android and Windows; an Appium run with `ExposeAutomationIds`.
 - **Hosted controls:** the manual checklist (soft keyboard, IME, WebView nesting) on devices and Windows.
-- **Controls:** feel and frame time on devices for the collection view (fling at 10k items, memory), virtual stack, swipe view, refresh view, carousel, expander, avatar view, shimmer (a scrolling list of shimmering rows), scroll bars and overscroll; the pickers' presenters on Windows, in landscape, on rotation and window resize, with screen readers; tooltips on Windows and iPad.
+- **Controls:** feel and frame time on devices for the collection view (fling at 10k items, memory), virtual stack, swipe view, refresh view, carousel, expander, avatar view, shimmer (a scrolling list of shimmering rows), scroll bars and overscroll; the pickers' presenters on Windows (the toolkit's anchored list was checked on 29 October 2026: frame, keyboard, dismissal), in landscape, on rotation and window resize, with screen readers; tooltips on Windows and iPad.
 - **Demo gallery:** a full pass on Android and an Apple device.
 - **MAUI gesture recognizers on drawn views (1.2):** swipe, pan, pinch, pointer, secondary-button and triple taps on Android, iOS, Mac Catalyst and Windows, against the native view on the gallery's "MAUI gesture recognizers" page.
 - **Snap points on lists (1.2):** flings and drags ending on rows on a phone (Android and iOS), with the gallery's "Items layouts and snap points" page.

@@ -79,7 +79,11 @@ public class IosSkUiLook : DefaultSkUiLook
     public override double DefaultRadioButtonContentSpacing => 6;
 
     /// <inheritdoc />
-    public override Thickness RadioButtonPadding => new(8, 7);
+    /// <remarks>
+    /// 7 pt on every side: MAUI's template lays out 41 pt around its text (the 21 pt circle, 6 pt to the text, 7 pt on
+    /// each side), measured on iOS 26 against a label of the same text.
+    /// </remarks>
+    public override Thickness RadioButtonPadding => new(7);
 
     /// <inheritdoc />
     /// <remarks>A native button's corners are square unless it sets <c>CornerRadius</c>.</remarks>
@@ -154,6 +158,10 @@ public class IosSkUiLook : DefaultSkUiLook
     /// <inheritdoc />
     /// <remarks>CoreText tracks text by the font's <c>trak</c> table.</remarks>
     public override bool AppliesFontTracking => true;
+
+    /// <inheritdoc />
+    /// <remarks>CoreText draws the system font at the optical size of its point size.</remarks>
+    public override bool AppliesOpticalSize => true;
 
     /// <inheritdoc />
     /// <remarks>iOS's body text style, 17 pt, in the system font (SF).</remarks>

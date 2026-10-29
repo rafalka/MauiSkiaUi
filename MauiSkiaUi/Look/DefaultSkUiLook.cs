@@ -138,12 +138,57 @@ public class DefaultSkUiLook : SkUiLook
         if (paint.Count <= 0 || paint.IndicatorSize <= 0)
             return;
         var fill = Paint(paint.Color);
-        var radius = paint.Shape == IndicatorShape.Circle ? paint.IndicatorSize / 2 : Math.Min(1.5f, paint.IndicatorSize / 4);
+        var pips = EffectiveIndicatorStyle == SkUiIndicatorStyle.Pips;
         for (var slot = 0; slot < paint.Count; slot++)
         {
             fill.Color = paint.GetColor(slot);
-            canvas.DrawRoundRect(paint.GetIndicatorBounds(slot), radius, radius, fill);
+            var bounds = paint.GetIndicatorBounds(slot);
+            if (pips)
+            {
+                // Two thirds of the size (Fluent's 4 of 6), growing to the full size as it is selected or pointed at.
+                var grown = slot == paint.HoveredSlot ? 1 : paint.GetSelection(slot);
+                var inset = paint.IndicatorSize / 6 * (1 - grown);
+                bounds.Inflate(-inset, -inset);
+            }
+            var radius = paint.Shape == IndicatorShape.Circle ? bounds.Width / 2 : Math.Min(1.5f, bounds.Width / 4);
+            canvas.DrawRoundRect(bounds, radius, radius, fill);
         }
+        DrawIndicatorButton(canvas, paint.PreviousButtonBounds, paint, previous: true);
+        DrawIndicatorButton(canvas, paint.NextButtonBounds, paint, previous: false);
+    }
+
+    /// <summary>
+    /// An indicator view's previous / next button in <paramref name="bounds"/> (nothing when empty): a small solid caret in
+    /// the indicators' color, pointing along the row (the control mirrors right-to-left layouts).
+    /// </summary>
+    protected virtual void DrawIndicatorButton(SKCanvas canvas, SKRect bounds, in SkUiIndicatorPaint paint, bool previous)
+    {
+        if (bounds.IsEmpty)
+            return;
+        // Fluent's 8 pt caret glyph in a 20 pt button: a triangle 4 deep and 8 high.
+        var half = bounds.Width / 5;
+        var depth = half;
+        var (cx, cy) = (bounds.MidX, bounds.MidY);
+        using var builder = new SKPathBuilder();
+        if (paint.Orientation == StackOrientation.Horizontal)
+        {
+            var tip = previous ? cx - depth / 2 : cx + depth / 2;
+            var back = previous ? cx + depth / 2 : cx - depth / 2;
+            builder.MoveTo(new SKPoint(tip, cy));
+            builder.LineTo(new SKPoint(back, cy - half));
+            builder.LineTo(new SKPoint(back, cy + half));
+        }
+        else
+        {
+            var tip = previous ? cy - depth / 2 : cy + depth / 2;
+            var back = previous ? cy + depth / 2 : cy - depth / 2;
+            builder.MoveTo(new SKPoint(cx, tip));
+            builder.LineTo(new SKPoint(cx - half, back));
+            builder.LineTo(new SKPoint(cx + half, back));
+        }
+        builder.Close();
+        using var path = builder.Detach();
+        canvas.DrawPath(path, Paint(paint.Color));
     }
 
     private static readonly Shadow ReorderShadow = new() { Brush = Colors.Black, Opacity = 0.3f, Radius = 12, Offset = new Point(0, 4) };
@@ -177,6 +222,7 @@ public class DefaultSkUiLook : SkUiLook
         SkUiTransitionKind.PickerOpen => SkUiTransition.FromMilliseconds(200, Easing.CubicInOut),
         SkUiTransitionKind.ReorderLift => SkUiTransition.FromMilliseconds(150, Easing.CubicOut),
         SkUiTransitionKind.ReorderMove => SkUiTransition.FromMilliseconds(200, Easing.CubicOut),
+        SkUiTransitionKind.ImageFadeIn => SkUiTransition.FromMilliseconds(200, Easing.CubicOut),
         // Determinate progress follows Progress at once, as MAUI's ProgressBar (ProgressTo animates).
         _ => SkUiTransition.None
     };

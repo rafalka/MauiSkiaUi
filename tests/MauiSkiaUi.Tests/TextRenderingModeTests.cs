@@ -10,27 +10,35 @@ public class TextRenderingModeTests
     internal static SKTypeface Primary() =>
         SKTypeface.FromFile(Path.Combine(AppContext.BaseDirectory, "Assets", "RobotoMono-Regular.ttf"));
 
-    internal static bool LayoutIsSimple(string text, SkUiTextRendering rendering, SkUiTextDirection direction = SkUiTextDirection.Auto)
+    internal static bool LayoutIsSimple(string text, SkUiTextRendering rendering, SkUiTextDirection direction = SkUiTextDirection.Auto) =>
+        Layout(text, rendering, direction).LastLayoutSimple;
+
+    internal static bool LayoutIsPlain(string text, SkUiTextRendering rendering, SkUiTextDirection direction = SkUiTextDirection.Auto) =>
+        Layout(text, rendering, direction).LastLayoutPlain;
+
+    private static SkUiTextLayout Layout(string text, SkUiTextRendering rendering, SkUiTextDirection direction)
     {
         var layout = new SkUiTextLayout();
         layout.Measure(text, new SkUiTextStyle(Primary(), 16, Direction: direction, Rendering: rendering), default, 500);
-        return layout.LastLayoutSimple;
+        return layout;
     }
 
     [Fact]
-    public void AutoUsesSimplePathForPlainLatinAndShapesEverythingElse()
+    public void AutoShapesPlainLatinAsOneRunAndEverythingElseInFull()
     {
-        Assert.True(LayoutIsSimple("Item 0001 — €12.50 (zażółć)", SkUiTextRendering.Auto));
-        Assert.False(LayoutIsSimple("مرحبا", SkUiTextRendering.Auto));
-        Assert.False(LayoutIsSimple("ok 👍", SkUiTextRendering.Auto));
-        Assert.False(LayoutIsSimple("Item 1", SkUiTextRendering.Auto, SkUiTextDirection.RightToLeft));
+        Assert.True(LayoutIsPlain("Item 0001 — €12.50 (zażółć)", SkUiTextRendering.Auto));
+        Assert.False(LayoutIsSimple("Item 0001", SkUiTextRendering.Auto)); // shaped: kerned as the platforms' text
+        Assert.False(LayoutIsPlain("مرحبا", SkUiTextRendering.Auto));
+        Assert.False(LayoutIsPlain("ok 👍", SkUiTextRendering.Auto));
+        Assert.False(LayoutIsPlain("Item 1", SkUiTextRendering.Auto, SkUiTextDirection.RightToLeft));
     }
 
     [Fact]
-    public void SimpleNeverShapesAndShapedAlwaysDoes()
+    public void SimpleNeverShapesAndShapedAlwaysShapesInFull()
     {
         Assert.True(LayoutIsSimple("مرحبا 👍", SkUiTextRendering.Simple));
         Assert.False(LayoutIsSimple("Item 0001", SkUiTextRendering.Shaped));
+        Assert.False(LayoutIsPlain("Item 0001", SkUiTextRendering.Shaped));
     }
 
     [Fact]
@@ -92,10 +100,10 @@ public class TextRenderingDefaultTests
         try
         {
             SkUiTextOptions.DefaultRendering = SkUiTextRendering.Shaped;
-            Assert.False(TextRenderingModeTests.LayoutIsSimple("Item 0001", SkUiTextRendering.Default));
+            Assert.False(TextRenderingModeTests.LayoutIsPlain("Item 0001", SkUiTextRendering.Default));
             SkUiTextOptions.DefaultRendering = SkUiTextRendering.Default;
             Assert.Equal(SkUiTextRendering.Auto, SkUiTextOptions.DefaultRendering);
-            Assert.True(TextRenderingModeTests.LayoutIsSimple("Item 0001", SkUiTextRendering.Default));
+            Assert.True(TextRenderingModeTests.LayoutIsPlain("Item 0001", SkUiTextRendering.Default));
         }
         finally
         {

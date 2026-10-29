@@ -18,8 +18,9 @@ A drawn row of indicators, one per item, with the current one selected: the dots
 
 The current look ([ControlLook.md](../design/ControlLook.md)) draws every indicator view:
 
-- `DefaultSkUiLook.IndicatorStyle`: `Dots` (the default look's; the selected dot takes the selected color, blended while the selection moves) or `Pill` (the selected indicator stretches into a pill two sizes longer that slides between the dots, as Material's). The option's own default, `Default`, is the look's `BaseIndicatorStyle` (`Pill` in `AndroidSkUiLook`). Call `SkUiLook.NotifyChanged()` after changing it.
+- `DefaultSkUiLook.IndicatorStyle`: `Dots` (the default look's; the selected dot takes the selected color, blended while the selection moves), `Pill` (the selected indicator stretches into a pill two sizes longer that slides between the dots, as Material's) or `Pips` (Fluent's pips pager: dots two thirds of the size, the selected one and one under the mouse at the full size; pair it with `NavigationButtonVisibility`). MAUI's own indicator view on Windows draws plain dots, which `WindowsSkUiLook` keeps. The option's own default, `Default`, is the look's `BaseIndicatorStyle` (`Pill` in `AndroidSkUiLook`). Call `SkUiLook.NotifyChanged()` after changing it.
 - `SkUiLook.DrawIndicators(canvas, SkUiIndicatorPaint)`, or the `IndicatorPainter` delegate, draws the row. The paint struct has the row's `Bounds`, the visible `Count` and the `First` item shown, the fractional `Position`, the sizes, shape, colors and orientation, and helpers that lay the row out exactly as the control hit-tests it: `GetIndicatorBounds(slot)`, `GetSelection(slot)` (0–1, shared by two neighbors while the selection moves) and `GetColor(slot)`. It is drawn again while the selection moves, so keep it cheap.
+- Previous / next buttons (`NavigationButtonVisibility`): the paint struct has their `PreviousButtonBounds` / `NextButtonBounds` (empty when they do not show) and the `HoveredSlot`; `DefaultSkUiLook.DrawIndicatorButton` draws a small caret, and `IndicatorNavigationButtonSize` (20) is their size.
 - `GetSelectedIndicatorExtraLength(size, shape)`: how much longer the selected indicator is (the control lays the row out with it); `DefaultIndicatorSpacing`; `GetTransition(SkUiTransitionKind.IndicatorPosition)`.
 
 ```csharp
@@ -109,6 +110,7 @@ On its own, bound to a pager of your own:
 | `HideSingle` | `true` | Nothing drawn for one item |
 | `IndicatorSpacing` | `-1` | Gap; negative: the look's (8) (SkiaUi) |
 | `Orientation` | `Horizontal` | `StackOrientation` (SkiaUi) |
+| `NavigationButtonVisibility` | `Collapsed` | Previous / next buttons at the row's ends, as Fluent's pips pager: `Visible`, or `VisibleOnPointerOver` (the room is kept). A tap moves `Position` by one; hidden on the first and last item unless the selection wraps (SkiaUi; Core: `SetNavigationButtonVisibility`) |
 | `Padding` | `0` | As MAUI's: space around the row, added to the measured size; the row is centered inside it |
 | `IndicatorTemplate` | `null` | A drawn view per indicator ([Indicator templates](#indicator-templates)); SkUi* only |
 | `IndicatorLayout` | `null` | The template's stack, or a drawn layout of the app's shown instead of the row |

@@ -171,6 +171,19 @@ public class SkUiPopupRequest
     public bool IsAnimated { get; init; } = true;
 
     /// <summary>
+    /// The popup's corner radii, from the look (<see cref="SkUiLook.GetPopupCornerRadius"/>). The drawn
+    /// <see cref="Content"/> is already clipped to them; a presenter gives its container (the popup's shape, a border) the
+    /// same, so its background and shadow follow the content's corners.
+    /// </summary>
+    public CornerRadius CornerRadius { get; internal set; }
+
+    /// <summary>
+    /// The popup's shadow, or <c>null</c> for none, from the look (<see cref="SkUiLook.GetPopupShadow"/>). It falls outside
+    /// <see cref="Content"/>, so a presenter that can draw one gives it to its container; a new object for each request.
+    /// </summary>
+    public Shadow? Shadow { get; internal set; }
+
+    /// <summary>
     /// Whether a choice takes effect only when accepted (the control's <c>UpdateMode</c> is
     /// <see cref="SkUiPickerUpdateMode.WhenFinished"/>): the popup needs an OK and a Cancel button, and a dismissal discards what
     /// was chosen in it. The drawn <see cref="Content"/> shows the buttons (drawn on every platform, so they look the same everywhere);

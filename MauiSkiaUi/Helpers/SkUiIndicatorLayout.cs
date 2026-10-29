@@ -87,6 +87,15 @@ internal sealed class SkUiIndicatorModel(ISkUiTransitionHost host)
     /// <summary>The selection wraps from the last item to the first (set by a looping carousel).</summary>
     public bool Wraps;
 
+    /// <summary>When the previous / next buttons show.</summary>
+    public SkUiIndicatorButtonVisibility NavigationButtons;
+
+    /// <summary>A mouse or pen hovers over the view.</summary>
+    public bool IsPointerOver;
+
+    // Where along the row a hovering pointer is (left-to-right, local), or NaN.
+    private float _hoverAlong = float.NaN;
+
     /// <summary>A carousel drives the drawn position (<see cref="Drive"/>): position changes do not animate on their own.</summary>
     public bool IsDriven;
 
@@ -133,11 +142,15 @@ internal sealed class SkUiIndicatorModel(ISkUiTransitionHost host)
         return true;
     }
 
+    /// <summary>The room each previous / next button takes at an end of the row: none while they are collapsed.</summary>
+    private double ButtonSize => NavigationButtons == SkUiIndicatorButtonVisibility.Collapsed ? 0 : SkUiLook.Current.IndicatorNavigationButtonSize;
+
     public Size Measure(double widthConstraint, double heightConstraint)
     {
         var visible = SkUiIndicatorLayout.Visible(Count, MaximumVisible);
-        var length = SkUiIndicatorLayout.Length(visible, IndicatorSize, ResolvedSpacing, visible > 0 ? ExtraLength : 0);
-        var thickness = visible > 0 ? IndicatorSize : 0;
+        var button = visible > 0 ? ButtonSize : 0;
+        var length = SkUiIndicatorLayout.Length(visible, IndicatorSize, ResolvedSpacing, visible > 0 ? ExtraLength : 0) + 2 * button;
+        var thickness = visible > 0 ? Math.Max(IndicatorSize, button) : 0;
         var (width, height) = Orientation == StackOrientation.Horizontal ? (length, thickness) : (thickness, length);
         return new Size(width + Padding.HorizontalThickness, height + Padding.VerticalThickness);
     }
@@ -155,9 +168,12 @@ internal sealed class SkUiIndicatorModel(ISkUiTransitionHost host)
         var length = (float)SkUiIndicatorLayout.Length(visible, IndicatorSize, ResolvedSpacing, extra);
         var horizontal = Orientation == StackOrientation.Horizontal;
         var size = (float)IndicatorSize;
+        var button = visible > 0 ? (float)ButtonSize : 0;
+        // The buttons sit at the row's ends; the row with them is centered inside the padding.
         var (rowWidth, rowHeight) = horizontal ? (length, size) : (size, length);
-        var left = (float)Padding.Left + (width - (float)Padding.HorizontalThickness - rowWidth) / 2;
-        var top = (float)Padding.Top + (height - (float)Padding.VerticalThickness - rowHeight) / 2;
+        var (outerWidth, outerHeight) = horizontal ? (length + 2 * button, size) : (size, length + 2 * button);
+        var left = (float)Padding.Left + (width - (float)Padding.HorizontalThickness - outerWidth) / 2 + (horizontal ? button : 0);
+        var top = (float)Padding.Top + (height - (float)Padding.VerticalThickness - outerHeight) / 2 + (horizontal ? 0 : button);
         var bounds = new SKRect(left, top, left + rowWidth, top + rowHeight);
         var color = SkUiShapePainter.ToSkColor(IndicatorColor);
         var selected = SkUiShapePainter.ToSkColor(SelectedColor);
@@ -166,8 +182,97 @@ internal sealed class SkUiIndicatorModel(ISkUiTransitionHost host)
             color = color.WithAlpha((byte)(color.Alpha / 2));
             selected = selected.WithAlpha((byte)(selected.Alpha / 2));
         }
-        return new SkUiIndicatorPaint(bounds, visible, first, (float)displayed, Count, size, (float)ResolvedSpacing, extra,
+        var paint = new SkUiIndicatorPaint(bounds, visible, first, (float)displayed, Count, size, (float)ResolvedSpacing, extra,
             Shape, color, selected, Orientation, Wraps, enabled);
+        if (button > 0)
+        {
+            var shown = NavigationButtons == SkUiIndicatorButtonVisibility.Visible || IsPointerOver;
+            paint = paint with
+            {
+                PreviousButtonBounds = shown && CanStep(-1) ? ButtonBounds(bounds, button, before: true, horizontal) : SKRect.Empty,
+                NextButtonBounds = shown && CanStep(1) ? ButtonBounds(bounds, button, before: false, horizontal) : SKRect.Empty
+            };
+        }
+        return float.IsNaN(_hoverAlong) ? paint : paint with { HoveredSlot = SlotAt(paint, _hoverAlong) };
+    }
+
+    /// <summary>A button's square at the start (<paramref name="before"/>) or end of the row, centered across it.</summary>
+    private static SKRect ButtonBounds(SKRect row, float size, bool before, bool horizontal) => horizontal
+        ? (before ? new SKRect(row.Left - size, row.MidY - size / 2, row.Left, row.MidY + size / 2)
+            : new SKRect(row.Right, row.MidY - size / 2, row.Right + size, row.MidY + size / 2))
+        : (before ? new SKRect(row.MidX - size / 2, row.Top - size, row.MidX + size / 2, row.Top)
+            : new SKRect(row.MidX - size / 2, row.Bottom, row.MidX + size / 2, row.Bottom + size));
+
+    /// <summary>Whether the selection can move by <paramref name="step"/> (±1): not past the ends, unless it wraps.</summary>
+    private bool CanStep(int step) => Count > 1 && (Wraps || (step < 0 ? ClampedPosition > 0 : ClampedPosition < Count - 1));
+
+    /// <summary>The position <paramref name="step"/> (±1) items on, wrapping when the selection wraps, or -1.</summary>
+    public int Step(int step) => !CanStep(step) ? -1 : ((ClampedPosition + step) % Count + Count) % Count;
+
+    /// <summary>The slot whose indicator covers <paramref name="along"/> (with half the spacing either side), or -1.</summary>
+    private static int SlotAt(in SkUiIndicatorPaint paint, float along)
+    {
+        var horizontal = paint.Orientation == StackOrientation.Horizontal;
+        for (var slot = 0; slot < paint.Count; slot++)
+        {
+            var rect = paint.GetIndicatorBounds(slot);
+            var (start, end) = horizontal ? (rect.Left, rect.Right) : (rect.Top, rect.Bottom);
+            if (along >= start - paint.Spacing / 2 && along < end + paint.Spacing / 2)
+                return slot;
+        }
+        return -1;
+    }
+
+    /// <summary>
+    /// A hovering pointer moved to <paramref name="point"/> (local), or left (<c>null</c>). Returns whether the drawing changed:
+    /// the pointed-at indicator, or the buttons showing on hover.
+    /// </summary>
+    public bool Hover(Point? point, float width, float height, bool rightToLeft)
+    {
+        var over = point is not null;
+        var along = point is { } at ? Along(at, width, rightToLeft) : float.NaN;
+        var before = float.IsNaN(_hoverAlong) ? -1 : SlotAt(CreatePaint(width, height, enabled: true), _hoverAlong);
+        var buttonsChange = over != IsPointerOver && NavigationButtons == SkUiIndicatorButtonVisibility.VisibleOnPointerOver;
+        IsPointerOver = over;
+        _hoverAlong = along;
+        var after = float.IsNaN(along) ? -1 : SlotAt(CreatePaint(width, height, enabled: true), along);
+        return buttonsChange || before != after;
+    }
+
+    /// <summary>The coordinate along the row of <paramref name="point"/>, in the left-to-right space the row is drawn in.</summary>
+    private float Along(Point point, float width, bool rightToLeft) =>
+        (float)(Orientation == StackOrientation.Horizontal ? (rightToLeft ? width - point.X : point.X) : point.Y);
+
+    /// <summary>The button at <paramref name="point"/> (local): -1 previous, 1 next, 0 none (or not showing).</summary>
+    public int HitTestButton(Point point, float width, float height, bool rightToLeft)
+    {
+        if (IsHidden || NavigationButtons == SkUiIndicatorButtonVisibility.Collapsed)
+            return 0;
+        var paint = CreatePaint(width, height, enabled: true);
+        var x = (float)(rightToLeft && Orientation == StackOrientation.Horizontal ? width - point.X : point.X);
+        var y = (float)point.Y;
+        return paint.PreviousButtonBounds.Contains(x, y) ? -1 : paint.NextButtonBounds.Contains(x, y) ? 1 : 0;
+    }
+
+    /// <summary>The position an arrow key asks for (Left / Up previous, Right / Down next, mirrored right-to-left), or -1.</summary>
+    public int KeyTarget(in SkUiKeyEvent key, bool rightToLeft)
+    {
+        if (key.HasCommandModifier)
+            return -1;
+        var horizontal = Orientation == StackOrientation.Horizontal;
+        var step = key.Key switch
+        {
+            SkUiKey.Left when horizontal => rightToLeft ? 1 : -1,
+            SkUiKey.Right when horizontal => rightToLeft ? -1 : 1,
+            SkUiKey.Up when !horizontal => -1,
+            SkUiKey.Down when !horizontal => 1,
+            SkUiKey.Home => Count > 0 && ClampedPosition > 0 ? -ClampedPosition : 0,
+            SkUiKey.End => Count > 0 && ClampedPosition < Count - 1 ? Count - 1 - ClampedPosition : 0,
+            _ => 0
+        };
+        if (step == 0)
+            return -1;
+        return key.Key is SkUiKey.Home or SkUiKey.End ? ClampedPosition + step : Step(step);
     }
 
     public void Draw(SKCanvas canvas, float width, float height, bool rightToLeft, bool enabled)
@@ -188,7 +293,7 @@ internal sealed class SkUiIndicatorModel(ISkUiTransitionHost host)
             return -1;
         var paint = CreatePaint(width, height, enabled: true);
         var horizontal = Orientation == StackOrientation.Horizontal;
-        var along = (float)(horizontal ? (rightToLeft ? width - point.X : point.X) : point.Y);
+        var along = Along(point, width, rightToLeft);
         var best = -1;
         var bestDistance = float.MaxValue;
         for (var slot = 0; slot < paint.Count; slot++)

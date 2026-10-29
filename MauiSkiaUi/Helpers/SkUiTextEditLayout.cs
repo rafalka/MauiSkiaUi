@@ -67,7 +67,7 @@ internal sealed class SkUiTextEditLayout
         public readonly List<SkUiTextEditLine> Lines = [];
     }
 
-    internal SkUiTextEditLayout() => _fontFor = typeface => SkUiTextResources.Font(typeface, _fontSize, _style.FontAttributes);
+    internal SkUiTextEditLayout() => _fontFor = typeface => _style.Font(typeface, _fontSize, _style.FontAttributes);
 
     private float _fontSize;
 
@@ -109,7 +109,7 @@ internal sealed class SkUiTextEditLayout
             _wrapWidth = wrapWidth;
             _hasStyle = true;
             _fontSize = (float)resolved.FontSize;
-            _primary = SkUiTextResources.Font(resolved.Typeface, _fontSize, resolved.FontAttributes);
+            _primary = resolved.Font(resolved.Typeface, _fontSize, resolved.FontAttributes);
         }
         else if (ReferenceEquals(text, _text) && _lines.Count > 0)
         {
@@ -197,7 +197,7 @@ internal sealed class SkUiTextEditLayout
         var paragraph = _style.Rendering switch
         {
             SkUiTextRendering.Simple => SkUiShaping.ShapeSimple(text, primary, _style.Direction, spacing),
-            SkUiTextRendering.Auto when SkUiShaping.TryShapeSimple(text, primary, _style.Direction, spacing) is { } simple => simple,
+            SkUiTextRendering.Auto when SkUiShaping.TryShapePlain(text, primary, _style.Direction, spacing) is { } plain => plain,
             _ => SkUiShaping.Shape(text, primary.Typeface, _fontSize, _style.Direction, _fontFor, spacing)
         };
         if (text.Length == 0 || double.IsPositiveInfinity(_wrapWidth) || paragraph.Width <= _wrapWidth)

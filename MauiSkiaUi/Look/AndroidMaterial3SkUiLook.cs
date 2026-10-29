@@ -94,6 +94,22 @@ public class AndroidMaterial3SkUiLook : AndroidSkUiLook
     public override float ProgressBarTrackHeight => 0;
 
     /// <inheritdoc />
+    /// <remarks>Rounded ends, as Material 3's linear indicator (Material 2's are square).</remarks>
+    public override float GetProgressBarCornerRadius(float height) => height / 2;
+
+    /// <inheritdoc />
+    /// <remarks>
+    /// 28 dp for window popups, as the platform's picker dialog; 4 dp for popups at a field, as Material 3's menus; bottom
+    /// panes square.
+    /// </remarks>
+    public override CornerRadius GetPopupCornerRadius(SkUiPopupPlacement placement) => placement switch
+    {
+        SkUiPopupPlacement.Window => new CornerRadius(28),
+        SkUiPopupPlacement.BottomPane => default,
+        _ => new CornerRadius(4)
+    };
+
+    /// <inheritdoc />
     /// <remarks>Material 3's circular indicator: 40 dp, the 4 dp track 4 dp in.</remarks>
     public override Size DefaultActivityIndicatorSize => new(40, 40);
 

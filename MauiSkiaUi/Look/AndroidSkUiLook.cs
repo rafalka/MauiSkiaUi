@@ -138,6 +138,10 @@ public class AndroidSkUiLook : DefaultSkUiLook
     public override float ProgressBarTrackHeight => 4;
 
     /// <inheritdoc />
+    /// <remarks>Square ends, as the platform's horizontal progress bar.</remarks>
+    public override float GetProgressBarCornerRadius(float height) => 0;
+
+    /// <inheritdoc />
     /// <remarks>Android's progress bar: 48 dp with the ring 4 dp in.</remarks>
     public override Size DefaultActivityIndicatorSize => new(48, 48);
 
@@ -157,6 +161,11 @@ public class AndroidSkUiLook : DefaultSkUiLook
     /// <inheritdoc />
     /// <remarks>Material's menu rows are 48 dp.</remarks>
     public override double PopupItemHeight => 48;
+
+    /// <inheritdoc />
+    /// <remarks>4 dp, as the platform's picker dialog (Material 2's dialogs and its menus); bottom panes square.</remarks>
+    public override CornerRadius GetPopupCornerRadius(SkUiPopupPlacement placement) =>
+        placement == SkUiPopupPlacement.BottomPane ? default : new CornerRadius(4);
 
     /// <inheritdoc />
     public override Thickness PopupItemPadding => new(16, 12);

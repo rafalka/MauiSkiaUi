@@ -211,6 +211,88 @@ public class IndicatorViewTests
         Assert.Equal(2, indicator.Count);
     }
 
+    private static void Hover(SkUiView root, Point at) => root.Touch(new(++_pointer, SkUiTouchAction.HoverMoved, at, TimeSpan.FromSeconds(1)));
+
+    [Fact]
+    public void PipsAreTwoThirdsOfTheSizeUntilSelectedOrPointedAt()
+    {
+        var look = DefaultSkUiLook.Instance;
+        var previous = look.IndicatorStyle;
+        try
+        {
+            look.IndicatorStyle = SkUiIndicatorStyle.Pips;
+            var indicator = new SkUiIndicatorView
+            {
+                Count = 3, IndicatorSize = 12, IndicatorSpacing = 12, HeightRequest = 20,
+                IndicatorColor = Colors.Black, SelectedIndicatorColor = Colors.Black, BackgroundColor = Colors.White
+            };
+            using var surface = new SkUiTestSurface(indicator, 200, 20);
+            surface.Frame(0);
+            // The row: 3 × 12 + 2 × 12 = 60, from 70; pips at 70, 94, 118, each 12 across (centered at y 10).
+            Assert.Equal(SKColors.Black, surface.Bitmap.GetPixel(71, 10)); // the selected pip: the whole 12
+            Assert.Equal(SKColors.White, surface.Bitmap.GetPixel(95, 10)); // an unselected one: 8, inset 2
+            Assert.Equal(SKColors.Black, surface.Bitmap.GetPixel(100, 10));
+
+            Hover(indicator, new Point(100, 10));
+            surface.Frame(16);
+            Assert.Equal(SKColors.Black, surface.Bitmap.GetPixel(95, 10)); // pointed at: full size
+            ((ISkUiInputNode)indicator).SetPointerOver(false);
+            surface.Frame(32);
+            Assert.Equal(SKColors.White, surface.Bitmap.GetPixel(95, 10));
+        }
+        finally
+        {
+            look.IndicatorStyle = previous;
+        }
+    }
+
+    [Fact]
+    public void NavigationButtonsStepThePositionAndHideAtTheEnds()
+    {
+        var indicator = new SkUiIndicatorView { Count = 3, NavigationButtonVisibility = SkUiIndicatorButtonVisibility.Visible, HeightRequest = 20 };
+        // 3 × 6 + 2 × 8, and a 20 button at each end; as tall as the buttons.
+        Assert.Equal(new Size(34 + 40, 20), ((IView)indicator).Measure(200, 20));
+        using var surface = new SkUiTestSurface(indicator, 200, 20);
+        var look = DefaultSkUiLook.Instance;
+        SkUiIndicatorPaint? drawn = null;
+        try
+        {
+            look.IndicatorPainter = (_, paint) => drawn = paint;
+            surface.Frame(0);
+            var paint = Assert.NotNull(drawn);
+            Assert.True(paint.PreviousButtonBounds.IsEmpty); // the first item: nothing before it
+            // 74 centered in 200: the previous button at 63, the row at 83, the next button at 117.
+            Assert.Equal(new SKRect(117, 0, 137, 20), paint.NextButtonBounds);
+
+            Tap(indicator, new Point(127, 10));
+            Assert.Equal(1, indicator.Position);
+            Tap(indicator, new Point(127, 10));
+            Assert.Equal(2, indicator.Position);
+            surface.Frame(16);
+            Assert.True(drawn!.Value.NextButtonBounds.IsEmpty);
+            Assert.Equal(new SKRect(63, 0, 83, 20), drawn.Value.PreviousButtonBounds);
+            Tap(indicator, new Point(73, 10));
+            Assert.Equal(1, indicator.Position);
+
+            // On hover only: the room is kept, the buttons show while a pointer is over the view.
+            indicator.NavigationButtonVisibility = SkUiIndicatorButtonVisibility.VisibleOnPointerOver;
+            surface.Frame(32);
+            Assert.True(drawn.Value.NextButtonBounds.IsEmpty);
+            Assert.Equal(74, indicator.DesiredSize.Width);
+            Hover(indicator, new Point(100, 10));
+            surface.Frame(48);
+            Assert.False(drawn.Value.NextButtonBounds.IsEmpty);
+        }
+        finally
+        {
+            look.IndicatorPainter = null;
+        }
+
+        var core = new SkUiCoreIndicatorView().SetCount(3).SetNavigationButtonVisibility(SkUiIndicatorButtonVisibility.Visible);
+        Assert.Equal(new Size(74, 20), core.Measure(200, 100));
+        Assert.Throws<ArgumentOutOfRangeException>(() => core.SetNavigationButtonVisibility((SkUiIndicatorButtonVisibility)9));
+    }
+
     [Fact]
     public void ScreenReadersAndTheKeyboardAdjustThePosition()
     {
@@ -229,6 +311,8 @@ public class IndicatorViewTests
         Assert.Equal(2, indicator.Position);
         Assert.True(root.FocusManager.KeyDown(SkUiKey.Home));
         Assert.Equal(0, indicator.Position);
+        Assert.True(root.FocusManager.KeyDown(SkUiKey.End));
+        Assert.Equal(2, indicator.Position);
 
         var core = new SkUiCoreIndicatorView().SetCount(3);
         Assert.True(((ISkUiAccessibleNode)core).PerformSemanticsAction(SkUiSemanticsActions.Increment));

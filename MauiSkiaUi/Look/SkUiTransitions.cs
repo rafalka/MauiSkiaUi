@@ -38,7 +38,12 @@ public enum SkUiTransitionKind
     /// <summary>
     /// While a collection view item is reordered, the items it passes move aside, and on the drop it moves to its new place.
     /// </summary>
-    ReorderMove
+    ReorderMove,
+    /// <summary>
+    /// A loaded image fades in over its placeholder (<c>FadeAnimationEnabled</c>; its <c>FadeAnimationDuration</c>
+    /// replaces this duration, the easing stays the look's).
+    /// </summary>
+    ImageFadeIn
 }
 
 /// <summary>
@@ -185,7 +190,23 @@ public enum SkUiIndicatorStyle
     /// <summary>Dots (or squares) of the same size; the selected one takes the selected color (iOS-like).</summary>
     Dots,
     /// <summary>The selected indicator stretches into a pill twice the size longer, and slides between positions (Material-like).</summary>
-    Pill
+    Pill,
+    /// <summary>
+    /// Pips (Fluent's pips pager): small dots two thirds of the indicator size; the selected one, and one under the pointer,
+    /// at the full size. Pair it with the view's <c>NavigationButtonVisibility</c> for the previous / next buttons.
+    /// </summary>
+    Pips
+}
+
+/// <summary>When an indicator view shows its previous / next buttons (its <c>NavigationButtonVisibility</c>).</summary>
+public enum SkUiIndicatorButtonVisibility
+{
+    /// <summary>No buttons, and no room for them (default).</summary>
+    Collapsed,
+    /// <summary>Always, except the previous one on the first item and the next one on the last (unless the selection wraps).</summary>
+    Visible,
+    /// <summary>As <see cref="Visible"/>, while a mouse or pen hovers over the view; the room is kept, so nothing moves.</summary>
+    VisibleOnPointerOver
 }
 
 /// <summary>How <see cref="DefaultSkUiLook"/> draws picker fields (<see cref="DefaultSkUiLook.PickerFieldStyle"/>).</summary>
