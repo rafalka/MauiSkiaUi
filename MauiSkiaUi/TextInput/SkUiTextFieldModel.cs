@@ -671,7 +671,7 @@ internal sealed class SkUiTextFieldModel : ISkUiTextInputClient, ISkUiTextEditor
             var style = TextStyle;
             if (!style.IncludeFontPadding)
                 return 0;
-            var metrics = SkUiTextResources.Font(style.Typeface, (float)style.FontSize, FontAttributes).Metrics;
+            var metrics = style.Font(style.Typeface, (float)style.FontSize, FontAttributes).Metrics;
             return Math.Max(0, metrics.Ascent - metrics.Top) + Math.Max(0, metrics.Bottom - metrics.Descent);
         }
     }
@@ -680,7 +680,8 @@ internal sealed class SkUiTextFieldModel : ISkUiTextInputClient, ISkUiTextEditor
     {
         get
         {
-            var font = SkUiTextResources.Font(TextStyle.Typeface, (float)TextStyle.FontSize, FontAttributes);
+            var style = TextStyle;
+            var font = style.Font(style.Typeface, (float)style.FontSize, FontAttributes);
             return font.Spacing;
         }
     }

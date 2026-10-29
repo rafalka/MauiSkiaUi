@@ -11,6 +11,8 @@ Override these in a `DefaultSkUiLook` subclass (or a stock platform look's). Siz
 | `TextIncludesFontPadding` (base) | Android's TextView font padding above the first line and below the last [false / false / true / true / false] |
 | `AppliesFontTracking` (base) | Apply the font's `trak` table, as CoreText does [true / true / false / false / false] |
 | `FontTrackingSizeScale` (base) | Size the tracking is looked up at, relative to the font size [1 / 0.77 / – / – / –] |
+| `FontTrackingScaledBelow` (base) | Text at least this large tracks at its point size [∞ / 20 / – / – / –] |
+| `AppliesOpticalSize` (base) | Draw fonts with an `opsz` axis at the optical size of their point size, as CoreText [true / true / false / false / false] |
 
 ## Button
 

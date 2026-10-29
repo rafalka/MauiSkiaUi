@@ -15,9 +15,11 @@ Line breaking works on the shaped widths and never splits a grapheme. It breaks 
 | Mode | Behavior | Use for |
 | --- | --- | --- |
 | `Default` | Uses the global `SkUiTextOptions.DefaultRendering` (initially `Auto`) | Most labels |
-| `Auto` | **Fast path** for text made only of Latin / digits / common punctuation that the font fully covers, in an LTR paragraph. It uses Skia `MeasureText` / `DrawText`, the same cost as the pre-HarfBuzz renderer. Anything else is shaped with HarfBuzz | Mixed content |
-| `Shaped` | Always HarfBuzz: kerning and ligatures even for Latin | Typography-sensitive text |
-| `Simple` | Never shapes: no bidi, no font fallback. Complex scripts render incorrectly and missing glyphs show as .notdef | Dense grids of plain text or numbers |
+| `Auto` | **Plain path** for text made only of Latin / digits / common punctuation that the font fully covers, in an LTR paragraph: shaped with HarfBuzz as one run, so it kerns as the platforms' text does, without the bidi, itemization and fallback lookups of full shaping (about the cost of the former unshaped path: [benchmarks](../design/Benchmarks.md)). Anything else is shaped in full | Most text |
+| `Shaped` | Always shaped in full: bidi and font fallback even for plain Latin | Testing the full path |
+| `Simple` | Never shapes: no kerning, bidi or font fallback (Skia's advances). Complex scripts render incorrectly and missing glyphs show as .notdef. Until 1.4 this was `Auto`'s path for plain Latin | Dense grids of plain text or numbers |
+
+On the Apple looks, fonts with an optical size axis (the system font: 17 to 96) are drawn at the optical size of their point size, as CoreText draws them (`SkUiLook.AppliesOpticalSize`): large text gets the display design, about 11 % tighter at 28 pt than the text design.
 
 A label measured at one width and drawn at a wider one reuses its lines when nothing had to wrap, so measure and draw cost one layout.
 

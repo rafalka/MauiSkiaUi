@@ -17,9 +17,12 @@ namespace MauiSkiaUi;
 internal static partial class SkUiShaping
 {
     private static readonly ConcurrentDictionary<(SKTypeface Primary, int CodePoint), SKTypeface> Fallbacks = new();
-    [ThreadStatic] private static Dictionary<SKTypeface, SKShaper?>? _shapers;
+    [ThreadStatic] private static Dictionary<SKTypeface, HarfBuzzFont?>? _shapers;
+    [ThreadStatic] private static Dictionary<SkUiFontData.Entry, Face>? _faces;
     [ThreadStatic] private static SKTextBlobBuilder? _builder;
     [ThreadStatic] private static Buffer? _buffer;
+    [ThreadStatic] private static List<Run>? _pieces;
+    [ThreadStatic] private static List<byte>? _pieceLevels;
     private static readonly ConcurrentDictionary<SKTypeface, byte[]> Coverage = new();
 
     /// <summary>One shaped run of a paragraph in logical order.</summary>
@@ -56,6 +59,11 @@ internal static partial class SkUiShaping
         /// pre-HarfBuzz renderer). <see cref="Advances"/> are only filled when line breaking needs them.
         /// </summary>
         public bool IsSimple;
+        /// <summary>
+        /// Built by the plain path (<see cref="TryShapePlain"/>): one left-to-right run in the primary font, shaped with
+        /// HarfBuzz; <see cref="Levels"/> is empty (every code unit is at <see cref="BaseLevel"/>).
+        /// </summary>
+        public bool IsPlain;
         /// <summary>Styled text: the span index of each code unit (<c>null</c> for single-style text).</summary>
         public int[]? Spans;
     }
@@ -157,15 +165,39 @@ internal static partial class SkUiShaping
     /// left-to-right paragraph, needs no bidi, no fallback and (for UI text) no HarfBuzz — glyphs and advances come
     /// straight from Skia, like the pre-HarfBuzz renderer. Returns <c>null</c> when the text is not simple.
     /// </summary>
-    internal static Paragraph? TryShapeSimple(string text, SKFont font, SkUiTextDirection direction, float spacing = 0)
+    internal static Paragraph? TryShapeSimple(string text, SKFont font, SkUiTextDirection direction, float spacing = 0) =>
+        IsPlain(text, font, direction) ? ShapeSimple(text, font, direction, spacing) : null;
+
+    /// <summary>
+    /// Plain path: the text the simple path takes (Latin, digits, common punctuation the primary font fully covers, left to
+    /// right) shaped with HarfBuzz as one run, as the platforms' text engines do: kerning and ligatures, without the bidi
+    /// levels, itemization and fallback lookups of <see cref="Shape"/>. Returns <c>null</c> when the text is not plain.
+    /// </summary>
+    internal static Paragraph? TryShapePlain(string text, SKFont font, SkUiTextDirection direction, float spacing = 0)
+    {
+        if (!IsPlain(text, font, direction) || Shaper(font.Typeface) is null)
+            return null;
+        // Advances only when breaking or truncating needs them (EnsureAdvances), as the simple path.
+        var paragraph = new Paragraph { Text = text, Spacing = spacing, IsPlain = true };
+        if (text.Length == 0)
+            return paragraph;
+        var run = new Run { Start = 0, Length = text.Length, Script = Script.Latin, Typeface = font.Typeface };
+        paragraph.Runs.Add(run);
+        ShapeRun(text, 0, text.Length, run, font, spacing);
+        paragraph.Width = run.Width;
+        return paragraph;
+    }
+
+    /// <summary>Whether <paramref name="text"/> takes the simple or plain path: simple characters the font covers, left to right.</summary>
+    private static bool IsPlain(string text, SKFont font, SkUiTextDirection direction)
     {
         if (direction == SkUiTextDirection.RightToLeft)
-            return null;
+            return false;
         var typeface = font.Typeface;
         foreach (var c in text)
             if (!IsSimpleChar(c) || !HasGlyph(typeface, c))
-                return null;
-        return ShapeSimple(text, font, direction, spacing);
+                return false;
+        return true;
     }
 
     /// <summary>
@@ -190,10 +222,19 @@ internal static partial class SkUiShaping
         return count;
     }
 
-    /// <summary>Fills per-code-unit advances of a simple paragraph (only needed to wrap or truncate).</summary>
+    /// <summary>Fills per-code-unit advances of a simple or plain paragraph (only needed to wrap or truncate).</summary>
     internal static void EnsureAdvances(Paragraph paragraph, SKFont font)
     {
-        if (!paragraph.IsSimple || paragraph.Advances.Length == paragraph.Text.Length)
+        if (paragraph.Advances.Length == paragraph.Text.Length)
+            return;
+        if (paragraph.IsPlain)
+        {
+            paragraph.Advances = new float[paragraph.Text.Length];
+            foreach (var run in paragraph.Runs)
+                AddAdvances(paragraph, run);
+            return;
+        }
+        if (!paragraph.IsSimple)
             return;
         var widths = font.GetGlyphWidths(paragraph.Text.AsSpan());
         if (widths.Length == paragraph.Text.Length)
@@ -333,18 +374,84 @@ internal static partial class SkUiShaping
         cp is 0x200C or 0x200D or >= 0xFE00 and <= 0xFE0F or >= 0xE0100 and <= 0xE01EF or >= 0x1F3FB and <= 0x1F3FF or >= 0xE0020 and <= 0xE007F
         || CharUnicodeInfo.GetUnicodeCategory(cp) is UnicodeCategory.NonSpacingMark or UnicodeCategory.EnclosingMark or UnicodeCategory.SpacingCombiningMark;
 
-    /// <summary>HarfBuzz shaper for a typeface, or <c>null</c> when the typeface exposes no font data (e.g. Skia's empty
+    /// <summary>HarfBuzz font for a typeface, or <c>null</c> when the typeface exposes no font data (e.g. Skia's empty
     /// default typeface on a Linux host without fonts).</summary>
-    private static SKShaper? Shaper(SKTypeface typeface)
+    private static HarfBuzzFont? Shaper(SKTypeface typeface)
     {
         var shapers = _shapers ??= [];
         if (!shapers.TryGetValue(typeface, out var shaper))
         {
-            using (var data = typeface.OpenStream())
-                shaper = data is null ? null : new SKShaper(typeface);
+            shaper = HarfBuzzFont.Create(typeface);
             shapers[typeface] = shaper;
         }
         return shaper;
+    }
+
+    /// <summary>
+    /// A typeface as HarfBuzz shapes it: its font data at the typeface's variation position (a variable font's weight,
+    /// width, optical size: <see cref="SkUiOpticalSize"/>), which HarfBuzz would otherwise read at the font's defaults.
+    /// Positions are in units of <see cref="Scale"/> per em: SkiaSharp's <c>SKShaper</c> uses 512, whose rounding adds up to
+    /// most of a pixel across a long line (a 1229 / 2048 em advance is 307 / 512).
+    /// </summary>
+    private sealed class HarfBuzzFont
+    {
+        public const int Scale = 1 << 16;
+        private readonly HarfBuzzSharp.Font _font;
+
+        private HarfBuzzFont(HarfBuzzSharp.Font font) => _font = font;
+
+        public static HarfBuzzFont? Create(SKTypeface typeface)
+        {
+            if (SkUiFontData.Of(typeface) is not { Data: { } data } entry)
+                return null;
+            // One face per font file (and thread), over the shared data: a font per typeface at its own position.
+            var faces = _faces ??= [];
+            if (!faces.TryGetValue(entry, out var face))
+            {
+                using var blob = new Blob(data.Data, (int)data.Size, MemoryMode.ReadOnly);
+                face = new Face(blob, entry.Index) { Index = entry.Index, UnitsPerEm = typeface.UnitsPerEm };
+                faces[entry] = face;
+            }
+            var font = new HarfBuzzSharp.Font(face);
+            font.SetScale(Scale, Scale);
+            font.SetFunctionsOpenType();
+            var position = typeface.VariationDesignPosition;
+            if (position.Length > 0)
+            {
+                var variations = new Variation[position.Length];
+                for (var axis = 0; axis < position.Length; axis++)
+                    variations[axis] = new Variation { Tag = (uint)position[axis].Axis, Value = position[axis].Value };
+                font.SetVariations(variations);
+            }
+            return new HarfBuzzFont(font);
+        }
+
+        /// <summary>Shapes <paramref name="buffer"/> with <paramref name="font"/>'s size and scale into <paramref name="run"/>'s glyphs.</summary>
+        public void Shape(Buffer buffer, SKFont font, Run run)
+        {
+            _font.Shape(buffer);
+            var info = buffer.GetGlyphInfoSpan();
+            var positions = buffer.GetGlyphPositionSpan();
+            var sizeY = font.Size / Scale;
+            var sizeX = sizeY * font.ScaleX;
+            var count = info.Length;
+            var glyphs = new ushort[count];
+            var points = new SKPoint[count];
+            var clusters = new uint[count];
+            float x = 0, y = 0;
+            for (var index = 0; index < count; index++)
+            {
+                glyphs[index] = (ushort)info[index].Codepoint;
+                clusters[index] = info[index].Cluster;
+                points[index] = new SKPoint(x + positions[index].XOffset * sizeX, y - positions[index].YOffset * sizeY);
+                x += positions[index].XAdvance * sizeX;
+                y += positions[index].YAdvance * sizeY;
+            }
+            run.Glyphs = glyphs;
+            run.Positions = points;
+            run.Clusters = clusters;
+            run.Width = x;
+        }
     }
 
     /// <summary>Shapes <c>text[start..start+length)</c> with the whole string as context into <paramref name="run"/>.</summary>
@@ -363,14 +470,7 @@ internal static partial class SkUiShaping
             AddSpacing(run, spacing);
             return;
         }
-        var result = shaper.Shape(buffer, font);
-        var count = result.Codepoints.Length;
-        run.Glyphs = new ushort[count];
-        run.Positions = result.Points;
-        run.Clusters = result.Clusters;
-        run.Width = result.Width;
-        for (var index = 0; index < count; index++)
-            run.Glyphs[index] = (ushort)result.Codepoints[index];
+        shaper.Shape(buffer, font, run);
         AddSpacing(run, spacing);
     }
 
@@ -423,6 +523,8 @@ internal static partial class SkUiShaping
         run.Width = x;
     }
 
+    private static readonly int[] SingleOrder = [0];
+
     /// <summary>
     /// Builds the visual line for logical range <c>[start, end)</c> of <paramref name="paragraph"/>; with
     /// <paramref name="justifyWidth"/>, the spaces in it widen so the line is that wide (justified text). With
@@ -453,7 +555,9 @@ internal static partial class SkUiShaping
             return line;
         }
 
-        var pieces = new List<Run>();
+        // Scratch, per thread: a line is built at once and never nests another.
+        var pieces = _pieces ??= [];
+        pieces.Clear();
         foreach (var run in paragraph.Runs)
         {
             var clipStart = Math.Max(start, run.Start);
@@ -470,7 +574,11 @@ internal static partial class SkUiShaping
             pieces.Add(piece);
         }
 
-        var order = SkUiBidi.VisualOrder(pieces.ConvertAll(piece => piece.Level));
+        var levels = _pieceLevels ??= [];
+        levels.Clear();
+        foreach (var piece in pieces)
+            levels.Add(piece.Level);
+        var order = pieces.Count == 1 ? SingleOrder : SkUiBidi.VisualOrder(levels);
         var text = paragraph.Text;
         var extra = 0f; // justification: added after each space glyph
         if (justifyWidth is { } target)
@@ -525,7 +633,7 @@ internal static partial class SkUiShaping
         if (edges is not null)
         {
             for (var unit = 0; unit < edges.Count; unit++)
-                edges.Levels[unit] = paragraph.Levels[start + unit];
+                edges.Levels[unit] = paragraph.Levels.Length > 0 ? paragraph.Levels[start + unit] : paragraph.BaseLevel;
             edges.FillClusters(text);
         }
         line.FontPaddingTop = Math.Max(0, fontTop - glyphAscent); // from the tallest font's ascent

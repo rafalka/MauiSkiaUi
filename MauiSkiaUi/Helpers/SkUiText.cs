@@ -88,8 +88,14 @@ internal static class SkUiTextResources
     /// by Skia, shared and bounded), so one per size the app draws costs little; an animated font size adds one per distinct
     /// size shown.
     /// </summary>
-    internal static SKFont Font(SKTypeface typeface, float size, FontAttributes attributes)
+    /// <remarks>
+    /// With <paramref name="opticalSizeScale"/> (<see cref="SkUiTextStyle.OpticalSizeScale"/>), a typeface with an optical
+    /// size axis is drawn at the optical size of <paramref name="size"/> times it (<see cref="SkUiOpticalSize"/>).
+    /// </remarks>
+    internal static SKFont Font(SKTypeface typeface, float size, FontAttributes attributes, float opticalSizeScale = 0)
     {
+        if (opticalSizeScale > 0)
+            typeface = SkUiOpticalSize.At(typeface, size * opticalSizeScale);
         var key = (typeface, size, attributes);
         if (Fonts.TryGetValue(key, out var font))
             return font;
@@ -110,15 +116,16 @@ public enum SkUiTextRendering
     /// <summary>Use <see cref="SkUiTextOptions.DefaultRendering"/>.</summary>
     Default,
     /// <summary>
-    /// Simple Latin / digit / punctuation text the font fully covers takes the fast path (Skia glyphs and advances, no
-    /// HarfBuzz); anything else (complex scripts, RTL, emoji, missing glyphs) is shaped with HarfBuzz.
+    /// Plain Latin / digit / punctuation text the font fully covers is shaped with HarfBuzz as one run (kerning and
+    /// ligatures, as the platforms' text engines, without bidi, itemization or fallback lookups); anything else (complex
+    /// scripts, RTL, emoji, missing glyphs) is shaped in full.
     /// </summary>
     Auto,
     /// <summary>Always HarfBuzz: kerning and ligatures even for Latin text; bidi and font fallback.</summary>
     Shaped,
     /// <summary>
-    /// Always the fast pre-HarfBuzz renderer: no shaping, bidi or font fallback (complex scripts render incorrectly,
-    /// missing glyphs show as the font's .notdef). For dense UIs of plain text or numbers.
+    /// Always the pre-HarfBuzz renderer (Skia's glyphs and advances): no shaping, so no kerning, bidi or font fallback
+    /// (complex scripts render incorrectly, missing glyphs show as the font's .notdef). For dense UIs of plain text or numbers.
     /// </summary>
     Simple
 }
@@ -220,6 +227,20 @@ internal readonly record struct SkUiTextStyle(
     /// </summary>
     internal float FontTrackingScale { get; init; } = SkUiLook.Current.AppliesFontTracking ? (float)SkUiLook.Current.FontTrackingSizeScale : 0;
 
+    /// <summary>Text at least this large tracks at its own size (<see cref="SkUiLook.FontTrackingScaledBelow"/>); read when the style is made.</summary>
+    internal float FontTrackingScaledBelow { get; init; } = (float)SkUiLook.Current.FontTrackingScaledBelow;
+
+    /// <summary>
+    /// Fonts with an optical size axis are drawn at the optical size of the font size times this (1: the point size, also
+    /// on Mac Catalyst, where CoreText sizes optically before the window's 77 %), or as the typeface is when 0
+    /// (<see cref="SkUiLook.AppliesOpticalSize"/>); read when the style is made.
+    /// </summary>
+    internal float OpticalSizeScale { get; init; } = SkUiLook.Current.AppliesOpticalSize ? 1 : 0;
+
+    /// <summary>The font that draws <paramref name="typeface"/> (this style's or a span's, a fallback face) at <paramref name="size"/>.</summary>
+    internal SKFont Font(SKTypeface typeface, float size, FontAttributes attributes) =>
+        SkUiTextResources.Font(typeface, size, attributes, OpticalSizeScale);
+
     /// <summary>Whether the layout fits the text to its slot: it shrinks, grows or tightens it (<see cref="SkUiTextFit"/>).</summary>
     internal bool IsFitted => MinimumScale < 1 || MaximumScale > 1 || AllowsTightening;
 
@@ -228,8 +249,17 @@ internal readonly record struct SkUiTextStyle(
 
     /// <summary>The same for text in <paramref name="typeface"/> (a span's own), whose tracking table applies.</summary>
     internal float TightenedSpacing(SKTypeface typeface, double spacing, double fontSize) =>
-        (float)(spacing + (FontTrackingScale > 0 ? SkUiFontTracking.At(typeface, fontSize * FontTrackingScale) / FontTrackingScale : 0)
-            - Tightening * fontSize);
+        (float)(spacing + Tracking(typeface, fontSize) - Tightening * fontSize);
+
+    /// <summary>The font's own tracking of text <paramref name="fontSize"/> DIPs, in DIPs (0 when the look applies none).</summary>
+    private double Tracking(SKTypeface typeface, double fontSize)
+    {
+        if (FontTrackingScale <= 0)
+            return 0;
+        // Exact: 1 is no scaling.
+        var scale = fontSize < FontTrackingScaledBelow ? FontTrackingScale : 1;
+        return SkUiFontTracking.At(typeface, fontSize * scale) / scale;
+    }
 
     /// <summary>Whether lines wrap (rather than one line per paragraph, cut or not).</summary>
     internal bool Wraps => LineBreakMode is LineBreakMode.WordWrap or LineBreakMode.CharacterWrap
@@ -253,6 +283,7 @@ internal sealed class SkUiTextLayout : ISkUiTextFitLayout
     private SKTypeface? _typeface;
     private float _fontSize;
     private FontAttributes _fontAttributes;
+    private float _opticalSizeScale;
     private List<SkUiShaping.Line> _lines = [];
     private double _brokenWidth = double.NaN;
     // Style of the current lines (rendering resolved); shaping reads its direction, rendering and spacing.
@@ -287,6 +318,9 @@ internal sealed class SkUiTextLayout : ISkUiTextFitLayout
 
     /// <summary>Whether the last layout used the simple (non-HarfBuzz) path for every paragraph (tests).</summary>
     internal bool LastLayoutSimple { get; private set; }
+
+    /// <summary>Whether every paragraph of the last layout took the plain path (one HarfBuzz run, no bidi or fallback; tests).</summary>
+    internal bool LastLayoutPlain { get; private set; }
 
     /// <summary>
     /// Disposes the lines' text blobs and forgets them (the label's retained pictures are gone: it left its drawn parent or
@@ -325,6 +359,7 @@ internal sealed class SkUiTextLayout : ISkUiTextFitLayout
             ? shaped.Get(text, primary, _style, this)
             : ShapeParagraphCore(text, primary);
         LastLayoutSimple &= paragraph.IsSimple;
+        LastLayoutPlain &= paragraph.IsPlain;
         return paragraph;
     }
 
@@ -376,14 +411,14 @@ internal sealed class SkUiTextLayout : ISkUiTextFitLayout
         {
             case SkUiTextRendering.Simple:
                 return SkUiShaping.ShapeSimple(text, primary, direction, spacing);
-            case SkUiTextRendering.Auto when SkUiShaping.TryShapeSimple(text, primary, direction, spacing) is { } simple:
-                return simple;
+            case SkUiTextRendering.Auto when SkUiShaping.TryShapePlain(text, primary, direction, spacing) is { } plain:
+                return plain;
             default:
                 return SkUiShaping.Shape(text, primary.Typeface, _fontSize, direction, _fontFor, spacing);
         }
     }
 
-    private SKFont FontFor(SKTypeface typeface) => SkUiTextResources.Font(typeface, _fontSize, _fontAttributes);
+    private SKFont FontFor(SKTypeface typeface) => SkUiTextResources.Font(typeface, _fontSize, _fontAttributes, _opticalSizeScale);
 
     /// <summary>
     /// A new font for drawn text: <paramref name="typeface"/> at <paramref name="size"/>, synthesizing the requested attributes
@@ -395,10 +430,12 @@ internal sealed class SkUiTextLayout : ISkUiTextFitLayout
         // hosts (Android, Linux) too, where hinted advances would otherwise differ by a fraction of a pixel per glyph.
         var font = new SKFont(typeface, size) { LinearMetrics = true };
         // Synthetic styles for a face that lacks them (a registered font without a bold / italic file), as
-        // Android's Typeface.create does: emboldened outlines and a 14° slant. Per face, so fallback fonts too.
-        if (attributes.HasFlag(FontAttributes.Bold) && !SkUiTypefaces.HasBold(typeface))
+        // Android's Typeface.create does: emboldened outlines and a 14° slant. Per face, so fallback fonts too. An optical
+        // size instance has its original's style (its weight is in its position).
+        var style = SkUiOpticalSize.Original(typeface);
+        if (attributes.HasFlag(FontAttributes.Bold) && !SkUiTypefaces.HasBold(style))
             font.Embolden = true;
-        if (attributes.HasFlag(FontAttributes.Italic) && !SkUiTypefaces.HasItalic(typeface))
+        if (attributes.HasFlag(FontAttributes.Italic) && !SkUiTypefaces.HasItalic(style))
             font.SkewX = -0.25f;
         return font;
     }
@@ -406,14 +443,17 @@ internal sealed class SkUiTextLayout : ISkUiTextFitLayout
     private SKFont Primary(in SkUiTextStyle style)
     {
         var (typeface, size) = (style.Typeface, style.FontSize);
-        if (!ReferenceEquals(_typeface, typeface) || _fontSize != (float)size || _fontAttributes != style.FontAttributes)
+        // Exact: a different size or optical size scale is another font.
+        if (!ReferenceEquals(_typeface, typeface) || _fontSize != (float)size || _fontAttributes != style.FontAttributes
+            || _opticalSizeScale != style.OpticalSizeScale)
         {
             _typeface = typeface;
             _fontSize = (float)size;
             _fontAttributes = style.FontAttributes;
+            _opticalSizeScale = style.OpticalSizeScale;
             _brokenWidth = double.NaN;
         }
-        return FontFor(typeface);
+        return style.Font(typeface, _fontSize, _fontAttributes);
     }
 
     private void EnsureLines(string text, double width, SkUiTextStyle style, SKFont primary)
@@ -429,6 +469,7 @@ internal sealed class SkUiTextLayout : ISkUiTextFitLayout
         if (_fit?.Shaping is ShapedParagraphs { Running: true } running)
             running.Layouts++;
         LastLayoutSimple = true;
+        LastLayoutPlain = true;
         _widestParagraph = 0;
         var lines = new List<SkUiShaping.Line>();
         var natural = true;

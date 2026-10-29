@@ -103,7 +103,7 @@ scroller.SetContent(host);
 - `ShrinkToFit` / `SetShrinkToFit(bool)` and `MinimumFontScale` / `SetMinimumFontScale(double)`: text that does not fit gets smaller, down to the minimum scale (default 0.5); `AllowsTightening` / `SetAllowsTightening(bool)` tightens it first; `GrowToFill` / `SetGrowToFill(bool)` and `MaximumFontScale` / `SetMaximumFontScale(double)` make text with room larger (default up to 2). As on `SkUiLabel` ([Shrink to fit](SkUiLabel.md#shrink-to-fit)).
 - `LineHeight`, `CharacterSpacing`, `TextDecorations`, `TextTransform`, `FontAttributes` (+ `Set*`): as on `SkUiLabel`.
 - `FlowDirection` / `SetFlowDirection` on any Core node sets the layout direction (`MatchParent` inherits from the Core parent, then from `SkUiCoreHost.FlowDirection`); RTL mirrors child frames, and labels in `Auto` follow it.
-- `TextRendering` / `SetTextRendering(SkUiTextRendering)`: `Auto` (fast path for plain Latin text, HarfBuzz otherwise), `Shaped`, `Simple` (never shapes, for dense plain text / numbers) — see [SkUiLabel.md](SkUiLabel.md).
+- `TextRendering` / `SetTextRendering(SkUiTextRendering)`: `Auto` (plain Latin text shaped as one run, kerned; anything else shaped in full), `Shaped`, `Simple` (never shapes, for dense plain text / numbers) — see [SkUiLabel.md](SkUiLabel.md).
 - `TextDirection` / `SetTextDirection(SkUiTextDirection)` sets the paragraph direction (`Auto` = first strong character, default). Shaping, bidi and font fallback are the same as on [`SkUiLabel`](SkUiLabel.md).
 
 ### Text and spans

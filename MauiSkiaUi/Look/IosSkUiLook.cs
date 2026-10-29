@@ -160,6 +160,10 @@ public class IosSkUiLook : DefaultSkUiLook
     public override bool AppliesFontTracking => true;
 
     /// <inheritdoc />
+    /// <remarks>CoreText draws the system font at the optical size of its point size.</remarks>
+    public override bool AppliesOpticalSize => true;
+
+    /// <inheritdoc />
     /// <remarks>iOS's body text style, 17 pt, in the system font (SF).</remarks>
     public override double DefaultFontSize => 17;
 

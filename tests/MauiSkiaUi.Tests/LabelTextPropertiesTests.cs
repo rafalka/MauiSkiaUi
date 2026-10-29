@@ -183,14 +183,14 @@ public class LabelTextPropertiesTests
     }
 
     [Fact]
-    public void CharacterSpacingWidensEveryCharacterAndKeepsTheFastPath()
+    public void CharacterSpacingWidensEveryCharacterAndKeepsThePlainPath()
     {
         const string text = "Item 0001";
         var plain = new SkUiTextLayout().Measure(text, new SkUiTextStyle(Primary(), 16), default, double.PositiveInfinity).Width;
         var spacedLayout = new SkUiTextLayout();
         var spaced = spacedLayout.Measure(text, new SkUiTextStyle(Primary(), 16, CharacterSpacing: 2), default, double.PositiveInfinity).Width;
         Assert.Equal(plain + 2 * text.Length, spaced, 0.5);
-        Assert.True(spacedLayout.LastLayoutSimple); // plain Latin still skips HarfBuzz
+        Assert.True(spacedLayout.LastLayoutPlain); // plain Latin is still one run, without bidi or fallback
         var shaped = new SkUiTextLayout().Measure(text, new SkUiTextStyle(Primary(), 16, CharacterSpacing: 2, Rendering: SkUiTextRendering.Shaped), default, double.PositiveInfinity).Width;
         Assert.Equal(spaced, shaped, 0.5);
 

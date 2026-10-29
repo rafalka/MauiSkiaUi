@@ -101,7 +101,7 @@ The catalog lives in [benchmarks/Scenarios/Scenarios.cs](../../benchmarks/Scenar
 | `core-buttons`, `skui-buttons` | 1,000 buttons (the Stress page workload) |
 | `skui-stress-buttons` | The same buttons as the Stress page builds them: text color, fill, border and a command each |
 | `mixed-script-labels` | Arabic / Hebrew / Devanagari / emoji / CJK: HarfBuzz shaping, bidi, font fallback |
-| `core-labels-simple` | Numeric labels with `TextRendering = Simple` |
+| `core-labels-simple` | Numeric labels with `TextRendering = Simple` (no shaping; `Auto` shapes plain Latin as one run since 1.4) |
 | `core-labels-update`, `skui-labels-update` | Steady state: change every label's text (re-layout + re-record) |
 | `core-labels-fit`, `skui-labels-fit` | Labels with `ShrinkToFit` and `AllowsTightening` whose texts fit, shrink a little, shrink a lot and do not fit at the minimum; update = new texts, fitted again. Libraries without the options draw them truncated, so a comparison with one is the cost of fitting (the options are set by reflection, which adds to `generate`) |
 | `core-labels-fit-idle` | The same options on texts that fit: the cost of having them on |

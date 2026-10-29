@@ -28,6 +28,7 @@
     <!-- Leak scenarios shared with the on-device test app (tests/MauiSkiaUi.DeviceTests). -->
     <Compile Include="../Shared/MemoryLeaks/*.cs" Link="Shared/MemoryLeaks/%(Filename)%(Extension)" />
     <None Include="../../MauiSkiaUiDemo/Resources/Fonts/RobotoMono-Regular.ttf" Link="Assets/RobotoMono-Regular.ttf" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../../MauiSkiaUiDemo/Resources/Fonts/Lobster-Regular.ttf" Link="Assets/Lobster-Regular.ttf" CopyToOutputDirectory="PreserveNewest" />
     <PackageReference Include="ColorCode.HTML" Version="2.0.15" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.11.0" />
     <PackageReference Include="xunit" Version="2.9.3" />

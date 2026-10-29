@@ -136,6 +136,21 @@ public class SkUiLook
     /// </summary>
     public virtual double FontTrackingSizeScale => 1;
 
+    /// <summary>
+    /// Text at least this large (in points) tracks at its point size, not at <see cref="FontTrackingSizeScale"/> of it
+    /// (default: no limit, the scale applies to all text; Mac Catalyst: 20, where Apple's system font turns to its display
+    /// design and Catalyst tracks it as iOS does).
+    /// </summary>
+    public virtual double FontTrackingScaledBelow => double.PositiveInfinity;
+
+    /// <summary>
+    /// Whether fonts with an optical size axis (<c>opsz</c>) are drawn at the optical size of their drawn size, as CoreText
+    /// does on Apple platforms (default <c>false</c>; the iOS and Mac looks: <c>true</c>). Apple's system font has one:
+    /// above 17 pt it gets tighter, so 28 pt text is about 11% narrower than at the text design. The optical size is the point
+    /// size, also on Mac Catalyst (unlike the tracking, <see cref="FontTrackingSizeScale"/>, which follows the drawn size).
+    /// </summary>
+    public virtual bool AppliesOpticalSize => false;
+
     /// <summary>A control's font size field: <paramref name="size"/>, or the look's <see cref="DefaultFontSize"/> when it is NaN (not set).</summary>
     internal static double FontSizeOrDefault(double size) => double.IsNaN(size) ? Current.DefaultFontSize : size;
 
