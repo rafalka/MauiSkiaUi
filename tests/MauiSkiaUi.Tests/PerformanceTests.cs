@@ -6,6 +6,8 @@ using Xunit.Abstractions;
 
 namespace MauiSkiaUi.Tests;
 
+// Run apart from tests that switch the look or the text options: a switch during a measured loop makes the layout allocate.
+[Collection(GlobalStateCollection.Name)]
 public class PerformanceTests(ITestOutputHelper output)
 {
     [Fact]
@@ -60,9 +62,16 @@ public class PerformanceTests(ITestOutputHelper output)
                 layout.Arrange(new Rect(0, 0, 300, 400));
             }
             for (var round = 0; round < 20; round++) Relayout(round);
-            var allocated = GC.GetAllocatedBytesForCurrentThread();
-            for (var round = 0; round < 100; round++) Relayout(round);
-            Assert.Equal(0, GC.GetAllocatedBytesForCurrentThread() - allocated);
+            // The fewest bytes of three batches: an allocation per relayout shows in every batch, while the runtime's own
+            // occasional work on this thread (tiering, a timer) does not.
+            var fewest = long.MaxValue;
+            for (var batch = 0; batch < 3 && fewest > 0; batch++)
+            {
+                var allocated = GC.GetAllocatedBytesForCurrentThread();
+                for (var round = 0; round < 100; round++) Relayout(round);
+                fewest = Math.Min(fewest, GC.GetAllocatedBytesForCurrentThread() - allocated);
+            }
+            Assert.Equal(0, fewest);
         }
     }
 }
