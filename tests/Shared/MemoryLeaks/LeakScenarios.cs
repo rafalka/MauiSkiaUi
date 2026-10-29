@@ -2709,14 +2709,29 @@ public static class LeakScenarios
             // Drawn (committed): loads from now on fade in. A slow device can take more than one frame to get there.
             for (var frame = 0; frame < 60 && !_images.Append<ISkUiTransitionHost>(_coreImage!).All(host => host.TransitionClock is not null); frame++)
                 await context.SettleAsync();
-            for (var index = 0; index < _images.Count; index++)
-                _images[index].Source = LeakImages.Cached(FadeColors[index]);
-            _coreImage!.SetSourceFile(LeakImages.CachedPath(FadeColors[^1]));
+            // A CI machine may have Reduce Motion on, which shows images at once: the fades are what this run is about.
+            // Devices only: headless the system never reduces motion, and other test classes set the override themselves.
+            var systemReduced = SkUiMotion.IsMotionReduced;
+            var reduceMotion = SkUiMotion.ReduceMotion;
+            if (context.IsDevice)
+                SkUiMotion.ReduceMotion = false;
+            try
+            {
+                for (var index = 0; index < _images.Count; index++)
+                    _images[index].Source = LeakImages.Cached(FadeColors[index]);
+                _coreImage!.SetSourceFile(LeakImages.CachedPath(FadeColors[^1]));
+            }
+            finally
+            {
+                SkUiMotion.ReduceMotion = reduceMotion; // fades already running go on
+            }
             await context.WaitForAsync(Task.WhenAll(_images.Select(image => image.LoadingTask).Append(_coreImage.LoadingTask)));
             _faded = _images.All(image => image.IsFadingIn) && _coreImage.IsFadingIn;
             if (!_faded)
-                _problem = string.Join("; ", _images.Select(image => $"{image.GetType().Name}: fading {image.IsFadingIn}, loaded {image.CachedImage is not null}, error {image.LoadError?.Message}")
-                    .Append($"core: fading {_coreImage.IsFadingIn}, loaded {_coreImage.CachedImage is not null}, error {_coreImage.LoadError?.Message}"));
+                _problem = string.Join("; ", _images.Append<ISkUiTransitionHost>(_coreImage).Select(host =>
+                    $"{host.GetType().Name}: fading {(host is SkUiImage image ? image.IsFadingIn : _coreImage.IsFadingIn)}, " +
+                    $"drawn {host.TransitionClock is not null}, loaded {(host is SkUiImage view ? view.CachedImage : _coreImage.CachedImage) is not null}")
+                    .Append($"motion reduced by the system: {systemReduced}"));
             await context.WaitAsync(100);
             var removed = _images[0];
             _images.RemoveAt(0);
