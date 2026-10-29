@@ -225,6 +225,15 @@ public readonly record struct SkUiIndicatorPaint(
     SKRect Bounds, int Count, int First, float Position, int ItemCount, float IndicatorSize, float Spacing, float SelectedExtraLength,
     IndicatorShape Shape, SKColor Color, SKColor SelectedColor, StackOrientation Orientation, bool Wraps, bool IsEnabled)
 {
+    /// <summary>The slot of the indicator under a hovering pointer (0 = the first shown), or -1.</summary>
+    public int HoveredSlot { get; init; } = -1;
+
+    /// <summary>Where the previous button goes (before the row: left, or top), or empty when it does not show.</summary>
+    public SKRect PreviousButtonBounds { get; init; }
+
+    /// <summary>Where the next button goes (after the row: right, or bottom), or empty when it does not show.</summary>
+    public SKRect NextButtonBounds { get; init; }
+
     /// <summary>
     /// How selected the indicator in <paramref name="slot"/> (0 = the first shown) is, 0–1: 1 for the selected one, shared by
     /// two neighbors while the selection moves between them (the weights of all indicators add up to 1).

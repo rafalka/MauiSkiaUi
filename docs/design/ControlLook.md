@@ -62,7 +62,8 @@ public class SkUiLook
     public virtual double ReorderLiftScale => 1;           // DefaultSkUiLook: 1.03; and GetReorderLiftShadow() (DefaultSkUiLook: a soft shadow)
     public virtual double ReorderAutoScrollZone => 48;     // and ReorderAutoScrollSpeed (1200 DIPs/s at the very end)
     // Indicator views (C4): the whole row, laid out by the control (SkUiIndicatorPaint.GetIndicatorBounds / GetSelection /
-    // GetColor, as hit-tested); drawn again while the selection moves. DefaultSkUiLook: dots or a pill (IndicatorStyle).
+    // GetColor, as hit-tested); drawn again while the selection moves. DefaultSkUiLook: dots, a pill or pips (IndicatorStyle),
+    //                                                     and the previous / next buttons (DrawIndicatorButton, IndicatorNavigationButtonSize).
     public void DrawIndicators(SKCanvas canvas, SkUiIndicatorPaint paint) { … } // → IndicatorPainter ?? DrawIndicatorsCore
     public virtual double DefaultIndicatorSpacing => 8;    // and GetSelectedIndicatorExtraLength(size, shape) (a pill's room)
     // Avatars (C8): the intrinsic size, the text size for the content area, colors by mode and name (palette index by a

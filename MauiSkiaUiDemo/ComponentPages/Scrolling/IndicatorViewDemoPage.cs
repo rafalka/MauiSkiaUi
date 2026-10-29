@@ -54,7 +54,20 @@ public sealed class IndicatorViewDemoPage : ComponentDemoPage
         Number(nameof(SkUiIndicatorView.IndicatorSpacing), -1, 24, -1, value => _skia.IndicatorSpacing = value, () => _skia.IndicatorSpacing, whole: true);
         Choice(nameof(SkUiIndicatorView.Orientation), Enum.GetValues<StackOrientation>(), StackOrientation.Horizontal,
             value => _skia.Orientation = value, () => _skia.Orientation);
+        Choice(nameof(SkUiIndicatorView.NavigationButtonVisibility), Enum.GetValues<SkUiIndicatorButtonVisibility>(), SkUiIndicatorButtonVisibility.Collapsed,
+            value => _skia.NavigationButtonVisibility = value, () => _skia.NavigationButtonVisibility);
+        // The look's style draws every indicator view of the app (Pips: Fluent's pips pager, with the buttons above).
+        Choice(nameof(DefaultSkUiLook.IndicatorStyle) + " (look)", Enum.GetValues<SkUiIndicatorStyle>(), SkUiIndicatorStyle.Default, SetIndicatorStyle,
+            () => (SkUiLook.Current as DefaultSkUiLook)?.IndicatorStyle ?? SkUiIndicatorStyle.Default);
         Status();
+    }
+
+    private static void SetIndicatorStyle(SkUiIndicatorStyle value)
+    {
+        if (SkUiLook.Current is not DefaultSkUiLook look || look.IndicatorStyle == value)
+            return;
+        look.IndicatorStyle = value;
+        SkUiLook.NotifyChanged();
     }
 
     private void Status() => Feedback($"Position {_skia.Position}", $"Position {_native.Position}");

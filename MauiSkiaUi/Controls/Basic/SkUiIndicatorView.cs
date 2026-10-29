@@ -28,7 +28,7 @@ namespace MauiSkiaUi;
 /// </para>
 /// </remarks>
 [ContentProperty(nameof(IndicatorLayout))]
-public class SkUiIndicatorView : SkUiView
+public class SkUiIndicatorView : SkUiView, ISkUiKeyHandler
 {
     /// <summary>Bindable property for <see cref="CascadeInputTransparent"/>.</summary>
     public static readonly BindableProperty CascadeInputTransparentProperty = CascadeInputTransparentShared;
@@ -138,6 +138,12 @@ public class SkUiIndicatorView : SkUiView
         validateValue: (_, value) => Enum.IsDefined((StackOrientation)value),
         propertyChanged: (view, _, value) => ((SkUiIndicatorView)view).OnSizeChanged(model => model.Orientation = (StackOrientation)value));
 
+    /// <summary>Bindable property for <see cref="NavigationButtonVisibility"/>.</summary>
+    public static readonly BindableProperty NavigationButtonVisibilityProperty = BindableProperty.Create(nameof(NavigationButtonVisibility),
+        typeof(SkUiIndicatorButtonVisibility), typeof(SkUiIndicatorView), SkUiIndicatorButtonVisibility.Collapsed,
+        validateValue: (_, value) => Enum.IsDefined((SkUiIndicatorButtonVisibility)value),
+        propertyChanged: (view, _, value) => ((SkUiIndicatorView)view).OnSizeChanged(model => model.NavigationButtons = (SkUiIndicatorButtonVisibility)value));
+
     /// <summary>Space around the indicators, as MAUI's: added to the measured size; the row is centered inside it.</summary>
     public Thickness Padding { get => (Thickness)GetValue(PaddingProperty); set => SetValue(PaddingProperty, value); }
 
@@ -188,6 +194,18 @@ public class SkUiIndicatorView : SkUiView
     /// <summary>The row's direction (default horizontal; vertical for a vertical carousel). SkiaUi extension.</summary>
     public StackOrientation Orientation { get => (StackOrientation)GetValue(OrientationProperty); set => SetValue(OrientationProperty, value); }
 
+    /// <summary>
+    /// Previous / next buttons at the row's ends, as Fluent's pips pager has (a SkiaUi extension; default
+    /// <see cref="SkUiIndicatorButtonVisibility.Collapsed"/>): a tap moves <see cref="Position"/> by one. They hide on the
+    /// first and last item unless the selection wraps (a looping carousel), and the look draws them
+    /// (<see cref="SkUiLook.IndicatorNavigationButtonSize"/>). Arrow keys move the position too, with or without them.
+    /// </summary>
+    public SkUiIndicatorButtonVisibility NavigationButtonVisibility
+    {
+        get => (SkUiIndicatorButtonVisibility)GetValue(NavigationButtonVisibilityProperty);
+        set => SetValue(NavigationButtonVisibilityProperty, value);
+    }
+
     /// <summary>Sets <see cref="Position"/> (same as the property setter).</summary>
     public SkUiIndicatorView SetPosition(int value) { ArgumentOutOfRangeException.ThrowIfNegative(value); Position = value; return this; }
 
@@ -228,6 +246,14 @@ public class SkUiIndicatorView : SkUiView
     {
         if (!Enum.IsDefined(value)) throw new ArgumentOutOfRangeException(nameof(value));
         Orientation = value;
+        return this;
+    }
+
+    /// <summary>Sets <see cref="NavigationButtonVisibility"/> (same as the property setter).</summary>
+    public SkUiIndicatorView SetNavigationButtonVisibility(SkUiIndicatorButtonVisibility value)
+    {
+        if (!Enum.IsDefined(value)) throw new ArgumentOutOfRangeException(nameof(value));
+        NavigationButtonVisibility = value;
         return this;
     }
 
@@ -564,9 +590,33 @@ public class SkUiIndicatorView : SkUiView
     {
         RaiseTapped(args);
         ExecuteTappedCommand();
+        if (_layout is null && Model.HitTestButton(args.Position, (float)Width, (float)Height, IsRightToLeft) is not 0 and var step)
+        {
+            if (Model.Step(step) is var target and >= 0)
+                Position = target;
+            return;
+        }
         var index = _layout is null ? Model.HitTest(args.Position, (float)Width, (float)Height, IsRightToLeft) : TemplateViewAt(args.Position);
         if (index >= 0)
             Position = index;
+    }
+
+    /// <inheritdoc />
+    internal override bool TracksHover => _layout is null;
+
+    /// <inheritdoc />
+    internal override void OnHovered(Point? position)
+    {
+        if (Model.Hover(position, (float)Width, (float)Height, IsRightToLeft))
+            InvalidatePaint();
+    }
+
+    bool ISkUiKeyHandler.OnKeyDown(in SkUiKeyEvent key)
+    {
+        if (!IsEnabled || Model.KeyTarget(key, IsRightToLeft) is not (var target and >= 0) || target == Model.ClampedPosition)
+            return false;
+        Position = target;
+        return true;
     }
 
     /// <inheritdoc />

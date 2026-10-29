@@ -984,6 +984,9 @@ public class SkUiLook
     /// </summary>
     public virtual double GetSelectedIndicatorExtraLength(double indicatorSize, IndicatorShape shape) => 0;
 
+    /// <summary>The size of an indicator view's previous / next buttons (<c>NavigationButtonVisibility</c>), in DIPs (default 20).</summary>
+    public virtual double IndicatorNavigationButtonSize => 20;
+
     /// <summary>Optional indicator view painter; when set, replaces <see cref="DrawIndicatorsCore"/>.</summary>
     public Action<SKCanvas, SkUiIndicatorPaint>? IndicatorPainter { get; set; }
 

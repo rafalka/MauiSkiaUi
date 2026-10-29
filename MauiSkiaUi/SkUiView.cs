@@ -216,14 +216,26 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
         OnPropertyChanged(nameof(IsPointerOver));
         ChangeVisualState();
         if (!isOver)
+        {
             _mauiGestures?.HoverEnded();
+            if (TracksHover)
+                OnHovered(null);
+        }
     }
 
     void ISkUiInputNode.PointerHovered(SkUiPointerRouter router, Point position)
     {
+        if (TracksHover)
+            OnHovered(router.MapToNode(this, position));
         if (GestureRecognizers.Count > 0 && RunsMauiTaps && SkUiMauiGestures.HasPointer(GestureRecognizers))
             (_mauiGestures ??= new SkUiMauiGestures(this)).Hovered(router, position);
     }
+
+    /// <summary>Whether the view follows a hovering pointer (<see cref="OnHovered"/>): only views that draw where it is.</summary>
+    internal virtual bool TracksHover => false;
+
+    /// <summary>A hovering pointer moved to <paramref name="position"/> (local), or left (<c>null</c>); with <see cref="TracksHover"/>.</summary>
+    internal virtual void OnHovered(Point? position) { }
 
     /// <summary>
     /// Moves to MAUI's visual states from SkiaUi's input state, as MAUI's <c>VisualElement</c> does from the native view's:

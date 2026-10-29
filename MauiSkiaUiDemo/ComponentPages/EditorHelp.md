@@ -67,6 +67,12 @@ load again.
 
 Empties the in-memory and the on-disk image caches (`SkUiImageCache.ClearAsync`): the next load downloads again.
 
+## IndicatorViewDemoPage.IndicatorStyle (look)
+
+The look's style for every indicator view of the app (`DefaultSkUiLook.IndicatorStyle`): `Dots`, `Pill` (Material's) or
+`Pips` (Fluent's pips pager: small dots, the selected one and one under the mouse larger). `Default` is the look's own.
+Pair `Pips` with `NavigationButtonVisibility` for its previous / next buttons.
+
 ## NumericEntryDemoPage.Button texts
 
 Texts on the stepper buttons instead of the minus and plus glyphs (`DecrementText` / `IncrementText`).
