@@ -11,12 +11,17 @@ namespace MauiSkiaUi;
 /// <param name="DownsampleToFill">
 /// With both bounds, decode just large enough to cover them (aspect fill: an avatar's photo) instead of fitting inside them.
 /// </param>
+/// <param name="CacheKey">
+/// The view's cache identity for its source (<c>SkUiImage.CacheKey</c>), in place of the app's factory and the source's
+/// own key; <c>null</c> or empty: those. Placeholders do not use it.
+/// </param>
 internal readonly record struct SkUiImageOptions(
     SkUiImageCacheType CacheType = SkUiImageCacheType.All,
     double DownsampleWidth = 0,
     double DownsampleHeight = 0,
     IReadOnlyList<ISkUiImageTransformation>? Transformations = null,
-    bool DownsampleToFill = false);
+    bool DownsampleToFill = false,
+    string? CacheKey = null);
 
 /// <summary>A lease on a loaded image and where it came from (<see cref="SkUiImageOrigin.MemoryCache"/> for a cache hit).</summary>
 internal readonly record struct SkUiImageLoad(SkUiCachedImage Image, SkUiImageOrigin Origin);
@@ -131,7 +136,7 @@ internal static class SkUiImageLoader
         string? sourceKey;
         try
         {
-            sourceKey = SourceKey(source);
+            sourceKey = SourceKey(source, options.CacheKey);
         }
         catch (Exception error)
         {
@@ -157,16 +162,22 @@ internal static class SkUiImageLoader
         dips > 0 && double.IsFinite(dips) ? Math.Max(1, (int)Math.Ceiling(dips * scale)) : 0;
 
     /// <summary>
-    /// The source's cache identity: the app's <see cref="SkUiImageCache.CacheKeyFactory"/> key (kept apart from the
-    /// built-in keys by a prefix), else the source's own key; <c>null</c>: not cacheable.
+    /// The source's cache identity: the view's <paramref name="viewKey"/>, else the app's
+    /// <see cref="SkUiImageCache.CacheKeyFactory"/> key (both kept apart from the built-in keys by one prefix, so a view's
+    /// key and a factory's key that are equal share an entry), else the source's own key; <c>null</c>: not cacheable.
     /// </summary>
-    internal static string? SourceKey(SkUiImageSource source)
+    internal static string? SourceKey(SkUiImageSource source, string? viewKey = null)
     {
         if (source is SkUiFailedImageSource)
             return null;
+        if (!string.IsNullOrEmpty(viewKey))
+            return CustomKey(viewKey);
         var custom = SkUiImageCache.CacheKeyFactory?.Invoke(source);
-        return string.IsNullOrEmpty(custom) ? source.CacheKey : "key:" + custom;
+        return string.IsNullOrEmpty(custom) ? source.CacheKey : CustomKey(custom);
     }
+
+    /// <summary>The cache identity of an app-chosen key (a view's or the factory's).</summary>
+    internal static string CustomKey(string key) => "key:" + key;
 
     /// <summary>The memory-cache key: the source's key, then the decode bounds and transformation keys.</summary>
     internal static string? KeyFor(string? sourceKey, in SkUiImageOptions options, SKSizeI maxPixels)

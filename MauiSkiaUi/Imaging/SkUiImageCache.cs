@@ -111,6 +111,18 @@ public static class SkUiImageCache
     public static Task RemoveAsync(Uri uri) => RemoveAsync(SkUiImageSource.FromUri(uri));
 
     /// <summary>
+    /// Forgets what is cached under an app-chosen key: a view's <c>CacheKey</c> or a <see cref="CacheKeyFactory"/> key
+    /// (see <see cref="RemoveAsync(SkUiImageSource)"/>).
+    /// </summary>
+    public static Task RemoveByKeyAsync(string cacheKey)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(cacheKey);
+        var key = SkUiImageLoader.CustomKey(cacheKey);
+        SkUiImageMemoryCache.RemoveSource(key);
+        return SkUiImageDiskCache.RemoveAsync(key);
+    }
+
+    /// <summary>
     /// App-wide cache identity of image sources: returns the key under which a source's image is cached, or <c>null</c>
     /// for the default (the URI, file path, stream key or glyph settings). Sources with the same key share one cache
     /// entry in memory (per decode size and transformations) and one download on disk, so URLs that differ only in an

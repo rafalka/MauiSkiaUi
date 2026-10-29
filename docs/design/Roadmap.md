@@ -49,7 +49,7 @@ Collection view reordering, moved from 1.2 (a new feature rather than a port by 
 
 Steps, order and open decisions: [ImplementationPlan-1.4.md](ImplementationPlan-1.4.md).
 
-- **Images:** a cache key per view, downsampling to the view's size, download progress, fade-in, Android vector (XML) drawables.
+- **Images:** a cache key per view (done: `CacheKey`, `SkUiImageCache.RemoveByKeyAsync`), downsampling to the view's size, download progress, fade-in, Android vector (XML) drawables.
 - **Look details:** progress bar heights, popup chrome (corner radii, shadows), Android text 1–2 % wider than a `TextView`, the radio label about 2 DIPs wider than MAUI's on Apple, an opt-in Fluent pips pager.
 
 ## Backlog (1.x)

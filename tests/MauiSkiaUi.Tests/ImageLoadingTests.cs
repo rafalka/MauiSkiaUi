@@ -513,6 +513,82 @@ public sealed class ImageLoadingTests : IDisposable
     }
 
     [Fact]
+    public async Task AViewsCacheKeySharesOneEntryAcrossSourcesAndIsRemovedByKey()
+    {
+        var handler = new StubHandler(Png(SKColors.Red));
+        SkUiImageCache.HttpClient = new HttpClient(handler);
+        SkUiImageCache.CacheKeyFactory = _ => throw new FormatException("not consulted while a view has a key");
+        var key = Key();
+
+        var first = new SkUiImage { CacheKey = key, Source = ImageSource.FromUri(new Uri($"https://images.test/{Key()}.png")) };
+        await first.LoadingTask;
+        Assert.Null(first.LoadError);
+        var second = new SkUiCoreImage().SetCacheKey(key).SetSourceUri(new Uri($"https://images.test/{Key()}.png"));
+        Assert.Same(first.CachedImage, second.CachedImage); // another URL, the same key: a memory hit
+        var opens = 0;
+        var stream = new SkUiCoreImage().SetCacheKey(key).SetSourceStream(Open(Png(SKColors.Blue), () => opens++));
+        Assert.Same(first.CachedImage, stream.CachedImage); // a stream source is cacheable under a key
+        Assert.Equal(0, opens);
+        Assert.Equal(1, handler.Requests);
+        var file = await WaitForSingleFile(SkUiImageCache.DiskCacheDirectory);
+
+        SkUiImageCache.ClearMemoryCache();
+        {
+            var fromDisk = new SkUiCoreImage().SetCacheKey(key).SetSourceUri(new Uri($"https://images.test/{Key()}.png"));
+            await fromDisk.LoadingTask;
+            fromDisk.Clear();
+        }
+        Assert.Equal(1, handler.Requests); // the download is shared on disk too
+
+        await SkUiImageCache.RemoveByKeyAsync(key);
+        Assert.False(File.Exists(file));
+        Assert.Equal(0, SkUiImageCache.MemoryCacheCount);
+        await Assert.ThrowsAsync<ArgumentException>(() => SkUiImageCache.RemoveByKeyAsync(""));
+    }
+
+    [Fact]
+    public async Task ChangingTheCacheKeyReloadsAndPlaceholdersKeepTheirOwnKeys()
+    {
+        var path = Path.Combine(_testDirectory, "placeholder.png");
+        Directory.CreateDirectory(_testDirectory);
+        await File.WriteAllBytesAsync(path, Png(SKColors.Green));
+        var bytes = Png(SKColors.Red);
+        var opens = 0;
+        var image = new SkUiImage
+        {
+            Source = ImageSource.FromStream(() => { opens++; return new MemoryStream(bytes); }),
+            CacheKey = "a"
+        };
+        await image.LoadingTask;
+        var a = image.CachedImage;
+        Assert.NotNull(a);
+
+        image.CacheKey = "b";
+        await image.LoadingTask;
+        Assert.NotSame(a, image.CachedImage);
+        image.SetCacheKey("a");
+        Assert.Same(a, image.CachedImage); // back to "a": a memory hit
+        var openedBefore = opens;
+        image.CacheKey = "";
+        await image.LoadingTask;
+        Assert.Null(image.CachedImage!.Key); // no key: an unkeyed stream is decoded but not cached
+        Assert.Equal(openedBefore + 1, opens);
+
+        var pending = new SkUiImage
+        {
+            LoadingPlaceholder = ImageSource.FromFile(path),
+            CacheKey = Key(),
+            Source = ImageSource.FromStream(async token => { await Task.Delay(Timeout.Infinite, token); return Stream.Null; })
+        };
+        await WaitUntil(() => pending.IsShowingPlaceholder); // decoded and cached under its own key, not the view's
+        var loads = SkUiImageLoader.LoadCount;
+        var placeholderAsSource = new SkUiImage { Source = ImageSource.FromFile(path) };
+        Assert.True(placeholderAsSource.LoadingTask.IsCompleted);
+        Assert.Equal(loads, SkUiImageLoader.LoadCount);
+        pending.Source = null;
+    }
+
+    [Fact]
     public void WithoutQueryParametersKeepsTheRestInOrder()
     {
         var uri = new Uri("https://cdn.test/a/b.png?w=40&Token=x%20y&h=20&sig=abc#frag");

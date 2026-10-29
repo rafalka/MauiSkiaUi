@@ -68,6 +68,9 @@ public class SkUiImage : SkUiView
     public static readonly BindableProperty DownsampleHeightProperty = BindableProperty.Create(nameof(DownsampleHeight), typeof(double), typeof(SkUiImage), 0d,
         validateValue: SkUiValidate.NonNegative,
         propertyChanged: (view, _, value) => ((SkUiImage)view).OnOptionsChanged(((SkUiImage)view)._options with { DownsampleHeight = (double)value }));
+    /// <summary>Bindable <see cref="CacheKey"/>.</summary>
+    public static readonly BindableProperty CacheKeyProperty = BindableProperty.Create(nameof(CacheKey), typeof(string), typeof(SkUiImage), null,
+        propertyChanged: (view, _, value) => ((SkUiImage)view).OnOptionsChanged(((SkUiImage)view)._options with { CacheKey = (string?)value }));
 
     /// <summary>Bindable <see cref="LoadingPlaceholder"/>.</summary>
     public static readonly BindableProperty LoadingPlaceholderProperty = BindableProperty.Create(nameof(LoadingPlaceholder), typeof(ImageSource), typeof(SkUiImage), null,
@@ -128,6 +131,14 @@ public class SkUiImage : SkUiView
     public double DownsampleWidth { get => (double)GetValue(DownsampleWidthProperty); set => SetValue(DownsampleWidthProperty, value); }
     /// <summary>Decode at most this high, in DIPs at the display density (0: no bound).</summary>
     public double DownsampleHeight { get => (double)GetValue(DownsampleHeightProperty); set => SetValue(DownsampleHeightProperty, value); }
+    /// <summary>
+    /// This view's cache identity for <see cref="Source"/> (FFImageLoading's <c>CacheKey</c>; <c>null</c> or empty: the
+    /// app's <see cref="SkUiImageCache.CacheKeyFactory"/>, else the source's own key). Views with the same key share one
+    /// entry in memory (per decode size and transformations) and, for a URI, one download on disk, whatever their
+    /// sources: a URL with a token that changes, or a stream source, which is otherwise not cached. Placeholders keep
+    /// their own keys. Changing it reloads; <see cref="SkUiImageCache.RemoveByKeyAsync"/> forgets it.
+    /// </summary>
+    public string? CacheKey { get => (string?)GetValue(CacheKeyProperty); set => SetValue(CacheKeyProperty, value); }
     /// <summary>Current asynchronous load, including error-state publication.</summary>
     public Task LoadingTask => Slot.LoadingTask;
     private static readonly BindablePropertyKey IsLoadingPropertyKey =
@@ -225,6 +236,8 @@ public class SkUiImage : SkUiView
     }
     /// <summary>Sets <see cref="CacheType"/> (same as the property setter).</summary>
     public SkUiImage SetCacheType(SkUiImageCacheType value) { CacheType = value; return this; }
+    /// <summary>Sets <see cref="CacheKey"/> (same as the property setter).</summary>
+    public SkUiImage SetCacheKey(string? value) { CacheKey = value; return this; }
     /// <summary>Sets <see cref="DownsampleWidth"/> and <see cref="DownsampleHeight"/> in DIPs (0: no bound).</summary>
     public SkUiImage SetDownsample(double width, double height)
     {
@@ -265,11 +278,15 @@ public class SkUiImage : SkUiView
     private void OnOptionsChanged(SkUiImageOptions options)
     {
         if (_options.CacheType == options.CacheType && _options.DownsampleWidth == options.DownsampleWidth
-            && _options.DownsampleHeight == options.DownsampleHeight && SameItems(_options.Transformations, options.Transformations))
+            && _options.DownsampleHeight == options.DownsampleHeight && SameItems(_options.Transformations, options.Transformations)
+            && SameKey(_options.CacheKey, options.CacheKey))
             return;
         _options = options;
         Reload();
     }
+
+    // null and empty both mean "no key of the view's own".
+    private static bool SameKey(string? a, string? b) => string.IsNullOrEmpty(a) ? string.IsNullOrEmpty(b) : a == b;
 
     private static bool SameItems(IReadOnlyList<ISkUiImageTransformation>? a, IReadOnlyList<ISkUiImageTransformation>? b)
     {

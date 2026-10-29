@@ -117,11 +117,11 @@ image.LoadingFinished += (_, e) =>
 | `ClearAsync(caches)` | Empty the memory cache, the disk cache or both (default), e.g. for a "Clear cache" setting or at sign-out. Views keep their images; the next load decodes and downloads again. |
 | `GetDiskCacheBytesAsync()` | Size of the downloaded files (to show the cache size). |
 | `DiskCacheDirectory`, `DiskCacheMaxBytes` (100 MiB), `ClearDiskCacheAsync()` | Download cache in `FileSystem.CacheDirectory/SkiaUi.Images`. One file per URI, kept only when it decodes (an error page or a corrupt response is not cached; a cached file that no longer decodes is dropped). The oldest files are removed past the budget. Clearing deletes only the cache's own files (`*.img`), so the folder may be shared. |
-| `RemoveAsync(Uri)` / `RemoveAsync(SkUiImageSource)` | Forget one source (all its decode sizes and transformations, and its download), so the next load fetches it again. Call `ReloadAsync()` on views that should refresh. |
+| `RemoveAsync(Uri)` / `RemoveAsync(SkUiImageSource)` / `RemoveByKeyAsync(key)` | Forget one source, or everything cached under an app-chosen key (all its decode sizes and transformations, and its download), so the next load fetches it again. Call `ReloadAsync()` on views that should refresh. |
 | `CacheKeyFactory` | App-wide cache identity: a source → key delegate, `null` for the default key ([below](#custom-cache-keys)). |
 | `HttpClient` | The client that downloads images (set one with your headers, handler or timeout). |
 
-Per view: `CacheType` (`All`, `Memory`, `Disk`, `None`, as FFImageLoading's). For a URI, `UriImageSource.CachingEnabled = false` also skips the disk.
+Per view: `CacheType` (`All`, `Memory`, `Disk`, `None`, as FFImageLoading's) and `CacheKey` ([below](#a-key-per-view)). For a URI, `UriImageSource.CachingEnabled = false` also skips the disk.
 
 ### Custom cache keys
 
@@ -155,6 +155,26 @@ SkUiImageCache.CacheKeyFactory = source => source switch
 - Images cached before the factory changed keep their old keys: set it before images load.
 - `RemoveAsync` removes by key, so it forgets every URL that shares it.
 
+### A key per view
+
+`CacheKey` (FFImageLoading's) sets the cache identity of one view's source, when the view knows it better than a rule
+for all sources can: a list row showing a user's avatar from a signed URL or a stream, keyed by the user's id.
+
+```xml
+<sk:SkUiImage Source="{Binding PhotoUrl}" CacheKey="{Binding PhotoKey}" />
+```
+
+```csharp
+new SkUiCoreImage().SetCacheKey($"avatar-{user.Id}").SetSourceStream(token => photos.OpenAsync(user.Id, token));
+```
+
+- It replaces `CacheKeyFactory` and the source's own key for that view; `null` or empty keeps them. Views with the
+  same key share one entry in memory and, for a URI, one download on disk, whatever their sources, with the same
+  caveat as above: one key, one image.
+- A key equal to one the factory returns names the same entry, so `SkUiImageCache.RemoveByKeyAsync(key)` forgets
+  both.
+- Placeholders keep their own keys. Changing `CacheKey` reloads the source.
+
 ## Transformations
 
 `Transformations` is a list per view, applied in order to the decoded image before it is cached. Adding or removing items reloads. Stock transformations (sizes in the image's DIPs):
@@ -176,7 +196,7 @@ Transformations change the decoded pixels once. For clipping that follows the la
 
 ## Key properties
 
-`Source`, `Aspect`, `IsAnimationPlaying`, `Transformations`, `CacheType`, `DownsampleWidth`, `DownsampleHeight`, `LoadingPlaceholder`, `ErrorPlaceholder`, `TransformPlaceholders`, `IsLoading`, `LoadError`, `ImageSize`, `IsShowingPlaceholder`, `LoadingTask`, `ReloadAsync()`. Events: `LoadingStarted`, `LoadingFinished`. Fluent: `SetSource`, `SetAspect`, `SetIsAnimationPlaying`, `SetTransformations(...)`, `SetCacheType`, `SetDownsample(width, height)`, `SetPlaceholders(loading, error)`, `SetTransformPlaceholders`.
+`Source`, `Aspect`, `IsAnimationPlaying`, `Transformations`, `CacheType`, `CacheKey`, `DownsampleWidth`, `DownsampleHeight`, `LoadingPlaceholder`, `ErrorPlaceholder`, `TransformPlaceholders`, `IsLoading`, `LoadError`, `ImageSize`, `IsShowingPlaceholder`, `LoadingTask`, `ReloadAsync()`. Events: `LoadingStarted`, `LoadingFinished`. Fluent: `SetSource`, `SetAspect`, `SetIsAnimationPlaying`, `SetTransformations(...)`, `SetCacheType`, `SetCacheKey`, `SetDownsample(width, height)`, `SetPlaceholders(loading, error)`, `SetTransformPlaceholders`.
 
 `DownsampleWidth` / `DownsampleHeight` are DIPs at the display density (FFImageLoading's with `DownsampleUseDipUnits`). The image is decoded no larger than that, aspect kept, never upscaled. Use them for thumbnails of large photos.
 

@@ -15,9 +15,9 @@
 
 The loader (`SkUiImageLoader`), the per-view slot (`SkUiImageSlot`) and the caches are shared by `SkUiImage`, `SkUiCoreImage`, button icons, slider thumbs and the avatar; a step changes the shared code once and exposes members on the image views. Docs: [SkUiImage.md](../controls/SkUiImage.md) (and its "Differences from MAUI Image" table) with every step.
 
-- **I1 Per-view cache key.** Size: S.
+- **I1 Per-view cache key** (done). Size: S.
   - `CacheKey` (`string?`, default `null`) on both layers: when set, it is the source's cache identity for that view (memory cache and, for URIs, the download cache), in place of `SkUiImageCache.CacheKeyFactory` and the source's own key. Placeholders keep their own keys. Prefixed apart from built-in and factory keys, as `"key:"` is today (`SkUiImageLoader.SourceKey`).
-  - Changing it reloads, as changing `Source` does. `SkUiImageCache.RemoveAsync` gets an overload by key.
+  - Changing it reloads, as changing `Source` does. `SkUiImageCache.RemoveByKeyAsync(key)` forgets what is cached under a view's or the factory's key (a separate name: a `RemoveAsync(string)` overload would make `RemoveAsync(null)` ambiguous). A view key and an equal factory key name the same entry.
   - Tests: two views with different sources and one key share one decode; a key change reloads; the factory is not consulted when a key is set.
 - **I2 Downsampling to the view's size.** Size: M.
   - `DownsampleToViewSize` (`bool`, default `false`). The load waits for the first arrange and decodes no larger than the arranged size at the display density: fit inside it, or cover it for `AspectFill` / `Fill` (the existing `DownsampleToFill`). An explicit `DownsampleWidth` / `DownsampleHeight` wins.

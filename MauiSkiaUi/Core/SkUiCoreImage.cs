@@ -95,6 +95,16 @@ public class SkUiCoreImage : SkUiCoreNode
         set => SetCacheType(value);
     }
 
+    /// <summary>
+    /// This node's cache identity for <see cref="Source"/> (<c>null</c>: the app's
+    /// <see cref="SkUiImageCache.CacheKeyFactory"/>, else the source's own key; see <c>SkUiImage.CacheKey</c>).
+    /// </summary>
+    public string? CacheKey
+    {
+        get => _options.CacheKey;
+        set => SetCacheKey(value);
+    }
+
     /// <summary>Decode at most this wide, in DIPs at the display density (0: no bound).</summary>
     public double DownsampleWidth => _options.DownsampleWidth;
 
@@ -194,6 +204,10 @@ public class SkUiCoreImage : SkUiCoreNode
 
     /// <summary>Sets the caches the load may use (reloads the source).</summary>
     public SkUiCoreImage SetCacheType(SkUiImageCacheType value) => SetOptions(_options with { CacheType = value }, nameof(CacheType));
+
+    /// <summary>Sets the cache identity of the source (<c>null</c> or empty: the default; reloads the source).</summary>
+    public SkUiCoreImage SetCacheKey(string? value) =>
+        SetOptions(_options with { CacheKey = string.IsNullOrEmpty(value) ? null : value }, nameof(CacheKey));
 
     /// <summary>Sets the decode bounds in DIPs (0: no bound; reloads the source).</summary>
     public SkUiCoreImage SetDownsample(double width, double height)

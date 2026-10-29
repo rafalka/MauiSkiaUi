@@ -144,7 +144,8 @@ internal sealed class SkUiImageSlot
         lock (_gate)
         {
             ObjectDisposedException.ThrowIf(_disposed, this);
-            var placeholderOptionsChanged = _options != options;
+            // The view's cache key is the source's only (ShowPlaceholder): changing it keeps the placeholder.
+            var placeholderOptionsChanged = (_options with { CacheKey = null }) != (options with { CacheKey = null });
             _options = options;
             if (placeholderOptionsChanged)
                 _shownPlaceholder = null;
@@ -348,7 +349,7 @@ internal sealed class SkUiImageSlot
         // Animated placeholders are loading indicators: they always play.
         _placeholder ??= new SkUiImageSlot(_host, _changed, _gate) { _playing = true };
         _shownPlaceholder = source;
-        _placeholder.Load(source, _transformPlaceholders ? _options : _options with { Transformations = null });
+        _placeholder.Load(source, _transformPlaceholders ? _options with { CacheKey = null } : _options with { Transformations = null, CacheKey = null });
     }
 
     private void Replace(SkUiCachedImage? image)
