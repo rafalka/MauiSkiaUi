@@ -156,7 +156,8 @@ Android into the image:
 <sk:SkUiImage Source="ic_star" />  <!-- Platforms/Android/Resources/drawable/ic_star.xml -->
 ```
 
-- The intrinsic size is the drawable's (`android:width` / `android:height` in dp).
+- The intrinsic size is the drawable's (`android:width` / `android:height` in dp). `?attr/` colors and tints resolve with
+  the current activity's theme, as for a native image.
 - It is drawn at that size in pixels, or at the decode bounds (`DownsampleWidth` / `DownsampleHeight`,
   `DownsampleToViewSize`), larger ones too: a vector stays sharp in a view larger than its intrinsic size.
 - A drawable without an intrinsic size (a `<shape>` without `<size>`) needs both bounds, or loading fails with a
@@ -261,7 +262,7 @@ Transformations change the decoded pixels once. For clipping that follows the la
 `DownsampleToViewSize` (FFImageLoading's) takes the bounds from the view instead, for photos in cells whose size the layout decides:
 
 - A new source starts loading at the view's next arrange (the view is empty until then, so that arrange is the layout's size, not the previous image's) and decodes to fit inside the arranged size, or to cover it for `AspectFill` and `Fill`. `ReloadAsync` and changes of other options reuse the bounds already decided.
-- Bounds round up to steps of 16 DIPs, so rows of one size share cache entries. A larger arrange decodes again, showing the smaller image meanwhile; a smaller one keeps the image.
+- Bounds round up to steps of 16 DIPs, so rows of one size share cache entries. A larger arrange decodes again, showing the smaller image meanwhile (and keeping it, with no `LoadError`, if that decode fails: `LoadingFinished` still reports the failure); a smaller one keeps the image. An image decoded at its full size is not decoded again.
 - A dimension the view takes from its image (arranged at 0 while empty: an image with `Start` alignment, the height in a vertical stack) is not bounded, so auto-sized images measure as without it.
 - `DownsampleWidth` / `DownsampleHeight` win, and `Aspect="Center"` (drawn unscaled) decodes as without it. Placeholders get the same bounds with `TransformPlaceholders`.
 - It saves memory, not time: a cache hit happens at the arrange instead of when the source is set, and a new source takes one more layout pass (`skui-images-viewsized` in the benchmarks).

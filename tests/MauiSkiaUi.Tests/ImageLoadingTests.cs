@@ -645,6 +645,34 @@ public sealed class ImageLoadingTests : IDisposable
     }
 
     [Fact]
+    public async Task DownsampleToViewSizeKeepsTheImageShownWhenTheLargerDecodeFails()
+    {
+        var bytes = Png(SKColors.Red, 400, 200);
+        var opened = 0;
+        var image = ViewSized();
+        image.ErrorPlaceholder = new StreamImageSource { Stream = _ => Task.FromResult<Stream>(new MemoryStream(Png(SKColors.Blue, 8, 8))) };
+        image.Source = new StreamImageSource
+        {
+            Stream = _ => ++opened == 1 ? Task.FromResult<Stream>(new MemoryStream(bytes)) : Task.FromException<Stream>(new IOException("Gone."))
+        };
+        SkUiTestHelpers.Arrange(image, 100, 100);
+        await image.LoadingTask;
+        var small = image.CachedImage!;
+        SkUiImageLoadFinishedEventArgs? finished = null;
+        image.LoadingFinished += (_, args) => finished = args;
+
+        image.WidthRequest = image.HeightRequest = 200;
+        SkUiTestHelpers.Arrange(image, 200, 200);
+        await image.LoadingTask;
+        Assert.Equal(SkUiImageLoadStatus.Failed, finished?.Status); // reported…
+        Assert.IsType<IOException>(finished!.Error);
+        Assert.Same(small, image.CachedImage); // …but the image shown is still valid: it stays, with no error state
+        Assert.Null(image.LoadError);
+        Assert.False(image.IsShowingPlaceholder);
+        Assert.Equal(1, image.LoadingProgress);
+    }
+
+    [Fact]
     public async Task DownsampleToViewSizeDoesNotDecodeAFullSizeImageAgainWhenTheViewGrows()
     {
         var image = ViewSized();

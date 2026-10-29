@@ -65,7 +65,12 @@ internal static class SkUiPackageImages
     {
 #if ANDROID
         var context = Android.App.Application.Context;
-        using var drawable = context.GetDrawable(id) ?? throw new InvalidDataException("The Android drawable could not be loaded.");
+        // The activity's theme, as a native image's view resolves ?attr/ colors and tints with (the application's is the
+        // manifest one: in a MAUI app, the splash theme). Mutated: drawn here on the thread pool, the drawable must not share
+        // its state (a vector's cached bitmap) with instances of it drawn elsewhere.
+        var theme = Microsoft.Maui.ApplicationModel.Platform.CurrentActivity?.Theme ?? context.Theme;
+        using var loaded = context.Resources?.GetDrawable(id, theme) ?? throw new InvalidDataException("The Android drawable could not be loaded.");
+        var drawable = loaded.Mutate(); // itself (the same peer), with state of its own
         var density = context.Resources?.DisplayMetrics?.Density is > 0 and var value ? value : 1f;
         var intrinsic = new SkiaSharp.SKSizeI(drawable.IntrinsicWidth, drawable.IntrinsicHeight);
         if (intrinsic.Width <= 0 || intrinsic.Height <= 0)

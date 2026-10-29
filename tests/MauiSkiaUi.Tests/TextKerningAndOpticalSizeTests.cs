@@ -60,6 +60,10 @@ public sealed class TextKerningAndOpticalSizeTests
         var fractional = SkUiOpticalSize.At(system, 22.3f);
         Assert.NotSame(system, fractional);
         Assert.Equal(22.3, OpticalSize(fractional), 0.01);
+        // An instance asked again goes back to its original: no instances of instances.
+        Assert.Same(fractional, SkUiOpticalSize.At(fractional, 22.3f));
+        Assert.Same(display, SkUiOpticalSize.At(fractional, 28));
+        Assert.Same(system, SkUiOpticalSize.At(display, 17));
 
         var previous = SkUiLook.Current;
         try

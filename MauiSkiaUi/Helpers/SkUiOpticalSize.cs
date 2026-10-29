@@ -28,16 +28,18 @@ internal static class SkUiOpticalSize
 
     /// <summary>
     /// <paramref name="typeface"/> at the optical size of text drawn <paramref name="drawnSize"/> points (clamped to its
-    /// axis), or <paramref name="typeface"/> itself when it has no <c>opsz</c> axis, is already there, or cannot move.
+    /// axis), or the typeface it was made from (itself, unless an instance) when it has no <c>opsz</c> axis, is already
+    /// there, or cannot move.
     /// </summary>
     internal static SKTypeface At(SKTypeface typeface, float drawnSize)
     {
+        // Instances are made from the original only, so an instance asked for another size does not make satellites of its own.
+        typeface = Original(typeface);
         var axis = Axes.GetValue(typeface, ReadAxis);
         if (!axis.Exists)
             return typeface;
         var size = Math.Clamp(drawnSize, axis.Min, axis.Max);
-        // Exact: the axis position the typeface is at, or the one asked for (a cache key).
-        if (size == axis.Current)
+        if (Math.Abs(size - axis.Current) < OpticalSizeTolerance)
             return typeface;
         return Instances.GetOrAdd((typeface, size), static key => Create(key.Typeface, key.Size));
     }
