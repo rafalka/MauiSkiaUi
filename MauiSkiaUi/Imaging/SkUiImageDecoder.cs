@@ -49,12 +49,14 @@ public static class SkUiImageDecoder
         var targetEncoded = swaps ? new SKSizeI(target.Height, target.Width) : target;
         var size = new Size(oriented.Width / (double)sourceScale, oriented.Height / (double)sourceScale);
 
+        // Exact: whole pixel sizes.
+        var reduced = target != oriented;
         if (codec.FrameCount > 1 && AnimationBytes(codec, target) <= MaxAnimationBytes)
-            return DecodeFrames(codec, targetEncoded, origin, size);
+            return DecodeFrames(codec, targetEncoded, origin, size) with { IsReduced = reduced };
 
         using var decoded = DecodeStill(codec, encoded, targetEncoded);
         using var upright = Orient(decoded, origin);
-        return new SkUiDecodedImage([ToImage(upright ?? decoded)], [], size);
+        return new SkUiDecodedImage([ToImage(upright ?? decoded)], [], size) { IsReduced = reduced };
     }
 
     /// <summary>
@@ -235,6 +237,12 @@ public static class SkUiImageDecoder
 /// <summary>A decoded image: one frame for stills, several with durations (ms) for animations; its size in DIPs.</summary>
 internal sealed record SkUiDecodedImage(SKImage[] Frames, int[] Durations, Size Size)
 {
+    /// <summary>
+    /// Whether larger decode bounds would give more pixels: a bitmap decoded smaller than its source, or a vector drawn at
+    /// bounds. A full-size decode is all the source has, so a view that grows does not decode it again.
+    /// </summary>
+    public bool IsReduced { get; init; }
+
     /// <summary>Decoded pixel memory of all frames.</summary>
     public long Bytes
     {
@@ -252,5 +260,5 @@ internal sealed record SkUiDecodedImage(SKImage[] Frames, int[] Durations, Size 
     /// (<paramref name="dipsPerPixel"/>, measured before the transformation replaced the originals).
     /// </summary>
     public SkUiDecodedImage WithFrames(SKImage[] frames, SKSize dipsPerPixel) =>
-        new(frames, Durations, new Size(frames[0].Width * dipsPerPixel.Width, frames[0].Height * dipsPerPixel.Height));
+        new(frames, Durations, new Size(frames[0].Width * dipsPerPixel.Width, frames[0].Height * dipsPerPixel.Height)) { IsReduced = IsReduced };
 }

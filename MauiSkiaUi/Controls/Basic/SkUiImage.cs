@@ -449,7 +449,8 @@ public class SkUiImage : SkUiView
     protected override void ArrangeContent(Size size)
     {
         base.ArrangeContent(size);
-        if (_viewSizedDecode.OnArranged(size, out var grew))
+        // A view that outgrew an image decoded at full size keeps it: larger bounds give no more pixels.
+        if (_viewSizedDecode.OnArranged(size, out var grew) && !(grew && Slot.Entry is { IsReduced: false }))
             Slot.Load(SkUiImageSource.FromMaui(_source), _viewSizedDecode.Apply(_options, _aspect), keepShown: grew);
     }
 

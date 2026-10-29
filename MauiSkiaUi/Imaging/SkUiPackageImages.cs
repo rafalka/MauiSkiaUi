@@ -84,7 +84,8 @@ internal static class SkUiPackageImages
         }
         var image = SkiaSharp.Views.Android.AndroidExtensions.ToSKImage(bitmap) ?? throw new InvalidOperationException("The drawn Android drawable could not be copied.");
         bitmap.Recycle();
-        return new SkUiDecodedImage([image], [], new Size(intrinsic.Width / (double)density, intrinsic.Height / (double)density));
+        // A vector: larger bounds always draw it sharper.
+        return new SkUiDecodedImage([image], [], new Size(intrinsic.Width / (double)density, intrinsic.Height / (double)density)) { IsReduced = true };
 #else
         throw new PlatformNotSupportedException("Android drawables exist only on Android.");
 #endif

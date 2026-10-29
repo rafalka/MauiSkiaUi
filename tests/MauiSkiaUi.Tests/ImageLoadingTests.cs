@@ -645,6 +645,25 @@ public sealed class ImageLoadingTests : IDisposable
     }
 
     [Fact]
+    public async Task DownsampleToViewSizeDoesNotDecodeAFullSizeImageAgainWhenTheViewGrows()
+    {
+        var image = ViewSized();
+        image.Source = new StreamImageSource { Stream = _ => Task.FromResult<Stream>(new MemoryStream(Png(SKColors.Red, 40, 20))) };
+        SkUiTestHelpers.Arrange(image, 100, 100);
+        await image.LoadingTask;
+        var full = image.CachedImage!;
+        Assert.Equal(40, full.Frames[0].Width); // all the source has: smaller than the 112 bounds
+        Assert.False(full.IsReduced);
+
+        var loads = SkUiImageLoader.LoadCount;
+        image.WidthRequest = image.HeightRequest = 300;
+        SkUiTestHelpers.Arrange(image, 300, 300);
+        await image.LoadingTask;
+        Assert.Same(full, image.CachedImage); // larger bounds would give no more pixels
+        Assert.Equal(loads, SkUiImageLoader.LoadCount);
+    }
+
+    [Fact]
     public async Task DownsampleToViewSizeLeavesSizesFromTheImageAndExplicitBoundsAlone()
     {
         // Sized by its image: arranged at 0 × 0 while empty, so not bounded; arranged at its image size afterwards.

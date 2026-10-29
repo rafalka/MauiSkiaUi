@@ -161,14 +161,6 @@ internal static partial class SkUiShaping
     }
 
     /// <summary>
-    /// Fast path: text made only of Latin / digits / common punctuation that the primary font fully covers, in a
-    /// left-to-right paragraph, needs no bidi, no fallback and (for UI text) no HarfBuzz — glyphs and advances come
-    /// straight from Skia, like the pre-HarfBuzz renderer. Returns <c>null</c> when the text is not simple.
-    /// </summary>
-    internal static Paragraph? TryShapeSimple(string text, SKFont font, SkUiTextDirection direction, float spacing = 0) =>
-        IsPlain(text, font, direction) ? ShapeSimple(text, font, direction, spacing) : null;
-
-    /// <summary>
     /// Plain path: the text the simple path takes (Latin, digits, common punctuation the primary font fully covers, left to
     /// right) shaped with HarfBuzz as one run, as the platforms' text engines do: kerning and ligatures, without the bidi
     /// levels, itemization and fallback lookups of <see cref="Shape"/>. Returns <c>null</c> when the text is not plain.
