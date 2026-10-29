@@ -105,7 +105,8 @@ public class SkUiLook
     public virtual SkUiPopupPlacement DefaultPopupPlacement => SkUiPopupPlacement.Anchored; // DefaultSkUiLook: the device's
     public virtual Thickness PopupMargin => new(8);         // and PopupAnchorGap (4), PopupPreferredWidth (320),
                                                            // PopupHorizontalOptions / PopupVerticalOptions, PopupItemHeight (44),
-                                                           // PopupItemPadding, PopupHighlightColor, GetPopupOverlayColor(placement)
+                                                           // PopupItemPadding, PopupHighlightColor, GetPopupOverlayColor(placement),
+                                                           // GetPopupCornerRadius(placement), GetPopupShadow(placement)
     // Keyboard focus ring over the focused drawn control (P10), inside its bounds, while focus came from the keyboard.
     public void DrawFocusRing(SKCanvas canvas, SkUiFocusRingPaint ring) { … }        // → FocusRingPainter ?? DrawFocusRingCore
     public virtual double ScrollBarThickness => 4;         // and ScrollBarMargin (2), ScrollBarMinimumThumbLength (24),

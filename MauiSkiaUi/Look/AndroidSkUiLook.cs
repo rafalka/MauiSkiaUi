@@ -163,6 +163,11 @@ public class AndroidSkUiLook : DefaultSkUiLook
     public override double PopupItemHeight => 48;
 
     /// <inheritdoc />
+    /// <remarks>4 dp, as the platform's picker dialog (Material 2's dialogs and its menus); bottom panes square.</remarks>
+    public override CornerRadius GetPopupCornerRadius(SkUiPopupPlacement placement) =>
+        placement == SkUiPopupPlacement.BottomPane ? default : new CornerRadius(4);
+
+    /// <inheritdoc />
     public override Thickness PopupItemPadding => new(16, 12);
 
     /// <inheritdoc />

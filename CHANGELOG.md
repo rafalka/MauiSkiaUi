@@ -25,6 +25,7 @@ Publishing (the NuGet publish workflow, [docs/Releasing.md](docs/Releasing.md)) 
 
 - **Radio buttons are as wide as MAUI's on iOS and Mac Catalyst:** `IosSkUiLook.RadioButtonPadding` is 7 on every side (was 8 × 7), measured on iOS 26: MAUI's template lays out 41 pt around its text. A radio button with text was 2 DIPs wider than MAUI's.
 - **Android (Material 2) progress bars have square ends,** as MAUI's: `AndroidSkUiLook.GetProgressBarCornerRadius` returns 0 (the Material 3 look keeps its round ends). Measured against MAUI 10.0.120 on Android (Material 2 and 3), iOS 26 and Mac Catalyst, where the bars' heights already matched.
+- **Popup frames from the look:** `SkUiLook.GetPopupCornerRadius(placement)` and `GetPopupShadow(placement)`, passed to presenters as `SkUiPopupRequest.CornerRadius` and `Shadow`; the drawn popup content is clipped to the corners. The Android looks match the platform's picker dialog: 4 dp (Material 2), 28 dp for window popups and 4 dp at a field (Material 3); other looks keep 10 and the soft shadow `SkUiToolkitPopupPresenter` used. The toolkit presenter takes the request's frame unless its own `CornerRadius` / `Shadow` are set (their defaults are now `NaN` / unset, for the look's).
 
 ### Other
 

@@ -30,11 +30,27 @@ public sealed class SkUiToolkitPopupPresenter : ISkUiPopupPresenter
     /// <summary>The shared presenter (it keeps no state between popups).</summary>
     public static SkUiToolkitPopupPresenter Instance { get; } = new();
 
-    /// <summary>The popup's corner radius (the drawn content is clipped to it); default 10. Bottom panes are square.</summary>
-    public double CornerRadius { get; init; } = 10;
+    /// <summary>
+    /// The popup's corner radius for every popup, in place of the look's (<see cref="SkUiPopupRequest.CornerRadius"/>, which
+    /// the drawn content is clipped to); <c>NaN</c> (default): the look's. Bottom panes are square either way.
+    /// </summary>
+    public double CornerRadius { get; init; } = double.NaN;
 
-    /// <summary>The popup's shadow; default a soft drop shadow. <c>null</c>: none.</summary>
-    public Shadow? Shadow { get; init; } = new() { Brush = Brush.Black, Opacity = 0.25f, Radius = 16, Offset = new Point(0, 4) };
+    /// <summary>
+    /// The popup's shadow for every popup, in place of the look's (<see cref="SkUiPopupRequest.Shadow"/>); <c>null</c> once
+    /// set: none. Unset (default): the look's.
+    /// </summary>
+    public Shadow? Shadow
+    {
+        get;
+        init
+        {
+            field = value;
+            _hasShadow = true;
+        }
+    }
+
+    private readonly bool _hasShadow;
 
     /// <inheritdoc />
     public async Task ShowAsync(SkUiPopupRequest request, CancellationToken cancellationToken)
@@ -82,9 +98,13 @@ public sealed class SkUiToolkitPopupPresenter : ISkUiPopupPresenter
         {
             CanBeDismissedByTappingOutsideOfPopup = request.IsDismissible,
             PageOverlayColor = request.OverlayColor ?? Colors.Transparent,
-            // A bottom pane is square, docked to the window's edges.
-            Shape = new RoundRectangle { CornerRadius = request.Placement == SkUiPopupPlacement.BottomPane ? 0 : CornerRadius, StrokeThickness = 0 },
-            Shadow = Shadow
+            // The content's corners; a bottom pane is square, docked to the window's edges.
+            Shape = new RoundRectangle
+            {
+                CornerRadius = pane ? 0 : double.IsNaN(CornerRadius) ? request.CornerRadius : CornerRadius,
+                StrokeThickness = 0
+            },
+            Shadow = _hasShadow ? Shadow : request.Shadow
         };
         return (popup, options);
     }

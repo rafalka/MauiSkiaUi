@@ -1217,6 +1217,21 @@ public class SkUiLook
     public virtual Color? GetPopupOverlayColor(SkUiPopupPlacement placement) =>
         placement is SkUiPopupPlacement.Anchored or SkUiPopupPlacement.BottomPane ? null : Color.FromRgba(0, 0, 0, 0.32);
 
+    /// <summary>
+    /// The corner radii of a popup of <paramref name="placement"/> (<see cref="SkUiPopupRequest.CornerRadius"/>), in DIPs: the
+    /// drawn content is clipped to them, and presenters shape their container the same. Default 10, and square for bottom
+    /// panes (docked to the window's edges, as a keyboard).
+    /// </summary>
+    public virtual CornerRadius GetPopupCornerRadius(SkUiPopupPlacement placement) =>
+        placement == SkUiPopupPlacement.BottomPane ? default : new CornerRadius(10);
+
+    /// <summary>
+    /// The shadow under a popup of <paramref name="placement"/> (<see cref="SkUiPopupRequest.Shadow"/>), or <c>null</c> for
+    /// none; a new object for each call. Default: a soft black drop shadow (25 %, blurred 16, 4 down).
+    /// </summary>
+    public virtual Shadow? GetPopupShadow(SkUiPopupPlacement placement) =>
+        new() { Brush = Brush.Black, Opacity = 0.25f, Radius = 16, Offset = new Point(0, 4) };
+
     /// <summary>A popup list's highlighted row background (the selection and the keyboard's position): default the accent at 12 %.</summary>
     public virtual Color PopupHighlightColor => SkUiColors.Accent.WithAlpha(0.12f);
 

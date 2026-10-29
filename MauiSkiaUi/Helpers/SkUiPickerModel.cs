@@ -1,6 +1,7 @@
 using System.Collections;
 using System.Diagnostics;
 using MauiSkiaUi.Rendering;
+using Microsoft.Maui.Controls.Shapes;
 using SkiaSharp;
 
 namespace MauiSkiaUi;
@@ -971,8 +972,14 @@ internal sealed class SkUiPickerModel
             _content = content;
             var request = content.CreateRequest(anchor, surfaceRoot, layout,
                 new SkUiPopupRequestOptions(model.Title, look.GetPopupOverlayColor(layout.Placement), !SkUiMotion.IsMotionReduced, chrome));
+            request.CornerRadius = look.GetPopupCornerRadius(layout.Placement);
+            request.Shadow = look.GetPopupShadow(layout.Placement);
             content.Surface.WidthRequest = layout.Bounds.Width;
             content.Surface.HeightRequest = layout.Bounds.Height;
+            // Rounded as the popup: the content's background and rows are clipped to the corners, whatever the presenter draws.
+            content.Surface.Clip = SkUiCornerRadii.HasAny(request.CornerRadius)
+                ? new RoundRectangleGeometry(request.CornerRadius, new Rect(0, 0, layout.Bounds.Width, layout.Bounds.Height))
+                : null;
             // A bottom pane reaches the window's edges: its content stays clear of the home indicator and a landscape notch.
             if (layout.Placement == SkUiPopupPlacement.BottomPane)
                 content.Surface.Padding = SkUiPopupGeometry.PaneContentPadding(safeArea);
