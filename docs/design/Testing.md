@@ -37,6 +37,33 @@ dotnet test tests/MauiSkiaUi.Tests/MauiSkiaUi.Tests.csproj --filter FullyQualifi
 
 It constructs 1,000 labels, measures/arranges a 400x600-DIP viewport, warms one picture recording, then records 30 frames. Before clip rejection/cached Z-order: 8.106 ms and 568,384 managed bytes/frame. After: 0.635 ms and 9,488 bytes/frame on the same Mac, Debug, .NET 10. These are indicative CPU measurements, not GPU FPS; no timing assertion is used. Remaining allocations include visible labels' font/paint resources, and native allocations are excluded. Use the device stress page's **Record** action for CPU recording of 1,000 buttons, and a native profiler for actual presentation timing.
 
+## Writing tests for CI
+
+Tests pass on a Mac and fail on CI when they depend on something the CI machines don't have. Design for these from the
+start:
+
+- **The Linux runner (`Build & test (Ubuntu)`) has no system fonts.** A typeface asked for by family name, or the
+  default one, has no glyphs there: text measures 0 wide, shaping finds nothing, and a font image (`FontImageSource`,
+  `SkUiFontImageSource`) fails to load with "The glyph has no size". macOS and Windows have system fonts, so a local
+  run does not catch it.
+  - Tests about text register the bundled Roboto Mono: `using var _ = SkUiTestHelpers.UseBundledFont();` and
+    `FontFamily = SkUiTestHelpers.BundledFontFamily`. Assert on what that font gives, not on a system font's metrics.
+  - Tests that only need *an* image or *some* content do not use glyphs: images come from PNG bytes made with
+    SkiaSharp (`ImageLoadingTests.Png`, `LeakImages`), not from `FontImageSource`.
+  - Leak scenarios (`tests/Shared/MemoryLeaks`) also run on devices, where `SkUiTestHelpers` does not exist: use
+    `LeakImages` for images, and keep text in them to what still works when it measures empty.
+  - A test that needs a platform font (an Apple system font, say) returns early when the host has none, as
+    `TextKerningAndOpticalSizeTests` does.
+- **Headless loads have no dispatcher.** A load that is not a memory-cache hit completes on the thread pool, where
+  views skip what must not run off the UI thread (an image fade, for one). Use `SkUiTestHelpers.UseTestDispatcher()`
+  in xUnit tests, or put the image in the memory cache first (shared scenarios: `ImageFadingIn`).
+- **CI devices may have Reduce Motion on.** Transitions and fades then jump to their end. A device scenario that is
+  about an animation sets `SkUiMotion.ReduceMotion = false` while it starts it (devices only: headless test classes
+  set the override themselves) and restores it.
+- **CI machines are slower.** Wait for a state (a view committed, a load finished: `LeakScenarioContext.WaitForAsync`,
+  a bounded loop of `SettleAsync`) instead of a fixed number of frames or milliseconds, and make a failed check say
+  what each part's state was, so one CI log is enough to tell why.
+
 ## Memory leak tests
 
 One scenario catalog, [`tests/Shared/MemoryLeaks`](../../tests/Shared/MemoryLeaks/LeakScenarios.cs), runs in two places:
