@@ -26,6 +26,9 @@ internal enum SkUiKey
     Character
 }
 
+/// <summary>Sees a key before a node handles it; <c>true</c>: used.</summary>
+internal delegate bool SkUiKeyPreview(in SkUiKeyEvent key);
+
 /// <summary>A key press the drawn tree is offered (<see cref="ISkUiKeyHandler"/>).</summary>
 /// <param name="Key">The key.</param>
 /// <param name="Modifiers">Modifier keys held.</param>

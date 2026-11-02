@@ -20,6 +20,7 @@ Publishing (the NuGet publish workflow, [docs/Releasing.md](docs/Releasing.md)) 
 
 ### New features
 
+- **Searchable picker lists:** `IsSearchEnabled` on `SkUiPicker` and `SkUiCorePicker` puts a search field above the popup's rows that filters them as the user types, for at least `SearchMinimumItemCount` items. `SearchFilter` (the item and the phrase) replaces the default match (the item's text contains the phrase, ignoring case and accents); `SearchPlaceholder`, and `SkUiStrings.SearchPlaceholderText` / `NoResultsText`. Typing in the list goes to the field, Up / Down move through the matches, Enter chooses; with several choices hidden choices stay chosen and "Select all" takes the matches.
 - **Pickers can hide the chevron:** `IsChevronVisible` (default `true`) on every picker of both layers (`SkUiPickerBase`, `SkUiCorePickerBase`: the list, date, time, date-and-time and multi-column pickers). A hidden chevron gives its room back to the text or `SelectedItemTemplate`, and the clear button moves to the end; the look gets empty `ChevronBounds`.
 
 ## 1.4.0

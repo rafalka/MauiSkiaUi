@@ -249,6 +249,10 @@ internal sealed class SkUiPickerModel
     public DataTemplate? PopupFooterTemplate;
     public bool ShowsClearButton;
     public bool ShowsChevron = true;
+    public bool IsSearchEnabled;
+    public int SearchMinimumItemCount;
+    public Func<object?, string, bool>? SearchFilter;
+    public string? SearchPlaceholder;
     public bool ShowsPopupClearButton;
     public string? ClearText;
     public System.Windows.Input.ICommand? SelectionChangedCommand;
@@ -890,6 +894,12 @@ internal sealed class SkUiPickerModel
         return null;
     }
 
+    /// <summary>The popup's search field: with <c>IsSearchEnabled</c>, for at least <c>SearchMinimumItemCount</c> items (and one); else <c>null</c>.</summary>
+    internal SkUiPickerSearch? CreateSearch() =>
+        IsSearchEnabled && _items.Count >= Math.Max(1, SearchMinimumItemCount)
+            ? new SkUiPickerSearch(SearchPlaceholder ?? SkUiStrings.Current.SearchPlaceholderText, SearchFilter)
+            : null;
+
     /// <summary>
     /// One opening of the popup: builds the drawn list and the request, hands them to the presenter, closes on the control's
     /// triggers, and reports the choice. It keeps the model only until the presenter's task finished.
@@ -993,7 +1003,7 @@ internal sealed class SkUiPickerModel
             _ = RunAsync(request);
         }
 
-        /// <summary>The default content: the items to choose one from (in a bottom pane, as a wheel when the look shows one).</summary>
+        /// <summary>The default content: the items to choose one from (in a bottom pane, as a wheel when the look shows one and there is no search).</summary>
         private ISkUiPickerPopupContent BuildList(in SkUiPickerPopupContext context)
         {
             var items = model._items.ToArray();
@@ -1003,13 +1013,15 @@ internal sealed class SkUiPickerModel
                 _sourceItems = new object?[source.Count];
                 source.CopyTo(_sourceItems, 0);
             }
+            // A list the user can search stays a list.
+            var search = model.CreateSearch();
             // The wheel is named by the picker's title, as a native wheel column by its field (the title is otherwise only on the toolbar).
-            if (context.Placement == SkUiPopupPlacement.BottomPane && SkUiLook.Current.PickerPaneShowsWheel)
+            if (search is null && context.Placement == SkUiPopupPlacement.BottomPane && SkUiLook.Current.PickerPaneShowsWheel)
                 return new SkUiColumnsPopup([items], [false], [-1], [model.SelectedIndex], SkUiColumnsModel.DefaultVisibleRows, context.RowStyle, context.Title,
                     context.RightToLeft, context.Chrome, indices => model._owner.Choose(indices[0]), () => [model.SelectedIndex], [model._itemEnabled],
                     [new SkUiColumnsPopup.ColumnParts(null, model.ItemTemplate, model._owner.ItemsSource, Name: context.Title)], context.Extras, singleList: true);
             return new SkUiPickerPopup(items, model.SelectedIndex, model.ItemTemplate, model._owner.ItemsSource, context.RowStyle, context.Title, context.RightToLeft,
-                context.Chrome, itemEnabled: model._itemEnabled, extras: context.Extras, choose: model._owner.Choose);
+                context.Chrome, itemEnabled: model._itemEnabled, extras: context.Extras, choose: model._owner.Choose, search: search);
         }
 
         private async Task RunAsync(SkUiPopupRequest request)

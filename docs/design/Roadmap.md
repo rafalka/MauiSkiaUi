@@ -77,7 +77,7 @@ Taken up when a real app needs it, roughly in this order within each area. Items
 
 - Password reveal (show / hide while keeping the password keyboard and autofill).
 - Autofill groups smaller than a surface; keyboard inline suggestions and the autofilled highlight on Android.
-- A searchable picker list (an editable field that filters the list) and a token template.
+- A token template for pickers (the searchable list shipped: `IsSearchEnabled`).
 - A split caret at bidi boundaries, visual Left / Right through mixed-direction lines, allocation-free re-shaping per keystroke.
 - Shrink to fit on the drawn entry (the migration checker reports iOS `Entry.AdjustsFontSizeToFitWidth` with advice until then).
 - Number entries: repeat acceleration. More ideas: [TextInput.md](TextInput.md#possible-future-extensions).

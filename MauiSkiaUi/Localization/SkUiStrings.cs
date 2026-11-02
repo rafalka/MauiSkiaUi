@@ -100,6 +100,12 @@ public class SkUiStrings
     /// </summary>
     public virtual string SelectAllText { get; set => Set(ref field, value); } = "Select all";
 
+    /// <summary>The placeholder of a picker's search field (<c>IsSearchEnabled</c>), unless the picker sets its own <c>SearchPlaceholder</c>. Default "Search".</summary>
+    public virtual string SearchPlaceholderText { get; set => Set(ref field, value); } = "Search";
+
+    /// <summary>What a picker's list shows when nothing matches its search. Default "No results".</summary>
+    public virtual string NoResultsText { get; set => Set(ref field, value); } = "No results";
+
     /// <summary>The Cut item of a text field's edit menu where the platform's menu has no text of its own (Windows). Default "Cut".</summary>
     public virtual string CutText { get; set => Set(ref field, value); } = "Cut";
 

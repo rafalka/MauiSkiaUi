@@ -848,7 +848,10 @@ public abstract class SkUiInputView : SkUiView, ISkUiFontElement, ISkUiFieldChro
     /// <inheritdoc />
     internal override bool ShowsFocusRing => false;
 
-    bool ISkUiKeyHandler.OnKeyDown(in SkUiKeyEvent key) => Model.OnKeyDown(key);
+    /// <summary>Sees keys before the field does (a picker's search field moves the list's highlight with Up / Down); <c>true</c>: used.</summary>
+    internal SkUiKeyPreview? KeyPreview { get; set; }
+
+    bool ISkUiKeyHandler.OnKeyDown(in SkUiKeyEvent key) => KeyPreview?.Invoke(key) == true || Model.OnKeyDown(key);
 
     ISkUiTextInputClient ISkUiTextInputNode.TextInputClient => Model;
 

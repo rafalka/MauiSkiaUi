@@ -372,7 +372,7 @@ public partial class SkUiPicker
                     picker.ApplyChosenIndices(indices);
             },
             () => weak.TryGetTarget(out var picker) ? picker._selectedIndices : [], _selectedIndices, IsPopupClosedOnSelection, Model.ItemEnabled,
-            context.Extras, IsSelectAllVisible ? SelectAllText ?? SkUiStrings.Current.SelectAllText : null);
+            context.Extras, IsSelectAllVisible ? SelectAllText ?? SkUiStrings.Current.SelectAllText : null, search: Model.CreateSearch());
     }
 
     /// <summary>Follows an <see cref="INotifyCollectionChanged"/> <see cref="SelectedItems"/> list without the list keeping the picker alive.</summary>

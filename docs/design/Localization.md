@@ -9,6 +9,8 @@ SkiaUi shows or reads out only a few texts of its own; everything else (labels, 
 | `DoneText` | "Done" | What screen readers call the close button (×) in the toolbar of a picker's bottom pane (`PopupPlacement="BottomPane"`, [SkUiPicker](../controls/SkUiPicker.md#the-bottom-pane)), unless the picker sets its own `AcceptText` |
 | `ClearText` | "Clear" | The Clear button of picker popups (`IsPopupClearButtonVisible`), unless the picker sets its own `ClearText` |
 | `SelectAllText` | "Select all" | The "Select all" row of picker lists with several choices (`IsSelectAllVisible`), unless the picker sets its own `SelectAllText`; the item of a text field's edit menu on Windows |
+| `SearchPlaceholderText` | "Search" | The placeholder of a picker list's search field (`IsSearchEnabled`), unless the picker sets its own `SearchPlaceholder` |
+| `NoResultsText` | "No results" | What a picker's list shows when nothing matches its search |
 | `CutText`, `CopyText`, `PasteText` | "Cut", "Copy", "Paste" | The items of a text field's edit menu on Windows (Android and Apple platforms show their system menu, in the system's language) |
 | `MoreTokensFormat` | "+{0}" | The token that stands for the chosen items that do not fit in a picker's field (`MaxTokenLines`), with their count as `{0}` |
 | `DayText`, `MonthText`, `YearText` | "Day", "Month", "Year" | The headers of a date picker's wheels (`AreColumnHeadersVisible`), and what screen readers call the wheels, headers shown or not |

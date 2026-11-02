@@ -2,7 +2,7 @@
 
 A drawn picker: a field that shows the selected item (or a title), and a list to choose from that opens on **your app's popup system** (CommunityToolkit's `Popup`, a popup control or navigation service of your own, or MAUI's action sheet).
 
-**MAUI counterpart:** `Picker`. Its XAML ports by changing the prefix. Beyond MAUI: several choices (`SelectionMode`, [below](#several-choices)), choices that wait for OK (`UpdateMode`, [below](#when-a-choice-takes-effect)), `PopupPlacement` (anchored like a combo box, in the window like a dialog or a sheet, at a rectangle, or [docked at the bottom](#the-bottom-pane) as iOS's picker), `PopupBounds`, `ItemTemplate` (drawn rows), `MaxPopupHeight`, `PopupPresenter`. Core twin: `SkUiCorePicker` (fluent setters, `ItemDisplay` as a function instead of a binding, `SetSelectedItems` instead of a mutable list, the same field and list). What every drawn picker shares (the field, fonts and colors, `IsOpen`, the popup's placement and presenter) is in the base class `SkUiPickerBase` (Core: `SkUiCorePickerBase`).
+**MAUI counterpart:** `Picker`. Its XAML ports by changing the prefix. Beyond MAUI: several choices (`SelectionMode`, [below](#several-choices)), choices that wait for OK (`UpdateMode`, [below](#when-a-choice-takes-effect)), `PopupPlacement` (anchored like a combo box, in the window like a dialog or a sheet, at a rectangle, or [docked at the bottom](#the-bottom-pane) as iOS's picker), `PopupBounds`, `ItemTemplate` (drawn rows), a search field (`IsSearchEnabled`, [below](#searching-the-list)), `MaxPopupHeight`, `PopupPresenter`. Core twin: `SkUiCorePicker` (fluent setters, `ItemDisplay` as a function instead of a binding, `SetSelectedItems` instead of a mutable list, the same field and list). What every drawn picker shares (the field, fonts and colors, `IsOpen`, the popup's placement and presenter) is in the base class `SkUiPickerBase` (Core: `SkUiCorePickerBase`).
 
 ## How it works
 
@@ -86,6 +86,28 @@ So a narrow field opens a wider list when its items are wider. With `SelectedIte
 - Presenters with their own UI read `request.ItemsEnabled` (`null`: all); `Complete` and `SetCurrentIndex` refuse disabled items.
 
 [Wheels](SkUiMultiColumnPicker.md) have the same per column.
+
+## Searching the list
+
+`IsSearchEnabled` (SkiaUi; Core too) puts a search field above the list's rows; as the user types, the list shows the items that match, in their order.
+
+- **When it shows:** for at least `SearchMinimumItemCount` items (default 0: always). A short list keeps its room for the rows: `SearchMinimumItemCount="10"` shows the field only for 10 items or more.
+- **What matches:** `SearchFilter`, a `Func<object?, string, bool>` of the item (of `ItemsSource`, else the text of `Items`) and the phrase (trimmed, never empty); `null` (default): the item's text contains the phrase, ignoring case and accents ("zurich" finds "Zürich").
+- **The field:** a search bar under the title and the app's header, above "Select all"; its placeholder is `SearchPlaceholder` or `SkUiStrings.SearchPlaceholderText` ("Search"). Nothing found: the list shows `SkUiStrings.NoResultsText` ("No results"). Each opening starts with an empty phrase, and the popup keeps its size while the list filters.
+- **Keys:** typing while the list has the focus goes to the field. In the field, Up / Down and Page Up / Page Down move the list's highlight, and Enter (the keyboard's search key) chooses the highlighted item, else the first match; with several choices Enter accepts.
+- **Several choices:** chosen items the search hides stay chosen, and show as chosen again when they match; "Select all" chooses (or unchooses) the items the search shows; Clear clears them all.
+- **Wheels:** a list the user can search stays a list in a bottom pane whose look shows a wheel (`PickerPaneShowsWheel`).
+
+```xml
+<sk:SkUiPicker Title="Country" ItemsSource="{Binding Countries}" ItemDisplayBinding="{Binding Name}"
+               IsSearchEnabled="True" SearchMinimumItemCount="10" SearchPlaceholder="Find a country" />
+```
+
+```csharp
+// Match a country by its name or its code.
+countryPicker.SearchFilter = (item, phrase) => item is Country country
+    && (country.Name.Contains(phrase, StringComparison.CurrentCultureIgnoreCase) || country.Code.Equals(phrase, StringComparison.OrdinalIgnoreCase));
+```
 
 ## Clearing the choice
 
@@ -328,6 +350,7 @@ host.SetContent(picker);
 | `PopupHeaderTemplate` / `PopupFooterTemplate` | `null` | The app's views above and below the list or wheels (SkiaUi) |
 | `SelectedItemsDisplay` / `MaxTokenLines` | `Text` / `-1` | Several choices: the texts joined, or tokens with × ([Several choices](#several-choices)) (SkiaUi) |
 | `IsSelectAllVisible` / `SelectAllText` | `false` / `null` | Several choices: a "Select all" row (SkiaUi) |
+| `IsSearchEnabled` / `SearchMinimumItemCount` / `SearchFilter` / `SearchPlaceholder` | `false` / `0` / `null` / `null` | A search field that filters the list, for enough items ([Searching the list](#searching-the-list)) (SkiaUi) |
 | `IsClearButtonVisible` / `IsPopupClearButtonVisible` / `ClearText` | `false` / `false` / `null` | The field's clear button and the popup's Clear button ([Clearing the choice](#clearing-the-choice)) (SkiaUi) |
 | `IsChevronVisible` | `true` | The look's chevron at the field's end; `false` gives its room to the text or `SelectedItemTemplate` ([Field chrome](#field-chrome)) (SkiaUi) |
 | `PopupPresenter` | `null` | The app's presenter (SkiaUi) |

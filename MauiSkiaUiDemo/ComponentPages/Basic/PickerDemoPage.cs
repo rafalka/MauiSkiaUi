@@ -93,6 +93,12 @@ public sealed class PickerDemoPage : ComponentDemoPage
         Text(nameof(SkUiPicker.Placeholder), "", value => _skia.Placeholder = value.Length == 0 ? null : value, () => _skia.Placeholder ?? "");
         Toggle(nameof(SkUiPicker.IsClearButtonVisible), false, value => _skia.IsClearButtonVisible = value, () => _skia.IsClearButtonVisible);
         Toggle(nameof(SkUiPicker.IsPopupClearButtonVisible), false, value => _skia.IsPopupClearButtonVisible = value, () => _skia.IsPopupClearButtonVisible);
+        Toggle(nameof(SkUiPicker.IsChevronVisible), true, value => _skia.IsChevronVisible = value, () => _skia.IsChevronVisible);
+        // A search field in the list: for the 500 numbers, not for the six monkeys.
+        Toggle(nameof(SkUiPicker.IsSearchEnabled), false, value => _skia.IsSearchEnabled = value, () => _skia.IsSearchEnabled);
+        Number(nameof(SkUiPicker.SearchMinimumItemCount), 0, 50, 0, value => _skia.SearchMinimumItemCount = (int)value, () => _skia.SearchMinimumItemCount, whole: true);
+        Toggle("Search matches the start (SearchFilter)", false,
+            value => _skia.SearchFilter = value ? StartsWith : null, () => _skia.SearchFilter is not null);
         Number(nameof(SkUiPicker.PopupWidth), -1, 400, -1, value => _skia.PopupWidth = value < 0 ? -1 : value, () => _skia.PopupWidth, whole: true);
         Number(nameof(SkUiPicker.MinPopupWidth), -1, 400, -1, value => _skia.MinPopupWidth = value < 0 ? -1 : value, () => _skia.MinPopupWidth, whole: true);
         Number(nameof(SkUiPicker.MaxPopupWidth), -1, 400, -1, value => _skia.MaxPopupWidth = value < 0 ? -1 : value, () => _skia.MaxPopupWidth, whole: true);
@@ -121,6 +127,10 @@ public sealed class PickerDemoPage : ComponentDemoPage
             });
         Status();
     }
+
+    /// <summary>The demo's own search: the item's name starts with the phrase.</summary>
+    private static bool StartsWith(object? item, string phrase) =>
+        (item is DemoColour colour ? colour.Name : item?.ToString() ?? string.Empty).StartsWith(phrase, StringComparison.CurrentCultureIgnoreCase);
 
     /// <summary>A hint in the popup (the app's header and footer).</summary>
     private static SkUiLabel Hint(string text) => new() { Text = text, FontSize = 13, TextColor = DemoColors.Caption, Padding = new Thickness(16, 8) };
