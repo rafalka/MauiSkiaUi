@@ -142,9 +142,31 @@ public class SkUiPopupRequest
     /// <see cref="OpensAbove"/>), start-aligned and at least its width, kept inside the safe area; for
     /// <see cref="SkUiPopupPlacement.Window"/> aligned in the window; for <see cref="SkUiPopupPlacement.Absolute"/> the app's
     /// rectangle; for <see cref="SkUiPopupPlacement.BottomPane"/> the window's width at its bottom edge, the safe area included
-    /// (the content pads itself). Presenters that position by coordinates or margins use it as it is.
+    /// (the content pads itself). Presenters that position by coordinates or margins use it as it is. It changes while the popup
+    /// shows only for a presenter that follows <see cref="BoundsChanged"/>.
     /// </summary>
-    public Rect Bounds { get; }
+    public Rect Bounds { get; private set; }
+
+    /// <summary>
+    /// Raised when <see cref="Bounds"/> changes while the popup shows: an anchored list the user searches shrinks to the rows that
+    /// match (and grows back as the phrase gets shorter, never past the size it opened with), on the side it opened on, against
+    /// its anchor (opened below: its top stays; above: its bottom). <see cref="Content"/>'s size already follows; a presenter
+    /// that subscribes moves and sizes its popup to the new bounds. Without a subscriber the popup keeps the size it opened with.
+    /// </summary>
+    public event EventHandler? BoundsChanged;
+
+    /// <summary>Whether a presenter follows <see cref="BoundsChanged"/> (the content resizes only then).</summary>
+    internal bool FollowsBounds => BoundsChanged is not null && !CloseRequested.IsCancellationRequested;
+
+    /// <summary>The popup moves to <paramref name="bounds"/> while it shows (<see cref="BoundsChanged"/>).</summary>
+    internal void MoveTo(Rect bounds)
+    {
+        // Exact: an unchanged rectangle (the same rows shown again) raises nothing.
+        if (bounds == Bounds)
+            return;
+        Bounds = bounds;
+        BoundsChanged?.Invoke(this, EventArgs.Empty);
+    }
 
     /// <summary>Whether an anchored popup opens above its anchor (there was not room enough below).</summary>
     public bool OpensAbove { get; }
@@ -261,6 +283,7 @@ public class SkUiPopupRequest
         _window = null;
         _page = null;
         _content = null;
+        BoundsChanged = null;
         OnCompleted();
     }
 

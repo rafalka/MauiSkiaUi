@@ -43,7 +43,9 @@ public sealed class PickerPopupsSample : SamplePage, ISample
             "The bottom pane is a wheel with the iOS look (it chooses as it turns; the × takes the item it shows) and a list with the others.",
             "Keyboard: arrow keys change the selection of the closed field, Alt+Down opens it; in the list, arrows, Home / End, " +
                 "typing and Enter choose.",
-            "The request lets go of the picker once the popup has gone: a presenter that keeps requests (a popup stack) leaks nothing."
+            "The request lets go of the picker once the popup has gone: a presenter that keeps requests (a popup stack) leaks nothing.",
+            "A searchable anchored list (`IsSearchEnabled`) shrinks to the matches through `request.BoundsChanged`: a presenter of your own " +
+                "subscribes and moves its popup to the new `request.Bounds`; without it the popup keeps its size."
         ]);
 
     /// <summary>A product with a color swatch, for the templated picker.</summary>

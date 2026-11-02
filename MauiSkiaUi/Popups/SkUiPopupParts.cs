@@ -1,3 +1,4 @@
+using Microsoft.Maui.Controls.Shapes;
 using SkiaSharp;
 
 namespace MauiSkiaUi;
@@ -166,27 +167,37 @@ internal static class SkUiPopupParts
         if (title is null && header is null && footer is null && buttons is null)
             return body;
         var grid = new SkUiGrid();
-        var row = 0;
-        if (buttonsOnTop)
-        {
-            Add(grid, buttons, ref row, GridLength.Auto);
-            buttons = null;
-        }
-        Add(grid, title, ref row, GridLength.Auto);
-        Add(grid, header, ref row, GridLength.Auto);
-        Add(grid, body, ref row, GridLength.Star);
-        Add(grid, footer, ref row, GridLength.Auto);
-        Add(grid, buttons, ref row, GridLength.Auto);
+        Column(grid, body, buttonsOnTop ? [buttons, title, header, body, footer] : [title, header, body, footer, buttons]);
         return grid;
     }
 
-    private static void Add(SkUiGrid grid, SkUiView? view, ref int row, GridLength height)
+    /// <summary>
+    /// Lays <paramref name="parts"/> (each when there is one) out in <paramref name="grid"/> as a column in their order, the
+    /// <paramref name="body"/> taking the room left. Again for the same grid, its parts move to their new rows.
+    /// </summary>
+    public static void Column(SkUiGrid grid, SkUiView body, params SkUiView?[] parts)
     {
-        if (view is null)
-            return;
-        grid.RowDefinitions.Add(new RowDefinition(height));
-        grid.Children.Add(view);
-        Grid.SetRow(view, row++);
+        grid.RowDefinitions.Clear();
+        var row = 0;
+        foreach (var part in parts)
+        {
+            if (part is null)
+                continue;
+            grid.RowDefinitions.Add(new RowDefinition(part == body ? GridLength.Star : GridLength.Auto));
+            if (!grid.Children.Contains(part))
+                grid.Children.Add(part);
+            Grid.SetRow(part, row++);
+        }
+    }
+
+    /// <summary>Sizes a popup's content to <paramref name="bounds"/>, clipped to the popup's corners whatever the presenter draws.</summary>
+    public static void Fit(View surface, Rect bounds, CornerRadius cornerRadius)
+    {
+        surface.WidthRequest = bounds.Width;
+        surface.HeightRequest = bounds.Height;
+        surface.Clip = SkUiCornerRadii.HasAny(cornerRadius)
+            ? new RoundRectangleGeometry(cornerRadius, new Rect(0, 0, bounds.Width, bounds.Height))
+            : null;
     }
 
     /// <summary>The height <paramref name="parts"/> add at <paramref name="width"/>.</summary>

@@ -50,6 +50,8 @@ internal sealed class SkUiPickerPopup : SkUiContentView, ISkUiKeyHandler, ISkUiP
     private readonly SkUiView? _appFooter;
     private readonly SelectAllRow? _selectAll;
     private readonly SkUiSearchBar? _search;
+    private readonly SkUiLabel? _noResults;
+    private readonly SkUiGrid? _column;
     private readonly Func<object?, string, bool>? _filter;
     private readonly SkUiPickerPopupChrome _chrome;
     private readonly IReadOnlyList<string> _texts;
@@ -70,6 +72,11 @@ internal sealed class SkUiPickerPopup : SkUiContentView, ISkUiKeyHandler, ISkUiP
     private SkUiTypeAhead _typeAhead;
     private bool _focusedOnce;
     private bool _applying;
+    private RowView? _probe;
+    // An anchored popup with a search: where it opened, and whether above its anchor (it resizes against it as the search filters).
+    private Rect _opened;
+    private bool _opensAbove;
+    private bool _resizes;
 
     /// <summary>Check box (24) and its gap (12) in rows of a list with several choices.</summary>
     private const double CheckColumnWidth = 36;
@@ -125,7 +132,7 @@ internal sealed class SkUiPickerPopup : SkUiContentView, ISkUiKeyHandler, ISkUiP
             _search.TextChanged += OnSearchTextChanged;
             _search.SearchButtonPressed += OnSearchButtonPressed;
             _search.KeyPreview = OnSearchKeyDown;
-            _list.EmptyView = NoResults(style);
+            _list.EmptyView = _noResults = NoResults(style);
         }
         if (_multiple)
         {
@@ -159,10 +166,16 @@ internal sealed class SkUiPickerPopup : SkUiContentView, ISkUiKeyHandler, ISkUiP
             _selectAll = new SelectAllRow(this, selectAllText, style);
             _selectAll.Show(SelectAllState());
         }
-        // The app's header, the search field, then "Select all" (it chooses the rows the search shows).
-        var headerParts = new[] { _appHeader, _search, _selectAll }.OfType<SkUiView>().ToArray();
-        var header = headerParts.Length > 1 ? Stack(headerParts) : headerParts.FirstOrDefault();
-        Content = SkUiPopupParts.Compose(_title, header, _list, _appFooter, _footer, chrome.IsToolbar);
+        if (_title is null && _appHeader is null && _search is null && _selectAll is null && _appFooter is null && _footer is null)
+        {
+            Content = _list;
+        }
+        else
+        {
+            _column = new SkUiGrid();
+            LayOutParts(searchUnderRows: false);
+            Content = _column;
+        }
         var first = _multiple ? (_initialChecked.Length > 0 ? _initialChecked[0] : -1) : _highlighted;
         if (first >= 0 && first < _rows.Length)
             _ = _list.ScrollToIndex(first, ScrollToPosition.Center, animated: false);
@@ -196,6 +209,16 @@ internal sealed class SkUiPickerPopup : SkUiContentView, ISkUiKeyHandler, ISkUiP
                 RequiresAccept = chrome.RequiresAccept, AcceptText = chrome.AcceptText, CancelText = chrome.CancelText
             };
         Request = request;
+        // An anchored popup with a search resizes as it filters, against its anchor: opened above, the search field goes under the
+        // rows, next to the anchor, where it stays as the popup's top edge moves.
+        if (layout.Placement == SkUiPopupPlacement.Anchored && _search is not null)
+        {
+            _resizes = true;
+            _opened = layout.Bounds;
+            _opensAbove = layout.OpensAbove;
+            if (_opensAbove)
+                LayOutParts(searchUnderRows: true);
+        }
         // Handed to the request, which lets go of it when it completes: a presenter may keep this content, and it must not keep the picker.
         _choose = null;
         return request;
@@ -238,7 +261,7 @@ internal sealed class SkUiPickerPopup : SkUiContentView, ISkUiKeyHandler, ISkUiP
         {
             // Templated rows: each as tall as it is (a wrapped line, an optional one). At least as wide as the widest of the measured
             // rows wants (its own padding included), then as tall as they are at the popup's width (narrower rows wrap more).
-            var probe = new RowView(_template, _style, _multiple);
+            var probe = Probe();
             var rows = Math.Min(_rows.Length, MeasuredTemplatedRows);
             var tall = 0d;
             var count = 0;
@@ -249,25 +272,76 @@ internal sealed class SkUiPickerPopup : SkUiContentView, ISkUiKeyHandler, ISkUiP
                 width = Math.Max(width, Math.Ceiling(size.Width));
                 tall += size.Height;
             }
-            width = Math.Clamp(width, Math.Min(minimumWidth, maximumWidth), maximumWidth);
-            tall = 0;
-            var atWidth = 0;
-            for (; atWidth < count && tall <= maximumHeight; atWidth++)
-            {
-                probe.BindingContext = _rows[atWidth];
-                tall += probe.Measure(width, double.PositiveInfinity).Height;
-            }
             probe.BindingContext = null;
-            rowsHeight = tall + (_rows.Length - atWidth) * (tall / atWidth);
+            width = Math.Clamp(width, Math.Min(minimumWidth, maximumWidth), maximumWidth);
+            rowsHeight = RowsHeight(_rows, width, maximumHeight, count);
         }
         else
         {
             width = Math.Clamp(width, Math.Min(minimumWidth, maximumWidth), maximumWidth);
-            rowsHeight = _rows.Length * look.PopupItemHeight;
+            rowsHeight = RowsHeight(_rows, width, maximumHeight);
         }
-        // As tall as every row: a search keeps the popup's size while it filters.
-        var height = rowsHeight + SkUiPopupParts.ExtraHeight(width, _title, _appHeader, _search, _selectAll, _appFooter, _footer);
-        return new Size(width, height);
+        // As tall as every row: an anchored popup shrinks to the rows a search shows (FitToRows) when its presenter follows it.
+        return new Size(width, rowsHeight + PartsHeight(width));
+    }
+
+    /// <summary>
+    /// How tall <paramref name="rows"/> are at <paramref name="width"/>: plain rows the look's height each; templated ones measured
+    /// one by one until they are taller than <paramref name="maximumHeight"/> or <paramref name="limit"/> were, the rest as tall as
+    /// their average.
+    /// </summary>
+    private double RowsHeight(IReadOnlyList<Row> rows, double width, double maximumHeight, int limit = MeasuredTemplatedRows)
+    {
+        if (_template is null)
+            return rows.Count * SkUiLook.Current.PopupItemHeight;
+        if (rows.Count == 0)
+            return 0;
+        var probe = Probe();
+        var tall = 0d;
+        var measured = 0;
+        for (var last = Math.Min(rows.Count, limit); measured < last && tall <= maximumHeight; measured++)
+        {
+            probe.BindingContext = rows[measured];
+            tall += probe.Measure(width, double.PositiveInfinity).Height;
+        }
+        probe.BindingContext = null;
+        return tall + (rows.Count - measured) * (tall / measured);
+    }
+
+    /// <summary>The row that measures templated rows (bound to each in turn).</summary>
+    private RowView Probe() => _probe ??= new RowView(_template, _style, _multiple);
+
+    /// <summary>The height of everything but the rows at <paramref name="width"/>: the title, header, search field, footer and buttons.</summary>
+    private double PartsHeight(double width) => SkUiPopupParts.ExtraHeight(width, _title, _appHeader, _search, _selectAll, _appFooter, _footer);
+
+    /// <summary>
+    /// The parts in a column: a bottom pane's toolbar, the title, the app's header, the search field, then "Select all" (it chooses
+    /// the rows the search shows), the rows, the app's footer and the buttons. <paramref name="searchUnderRows"/> (opened above the
+    /// anchor): the search field goes right under the rows.
+    /// </summary>
+    private void LayOutParts(bool searchUnderRows)
+    {
+        var toolbar = _chrome.IsToolbar;
+        SkUiPopupParts.Column(_column!, _list, toolbar ? _footer : null, _title, _appHeader, searchUnderRows ? null : _search, _selectAll, _list,
+            searchUnderRows ? _search : null, _appFooter, toolbar ? null : _footer);
+    }
+
+    /// <summary>
+    /// An anchored popup whose presenter follows its bounds (<see cref="SkUiPopupRequest.BoundsChanged"/>), as the search filters:
+    /// as tall as the rows it shows (the "No results" text for none) and the other parts, never taller than it opened, against
+    /// its anchor.
+    /// </summary>
+    private void FitToRows()
+    {
+        if (!_resizes || Request is not { FollowsBounds: true } request)
+            return;
+        var width = _opened.Width;
+        var rows = _shown.Count > 0 ? RowsHeight(_shown, width, _opened.Height) : _noResults!.Measure(width, double.PositiveInfinity).Height;
+        var bounds = SkUiPopupGeometry.Resized(_opened, _opensAbove, rows + PartsHeight(width));
+        if (bounds == request.Bounds)
+            return;
+        SkUiPopupParts.Fit(this, bounds, request.CornerRadius);
+        request.MoveTo(bounds);
     }
 
     /// <summary>A tap would select or toggle a disabled row: the list keeps its selection.</summary>
@@ -534,6 +608,7 @@ internal sealed class SkUiPickerPopup : SkUiContentView, ISkUiKeyHandler, ISkUiP
             _applying = false;
         }
         _selectAll?.Show(SelectAllState());
+        FitToRows();
         if (shown.Count > 0)
             _ = _list.ScrollToIndex(Math.Max(0, HighlightedPosition), ScrollToPosition.MakeVisible, animated: false);
     }
@@ -701,16 +776,7 @@ internal sealed class SkUiPickerPopup : SkUiContentView, ISkUiKeyHandler, ISkUiP
         _search.KeyPreview = null;
     }
 
-    /// <summary>The views of <paramref name="parts"/> in a column.</summary>
-    private static SkUiVerticalStackLayout Stack(SkUiView[] parts)
-    {
-        var stack = new SkUiVerticalStackLayout();
-        foreach (var part in parts)
-            stack.Children.Add(part);
-        return stack;
-    }
-
-    /// <summary>The search field above the rows: a search bar in the picker's font, inset as the rows' text.</summary>
+    /// <summary>The search field above the rows (under them when the popup opened above its anchor): a search bar in the picker's font, inset as the rows' text.</summary>
     private static SkUiSearchBar CreateSearchField(string placeholder, in SkUiPickerRowStyle style)
     {
         var padding = SkUiLook.Current.PopupItemPadding;

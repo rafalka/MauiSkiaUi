@@ -18,7 +18,8 @@ namespace MauiSkiaUi.CommunityToolkit;
 /// inside the window's safe area, over a page dimmed by <see cref="SkUiPopupRequest.OverlayColor"/>, and stays aligned as the
 /// window turns. An anchored or absolute one (a combo box) sits at <see cref="SkUiPopupRequest.Bounds"/> through its margins, over a
 /// transparent page (on Windows without the layer fill MAUI puts behind modal pages, which would wash the page out); a bottom pane is aligned to the page's bottom (so its height always fits), square and undimmed. The toolkit's popup page may be inset from the window (on iOS by the bottom safe area), so once
-/// shown every popup is moved by the difference between where it landed and <see cref="SkUiPopupRequest.Bounds"/>.
+/// shown every popup is moved by the difference between where it landed and <see cref="SkUiPopupRequest.Bounds"/>. It follows
+/// <see cref="SkUiPopupRequest.BoundsChanged"/> (an anchored list shrinking to the rows a search shows) by moving as much as the bounds did.
 /// </para>
 /// <para>
 /// A tap outside closes it (when <see cref="SkUiPopupRequest.IsDismissible"/>), as does Back on Android; when SkiaUi asks the
@@ -60,6 +61,15 @@ public sealed class SkUiToolkitPopupPresenter : ISkUiPopupPresenter
             return;
         var (popup, options) = Create(request, content);
         var bounds = request.Bounds;
+        // A search resizes an anchored popup: its height follows the content's, and it moves by as much as the bounds moved.
+        void OnBoundsChanged(object? sender, EventArgs args)
+        {
+            var moved = request.Bounds;
+            popup.Margin = Moved(popup.Margin, moved.Left - bounds.Left, moved.Top - bounds.Top);
+            bounds = moved;
+        }
+        if (IsPositioned(request) && request.Placement != SkUiPopupPlacement.BottomPane)
+            request.BoundsChanged += OnBoundsChanged;
         popup.Opened += (_, _) =>
         {
             // A close asked for before the toolkit attached the popup could not close it then (it throws until the popup is
@@ -75,7 +85,14 @@ public sealed class SkUiToolkitPopupPresenter : ISkUiPopupPresenter
 #endif
         };
         await using var registration = cancellationToken.Register(() => _ = CloseAsync(popup));
-        await page.ShowPopupAsync(popup, options, CancellationToken.None);
+        try
+        {
+            await page.ShowPopupAsync(popup, options, CancellationToken.None);
+        }
+        finally
+        {
+            request.BoundsChanged -= OnBoundsChanged;
+        }
     }
 
     /// <summary>The toolkit popup and options showing <paramref name="content"/> where <paramref name="request"/> asks.</summary>

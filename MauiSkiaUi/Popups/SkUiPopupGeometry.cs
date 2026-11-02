@@ -97,6 +97,17 @@ internal static class SkUiPopupGeometry
     }
 
     /// <summary>
+    /// An anchored popup at another <paramref name="height"/> while it shows (its content shrank or grew back): the width and side
+    /// it opened with (<paramref name="opened"/>), against the anchor (below: its top stays; above: its bottom), never taller than
+    /// it opened.
+    /// </summary>
+    public static Rect Resized(Rect opened, bool opensAbove, double height)
+    {
+        height = Math.Clamp(height, 0, opened.Height);
+        return new Rect(opened.Left, opensAbove ? opened.Bottom - height : opened.Top, opened.Width, height);
+    }
+
+    /// <summary>
     /// The safe area's insets a bottom pane's content pads itself by: the window's left, right and bottom ones (its top edge is
     /// inside the window).
     /// </summary>

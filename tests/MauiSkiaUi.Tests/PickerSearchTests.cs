@@ -35,9 +35,15 @@ public sealed class PickerSearchTests : IDisposable
         _ui.Dispose();
     }
 
-    private static SkUiPicker Picker(SkUiSelectionMode mode = SkUiSelectionMode.Single, SkUiPopupPlacement placement = SkUiPopupPlacement.Anchored)
+    private const double Tolerance = 0.01;
+
+    private static SkUiPicker Picker(SkUiSelectionMode mode = SkUiSelectionMode.Single, SkUiPopupPlacement placement = SkUiPopupPlacement.Anchored,
+        LayoutOptions? vertical = null)
     {
-        var picker = new SkUiPicker { Title = "City", IsSearchEnabled = true, SelectionMode = mode, PopupPlacement = placement, VerticalOptions = LayoutOptions.Start };
+        var picker = new SkUiPicker
+        {
+            Title = "City", IsSearchEnabled = true, SelectionMode = mode, PopupPlacement = placement, VerticalOptions = vertical ?? LayoutOptions.Start
+        };
         foreach (var city in Cities)
             picker.Items.Add(city);
         var root = new SkUiContentView { Content = picker };
@@ -302,6 +308,132 @@ public sealed class PickerSearchTests : IDisposable
         Assert.Equal("Find", content.SearchBar!.Placeholder);
         content.SearchBar.Text = "e";
         Assert.Equal([4, 5], content.ShownIndices);
+    }
+
+    /// <summary>The popup's height for <paramref name="rows"/> plain rows under its search field.</summary>
+    private static double HeightFor(SkUiPickerPopup content, int rows, double width) =>
+        rows * SkUiLook.Current.PopupItemHeight + content.SearchBar!.Measure(width, double.PositiveInfinity).Height;
+
+    [Fact]
+    public void AnAnchoredPopupShrinksToTheMatchesWhenThePresenterFollows()
+    {
+        var content = Open(Picker());
+        var request = _presenter.Current!;
+        var opened = request.Bounds;
+        Assert.False(request.OpensAbove);
+        var changes = 0;
+        request.BoundsChanged += (_, _) => changes++;
+
+        content.Filter("ber");
+        var bounds = request.Bounds;
+        Assert.Equal(1, changes);
+        Assert.Equal(opened.Top, bounds.Top, Tolerance);
+        Assert.Equal(opened.Left, bounds.Left, Tolerance);
+        Assert.Equal(opened.Width, bounds.Width, Tolerance);
+        Assert.Equal(HeightFor(content, 2, opened.Width), bounds.Height, Tolerance);
+        Assert.Equal(bounds.Height, content.HeightRequest, Tolerance);
+        Assert.Equal(bounds.Width, content.WidthRequest, Tolerance);
+
+        // The same matches again: nothing moves.
+        content.Filter("bEr");
+        Assert.Equal(1, changes);
+
+        // Back to every row: the size it opened with.
+        content.Filter("");
+        Assert.Equal(2, changes);
+        Assert.Equal(opened, request.Bounds);
+        Assert.Equal(opened.Height, content.HeightRequest, Tolerance);
+    }
+
+    [Fact]
+    public void NothingFoundLeavesRoomForTheNoResultsText()
+    {
+        var content = Open(Picker());
+        var request = _presenter.Current!;
+        request.BoundsChanged += (_, _) => { };
+        content.Filter("xyz");
+        Assert.Empty(content.ShownIndices);
+        var width = request.Bounds.Width;
+        var noResults = Assert.IsType<SkUiLabel>(content.List.EmptyView);
+        var expected = noResults.Measure(width, double.PositiveInfinity).Height + content.SearchBar!.Measure(width, double.PositiveInfinity).Height;
+        Assert.Equal(expected, request.Bounds.Height, Tolerance);
+        Assert.True(request.Bounds.Height > 0);
+    }
+
+    [Fact]
+    public void WithoutAFollowingPresenterThePopupKeepsItsSize()
+    {
+        var content = Open(Picker());
+        var request = _presenter.Current!;
+        var opened = request.Bounds;
+        content.Filter("ber");
+        Assert.Equal(opened, request.Bounds);
+        Assert.Equal(opened.Height, content.HeightRequest, Tolerance);
+    }
+
+    [Fact]
+    public void AWindowPopupKeepsItsSize()
+    {
+        var content = Open(Picker(placement: SkUiPopupPlacement.Window));
+        var request = _presenter.Current!;
+        var opened = request.Bounds;
+        var changes = 0;
+        request.BoundsChanged += (_, _) => changes++;
+        content.Filter("ber");
+        Assert.Equal(0, changes);
+        Assert.Equal(opened, request.Bounds);
+    }
+
+    [Fact]
+    public void OpenedAboveTheSearchFieldIsUnderTheRowsAndThePopupShrinksTowardTheField()
+    {
+        var content = Open(Picker(vertical: LayoutOptions.End));
+        var request = _presenter.Current!;
+        Assert.True(request.OpensAbove);
+        var search = content.SearchBar!;
+        Assert.True(Grid.GetRow(search) > Grid.GetRow(content.List));
+        var opened = request.Bounds;
+        request.BoundsChanged += (_, _) => { };
+
+        content.Filter("ber");
+        var bounds = request.Bounds;
+        Assert.Equal(opened.Bottom, bounds.Bottom, Tolerance);
+        Assert.Equal(HeightFor(content, 2, opened.Width), bounds.Height, Tolerance);
+        Assert.True(bounds.Top > opened.Top);
+    }
+
+    [Fact]
+    public void OpenedBelowTheSearchFieldIsAboveTheRows()
+    {
+        var content = Open(Picker());
+        Assert.True(Grid.GetRow(content.SearchBar!) < Grid.GetRow(content.List));
+    }
+
+    [Fact]
+    public void TemplatedRowsShrinkToTheirMeasuredHeights()
+    {
+        var picker = Picker();
+        picker.ItemTemplate = new DataTemplate(() =>
+        {
+            var label = new SkUiLabel { HeightRequest = 30 };
+            label.SetBinding(SkUiLabel.TextProperty, new Binding("."));
+            return label;
+        });
+        var content = Open(picker);
+        var request = _presenter.Current!;
+        request.BoundsChanged += (_, _) => { };
+        content.Filter("ber");
+        var probe = content.SearchBar!.Measure(request.Bounds.Width, double.PositiveInfinity).Height;
+        Assert.Equal(2 * 30 + probe, request.Bounds.Height, 1);
+    }
+
+    [Fact]
+    public void AResizedPopupStaysAgainstItsAnchor()
+    {
+        var opened = new Rect(10, 100, 200, 300);
+        Assert.Equal(new Rect(10, 100, 200, 80), SkUiPopupGeometry.Resized(opened, opensAbove: false, 80));
+        Assert.Equal(new Rect(10, 320, 200, 80), SkUiPopupGeometry.Resized(opened, opensAbove: true, 80));
+        Assert.Equal(opened, SkUiPopupGeometry.Resized(opened, opensAbove: true, 500));
     }
 
     private sealed record Person(string Name, string Team);
