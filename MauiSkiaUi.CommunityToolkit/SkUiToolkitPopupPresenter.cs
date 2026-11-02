@@ -22,7 +22,9 @@ namespace MauiSkiaUi.CommunityToolkit;
 /// <see cref="SkUiPopupRequest.BoundsChanged"/> (an anchored list shrinking to the rows a search shows, a popup fitting the room the
 /// keyboard leaves) by moving a popup at its bounds as much as they moved, and others by their alignment. The popup page keeps its
 /// bottom clear of the soft keyboard (<c>SafeAreaEdges</c> with <c>SoftInput</c>, MAUI's own inset handling), and the room it leaves
-/// is reported with <see cref="SkUiPopupRequest.SetAvailableArea"/>.
+/// is reported with <see cref="SkUiPopupRequest.SetAvailableArea"/>; on Android, where MAUI leaves the page under the keyboard in the
+/// default <c>adjustPan</c>, the room also ends at the keyboard's inset in the popup's window, and window popups and the bottom pane
+/// rise above it.
 /// </para>
 /// <para>
 /// A tap outside closes it (when <see cref="SkUiPopupRequest.IsDismissible"/>), as does Back on Android; when SkiaUi asks the
@@ -77,18 +79,28 @@ public sealed class SkUiToolkitPopupPresenter : ISkUiPopupPresenter
         request.BoundsChanged += OnBoundsChanged;
         View? room = null;
         Page? roomPage = null;
+        // The keyboard's cover of the page that the page does not keep clear of itself, which aligned popups already rose by.
+        var covered = 0.0;
+#if ANDROID
+        Android.Views.View? keyboardView = null;
+#endif
         // The popup page keeps its bottom clear of the soft keyboard (MAUI's SafeAreaEdges); the room left is reported to SkiaUi. The
         // layout's frame is read (in the page, which fills the window): its platform view gets its new frame only after this event.
         void OnRoomChanged(object? sender, EventArgs args)
         {
             if (room is not { Width: > 0, Height: > 0 } || roomPage is null || PlatformWindowBounds(roomPage) is not { } page)
                 return;
-            var area = room.Frame.Offset(page.X, page.Y);
-            // A window popup's bottom margin keeps only the part of the safe area the keyboard leaves (none over the home indicator).
-            if (request.Placement == SkUiPopupPlacement.Window)
+            var frame = room.Frame.Offset(page.X, page.Y);
+            var area = frame;
+#if ANDROID
+            if (keyboardView is not null && KeyboardTop(keyboardView) is { } keyboardTop)
+                area = AboveKeyboard(frame, keyboardTop);
+#endif
+            if (!IsAtBounds(request))
             {
-                var kept = KeptSafeBottom(request, area) - KeptSafeBottom(request, request.AvailableArea);
-                popup.Margin = new Thickness(popup.Margin.Left, popup.Margin.Top, popup.Margin.Right, popup.Margin.Bottom + kept);
+                var lift = AlignedLift(request, frame, area, covered);
+                covered = frame.Bottom - area.Bottom;
+                popup.Margin = new Thickness(popup.Margin.Left, popup.Margin.Top, popup.Margin.Right, popup.Margin.Bottom + lift);
             }
             request.SetAvailableArea(area);
         }
@@ -97,12 +109,24 @@ public sealed class SkUiToolkitPopupPresenter : ISkUiPopupPresenter
             popup.HandlerChanged -= OnHandlerChanged;
             if (PageOf(popup) is not ContentPage { Content: { } layout } popupPage)
                 return;
-            // Edge to edge, as the margins expect, but for the keyboard: on iOS a page keeps clear of the safe area by default.
+            // Edge to edge, as the margins expect, but for the keyboard: on iOS a page keeps clear of the safe area by default, and
+            // the toolkit's layout (a grid) keeps clear of the bars on every platform.
             if (!popupPage.IsSet(ContentPage.SafeAreaEdgesProperty))
                 popupPage.SafeAreaEdges = new SafeAreaEdges(SafeAreaRegions.None, SafeAreaRegions.None, SafeAreaRegions.None, SafeAreaRegions.SoftInput);
+            if (layout is Layout grid && !grid.IsSet(Layout.SafeAreaEdgesProperty))
+                grid.SafeAreaEdges = SafeAreaEdges.None;
             room = layout;
             roomPage = popupPage;
             room.SizeChanged += OnRoomChanged;
+#if ANDROID
+            // Android pans the window for the keyboard by default (adjustPan), and MAUI then leaves the page's size as it is: the
+            // keyboard's inset in the popup's own window is read after each layout too (the app's pages are not touched).
+            if (popupPage.Handler?.PlatformView is Android.Views.View platform && platform.ViewTreeObserver is { } observer)
+            {
+                keyboardView = platform;
+                observer.GlobalLayout += OnRoomChanged;
+            }
+#endif
         }
         popup.HandlerChanged += OnHandlerChanged;
         popup.Opened += (_, _) =>
@@ -130,6 +154,10 @@ public sealed class SkUiToolkitPopupPresenter : ISkUiPopupPresenter
             popup.HandlerChanged -= OnHandlerChanged;
             if (room is not null)
                 room.SizeChanged -= OnRoomChanged;
+#if ANDROID
+            if (keyboardView?.ViewTreeObserver is { IsAlive: true } observer)
+                observer.GlobalLayout -= OnRoomChanged;
+#endif
         }
     }
 
@@ -191,6 +219,24 @@ public sealed class SkUiToolkitPopupPresenter : ISkUiPopupPresenter
             : request.SafeAreaInsets.Bottom;
     }
 
+    /// <summary>The part of <paramref name="area"/> (window DIPs) above a soft keyboard beginning at <paramref name="keyboardTop"/>.</summary>
+    internal static Rect AboveKeyboard(Rect area, double keyboardTop) =>
+        keyboardTop < area.Bottom ? new Rect(area.X, area.Y, area.Width, Math.Max(0, keyboardTop - area.Y)) : area;
+
+    /// <summary>
+    /// How far a popup aligned in the page (a window popup, the bottom pane) rises as the room becomes <paramref name="area"/>
+    /// in a page laid out to <paramref name="frame"/>, <paramref name="covered"/> having been covered before: by the
+    /// keyboard's cover of the page that the page does not keep clear of itself (Android's adjustPan), and for a window popup by
+    /// the part of the bottom safe area the keyboard covers now (its margin keeps none over the home indicator).
+    /// </summary>
+    internal static double AlignedLift(SkUiPopupRequest request, Rect frame, Rect area, double covered)
+    {
+        var lift = frame.Bottom - area.Bottom - covered;
+        if (request.Placement == SkUiPopupPlacement.Window)
+            lift += KeptSafeBottom(request, area) - KeptSafeBottom(request, request.AvailableArea);
+        return lift;
+    }
+
     private static Page? PageOf(Element element)
     {
         var current = element.Parent;
@@ -198,6 +244,19 @@ public sealed class SkUiToolkitPopupPresenter : ISkUiPopupPresenter
             current = current.Parent;
         return current as Page;
     }
+
+#if ANDROID
+    /// <summary>Where the soft keyboard begins in <paramref name="view"/>'s window (DIPs); <c>null</c> while it is hidden.</summary>
+    private static double? KeyboardTop(Android.Views.View view)
+    {
+        var ime = AndroidX.Core.View.WindowInsetsCompat.Type.Ime();
+        if (AndroidX.Core.View.ViewCompat.GetRootWindowInsets(view) is not { } insets || !insets.IsVisible(ime)
+            || insets.GetInsets(ime) is not { } keyboard || view.RootView is not { Height: > 0 } root)
+            return null;
+        var density = view.Resources?.DisplayMetrics?.Density ?? 1;
+        return (root.Height - keyboard.Bottom) / density;
+    }
+#endif
 
     /// <summary>The window bounds (DIPs) of <paramref name="view"/>'s platform view; <c>null</c> without one in a window.</summary>
     private static Rect? PlatformWindowBounds(VisualElement view)

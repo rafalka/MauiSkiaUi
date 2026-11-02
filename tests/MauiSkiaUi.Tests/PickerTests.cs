@@ -955,6 +955,36 @@ public sealed class ToolkitPopupPresenterTests : IDisposable
     }
 
     [Fact]
+    public void AlignedPopupsRiseByTheKeyboardsCoverThePageDoesNotKeepClearOf()
+    {
+        var page = new Rect(0, 0, 400, 800);
+        var room = MauiSkiaUi.CommunityToolkit.SkUiToolkitPopupPresenter.AboveKeyboard(page, 500);
+        Assert.Equal(new Rect(0, 0, 400, 500), room);
+        foreach (var placement in new[] { SkUiPopupPlacement.BottomPane, SkUiPopupPlacement.Window })
+        {
+            var request = Request(placement);
+            // Android's adjustPan: the page keeps its size under the keyboard, so the popup rises by the keyboard's cover, once.
+            Assert.Equal(300, MauiSkiaUi.CommunityToolkit.SkUiToolkitPopupPresenter.AlignedLift(request, page, room, 0), 3);
+            request.SetAvailableArea(room);
+            Assert.Equal(0, MauiSkiaUi.CommunityToolkit.SkUiToolkitPopupPresenter.AlignedLift(request, page, room, 300), 3);
+            // The keyboard hides: back down.
+            Assert.Equal(-300, MauiSkiaUi.CommunityToolkit.SkUiToolkitPopupPresenter.AlignedLift(request, page, page, 300), 3);
+            // A page that keeps clear of the keyboard itself (iOS, Android's adjustResize) moves the popup with it.
+            request.SetAvailableArea(Rect.Zero);
+            Assert.Equal(0, MauiSkiaUi.CommunityToolkit.SkUiToolkitPopupPresenter.AlignedLift(request, room, room, 0), 3);
+        }
+    }
+
+    [Fact]
+    public void TheRoomEndsWhereTheKeyboardBegins()
+    {
+        var area = new Rect(0, 100, 400, 700);
+        Assert.Equal(area, MauiSkiaUi.CommunityToolkit.SkUiToolkitPopupPresenter.AboveKeyboard(area, 900));
+        Assert.Equal(new Rect(0, 100, 400, 500), MauiSkiaUi.CommunityToolkit.SkUiToolkitPopupPresenter.AboveKeyboard(area, 600));
+        Assert.Equal(new Rect(0, 100, 400, 0), MauiSkiaUi.CommunityToolkit.SkUiToolkitPopupPresenter.AboveKeyboard(area, 50));
+    }
+
+    [Fact]
     public void TheBuilderExtensionRegistersThePresenterAppWide()
     {
         SkUiPopups.Presenter = null;
