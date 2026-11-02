@@ -75,7 +75,15 @@ public partial class SkUiView
     }
 
     /// <summary>
-    /// After a root made room for the keyboard: the focus manager keeps the focused field in view again, in the smaller
+    /// The soft keyboard of the surface this view is the root of begins at <paramref name="surfaceY"/> (surface DIPs, also below
+    /// the surface; positive infinity: none shown): an anchored popup keeps clear of it.
+    /// </summary>
+    internal virtual void OnSoftKeyboardMoved(double surfaceY)
+    {
+    }
+
+    /// <summary>
+    /// After a root made room for the keyboard:the focus manager keeps the focused field in view again, in the smaller
     /// viewports (its drawn scrollers no longer need room of their own for the keyboard).
     /// </summary>
     private void RevealFocusedFieldIfPadded()

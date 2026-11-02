@@ -16,7 +16,8 @@ internal readonly record struct SkUiPopupLayout(
     bool OpensAbove,
     double SpaceAbove,
     double SpaceBelow,
-    bool IsRightToLeft);
+    bool IsRightToLeft,
+    double AnchorGap = 0);
 
 /// <summary>What a popup is placed from: the anchor, the window and the content's wishes.</summary>
 /// <param name="AnchorBounds">The anchor in window coordinates.</param>
@@ -65,6 +66,9 @@ internal static class SkUiPopupGeometry
     /// </summary>
     private const double MinimumExtent = 48;
 
+    /// <summary>A popup this little over the soft keyboard's top (rounding) counts as above it.</summary>
+    private const double KeyboardTolerance = 0.5;
+
     public static SkUiPopupLayout Layout(in SkUiPopupPlacementInput input)
     {
         var area = Area(input);
@@ -93,7 +97,7 @@ internal static class SkUiPopupGeometry
             : input.Placement;
         return new SkUiPopupLayout(input.AnchorBounds, input.AnchorBoundsInPlatformAnchor, input.WindowSize, input.SafeAreaInsets, input.Margin,
             placement, input.HorizontalOptions, input.VerticalOptions, input.PreferredSize, maximum, bounds, opensAbove, spaceAbove, spaceBelow,
-            input.IsRightToLeft);
+            input.IsRightToLeft, input.AnchorGap);
     }
 
     /// <summary>
@@ -108,23 +112,65 @@ internal static class SkUiPopupGeometry
     }
 
     /// <summary>
+    /// An anchored popup of <paramref name="height"/> (at most the height it <paramref name="opened"/> with) kept above the soft
+    /// keyboard, whose top is at <paramref name="keyboardTop"/> (positive infinity: none), less the margin: where
+    /// <see cref="Resized"/> puts it while the keyboard leaves it alone. Over the keyboard, a popup below its anchor gets shorter
+    /// while it keeps <paramref name="minimumHeight"/> (a few rows), else flips above its anchor when that room is there; one above
+    /// its anchor (which the keyboard covers then), or with too little room on either side, sits on the keyboard, over the anchor.
+    /// <paramref name="bottomStays"/>: the popup's bottom edge is the one it resizes against (above the anchor or on the keyboard).
+    /// </summary>
+    public static Rect AboveKeyboard(in SkUiPopupLayout opened, double height, double keyboardTop, double minimumHeight, out bool bottomStays)
+    {
+        var bounds = Resized(opened.Bounds, opened.OpensAbove, height);
+        bottomStays = opened.OpensAbove;
+        if (double.IsPositiveInfinity(keyboardTop))
+            return bounds;
+        var area = Area(opened.WindowSize, opened.AnchorBounds, opened.PreferredSize, opened.SafeAreaInsets, opened.Margin);
+        var limit = Math.Min(area.Bottom, keyboardTop - opened.Margin.Bottom);
+        if (bounds.Bottom <= limit + KeyboardTolerance)
+            return bounds;
+        height = bounds.Height;
+        var least = Math.Min(height, minimumHeight);
+        if (!opened.OpensAbove)
+        {
+            var below = limit - bounds.Top;
+            if (below >= least)
+                return new Rect(bounds.Left, bounds.Top, bounds.Width, below);
+            var aboveBottom = opened.AnchorBounds.Top - opened.AnchorGap;
+            var above = aboveBottom - area.Top;
+            if (aboveBottom <= limit && above >= least)
+            {
+                bottomStays = true;
+                var flipped = Math.Min(height, above);
+                return new Rect(bounds.Left, aboveBottom - flipped, bounds.Width, flipped);
+            }
+        }
+        bottomStays = true;
+        var onKeyboard = Math.Min(height, Math.Max(0, limit - area.Top));
+        return new Rect(bounds.Left, limit - onKeyboard, bounds.Width, onKeyboard);
+    }
+
+    /// <summary>
     /// The safe area's insets a bottom pane's content pads itself by: the window's left, right and bottom ones (its top edge is
     /// inside the window).
     /// </summary>
     public static Thickness PaneContentPadding(Thickness safeAreaInsets) => new(safeAreaInsets.Left, 0, safeAreaInsets.Right, safeAreaInsets.Bottom);
 
     /// <summary>The window; around the anchor when its size is unknown.</summary>
-    private static Rect Window(in SkUiPopupPlacementInput input) =>
-        input.WindowSize is { Width: > 0, Height: > 0 } size
+    private static Rect Window(in SkUiPopupPlacementInput input) => Window(input.WindowSize, input.AnchorBounds, input.PreferredSize);
+
+    private static Rect Window(Size windowSize, Rect anchorBounds, Size preferredSize) =>
+        windowSize is { Width: > 0, Height: > 0 } size
             ? new Rect(Point.Zero, size)
-            : input.AnchorBounds.Union(new Rect(0, 0, input.AnchorBounds.Right + input.PreferredSize.Width, input.AnchorBounds.Bottom + input.PreferredSize.Height));
+            : anchorBounds.Union(new Rect(0, 0, anchorBounds.Right + preferredSize.Width, anchorBounds.Bottom + preferredSize.Height));
 
     /// <summary>The window's safe area less the margin; around the anchor when the window's size is unknown.</summary>
-    private static Rect Area(in SkUiPopupPlacementInput input)
+    private static Rect Area(in SkUiPopupPlacementInput input) =>
+        Area(input.WindowSize, input.AnchorBounds, input.PreferredSize, input.SafeAreaInsets, input.Margin);
+
+    private static Rect Area(Size windowSize, Rect anchorBounds, Size preferredSize, Thickness safe, Thickness margin)
     {
-        var window = Window(input);
-        var safe = input.SafeAreaInsets;
-        var margin = input.Margin;
+        var window = Window(windowSize, anchorBounds, preferredSize);
         var left = window.Left + safe.Left + margin.Left;
         var top = window.Top + safe.Top + margin.Top;
         var right = window.Right - safe.Right - margin.Right;

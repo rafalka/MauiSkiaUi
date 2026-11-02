@@ -971,6 +971,7 @@ internal sealed class SkUiPickerModel
         private readonly List<SkUiScrollController> _scrollers = [];
         private readonly List<ScrollView> _nativeScrollers = [];
         private Window? _window;
+        private Size _windowSize;
         private ISkUiPickerPopupContent? _content;
         private string[] _texts = [];
         private object?[]? _sourceItems;
@@ -1123,7 +1124,10 @@ internal sealed class SkUiPickerModel
             _sourceItems = null;
         }
 
-        /// <summary>An anchored popup closes when its anchor scrolls (a drawn or a MAUI scroller around it) or the window resizes.</summary>
+        /// <summary>
+        /// An anchored popup closes when its anchor scrolls (a drawn or a MAUI scroller around it) or the window resizes, but for
+        /// the soft keyboard (only the height changed while it shows: Android's <c>adjustResize</c>), which the popup keeps clear of.
+        /// </summary>
         private void WatchAnchor()
         {
             for (ISkUiRenderable? current = model._owner.Node.RenderParent; current is not null; current = current.RenderParent)
@@ -1140,7 +1144,10 @@ internal sealed class SkUiPickerModel
                 }
             _window = anchor.Window;
             if (_window is not null)
+            {
+                _windowSize = new Size(_window.Width, _window.Height);
                 _window.SizeChanged += OnWindowSizeChanged;
+            }
         }
 
         private void StopWatching()
@@ -1158,7 +1165,19 @@ internal sealed class SkUiPickerModel
 
         private void OnNativeScrolled(object? sender, ScrolledEventArgs args) => Close();
 
-        private void OnWindowSizeChanged(object? sender, EventArgs args) => Close();
+        private void OnWindowSizeChanged(object? sender, EventArgs args)
+        {
+            if (_window is not { } window)
+                return;
+            var size = new Size(window.Width, window.Height);
+            var keyboard = Math.Abs(size.Width - _windowSize.Width) < WindowSizeTolerance && SkUiWindowMetrics.IsSoftKeyboardShown(surfaceRoot);
+            _windowSize = size;
+            if (!keyboard)
+                Close();
+        }
+
+        // A window this little wider or narrower (rounding) keeps its width.
+        private const double WindowSizeTolerance = 0.5;
     }
 
     #endregion

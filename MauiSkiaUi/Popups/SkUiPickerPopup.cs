@@ -73,10 +73,12 @@ internal sealed class SkUiPickerPopup : SkUiContentView, ISkUiKeyHandler, ISkUiP
     private bool _focusedOnce;
     private bool _applying;
     private RowView? _probe;
-    // An anchored popup with a search: where it opened, and whether above its anchor (it resizes against it as the search filters).
-    private Rect _opened;
-    private bool _opensAbove;
+    // An anchored popup with a search: where it opened, and whether above its anchor (it resizes against it as the search filters
+    // and keeps clear of the soft keyboard, window coordinates), and whether the search field is under the rows.
+    private SkUiPopupLayout _opened;
     private bool _resizes;
+    private double _keyboardTop = double.PositiveInfinity;
+    private bool _searchUnderRows;
 
     /// <summary>Check box (24) and its gap (12) in rows of a list with several choices.</summary>
     private const double CheckColumnWidth = 36;
@@ -214,10 +216,9 @@ internal sealed class SkUiPickerPopup : SkUiContentView, ISkUiKeyHandler, ISkUiP
         if (layout.Placement == SkUiPopupPlacement.Anchored && _search is not null)
         {
             _resizes = true;
-            _opened = layout.Bounds;
-            _opensAbove = layout.OpensAbove;
-            if (_opensAbove)
-                LayOutParts(searchUnderRows: true);
+            _opened = layout;
+            if (layout.OpensAbove)
+                LayOutParts(_searchUnderRows = true);
         }
         // Handed to the request, which lets go of it when it completes: a presenter may keep this content, and it must not keep the picker.
         _choose = null;
@@ -281,7 +282,7 @@ internal sealed class SkUiPickerPopup : SkUiContentView, ISkUiKeyHandler, ISkUiP
             width = Math.Clamp(width, Math.Min(minimumWidth, maximumWidth), maximumWidth);
             rowsHeight = RowsHeight(_rows, width, maximumHeight);
         }
-        // As tall as every row: an anchored popup shrinks to the rows a search shows (FitToRows) when its presenter follows it.
+        // As tall as every row: an anchored popup shrinks to the rows a search shows (FitBounds) when its presenter follows it.
         return new Size(width, rowsHeight + PartsHeight(width));
     }
 
@@ -327,21 +328,42 @@ internal sealed class SkUiPickerPopup : SkUiContentView, ISkUiKeyHandler, ISkUiP
     }
 
     /// <summary>
-    /// An anchored popup whose presenter follows its bounds (<see cref="SkUiPopupRequest.BoundsChanged"/>), as the search filters:
-    /// as tall as the rows it shows (the "No results" text for none) and the other parts, never taller than it opened, against
-    /// its anchor.
+    /// An anchored popup whose presenter follows its bounds (<see cref="SkUiPopupRequest.BoundsChanged"/>), as the search filters
+    /// and the soft keyboard comes and goes: as tall as the rows it shows (the "No results" text for none) and the other parts,
+    /// never taller than it opened, against its anchor, and above the keyboard (<see cref="SkUiPopupGeometry.AboveKeyboard"/>).
+    /// Resizing against its bottom edge (above the anchor, on the keyboard), the search field is under the rows, where it stays.
     /// </summary>
-    private void FitToRows()
+    private void FitBounds()
     {
         if (!_resizes || Request is not { FollowsBounds: true } request)
             return;
-        var width = _opened.Width;
-        var rows = _shown.Count > 0 ? RowsHeight(_shown, width, _opened.Height) : _noResults!.Measure(width, double.PositiveInfinity).Height;
-        var bounds = SkUiPopupGeometry.Resized(_opened, _opensAbove, rows + PartsHeight(width));
+        var width = _opened.Bounds.Width;
+        var parts = PartsHeight(width);
+        var rows = _shown.Count > 0 ? RowsHeight(_shown, width, _opened.Bounds.Height) : _noResults!.Measure(width, double.PositiveInfinity).Height;
+        var bounds = SkUiPopupGeometry.AboveKeyboard(_opened, rows + parts, _keyboardTop, parts + SkUiLook.Current.PopupItemHeight, out var bottomStays);
+        if (bottomStays != _searchUnderRows)
+            LayOutParts(_searchUnderRows = bottomStays);
         if (bounds == request.Bounds)
             return;
         SkUiPopupParts.Fit(this, bounds, request.CornerRadius);
         request.MoveTo(bounds);
+    }
+
+    /// <summary>The soft keyboard moved (its top in this surface's coordinates): the popup keeps clear of it.</summary>
+    internal override void OnSoftKeyboardMoved(double surfaceY) =>
+        KeyboardMoved(double.IsPositiveInfinity(surfaceY) ? surfaceY : SkUiWindowMetrics.SurfaceOrigin(this).Y + surfaceY);
+
+    /// <summary>
+    /// The soft keyboard's top is at <paramref name="windowY"/> in the window (positive infinity: hidden): an anchored popup with a
+    /// search stays above it while it shows, and returns to its bounds when it hides.
+    /// </summary>
+    internal void KeyboardMoved(double windowY)
+    {
+        // Exact: the same report changes nothing.
+        if (windowY == _keyboardTop)
+            return;
+        _keyboardTop = windowY;
+        FitBounds();
     }
 
     /// <summary>A tap would select or toggle a disabled row: the list keeps its selection.</summary>
@@ -608,7 +630,7 @@ internal sealed class SkUiPickerPopup : SkUiContentView, ISkUiKeyHandler, ISkUiP
             _applying = false;
         }
         _selectAll?.Show(SelectAllState());
-        FitToRows();
+        FitBounds();
         if (shown.Count > 0)
             _ = _list.ScrollToIndex(Math.Max(0, HighlightedPosition), ScrollToPosition.MakeVisible, animated: false);
     }

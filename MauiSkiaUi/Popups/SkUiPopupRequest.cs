@@ -150,7 +150,8 @@ public class SkUiPopupRequest
     /// <summary>
     /// Raised when <see cref="Bounds"/> changes while the popup shows: an anchored list the user searches shrinks to the rows that
     /// match (and grows back as the phrase gets shorter, never past the size it opened with), on the side it opened on, against
-    /// its anchor (opened below: its top stays; above: its bottom). <see cref="Content"/>'s size already follows; a presenter
+    /// its anchor (opened below: its top stays; above: its bottom); while the soft keyboard shows, it stays above it (shorter, flipped
+    /// above its anchor, or on the keyboard), and goes back when the keyboard hides. <see cref="Content"/>'s size already follows; a presenter
     /// that subscribes moves and sizes its popup to the new bounds. Without a subscriber the popup keeps the size it opened with.
     /// </summary>
     public event EventHandler? BoundsChanged;
