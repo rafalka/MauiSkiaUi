@@ -310,12 +310,6 @@ internal sealed class SkUiFocusManager(SkUiView root)
             RevealFocusedField();
     }
 
-    /// <summary>
-    /// Set by the platform's text input: where the soft keyboard begins, in surface DIPs, also below the surface (positive infinity:
-    /// none shown). The root hears it as it is: an anchored popup keeps clear of the keyboard, also once it moved above it.
-    /// </summary>
-    public void KeyboardMoved(double surfaceY) => root.OnSoftKeyboardMoved(surfaceY);
-
     /// <summary>Keeps the focused text field above the soft keyboard (see <see cref="SetKeyboardTop"/>).</summary>
     internal void RevealFocusedField()
     {

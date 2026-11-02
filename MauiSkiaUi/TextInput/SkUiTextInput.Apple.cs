@@ -25,18 +25,8 @@ internal sealed class SkUiAppleTextInput(SkUiOverlayContainer container) : ISkUi
         if (container.Window is null || container.KeyboardFocus is not { } focus)
             return;
         var frame = container.ConvertRectFromView(args.FrameEnd, null);
-        var hidden = frame.Height <= 0 || args.FrameEnd.Top >= container.Window.Bounds.Height;
         // Off the surface's bottom (hidden, or a hardware keyboard's bar below it): no keyboard over the surface.
-        focus.SetKeyboardTop(hidden || frame.Top >= container.Bounds.Height ? double.PositiveInfinity : frame.Top);
-        focus.KeyboardMoved(hidden ? double.PositiveInfinity : frame.Top);
-    }
-
-    private void OnKeyboardHide(object? sender, UIKeyboardEventArgs args)
-    {
-        if (container.KeyboardFocus is not { } focus)
-            return;
-        focus.SetKeyboardTop(double.PositiveInfinity);
-        focus.KeyboardMoved(double.PositiveInfinity);
+        focus.SetKeyboardTop(frame.Top >= container.Bounds.Height || frame.Height <= 0 ? double.PositiveInfinity : frame.Top);
     }
 
     /// <summary>Typed characters arrive through <c>insertText</c>.</summary>
@@ -48,7 +38,7 @@ internal sealed class SkUiAppleTextInput(SkUiOverlayContainer container) : ISkUi
     public void Attach(ISkUiTextInputClient client)
     {
         _keyboardFrame ??= UIKeyboard.Notifications.ObserveWillChangeFrame(OnKeyboardFrame);
-        _keyboardHide ??= UIKeyboard.Notifications.ObserveWillHide(OnKeyboardHide);
+        _keyboardHide ??= UIKeyboard.Notifications.ObserveWillHide((_, _) => container.KeyboardFocus?.SetKeyboardTop(double.PositiveInfinity));
         var view = _view ??= new SkUiTextInputView(container);
         if (view.Superview is null)
             container.AddSubview(view);

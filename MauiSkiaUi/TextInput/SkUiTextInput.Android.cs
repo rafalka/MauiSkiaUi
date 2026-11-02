@@ -27,9 +27,6 @@ internal sealed class SkUiAndroidTextInput(SkUiOverlayContainer container) : ISk
 {
     private readonly InputMethodManager? _imm = container.Context?.GetSystemService(Context.InputMethodService) as InputMethodManager;
     private SkUiInputConnection? _connection;
-    private ViewTreeObserver? _layoutObserver;
-    private double _keyboardTop = double.PositiveInfinity;
-    private readonly int[] _keyboardLocation = new int[2];
 
     /// <summary>The attached field.</summary>
     internal ISkUiTextInputClient? Client { get; private set; }
@@ -41,7 +38,6 @@ internal sealed class SkUiAndroidTextInput(SkUiOverlayContainer container) : ISk
     {
         Client = client;
         client.InputAttached(this);
-        WatchKeyboard();
         _connection = null;
         _imm?.RestartInput(container);
         // Focus alone: an implicit request, which the input method may decline (a hardware keyboard attached).
@@ -81,39 +77,6 @@ internal sealed class SkUiAndroidTextInput(SkUiOverlayContainer container) : ISk
             if (ReferenceEquals(Client, client))
                 _imm?.ShowSoftInput(container, flags);
         });
-    }
-
-    /// <summary>Follows the soft keyboard from the first field focused on the surface: after each layout of its window.</summary>
-    private void WatchKeyboard()
-    {
-        if (_layoutObserver is not null || container.ViewTreeObserver is not { IsAlive: true } observer)
-            return;
-        _layoutObserver = observer;
-        observer.GlobalLayout += OnWindowLaidOut;
-    }
-
-    /// <summary>
-    /// The window laid out (the input method shown, hidden or resized, the surface moved): the surface's root hears where the
-    /// keyboard begins (an anchored popup keeps clear of it). The focused field itself is kept in view by the window's soft input
-    /// mode (MAUI pans the window by default), not by the focus manager.
-    /// </summary>
-    private void OnWindowLaidOut(object? sender, EventArgs args)
-    {
-        if (container.KeyboardFocus is not { } focus || !container.IsAttachedToWindow)
-            return;
-        var top = double.PositiveInfinity;
-        var ime = AndroidX.Core.View.WindowInsetsCompat.Type.Ime();
-        if (AndroidX.Core.View.ViewCompat.GetRootWindowInsets(container) is { } insets && insets.IsVisible(ime)
-            && insets.GetInsets(ime).Bottom is var keyboard and > 0 && container.RootView is { Height: > 0 } window)
-        {
-            container.GetLocationInWindow(_keyboardLocation);
-            top = (window.Height - keyboard - _keyboardLocation[1]) / (container.Resources?.DisplayMetrics?.Density ?? 1);
-        }
-        // Exact: the same report changes nothing.
-        if (top == _keyboardTop)
-            return;
-        _keyboardTop = top;
-        focus.KeyboardMoved(top);
     }
 
     public void HideKeyboard(ISkUiTextInputClient client)
@@ -374,9 +337,6 @@ internal sealed class SkUiAndroidTextInput(SkUiOverlayContainer container) : ISk
     /// <summary>The surface goes: its fields are hidden to autofill and let go.</summary>
     public void Dispose()
     {
-        if (_layoutObserver is { IsAlive: true } observer)
-            observer.GlobalLayout -= OnWindowLaidOut;
-        _layoutObserver = null;
         SurfaceVisibilityChanged(false);
         foreach (var known in _autofillFields.Values)
             if (known.TryGetTarget(out var client) && ReferenceEquals(client.AutofillHost, this))

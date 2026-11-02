@@ -66,8 +66,8 @@ internal static class SkUiPopupGeometry
     /// </summary>
     private const double MinimumExtent = 48;
 
-    /// <summary>A popup this little over the soft keyboard's top (rounding) counts as above it.</summary>
-    private const double KeyboardTolerance = 0.5;
+    /// <summary>A popup this little past its room's bottom (rounding) counts as inside it.</summary>
+    private const double RoomTolerance = 0.5;
 
     public static SkUiPopupLayout Layout(in SkUiPopupPlacementInput input)
     {
@@ -112,33 +112,71 @@ internal static class SkUiPopupGeometry
     }
 
     /// <summary>
-    /// An anchored popup of <paramref name="height"/> (at most the height it <paramref name="opened"/> with) kept above the soft
-    /// keyboard, whose top is at <paramref name="keyboardTop"/> (positive infinity: none), less the margin: where
-    /// <see cref="Resized"/> puts it while the keyboard leaves it alone. Over the keyboard, a popup below its anchor gets shorter
-    /// while it keeps <paramref name="minimumHeight"/> (a few rows), else flips above its anchor when that room is there; one above
-    /// its anchor (which the keyboard covers then), or with too little room on either side, sits on the keyboard, over the anchor.
-    /// <paramref name="bottomStays"/>: the popup's bottom edge is the one it resizes against (above the anchor or on the keyboard).
+    /// A popup that <paramref name="opened"/> where <see cref="Layout"/> put it, fitted to <paramref name="available"/>: the part of
+    /// the window its presenter can show it in now (window coordinates, the safe area included; empty: the whole window), which
+    /// shrinks while the soft keyboard covers the window's bottom. <paramref name="height"/> is the height it wants (an anchored list
+    /// that a search filters: its rows' and parts', at most the height it opened with; else the height it opened with). It stays
+    /// inside the room's safe area less the margin:
+    /// <list type="bullet">
+    /// <item>Anchored: where <see cref="Resized"/> puts it while that fits; else, below its anchor, shorter while it keeps
+    /// <paramref name="minimumHeight"/> (a few rows), else flipped above its anchor when that room is there; above its anchor (which
+    /// the room's bottom then covers), or with too little room on either side, on the room's bottom, over the anchor.
+    /// <paramref name="bottomStays"/>: it resizes against its bottom edge (above its anchor or on the room's bottom).</item>
+    /// <item>Window: aligned as it opened, at most the room's height.</item>
+    /// <item>Bottom pane: at the room's bottom, as wide as the window, at most up to the safe area's top less the margin (its content
+    /// pads itself by <see cref="PaneContentPadding(Thickness, Size, Rect)"/>).</item>
+    /// <item>Absolute: the app's rectangle.</item>
+    /// </list>
     /// </summary>
-    public static Rect AboveKeyboard(in SkUiPopupLayout opened, double height, double keyboardTop, double minimumHeight, out bool bottomStays)
+    public static Rect Fitted(in SkUiPopupLayout opened, double height, Rect available, double minimumHeight, out bool bottomStays)
+    {
+        bottomStays = false;
+        var room = Room(opened, available);
+        switch (opened.Placement)
+        {
+            case SkUiPopupPlacement.Anchored:
+                return FittedAnchored(opened, height, room, minimumHeight, out bottomStays);
+            case SkUiPopupPlacement.BottomPane:
+            {
+                var window = Window(opened.WindowSize, opened.AnchorBounds, opened.PreferredSize);
+                var bottom = IsKnown(available) ? Math.Min(window.Bottom, available.Bottom) : window.Bottom;
+                var content = height - opened.SafeAreaInsets.Bottom + PaneContentPadding(opened.SafeAreaInsets, opened.WindowSize, available).Bottom;
+                var paneHeight = Math.Clamp(content, 0, Math.Max(0, bottom - window.Top - opened.SafeAreaInsets.Top - opened.Margin.Top));
+                return new Rect(window.Left, bottom - paneHeight, window.Width, paneHeight);
+            }
+            case SkUiPopupPlacement.Window:
+            {
+                var bounds = opened.Bounds;
+                var aligned = Math.Min(height, room.Height);
+                var top = opened.VerticalOptions.Alignment switch
+                {
+                    LayoutAlignment.End => room.Bottom - aligned,
+                    LayoutAlignment.Center => room.Top + (room.Height - aligned) / 2,
+                    _ => room.Top
+                };
+                return new Rect(bounds.Left, top, bounds.Width, aligned);
+            }
+            default:
+                return opened.Bounds;
+        }
+    }
+
+    private static Rect FittedAnchored(in SkUiPopupLayout opened, double height, Rect room, double minimumHeight, out bool bottomStays)
     {
         var bounds = Resized(opened.Bounds, opened.OpensAbove, height);
         bottomStays = opened.OpensAbove;
-        if (double.IsPositiveInfinity(keyboardTop))
-            return bounds;
-        var area = Area(opened.WindowSize, opened.AnchorBounds, opened.PreferredSize, opened.SafeAreaInsets, opened.Margin);
-        var limit = Math.Min(area.Bottom, keyboardTop - opened.Margin.Bottom);
-        if (bounds.Bottom <= limit + KeyboardTolerance)
+        if (bounds.Bottom <= room.Bottom + RoomTolerance)
             return bounds;
         height = bounds.Height;
         var least = Math.Min(height, minimumHeight);
         if (!opened.OpensAbove)
         {
-            var below = limit - bounds.Top;
+            var below = room.Bottom - bounds.Top;
             if (below >= least)
                 return new Rect(bounds.Left, bounds.Top, bounds.Width, below);
             var aboveBottom = opened.AnchorBounds.Top - opened.AnchorGap;
-            var above = aboveBottom - area.Top;
-            if (aboveBottom <= limit && above >= least)
+            var above = aboveBottom - room.Top;
+            if (aboveBottom <= room.Bottom && above >= least)
             {
                 bottomStays = true;
                 var flipped = Math.Min(height, above);
@@ -146,8 +184,37 @@ internal static class SkUiPopupGeometry
             }
         }
         bottomStays = true;
-        var onKeyboard = Math.Min(height, Math.Max(0, limit - area.Top));
-        return new Rect(bounds.Left, limit - onKeyboard, bounds.Width, onKeyboard);
+        var onBottom = Math.Min(height, room.Height);
+        return new Rect(bounds.Left, room.Bottom - onBottom, bounds.Width, onBottom);
+    }
+
+    /// <summary>The safe area less the margin, inside <paramref name="available"/> (less the margin too) when it is known.</summary>
+    private static Rect Room(in SkUiPopupLayout opened, Rect available)
+    {
+        var area = Area(opened.WindowSize, opened.AnchorBounds, opened.PreferredSize, opened.SafeAreaInsets, opened.Margin);
+        if (!IsKnown(available))
+            return area;
+        var margin = opened.Margin;
+        var left = Math.Max(area.Left, available.Left + margin.Left);
+        var top = Math.Max(area.Top, available.Top + margin.Top);
+        var right = Math.Min(area.Right, available.Right - margin.Right);
+        var bottom = Math.Min(area.Bottom, available.Bottom - margin.Bottom);
+        return new Rect(left, top, Math.Max(0, right - left), Math.Max(0, bottom - top));
+    }
+
+    private static bool IsKnown(Rect available) => available is { Width: > 0, Height: > 0 };
+
+    /// <summary>
+    /// The safe area's insets a bottom pane's content pads itself by at the bottom of <paramref name="available"/> (see
+    /// <see cref="Fitted"/>) in a window of <paramref name="windowSize"/>: as <see cref="PaneContentPadding(Thickness)"/>, but at the
+    /// bottom only the part of the inset the room still holds (none over the soft keyboard, which covers the home indicator).
+    /// </summary>
+    public static Thickness PaneContentPadding(Thickness safeAreaInsets, Size windowSize, Rect available)
+    {
+        var padding = PaneContentPadding(safeAreaInsets);
+        if (!IsKnown(available) || windowSize is not { Width: > 0, Height: > 0 } || available.Bottom >= windowSize.Height)
+            return padding;
+        return padding with { Bottom = Math.Max(0, safeAreaInsets.Bottom - (windowSize.Height - available.Bottom)) };
     }
 
     /// <summary>

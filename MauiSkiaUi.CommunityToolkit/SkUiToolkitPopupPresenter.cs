@@ -19,7 +19,10 @@ namespace MauiSkiaUi.CommunityToolkit;
 /// window turns. An anchored or absolute one (a combo box) sits at <see cref="SkUiPopupRequest.Bounds"/> through its margins, over a
 /// transparent page (on Windows without the layer fill MAUI puts behind modal pages, which would wash the page out); a bottom pane is aligned to the page's bottom (so its height always fits), square and undimmed. The toolkit's popup page may be inset from the window (on iOS by the bottom safe area), so once
 /// shown every popup is moved by the difference between where it landed and <see cref="SkUiPopupRequest.Bounds"/>. It follows
-/// <see cref="SkUiPopupRequest.BoundsChanged"/> (an anchored list shrinking to the rows a search shows) by moving as much as the bounds did.
+/// <see cref="SkUiPopupRequest.BoundsChanged"/> (an anchored list shrinking to the rows a search shows, a popup fitting the room the
+/// keyboard leaves) by moving a popup at its bounds as much as they moved, and others by their alignment. The popup page keeps its
+/// bottom clear of the soft keyboard (<c>SafeAreaEdges</c> with <c>SoftInput</c>, MAUI's own inset handling), and the room it leaves
+/// is reported with <see cref="SkUiPopupRequest.SetAvailableArea"/>.
 /// </para>
 /// <para>
 /// A tap outside closes it (when <see cref="SkUiPopupRequest.IsDismissible"/>), as does Back on Android; when SkiaUi asks the
@@ -61,15 +64,47 @@ public sealed class SkUiToolkitPopupPresenter : ISkUiPopupPresenter
             return;
         var (popup, options) = Create(request, content);
         var bounds = request.Bounds;
-        // A search resizes an anchored popup: its height follows the content's, and it moves by as much as the bounds moved.
+        // A search resizes an anchored popup, and every popup fits into the room the keyboard leaves: the height follows the content's;
+        // a popup at its bounds moves by as much as they moved, one aligned in the page (window popups, the bottom pane) by its
+        // alignment in the page, which keeps clear of the keyboard.
         void OnBoundsChanged(object? sender, EventArgs args)
         {
             var moved = request.Bounds;
-            popup.Margin = Moved(popup.Margin, moved.Left - bounds.Left, moved.Top - bounds.Top);
+            if (IsAtBounds(request))
+                popup.Margin = MovedAtStart(popup.Margin, moved.Left - bounds.Left, moved.Top - bounds.Top);
             bounds = moved;
         }
-        if (IsPositioned(request) && request.Placement != SkUiPopupPlacement.BottomPane)
-            request.BoundsChanged += OnBoundsChanged;
+        request.BoundsChanged += OnBoundsChanged;
+        View? room = null;
+        Page? roomPage = null;
+        // The popup page keeps its bottom clear of the soft keyboard (MAUI's SafeAreaEdges); the room left is reported to SkiaUi. The
+        // layout's frame is read (in the page, which fills the window): its platform view gets its new frame only after this event.
+        void OnRoomChanged(object? sender, EventArgs args)
+        {
+            if (room is not { Width: > 0, Height: > 0 } || roomPage is null || PlatformWindowBounds(roomPage) is not { } page)
+                return;
+            var area = room.Frame.Offset(page.X, page.Y);
+            // A window popup's bottom margin keeps only the part of the safe area the keyboard leaves (none over the home indicator).
+            if (request.Placement == SkUiPopupPlacement.Window)
+            {
+                var kept = KeptSafeBottom(request, area) - KeptSafeBottom(request, request.AvailableArea);
+                popup.Margin = new Thickness(popup.Margin.Left, popup.Margin.Top, popup.Margin.Right, popup.Margin.Bottom + kept);
+            }
+            request.SetAvailableArea(area);
+        }
+        void OnHandlerChanged(object? sender, EventArgs args)
+        {
+            popup.HandlerChanged -= OnHandlerChanged;
+            if (PageOf(popup) is not ContentPage { Content: { } layout } popupPage)
+                return;
+            // Edge to edge, as the margins expect, but for the keyboard: on iOS a page keeps clear of the safe area by default.
+            if (!popupPage.IsSet(ContentPage.SafeAreaEdgesProperty))
+                popupPage.SafeAreaEdges = new SafeAreaEdges(SafeAreaRegions.None, SafeAreaRegions.None, SafeAreaRegions.None, SafeAreaRegions.SoftInput);
+            room = layout;
+            roomPage = popupPage;
+            room.SizeChanged += OnRoomChanged;
+        }
+        popup.HandlerChanged += OnHandlerChanged;
         popup.Opened += (_, _) =>
         {
             // A close asked for before the toolkit attached the popup could not close it then (it throws until the popup is
@@ -79,7 +114,7 @@ public sealed class SkUiToolkitPopupPresenter : ISkUiPopupPresenter
                 _ = CloseAsync(popup);
                 return;
             }
-            CorrectOffset(popup, content, bounds);
+            CorrectOffset(popup, content, bounds, IsAtBounds(request));
 #if WINDOWS
             ClearModalLayerFill(popup);
 #endif
@@ -92,6 +127,9 @@ public sealed class SkUiToolkitPopupPresenter : ISkUiPopupPresenter
         finally
         {
             request.BoundsChanged -= OnBoundsChanged;
+            popup.HandlerChanged -= OnHandlerChanged;
+            if (room is not null)
+                room.SizeChanged -= OnRoomChanged;
         }
     }
 
@@ -141,6 +179,54 @@ public sealed class SkUiToolkitPopupPresenter : ISkUiPopupPresenter
     /// <summary>Whether the popup goes at <see cref="SkUiPopupRequest.Bounds"/> (anchored, absolute) rather than aligned in the window.</summary>
     private static bool IsPositioned(SkUiPopupRequest request) => request.Placement != SkUiPopupPlacement.Window;
 
+    /// <summary>Whether the popup is placed at <see cref="SkUiPopupRequest.Bounds"/> by its margins (anchored, absolute), not aligned in the page.</summary>
+    private static bool IsAtBounds(SkUiPopupRequest request) => request.Placement is SkUiPopupPlacement.Anchored or SkUiPopupPlacement.Absolute;
+
+    /// <summary>The part of the window's bottom safe area inset inside <paramref name="area"/> (none once the keyboard covers it).</summary>
+    private static double KeptSafeBottom(SkUiPopupRequest request, Rect area)
+    {
+        var below = request.WindowSize.Height - area.Bottom;
+        return area is { Width: > 0, Height: > 0 } && request.WindowSize.Height > 0 && below > 0
+            ? Math.Max(0, request.SafeAreaInsets.Bottom - below)
+            : request.SafeAreaInsets.Bottom;
+    }
+
+    private static Page? PageOf(Element element)
+    {
+        var current = element.Parent;
+        while (current is not null and not Page)
+            current = current.Parent;
+        return current as Page;
+    }
+
+    /// <summary>The window bounds (DIPs) of <paramref name="view"/>'s platform view; <c>null</c> without one in a window.</summary>
+    private static Rect? PlatformWindowBounds(VisualElement view)
+    {
+#if IOS || MACCATALYST
+        if (view.Handler?.PlatformView is UIKit.UIView { Window: not null } platform)
+        {
+            var rect = platform.ConvertRectToView(platform.Bounds, null);
+            return new Rect(rect.X, rect.Y, rect.Width, rect.Height);
+        }
+#elif ANDROID
+        if (view.Handler?.PlatformView is Android.Views.View { IsAttachedToWindow: true } platform)
+        {
+            var location = new int[2];
+            platform.GetLocationInWindow(location);
+            var density = platform.Resources?.DisplayMetrics?.Density ?? 1;
+            return new Rect(location[0] / density, location[1] / density, platform.Width / density, platform.Height / density);
+        }
+#elif WINDOWS
+        if (view.Handler?.PlatformView is Microsoft.UI.Xaml.FrameworkElement { XamlRoot: not null } platform)
+        {
+            var origin = platform.TransformToVisual(null).TransformPoint(new global::Windows.Foundation.Point(0, 0));
+            return new Rect(origin.X, origin.Y, platform.ActualWidth, platform.ActualHeight);
+        }
+#endif
+        _ = view;
+        return null;
+    }
+
     /// <summary>A window popup's margin: the look's, inside the safe area.</summary>
     private static Thickness WindowMargin(SkUiPopupRequest request)
     {
@@ -152,9 +238,10 @@ public sealed class SkUiToolkitPopupPresenter : ISkUiPopupPresenter
     /// <summary>
     /// Moves a shown popup to where SkiaUi put it (<paramref name="bounds"/>), by how far it landed from there: the popup page
     /// may be inset from the window (the toolkit's page is inset by the bottom safe area on iOS; edge to edge elsewhere).
-    /// Moving both opposite margins moves the popup whatever its alignment (start, center, end, fill).
+    /// Moving both opposite margins moves the popup whatever its alignment (start, center, end, fill); one at its bounds (start-aligned)
+    /// moves by its left and top margins only.
     /// </summary>
-    private static void CorrectOffset(Popup popup, View content, Rect bounds)
+    private static void CorrectOffset(Popup popup, View content, Rect bounds, bool atStart)
     {
         if (SkUiDiagnostics.GetWindowBounds(content) is not { } shown)
             return;
@@ -162,8 +249,14 @@ public sealed class SkUiToolkitPopupPresenter : ISkUiPopupPresenter
         var dy = bounds.Top - shown.Top;
         if (Math.Abs(dx) < 0.5 && Math.Abs(dy) < 0.5)
             return;
-        popup.Margin = Moved(popup.Margin, dx, dy);
+        popup.Margin = atStart ? MovedAtStart(popup.Margin, dx, dy) : Moved(popup.Margin, dx, dy);
     }
+
+    /// <summary>
+    /// Margins that move a start-aligned popup (anchored, absolute) by (<paramref name="dx"/>, <paramref name="dy"/>): only the left
+    /// and top ones, so the popup page's layout never runs out of room for it (an end margin grown by a move up would squeeze it).
+    /// </summary>
+    internal static Thickness MovedAtStart(Thickness margin, double dx, double dy) => margin with { Left = margin.Left + dx, Top = margin.Top + dy };
 
     /// <summary>Margins that move a popup by (<paramref name="dx"/>, <paramref name="dy"/>) whatever its alignment.</summary>
     internal static Thickness Moved(Thickness margin, double dx, double dy) =>

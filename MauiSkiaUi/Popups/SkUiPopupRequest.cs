@@ -63,6 +63,7 @@ public class SkUiPopupRequest
         PreferredSize = layout.PreferredSize;
         MaximumSize = layout.MaximumSize;
         Bounds = layout.Bounds;
+        AvailableArea = new Rect(Point.Zero, layout.WindowSize);
         OpensAbove = layout.OpensAbove;
         SpaceAbove = layout.SpaceAbove;
         SpaceBelow = layout.SpaceBelow;
@@ -150,9 +151,10 @@ public class SkUiPopupRequest
     /// <summary>
     /// Raised when <see cref="Bounds"/> changes while the popup shows: an anchored list the user searches shrinks to the rows that
     /// match (and grows back as the phrase gets shorter, never past the size it opened with), on the side it opened on, against
-    /// its anchor (opened below: its top stays; above: its bottom); while the soft keyboard shows, it stays above it (shorter, flipped
-    /// above its anchor, or on the keyboard), and goes back when the keyboard hides. <see cref="Content"/>'s size already follows; a presenter
-    /// that subscribes moves and sizes its popup to the new bounds. Without a subscriber the popup keeps the size it opened with.
+    /// its anchor (opened below: its top stays; above: its bottom); and a popup fits into the room its presenter reports
+    /// (<see cref="SetAvailableArea"/>: the part of the window the soft keyboard leaves). <see cref="Content"/>'s size already follows;
+    /// a presenter that subscribes moves and sizes its popup to the new bounds. Without a subscriber the popup keeps the size it
+    /// opened with.
     /// </summary>
     public event EventHandler? BoundsChanged;
 
@@ -168,6 +170,37 @@ public class SkUiPopupRequest
         Bounds = bounds;
         BoundsChanged?.Invoke(this, EventArgs.Empty);
     }
+
+    /// <summary>
+    /// The part of the window the presenter can show the popup in now (window coordinates, the safe area included): the whole
+    /// window (<see cref="WindowSize"/>) until the presenter reports less with <see cref="SetAvailableArea"/>.
+    /// </summary>
+    public Rect AvailableArea { get; private set; }
+
+    /// <summary>
+    /// The presenter reports the part of the window it can show the popup in now (window coordinates, the safe area included; SkiaUi
+    /// keeps popups inside the safe area and the margin itself): the window less the soft keyboard while its host makes room for the
+    /// keyboard (a page whose <c>SafeAreaEdges</c> keep its bottom clear of it), the whole window again once the keyboard hides.
+    /// SkiaUi fits the popup into it and raises <see cref="BoundsChanged"/> (only for a presenter that follows it): an anchored list
+    /// gets shorter below its anchor, flips above it, or sits on the room's bottom; a window popup is at most the room's height; a
+    /// bottom pane sits on the room's bottom. A presenter whose host moves the popup itself (a window panned for the keyboard)
+    /// reports nothing. An empty rectangle stands for the whole window.
+    /// </summary>
+    public void SetAvailableArea(Rect area)
+    {
+        if (!area.IsEmpty && (area.Width <= 0 || area.Height <= 0))
+            area = Rect.Zero;
+        if (area.IsEmpty)
+            area = new Rect(Point.Zero, WindowSize);
+        // Exact: the same room again changes nothing.
+        if (area == AvailableArea || IsCompleted || CloseRequested.IsCancellationRequested)
+            return;
+        AvailableArea = area;
+        AvailableAreaChanged?.Invoke();
+    }
+
+    /// <summary>Set by the content: <see cref="AvailableArea"/> changed while the popup shows.</summary>
+    internal Action? AvailableAreaChanged { get; set; }
 
     /// <summary>Whether an anchored popup opens above its anchor (there was not room enough below).</summary>
     public bool OpensAbove { get; }
@@ -285,6 +318,7 @@ public class SkUiPopupRequest
         _page = null;
         _content = null;
         BoundsChanged = null;
+        AvailableAreaChanged = null;
         OnCompleted();
     }
 
