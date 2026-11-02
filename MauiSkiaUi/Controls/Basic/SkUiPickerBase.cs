@@ -259,6 +259,13 @@ public abstract class SkUiPickerBase : SkUiView, ISkUiFontElement, ISkUiFieldChr
     /// <summary>Whether the field shows a clear button (drawn by the look, before the chevron) while something is chosen: a tap on it, or Delete / Backspace on the focused field, clears the choice (<see cref="ClearSelection"/>) without opening the popup. Default <c>false</c>. SkiaUi extension.</summary>
     public bool IsClearButtonVisible { get => (bool)GetValue(IsClearButtonVisibleProperty); set => SetValue(IsClearButtonVisibleProperty, value); }
 
+    /// <summary>Bindable property for <see cref="IsChevronVisible"/>.</summary>
+    public static readonly BindableProperty IsChevronVisibleProperty = BindableProperty.Create(nameof(IsChevronVisible), typeof(bool), typeof(SkUiPickerBase), true,
+        propertyChanged: (view, _, value) => ((SkUiPickerBase)view).Apply(model => model.ShowsChevron = (bool)value, measure: true));
+
+    /// <summary>Whether the field shows the look's chevron (and keeps its room at the end side); <c>false</c> for a field that shows only its text or <see cref="SkUiPicker.SelectedItemTemplate"/>. Default <c>true</c>. SkiaUi extension.</summary>
+    public bool IsChevronVisible { get => (bool)GetValue(IsChevronVisibleProperty); set => SetValue(IsChevronVisibleProperty, value); }
+
     /// <summary>Bindable property for <see cref="IsPopupClearButtonVisible"/>.</summary>
     public static readonly BindableProperty IsPopupClearButtonVisibleProperty = BindableProperty.Create(nameof(IsPopupClearButtonVisible), typeof(bool), typeof(SkUiPickerBase), false,
         propertyChanged: (view, _, value) => ((SkUiPickerBase)view).Model.ShowsPopupClearButton = (bool)value);
@@ -453,6 +460,9 @@ public abstract class SkUiPickerBase : SkUiView, ISkUiFontElement, ISkUiFieldChr
 
     /// <summary>Sets <see cref="IsClearButtonVisible"/> (same as the property setter).</summary>
     public SkUiPickerBase SetIsClearButtonVisible(bool value) { IsClearButtonVisible = value; return this; }
+
+    /// <summary>Sets <see cref="IsChevronVisible"/> (same as the property setter).</summary>
+    public SkUiPickerBase SetIsChevronVisible(bool value) { IsChevronVisible = value; return this; }
 
     /// <summary>Sets <see cref="IsPopupClearButtonVisible"/> (same as the property setter).</summary>
     public SkUiPickerBase SetIsPopupClearButtonVisible(bool value) { IsPopupClearButtonVisible = value; return this; }

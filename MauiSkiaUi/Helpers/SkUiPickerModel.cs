@@ -248,6 +248,7 @@ internal sealed class SkUiPickerModel
     internal bool TokensShown => ShowsTokens && _tokens.Count > 0;
     public DataTemplate? PopupFooterTemplate;
     public bool ShowsClearButton;
+    public bool ShowsChevron = true;
     public bool ShowsPopupClearButton;
     public string? ClearText;
     public System.Windows.Input.ICommand? SelectionChangedCommand;
@@ -360,6 +361,9 @@ internal sealed class SkUiPickerModel
     internal SkUiTextStyle TextStyle => new(SkUiTypefaces.Resolve(FontFamily, FontAttributes), SkUiFontScaling.ScaleFontSize(EffectiveFontSize, FontAutoScalingEnabled),
         LineBreakMode.TailTruncation, null, 1, -1, CharacterSpacing, _owner.TextDirection, SkUiTextRendering.Default, FontAttributes);
 
+    /// <summary>The room the chevron takes at the end side: the look's, none while it is hidden.</summary>
+    private double ChevronWidth => ShowsChevron ? SkUiLook.Current.PickerChevronWidth : 0;
+
     /// <summary>Where the text sits in the field: the look's padding, with the chevron's room at the end side.</summary>
     private Thickness TextInset
     {
@@ -367,7 +371,7 @@ internal sealed class SkUiPickerModel
         {
             var look = SkUiLook.Current;
             var padding = look.PickerFieldPadding;
-            var chevron = look.PickerChevronWidth + (ClearButtonShown ? look.PickerClearButtonWidth : 0);
+            var chevron = ChevronWidth + (ClearButtonShown ? look.PickerClearButtonWidth : 0);
             return _owner.IsRightToLeft
                 ? new Thickness(padding.Right + chevron, padding.Top, padding.Left, padding.Bottom)
                 : new Thickness(padding.Left, padding.Top, padding.Right + chevron, padding.Bottom);
@@ -377,7 +381,7 @@ internal sealed class SkUiPickerModel
     /// <summary>The chevron's rectangle in a field of <paramref name="width"/> × <paramref name="height"/>.</summary>
     private SKRect ChevronBounds(float width, float height)
     {
-        var chevron = (float)SkUiLook.Current.PickerChevronWidth;
+        var chevron = (float)ChevronWidth;
         return _owner.IsRightToLeft ? new SKRect(0, 0, chevron, height) : new SKRect(width - chevron, 0, width, height);
     }
 
@@ -391,7 +395,7 @@ internal sealed class SkUiPickerModel
         {
             var look = SkUiLook.Current;
             var padding = look.PickerFieldPadding;
-            return new Thickness(padding.Left, padding.Top, padding.Right + look.PickerChevronWidth + (ClearButtonShown ? look.PickerClearButtonWidth : 0),
+            return new Thickness(padding.Left, padding.Top, padding.Right + ChevronWidth + (ClearButtonShown ? look.PickerClearButtonWidth : 0),
                 padding.Bottom);
         }
     }
@@ -411,7 +415,7 @@ internal sealed class SkUiPickerModel
     private SKRect ClearButtonBounds(float width, float height)
     {
         var look = SkUiLook.Current;
-        var chevron = (float)look.PickerChevronWidth;
+        var chevron = (float)ChevronWidth;
         var clear = (float)look.PickerClearButtonWidth;
         return _owner.IsRightToLeft ? new SKRect(chevron, 0, chevron + clear, height) : new SKRect(width - chevron - clear, 0, width - chevron, height);
     }

@@ -191,7 +191,7 @@ The current look ([ControlLook.md](../design/ControlLook.md)) draws every picker
 
 ## Field chrome
 
-Every picker of both layers (this one, the date, time, date-and-time and multi-column pickers) can set its own field over the look's, as the text fields do ([SkUiEntry.md](SkUiEntry.md#field-chrome)): `FieldStyle` (`SkUiPickerFieldStyle`; `Default`: the look's `PickerFieldStyle`), `FillColor` (drawn as set, also while disabled), `BorderColor`, `BorderWidth` (0: no idle outline) and `CornerRadii` / `CornerRadius` (Core: `SetCornerRadius(double?)`), each `null` for the style's. Focus, open and disabled emphasis stay the look's, and the press overlay follows the corners.
+Every picker of both layers (this one, the date, time, date-and-time and multi-column pickers) can set its own field over the look's, as the text fields do ([SkUiEntry.md](SkUiEntry.md#field-chrome)): `FieldStyle` (`SkUiPickerFieldStyle`; `Default`: the look's `PickerFieldStyle`), `FillColor` (drawn as set, also while disabled), `BorderColor`, `BorderWidth` (0: no idle outline) and `CornerRadii` / `CornerRadius` (Core: `SetCornerRadius(double?)`), each `null` for the style's. Focus, open and disabled emphasis stay the look's, and the press overlay follows the corners. `IsChevronVisible="False"` hides the chevron and gives its room back (the clear button moves to the end; a custom `PickerFieldPainter` gets empty `ChevronBounds`), for a field that is only its text or its `SelectedItemTemplate`, as a pill with an icon and a label.
 
 ```xml
 <sk:SkUiPicker Title="Country" FieldStyle="Outline" BorderColor="{StaticResource Accent}" CornerRadius="12" />
@@ -329,6 +329,7 @@ host.SetContent(picker);
 | `SelectedItemsDisplay` / `MaxTokenLines` | `Text` / `-1` | Several choices: the texts joined, or tokens with × ([Several choices](#several-choices)) (SkiaUi) |
 | `IsSelectAllVisible` / `SelectAllText` | `false` / `null` | Several choices: a "Select all" row (SkiaUi) |
 | `IsClearButtonVisible` / `IsPopupClearButtonVisible` / `ClearText` | `false` / `false` / `null` | The field's clear button and the popup's Clear button ([Clearing the choice](#clearing-the-choice)) (SkiaUi) |
+| `IsChevronVisible` | `true` | The look's chevron at the field's end; `false` gives its room to the text or `SelectedItemTemplate` ([Field chrome](#field-chrome)) (SkiaUi) |
 | `PopupPresenter` | `null` | The app's presenter (SkiaUi) |
 | `FieldStyle`, `FillColor`, `BorderColor`, `BorderWidth`, `CornerRadii` / `CornerRadius` | `Default` / `null` | The field's own chrome over the look's ([Field chrome](#field-chrome)) (SkiaUi) |
 | `SelectionMode` | `Single` | `Multiple`: check boxes, the list stays open (SkiaUi) |

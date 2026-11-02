@@ -18,6 +18,10 @@ Publishing (the NuGet publish workflow, [docs/Releasing.md](docs/Releasing.md)) 
 
 ## Unreleased
 
+### New features
+
+- **Pickers can hide the chevron:** `IsChevronVisible` (default `true`) on every picker of both layers (`SkUiPickerBase`, `SkUiCorePickerBase`: the list, date, time, date-and-time and multi-column pickers). A hidden chevron gives its room back to the text or `SelectedItemTemplate`, and the clear button moves to the end; the look gets empty `ChevronBounds`.
+
 ## 1.4.0
 
 ### New features
