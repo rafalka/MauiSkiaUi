@@ -77,12 +77,17 @@ public abstract class ComponentDemoPage : ContentPage
             _comparisons.Add(_nativePanel);
         }
         _result = Caption("", "PropertyCheckResult");
+        // Shown with a check's result only, so the editors reach the page's bottom.
         _result.HeightRequest = 40;
-        // The editors and the check result: one drawn surface.
+        _result.Margin = new Thickness(0, 8, 0, 0);
+        _result.IsVisible = false;
+        // The editors and the check result: one drawn surface, down to the window's bottom edge (under Android's navigation
+        // bar) and keeping its content clear of the bars there itself.
         var propertyArea = new SkUiScrollView { Content = _editors, AutomationId = "PropertyEditors" };
         var editorsArea = new SkUiGrid
         {
-            Background = DemoColors.PageBackground, RowSpacing = 8, RowDefinitions = [new(GridLength.Star), new(GridLength.Auto)],
+            Background = DemoColors.PageBackground, RowDefinitions = [new(GridLength.Star), new(GridLength.Auto)],
+            SafeAreaEdges = new SafeAreaEdges(SafeAreaRegions.None, SafeAreaRegions.None, SafeAreaRegions.None, SafeAreaRegions.Container),
             Children = { propertyArea, _result }
         };
         Grid.SetRow(_result, 1);
@@ -99,7 +104,11 @@ public abstract class ComponentDemoPage : ContentPage
         var editorsRow = new RowDefinition(GridLength.Star);
         SkUiGridSplitter.SetMinimumLength(editorsRow, MinEditorsHeight);
         _previewRow.SizeChanged += OnPreviewRowChanged;
-        var root = new Grid { Padding = 12, RowDefinitions = [_previewRow, new(GridLength.Auto), editorsRow] };
+        var root = new Grid
+        {
+            Padding = new Thickness(12, 12, 12, 0), RowDefinitions = [_previewRow, new(GridLength.Auto), editorsRow],
+            SafeAreaEdges = new SafeAreaEdges(SafeAreaRegions.Container, SafeAreaRegions.Container, SafeAreaRegions.Container, SafeAreaRegions.None)
+        };
         root.Add(_comparisons);
         root.Add(CreateSplitter(), 0, 1);
         root.Add(editorsArea, 0, 2);
@@ -672,6 +681,7 @@ public abstract class ComponentDemoPage : ContentPage
         var failures = _checks.Where(check => !check.Check()).Select(check => check.Name).ToArray();
         _result.Text = failures.Length == 0 ? $"PASS: {_checks.Count} property checks" : "FAIL: " + string.Join(", ", failures);
         _result.TextColor = failures.Length == 0 ? DemoColors.Pass : DemoColors.Fail;
+        _result.IsVisible = true;
         return failures;
     }
 
@@ -681,6 +691,7 @@ public abstract class ComponentDemoPage : ContentPage
         if (_initialAreaHeight > 0)
             SetAreaHeight(_initialAreaHeight);
         _result.Text = string.Empty;
+        _result.IsVisible = false;
         UpdateBounds();
     }
 
