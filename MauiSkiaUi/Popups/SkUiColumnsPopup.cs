@@ -320,7 +320,7 @@ internal sealed class SkUiColumnsPopup : SkUiContentView, ISkUiKeyHandler, ISkUi
     }
 
     /// <inheritdoc />
-    public Size PreferredSize(double minimumWidth, double maximumWidth)
+    public Size PreferredSize(double minimumWidth, double maximumWidth, double maximumHeight)
     {
         var padding = SkUiLook.Current.PopupItemPadding.Left;
         var total = padding + ColumnWidths().Sum();

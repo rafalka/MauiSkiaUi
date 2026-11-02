@@ -1,6 +1,7 @@
 using System.Collections;
 using System.Collections.Specialized;
 using System.Windows.Input;
+using MauiSkiaUi.Rendering;
 
 namespace MauiSkiaUi;
 
@@ -578,7 +579,6 @@ public partial class SkUiPicker : SkUiPickerBase
 
     private SkUiView? _fieldView;
     private DataTemplate? _fieldTemplate;
-    private ISkUiView[] _fieldChildren = [];
 
     /// <summary>The view the field shows for the selected item (tests), or <c>null</c>.</summary>
     internal SkUiView? FieldView => _fieldView;
@@ -610,7 +610,6 @@ public partial class SkUiPicker : SkUiPickerBase
             // The field takes the taps; screen readers read the field (the item's text).
             view.InputTransparent = true;
             AutomationProperties.SetIsInAccessibleTree(view, false);
-            _fieldChildren = [view];
             AttachChild(view);
         }
         _fieldView!.BindingContext = item;
@@ -626,7 +625,6 @@ public partial class SkUiPicker : SkUiPickerBase
         var view = _fieldView;
         _fieldView = null;
         _fieldTemplate = null;
-        _fieldChildren = [];
         view.BindingContext = null;
         DetachChild(view);
         Model.HidesText = false;
@@ -634,14 +632,22 @@ public partial class SkUiPicker : SkUiPickerBase
     }
 
     /// <inheritdoc />
-    internal override IEnumerable<ISkUiView> SkiaChildren => _fieldChildren;
+    internal override IEnumerable<ISkUiView> SkiaChildren => _fieldView is null ? base.SkiaChildren : base.SkiaChildren.Append(_fieldView);
+
+    /// <inheritdoc />
+    internal override void AddRenderChildren(List<ISkUiRenderable> children)
+    {
+        base.AddRenderChildren(children);
+        if (_fieldView is not null)
+            children.Add(_fieldView);
+    }
 
     /// <inheritdoc />
     protected override Size MeasureContent(double widthConstraint, double heightConstraint)
     {
         if (_fieldView is null)
             return base.MeasureContent(widthConstraint, heightConstraint);
-        Model.HasExplicitMinimumHeight = MinimumHeightRequest >= 0;
+        MeasureLeadingView(widthConstraint, heightConstraint);
         var inset = Model.ContentInset;
         var content = ((IView)_fieldView).Measure(Math.Max(0, widthConstraint - inset.HorizontalThickness), Math.Max(0, heightConstraint - inset.VerticalThickness));
         return Model.MeasureAround(content);

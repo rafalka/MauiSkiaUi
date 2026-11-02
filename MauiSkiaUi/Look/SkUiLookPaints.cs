@@ -266,7 +266,7 @@ public readonly record struct SkUiIndicatorPaint(
 /// <param name="ChevronBounds">Where the chevron goes.</param>
 /// <param name="Accent">The focus and open color (the color scheme's accent).</param>
 /// <param name="Border">The idle underline or outline color (the color scheme's muted color).</param>
-/// <param name="Foreground">The chevron color (the picker's text color).</param>
+/// <param name="Foreground">The picker's text color (the look draws its chevron in it, dimmed, unless <see cref="ChevronColor"/> is set).</param>
 /// <param name="Focused">How focused the field is, 0–1 (keyboard focus or an open popup), animated by <see cref="SkUiTransitionKind.FieldFocus"/>.</param>
 /// <param name="Open">How open the popup is, 0–1 (the chevron turns), animated by <see cref="SkUiTransitionKind.PickerOpen"/>.</param>
 /// <param name="Press">Press amount and point.</param>
@@ -282,6 +282,12 @@ public readonly record struct SkUiPickerFieldPaint(
 
     /// <summary>The picker's own idle chrome over its style's (its <c>FillColor</c>, <c>BorderColor</c>, <c>BorderWidth</c>, <c>CornerRadii</c>).</summary>
     public SkUiFieldChrome Chrome { get; init; }
+
+    /// <summary>The picker's own chevron color (its <c>ChevronColor</c>, dimmed while disabled by the look); <c>null</c>: the look's.</summary>
+    public SKColor? ChevronColor { get; init; }
+
+    /// <summary>The picker's own chevron width in DIPs (its <c>ChevronSize</c>), at most what fits in <see cref="ChevronBounds"/>; <c>null</c>: the look's.</summary>
+    public float? ChevronSize { get; init; }
 }
 
 /// <summary>

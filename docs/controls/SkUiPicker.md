@@ -60,11 +60,13 @@ Several columns of wheels (hours and minutes, an amount and a unit) are a contro
 
 ## The popup's width
 
-A popup is as wide as its items want (the widest text of the first 200 items, or the first templated row), within a range:
+A popup is as wide as its items want (the widest text of the first 200 items, or the widest of the templated rows it measures), within a range:
 
 - **At least:** `MinPopupWidth`, else an anchored popup's field width or a window popup's `SkUiLook.PopupPreferredWidth` (320). Set `MinPopupWidth` for lists of short items (single numbers), which would otherwise be as wide as the default; it replaces the field's width, so an anchored popup may be narrower than its field.
 - **At most:** `MaxPopupWidth`, and the window's safe area less the margin; longer items are truncated at the end.
 - **Exactly:** `PopupWidth`, which replaces both.
+
+Templated rows (`ItemTemplate`) are each as tall as they are (a hint that wraps at the popup's width, a line only some items have): the popup measures them one by one until they fill the most it can be tall (`MaxPopupHeight`, the window), at most 50, and counts the rows after them as tall as their average; past that height the list scrolls.
 
 So a narrow field opens a wider list when its items are wider. With `SelectedItemDisplayBinding` the field shows a short text of the selected item while the list shows the whole one: a currency field shows "PLN", its anchored list "Polish Zloty (PLN)". Type-ahead and screen readers use the whole text; with several choices the joined texts and the tokens use the short one. Core: `SelectedItemDisplay`, a function.
 
@@ -213,7 +215,27 @@ The current look ([ControlLook.md](../design/ControlLook.md)) draws every picker
 
 ## Field chrome
 
-Every picker of both layers (this one, the date, time, date-and-time and multi-column pickers) can set its own field over the look's, as the text fields do ([SkUiEntry.md](SkUiEntry.md#field-chrome)): `FieldStyle` (`SkUiPickerFieldStyle`; `Default`: the look's `PickerFieldStyle`), `FillColor` (drawn as set, also while disabled), `BorderColor`, `BorderWidth` (0: no idle outline) and `CornerRadii` / `CornerRadius` (Core: `SetCornerRadius(double?)`), each `null` for the style's. Focus, open and disabled emphasis stay the look's, and the press overlay follows the corners. `IsChevronVisible` (`bool?`) overrides whether the look shows a chevron: `null` (default) the look's `PickerShowsChevron` (the default and Windows looks show one; the iOS, Mac and Android looks none, as MAUI's pickers there); `True` shows one on every look, in the look's `PickerChevronWidth`; `False` hides it and gives its room back (the clear button moves to the end; a custom `PickerFieldPainter` gets empty `ChevronBounds`), for a field that is only its text or its `SelectedItemTemplate`, as a pill with an icon and a label.
+Every picker of both layers (this one, the date, time, date-and-time and multi-column pickers) can set its own field over the look's, as the text fields do ([SkUiEntry.md](SkUiEntry.md#field-chrome)): `FieldStyle` (`SkUiPickerFieldStyle`; `Default`: the look's `PickerFieldStyle`), `FillColor` (drawn as set, also while disabled), `BorderColor`, `BorderWidth` (0: no idle outline) and `CornerRadii` / `CornerRadius` (Core: `SetCornerRadius(double?)`), each `null` for the style's. Focus, open and disabled emphasis stay the look's, and the press overlay follows the corners. `IsChevronVisible` (`bool?`) overrides whether the look shows a chevron: `null` (default) the look's `PickerShowsChevron` (the default and Windows looks show one; the iOS, Mac and Android looks none, as MAUI's pickers there); `True` shows one on every look, in the look's `PickerChevronWidth`; `False` hides it and gives its room back (the clear button moves to the end; a custom `PickerFieldPainter` gets empty `ChevronBounds`), for a field that is only its text or its `SelectedItemTemplate`, as a pill with an icon and a label. A shown chevron takes `ChevronColor` (`null`: the look's, the text color dimmed; dimmed while disabled), `ChevronSize` (its width in DIPs; `null`: the look's 10) and `ChevronAreaWidth` (the room it is centered in at the end side; `null`: the look's `PickerChevronWidth`; a narrow one puts it close to the text); a custom `PickerFieldPainter` gets the first two in `SkUiPickerFieldPaint.ChevronColor` / `ChevronSize` and the area as `ChevronBounds`. `TextPadding` (`Thickness?`; `null`: the look's `PickerFieldPadding`) is the space between the field's edges and its text, its `SelectedItemTemplate`, its leading view or its tokens, as the text fields' `TextPadding`; the chevron's and the clear button's room is added at the end.
+
+```xml
+<!-- A value pill: the form's padding, a small gray caret close to the text -->
+<sk:SkUiPicker FieldStyle="Outline" BorderWidth="0" FillColor="#F2F3F6" CornerRadius="6" FontSize="15"
+               TextPadding="16,8" ChevronColor="#6B6F80" ChevronSize="8" ChevronAreaWidth="24" />
+```
+
+### A leading view
+
+`LeadingView` (every picker of both layers; SkiaUi) puts a drawn view (Core: a node) inside the field at its start side, before the text or the `SelectedItemTemplate`, as the text fields' `LeadingView`: an icon, a colored flag, an avatar, a unit. It is measured at its own size and placed after the start padding, aligned with the text (`VerticalTextAlignment`); the text is inset after it by the look's `TextFieldAdornmentSpacing` (8), the field is at least as tall as it, and right to left it is mirrored to the right. It stays while the selection changes: to follow the selection (a priority's flag in its color), change it or what it shows from `SelectedIndexChanged` or a binding. A press on a view that handles pointers itself (a button) is the view's; a press anywhere else opens the picker.
+
+```csharp
+var flag = new SkUiCoreBox().SetCornerRadius(new CornerRadius(3));
+flag.SetWidth(12).SetHeight(12);
+var priority = new SkUiCorePicker()
+    .SetItemsSource(priorities)
+    .SetItemDisplay(item => ((Priority)item!).Name);
+priority.SetLeadingView(flag);
+priority.SelectedIndexChanged += (_, _) => flag.SetColor((priority.SelectedItem as Priority)?.Color);
+```
 
 ```xml
 <sk:SkUiPicker Title="Country" FieldStyle="Outline" BorderColor="{StaticResource Accent}" CornerRadius="12" />
@@ -353,6 +375,9 @@ host.SetContent(picker);
 | `IsSearchEnabled` / `SearchMinimumItemCount` / `SearchFilter` / `SearchPlaceholder` | `false` / `0` / `null` / `null` | A search field that filters the list, for enough items ([Searching the list](#searching-the-list)) (SkiaUi) |
 | `IsClearButtonVisible` / `IsPopupClearButtonVisible` / `ClearText` | `false` / `false` / `null` | The field's clear button and the popup's Clear button ([Clearing the choice](#clearing-the-choice)) (SkiaUi) |
 | `IsChevronVisible` | `null` | The chevron at the field's end: `null` the look's (`PickerShowsChevron`), `true` on every look, `false` none, its room to the text or `SelectedItemTemplate` ([Field chrome](#field-chrome)) (SkiaUi) |
+| `ChevronColor` / `ChevronSize` / `ChevronAreaWidth` | `null` | The shown chevron's color, width and room; `null`: the look's ([Field chrome](#field-chrome)) (SkiaUi) |
+| `TextPadding` | `null` | The space around the field's text; `null`: the look's `PickerFieldPadding` ([Field chrome](#field-chrome)) (SkiaUi) |
+| `LeadingView` | `null` | A drawn view (Core: a node) before the text, inside the field ([A leading view](#a-leading-view)) (SkiaUi) |
 | `PopupPresenter` | `null` | The app's presenter (SkiaUi) |
 | `FieldStyle`, `FillColor`, `BorderColor`, `BorderWidth`, `CornerRadii` / `CornerRadius` | `Default` / `null` | The field's own chrome over the look's ([Field chrome](#field-chrome)) (SkiaUi) |
 | `SelectionMode` | `Single` | `Multiple`: check boxes, the list stays open (SkiaUi) |

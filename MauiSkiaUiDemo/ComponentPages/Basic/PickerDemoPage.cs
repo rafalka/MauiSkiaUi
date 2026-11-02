@@ -20,7 +20,11 @@ public sealed class PickerDemoPage : ComponentDemoPage
     private const string Title1 = "Select a monkey";
     private const string AppAcceptText = "(app's: SkUiStrings.Current)";
     private const string LocalAcceptText = "Done";
-    private const string ChevronOfLook = "null (the look's)";
+    private const string LooksValue = "null (the look's)";
+    private const string ChevronGray = "#6B6F80";
+    private const string ChevronAccent = "Accent";
+    private const string PillPadding = "16,8";
+    private const string TightPadding = "4,2";
     private const string ChevronShown = "true";
     private const string ChevronHidden = "false";
 
@@ -96,9 +100,21 @@ public sealed class PickerDemoPage : ComponentDemoPage
         Text(nameof(SkUiPicker.Placeholder), "", value => _skia.Placeholder = value.Length == 0 ? null : value, () => _skia.Placeholder ?? "");
         Toggle(nameof(SkUiPicker.IsClearButtonVisible), false, value => _skia.IsClearButtonVisible = value, () => _skia.IsClearButtonVisible);
         Toggle(nameof(SkUiPicker.IsPopupClearButtonVisible), false, value => _skia.IsPopupClearButtonVisible = value, () => _skia.IsPopupClearButtonVisible);
-        Choice(nameof(SkUiPicker.IsChevronVisible), [ChevronOfLook, ChevronShown, ChevronHidden], ChevronOfLook,
+        Choice(nameof(SkUiPicker.IsChevronVisible), [LooksValue, ChevronShown, ChevronHidden], LooksValue,
             value => _skia.IsChevronVisible = value switch { ChevronShown => true, ChevronHidden => false, _ => null },
-            () => _skia.IsChevronVisible switch { true => ChevronShown, false => ChevronHidden, null => ChevronOfLook });
+            () => _skia.IsChevronVisible switch { true => ChevronShown, false => ChevronHidden, null => LooksValue });
+        Choice(nameof(SkUiPicker.ChevronColor), [LooksValue, ChevronGray, ChevronAccent], LooksValue,
+            value => _skia.ChevronColor = value switch { ChevronGray => Color.FromArgb(ChevronGray), ChevronAccent => SkUiColors.Accent, _ => null },
+            () => _skia.ChevronColor is null ? LooksValue : _skia.ChevronColor == SkUiColors.Accent ? ChevronAccent : ChevronGray);
+        Number(nameof(SkUiPicker.ChevronSize), -1, 20, -1, value => _skia.ChevronSize = value < 0 ? null : value, () => _skia.ChevronSize ?? -1, whole: true);
+        Number(nameof(SkUiPicker.ChevronAreaWidth), -1, 60, -1, value => _skia.ChevronAreaWidth = value < 0 ? null : value, () => _skia.ChevronAreaWidth ?? -1,
+            whole: true);
+        Choice(nameof(SkUiPicker.TextPadding), [LooksValue, PillPadding, TightPadding], LooksValue,
+            value => _skia.TextPadding = value switch { PillPadding => new Thickness(16, 8), TightPadding => new Thickness(4, 2), _ => null },
+            () => _skia.TextPadding switch { null => LooksValue, { Left: 16 } => PillPadding, _ => TightPadding });
+        Toggle(nameof(SkUiPicker.LeadingView), false,
+            value => _skia.LeadingView = value ? new SkUiBox { Color = SkUiColors.Accent, WidthRequest = 14, HeightRequest = 14, CornerRadius = 7 } : null,
+            () => _skia.LeadingView is not null);
         // A search field in the list: for the 500 numbers, not for the six monkeys.
         Toggle(nameof(SkUiPicker.IsSearchEnabled), false, value => _skia.IsSearchEnabled = value, () => _skia.IsSearchEnabled);
         Number(nameof(SkUiPicker.SearchMinimumItemCount), 0, 50, 0, value => _skia.SearchMinimumItemCount = (int)value, () => _skia.SearchMinimumItemCount, whole: true);

@@ -271,6 +271,66 @@ public abstract class SkUiPickerBase : SkUiView, ISkUiFontElement, ISkUiFieldChr
     /// </summary>
     public bool? IsChevronVisible { get => (bool?)GetValue(IsChevronVisibleProperty); set => SetValue(IsChevronVisibleProperty, value); }
 
+    /// <summary>Bindable property for <see cref="ChevronColor"/>.</summary>
+    public static readonly BindableProperty ChevronColorProperty = BindableProperty.Create(nameof(ChevronColor), typeof(Color), typeof(SkUiPickerBase), null,
+        propertyChanged: (view, _, value) => ((SkUiPickerBase)view).Apply(model => model.ChevronColor = (Color?)value));
+
+    /// <summary>The shown chevron's color; <c>null</c> (default): the look's (the text color, dimmed). Dimmed while disabled. SkiaUi extension.</summary>
+    public Color? ChevronColor { get => (Color?)GetValue(ChevronColorProperty); set => SetValue(ChevronColorProperty, value); }
+
+    /// <summary>Bindable property for <see cref="ChevronSize"/>.</summary>
+    public static readonly BindableProperty ChevronSizeProperty = BindableProperty.Create(nameof(ChevronSize), typeof(double?), typeof(SkUiPickerBase), null,
+        validateValue: SkUiValidate.OptionalNonNegative,
+        propertyChanged: (view, _, value) => ((SkUiPickerBase)view).Apply(model => model.ChevronSize = (double?)value));
+
+    /// <summary>The shown chevron's width in DIPs (it is half as tall), at most what fits in its area; <c>null</c> (default): the look's (10). SkiaUi extension.</summary>
+    public double? ChevronSize { get => (double?)GetValue(ChevronSizeProperty); set => SetValue(ChevronSizeProperty, value); }
+
+    /// <summary>Bindable property for <see cref="ChevronAreaWidth"/>.</summary>
+    public static readonly BindableProperty ChevronAreaWidthProperty = BindableProperty.Create(nameof(ChevronAreaWidth), typeof(double?), typeof(SkUiPickerBase), null,
+        validateValue: SkUiValidate.OptionalNonNegative,
+        propertyChanged: (view, _, value) => ((SkUiPickerBase)view).Apply(model => model.ChevronAreaWidth = (double?)value, measure: true));
+
+    /// <summary>
+    /// The room the shown chevron takes at the field's end side, in DIPs (the chevron is centered in it; a narrow one puts it
+    /// closer to the text); <c>null</c> (default): the look's <see cref="SkUiLook.PickerChevronWidth"/>. No room while the
+    /// chevron is hidden (<see cref="IsChevronVisible"/>). SkiaUi extension.
+    /// </summary>
+    public double? ChevronAreaWidth { get => (double?)GetValue(ChevronAreaWidthProperty); set => SetValue(ChevronAreaWidthProperty, value); }
+
+    /// <summary>Bindable property for <see cref="TextPadding"/>.</summary>
+    public static readonly BindableProperty TextPaddingProperty = BindableProperty.Create(nameof(TextPadding), typeof(Thickness?), typeof(SkUiPickerBase), null,
+        validateValue: SkUiValidate.OptionalThickness,
+        propertyChanged: (view, _, value) => ((SkUiPickerBase)view).Apply(model => model.Padding = (Thickness?)value, measure: true));
+
+    /// <summary>
+    /// The space between the field's edges and its text (or <see cref="SkUiPicker.SelectedItemTemplate"/>, the leading view, the
+    /// tokens) in DIPs, mirrored in right-to-left layouts; the chevron's and the clear button's room is added at the end.
+    /// <c>null</c> (default): the look's <see cref="SkUiLook.PickerFieldPadding"/>. As the text fields' <c>TextPadding</c>. SkiaUi extension.
+    /// </summary>
+    [System.ComponentModel.TypeConverter(typeof(Microsoft.Maui.Converters.ThicknessTypeConverter))]
+    public Thickness? TextPadding { get => (Thickness?)GetValue(TextPaddingProperty); set => SetValue(TextPaddingProperty, value); }
+
+    /// <summary>Bindable property for <see cref="LeadingView"/>.</summary>
+    public static readonly BindableProperty LeadingViewProperty = BindableProperty.Create(nameof(LeadingView), typeof(ISkUiView), typeof(SkUiPickerBase), null,
+        validateValue: (bindable, value) =>
+        {
+            if (value is ISkUiView child && !ReferenceEquals(bindable.GetValue(LeadingViewProperty), child))
+                ((SkUiPickerBase)bindable).ValidateChild(child);
+            return true;
+        },
+        propertyChanged: (bindable, oldValue, newValue) => ((SkUiPickerBase)bindable).OnLeadingViewChanged((ISkUiView?)oldValue, (ISkUiView?)newValue));
+
+    /// <summary>
+    /// A drawn view inside the field at its start side, before the text (or <see cref="SkUiPicker.SelectedItemTemplate"/>): an
+    /// icon, a flag, an avatar, a short label. It is measured at its own size and placed after the padding, aligned with the
+    /// text (<see cref="VerticalTextAlignment"/>); the text is inset after it by the look's
+    /// <see cref="SkUiLook.TextFieldAdornmentSpacing"/>; the field is at least as tall as it. It stays while the selection
+    /// changes (change it, or what it shows, from <c>SelectedIndexChanged</c> or a binding). A press on a view that handles
+    /// pointers itself (a button) is the view's; a press anywhere else opens the picker. As the text fields' <c>LeadingView</c>. SkiaUi extension.
+    /// </summary>
+    public ISkUiView? LeadingView { get => (ISkUiView?)GetValue(LeadingViewProperty); set => SetValue(LeadingViewProperty, value); }
+
     /// <summary>Bindable property for <see cref="IsPopupClearButtonVisible"/>.</summary>
     public static readonly BindableProperty IsPopupClearButtonVisibleProperty = BindableProperty.Create(nameof(IsPopupClearButtonVisible), typeof(bool), typeof(SkUiPickerBase), false,
         propertyChanged: (view, _, value) => ((SkUiPickerBase)view).Model.ShowsPopupClearButton = (bool)value);
@@ -469,6 +529,38 @@ public abstract class SkUiPickerBase : SkUiView, ISkUiFontElement, ISkUiFieldChr
     /// <summary>Sets <see cref="IsChevronVisible"/> (same as the property setter).</summary>
     public SkUiPickerBase SetIsChevronVisible(bool? value) { IsChevronVisible = value; return this; }
 
+    /// <summary>Sets <see cref="ChevronColor"/> (same as the property setter; <c>null</c>: the look's).</summary>
+    public SkUiPickerBase SetChevronColor(Color? value) { ChevronColor = value; return this; }
+
+    /// <summary>Sets <see cref="ChevronSize"/> (same as the property setter; <c>null</c>: the look's).</summary>
+    public SkUiPickerBase SetChevronSize(double? value)
+    {
+        if (value is { } size)
+            SkUiValidate.ThrowIfNegativeOrNotFinite(size, nameof(value));
+        ChevronSize = value;
+        return this;
+    }
+
+    /// <summary>Sets <see cref="ChevronAreaWidth"/> (same as the property setter; <c>null</c>: the look's).</summary>
+    public SkUiPickerBase SetChevronAreaWidth(double? value)
+    {
+        if (value is { } width)
+            SkUiValidate.ThrowIfNegativeOrNotFinite(width, nameof(value));
+        ChevronAreaWidth = value;
+        return this;
+    }
+
+    /// <summary>Sets <see cref="TextPadding"/> (same as the property setter; <c>null</c>: the look's).</summary>
+    public SkUiPickerBase SetTextPadding(Thickness? value)
+    {
+        SkUiValidate.ThrowIfNotThickness(value, nameof(value));
+        TextPadding = value;
+        return this;
+    }
+
+    /// <summary>Sets <see cref="LeadingView"/> (same as the property setter).</summary>
+    public SkUiPickerBase SetLeadingView(ISkUiView? value) { LeadingView = value; return this; }
+
     /// <summary>Sets <see cref="IsPopupClearButtonVisible"/> (same as the property setter).</summary>
     public SkUiPickerBase SetIsPopupClearButtonVisible(bool value) { IsPopupClearButtonVisible = value; return this; }
 
@@ -549,6 +641,15 @@ public abstract class SkUiPickerBase : SkUiView, ISkUiFontElement, ISkUiFieldChr
     {
         if (!_syncingCornerRadius)
             CornerRadii = value is { } radius ? new CornerRadius(radius) : null;
+    }
+
+    private void OnLeadingViewChanged(ISkUiView? oldValue, ISkUiView? newValue)
+    {
+        if (oldValue is not null)
+            DetachChild(oldValue);
+        if (newValue is not null)
+            AttachChild(newValue);
+        Model.TextChanged();
     }
 
     private void Apply(Action<SkUiPickerModel> apply, bool measure = false)
@@ -639,8 +740,32 @@ public abstract class SkUiPickerBase : SkUiView, ISkUiFontElement, ISkUiFieldChr
     /// <inheritdoc />
     protected override Size MeasureContent(double widthConstraint, double heightConstraint)
     {
-        Model.HasExplicitMinimumHeight = MinimumHeightRequest >= 0;
+        MeasureLeadingView(widthConstraint, heightConstraint);
         return Model.Measure(widthConstraint, heightConstraint);
+    }
+
+    /// <summary>Measures the leading view (at its own size, within the constraints) for the field's inset, before the field measures.</summary>
+    private protected void MeasureLeadingView(double widthConstraint, double heightConstraint)
+    {
+        Model.HasExplicitMinimumHeight = MinimumHeightRequest >= 0;
+        Model.LeadingSize = LeadingView is { } leading && leading.Visibility != Visibility.Collapsed ? leading.Measure(widthConstraint, heightConstraint) : Size.Zero;
+    }
+
+    /// <inheritdoc />
+    protected override void ArrangeContent(Size size)
+    {
+        base.ArrangeContent(size);
+        LeadingView?.Arrange(Model.LeadingFrame(size.Width, size.Height));
+    }
+
+    /// <inheritdoc />
+    internal override IEnumerable<ISkUiView> SkiaChildren => LeadingView is { } leading ? [leading] : [];
+
+    /// <inheritdoc />
+    internal override void AddRenderChildren(List<ISkUiRenderable> children)
+    {
+        if (LeadingView is ISkUiRenderable leading)
+            children.Add(leading);
     }
 
     /// <inheritdoc />

@@ -105,7 +105,7 @@ public sealed class MultiColumnPickerTests : IDisposable
         Arrange(picker);
         var content = Open(picker, out var request);
         Assert.Empty(request.Columns);
-        Assert.True(content.PreferredSize(200, 400).Height >= 0);
+        Assert.True(content.PreferredSize(200, 400, double.PositiveInfinity).Height >= 0);
     }
 
     [Fact]

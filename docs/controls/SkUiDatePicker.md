@@ -81,7 +81,7 @@ host.SetContent(core);
 | `IsLooping` | `true` | Day and month wheels loop |
 | `VisibleRows` | 5 | Rows of each wheel (1–9) |
 | `DateSelected` | | MAUI's `DateChangedEventArgs` |
-| `Title`, `Placeholder`, `TextColor`, font properties, alignments, `IsOpen` / `Opened` / `Closed`, `PopupPlacement`, popup sizes, `PopupPresenter`, `UpdateMode`, `AcceptText`, `CancelText`, `IsClearButtonVisible`, `IsPopupClearButtonVisible`, `ClearText`, `IsChevronVisible`, `PopupHeaderTemplate`, `PopupFooterTemplate`, `SelectionChangedCommand` | | As `SkUiPicker`'s (`SkUiPickerBase`); `ClearSelection()` sets `Date` to `null` |
+| `Title`, `Placeholder`, `TextColor`, font properties, alignments, `IsOpen` / `Opened` / `Closed`, `PopupPlacement`, popup sizes, `PopupPresenter`, `UpdateMode`, `AcceptText`, `CancelText`, `IsClearButtonVisible`, `IsPopupClearButtonVisible`, `ClearText`, `IsChevronVisible`, `ChevronColor`, `ChevronSize`, `ChevronAreaWidth`, `TextPadding`, `LeadingView`, `PopupHeaderTemplate`, `PopupFooterTemplate`, `SelectionChangedCommand` | | As `SkUiPicker`'s (`SkUiPickerBase`); `ClearSelection()` sets `Date` to `null` |
 
 Not yet: a drawn month calendar as the popup (with `SkUiCalendar`, [roadmap](../design/Roadmap.md#new-controls-and-packages)).
 

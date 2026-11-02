@@ -40,6 +40,9 @@ internal sealed class SkUiPickerPopup : SkUiContentView, ISkUiKeyHandler, ISkUiP
     /// <summary>Items whose texts are measured for the popup's width (more would cost too much on a long list).</summary>
     private const int MeasuredItems = 200;
 
+    /// <summary>Templated rows measured for the popup's size, at most (the rest are taken as tall as their average).</summary>
+    private const int MeasuredTemplatedRows = 50;
+
     private readonly SkUiCollectionView _list;
     private readonly SkUiLabel? _title;
     private readonly SkUiView? _footer;
@@ -205,10 +208,12 @@ internal sealed class SkUiPickerPopup : SkUiContentView, ISkUiKeyHandler, ISkUiP
     internal int HighlightedIndex => _highlighted;
 
     /// <summary>
-    /// The size the content wants: as wide as its widest text (the first items') or templated row (the first one's), at least
+    /// The size the content wants: as wide as its widest text (the first items') or templated row, at least
     /// <paramref name="minimumWidth"/>, at most <paramref name="maximumWidth"/>, and as tall as all its rows and its title.
+    /// Templated rows are measured one by one (at the popup's width) until they are taller than <paramref name="maximumHeight"/>
+    /// (past it the list scrolls) or <see cref="MeasuredTemplatedRows"/> were; the rest count as tall as their average.
     /// </summary>
-    public Size PreferredSize(double minimumWidth, double maximumWidth)
+    public Size PreferredSize(double minimumWidth, double maximumWidth, double maximumHeight)
     {
         var look = SkUiLook.Current;
         var padding = look.PopupItemPadding;
@@ -228,23 +233,40 @@ internal sealed class SkUiPickerPopup : SkUiContentView, ISkUiKeyHandler, ISkUiP
             layout.Release();
         }
         var width = Math.Ceiling(widest + padding.HorizontalThickness + (_multiple ? CheckColumnWidth : 0));
-        double rowHeight = look.PopupItemHeight;
-        RowView? probe = null;
+        double rowsHeight;
         if (_template is not null && _rows.Length > 0)
         {
-            // Templated rows: at least as wide as the first one wants (its own padding included) and as tall as it at the
-            // popup's width, for every row (the list measures each row once it shows).
-            probe = new RowView(_template, _style, _multiple) { BindingContext = _rows[0] };
-            width = Math.Max(width, Math.Ceiling(probe.Measure(maximumWidth, double.PositiveInfinity).Width));
-        }
-        width = Math.Clamp(width, Math.Min(minimumWidth, maximumWidth), maximumWidth);
-        if (probe is not null)
-        {
-            rowHeight = probe.Measure(width, double.PositiveInfinity).Height;
+            // Templated rows: each as tall as it is (a wrapped line, an optional one). At least as wide as the widest of the measured
+            // rows wants (its own padding included), then as tall as they are at the popup's width (narrower rows wrap more).
+            var probe = new RowView(_template, _style, _multiple);
+            var rows = Math.Min(_rows.Length, MeasuredTemplatedRows);
+            var tall = 0d;
+            var count = 0;
+            for (; count < rows && tall <= maximumHeight; count++)
+            {
+                probe.BindingContext = _rows[count];
+                var size = probe.Measure(maximumWidth, double.PositiveInfinity);
+                width = Math.Max(width, Math.Ceiling(size.Width));
+                tall += size.Height;
+            }
+            width = Math.Clamp(width, Math.Min(minimumWidth, maximumWidth), maximumWidth);
+            tall = 0;
+            var atWidth = 0;
+            for (; atWidth < count && tall <= maximumHeight; atWidth++)
+            {
+                probe.BindingContext = _rows[atWidth];
+                tall += probe.Measure(width, double.PositiveInfinity).Height;
+            }
             probe.BindingContext = null;
+            rowsHeight = tall + (_rows.Length - atWidth) * (tall / atWidth);
+        }
+        else
+        {
+            width = Math.Clamp(width, Math.Min(minimumWidth, maximumWidth), maximumWidth);
+            rowsHeight = _rows.Length * look.PopupItemHeight;
         }
         // As tall as every row: a search keeps the popup's size while it filters.
-        var height = _rows.Length * rowHeight + SkUiPopupParts.ExtraHeight(width, _title, _appHeader, _search, _selectAll, _appFooter, _footer);
+        var height = rowsHeight + SkUiPopupParts.ExtraHeight(width, _title, _appHeader, _search, _selectAll, _appFooter, _footer);
         return new Size(width, height);
     }
 

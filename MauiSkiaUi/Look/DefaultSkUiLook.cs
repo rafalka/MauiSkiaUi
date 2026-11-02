@@ -1310,13 +1310,19 @@ public class DefaultSkUiLook : SkUiLook
             field.HasError ? field.Error : null, textFieldStyle == SkUiTextFieldStyle.TextBox);
     }
 
-    /// <summary>A down-pointing chevron centered in the field's chevron bounds, turned upwards as the popup opens.</summary>
+    /// <summary>
+    /// A down-pointing chevron centered in the field's chevron bounds, turned upwards as the popup opens: in the picker's
+    /// <see cref="SkUiPickerFieldPaint.ChevronColor"/> (else the text color, dimmed) and <see cref="SkUiPickerFieldPaint.ChevronSize"/>
+    /// (else 10 DIPs wide; Fluent's 8, the Mac's pop-up button two of 6).
+    /// </summary>
     private static void DrawChevron(SKCanvas canvas, SkUiPickerFieldPaint field, SkUiPickerFieldStyle style)
     {
         var area = field.ChevronBounds;
         if (area.Width <= 0 || area.Height <= 0)
             return;
-        var color = field.IsEnabled ? field.Foreground.WithAlpha((byte)(field.Foreground.Alpha * 0.7f)) : field.Foreground.WithAlpha((byte)(field.Foreground.Alpha * DisabledAlpha));
+        var color = field.ChevronColor is { } own
+            ? field.IsEnabled ? own : own.WithAlpha((byte)(own.Alpha * DisabledAlpha))
+            : field.IsEnabled ? field.Foreground.WithAlpha((byte)(field.Foreground.Alpha * 0.7f)) : field.Foreground.WithAlpha((byte)(field.Foreground.Alpha * DisabledAlpha));
         var paint = Paint(color);
         Stroke(paint, color, 1.75f);
         paint.StrokeCap = SKStrokeCap.Round;
@@ -1328,16 +1334,19 @@ public class DefaultSkUiLook : SkUiLook
             half = Math.Min(4f, half);
             paint.StrokeWidth = 1;
         }
+        // The picker's own size, as wide as fits.
+        var size = field.ChevronSize is { } width ? Math.Min(width / 2, Math.Min(area.Width, area.Height) / 2) : (float?)null;
         if (style == SkUiPickerFieldStyle.PopUpButton)
         {
             // The Mac's pop-up button: a chevron up and a chevron down.
-            half *= 0.6f;
+            half = size ?? half * 0.6f;
             canvas.DrawLine(area.MidX - half, area.MidY - half * 0.5f - 2, area.MidX, area.MidY - half * 1.5f - 2, paint);
             canvas.DrawLine(area.MidX, area.MidY - half * 1.5f - 2, area.MidX + half, area.MidY - half * 0.5f - 2, paint);
             canvas.DrawLine(area.MidX - half, area.MidY + half * 0.5f + 2, area.MidX, area.MidY + half * 1.5f + 2, paint);
             canvas.DrawLine(area.MidX, area.MidY + half * 1.5f + 2, area.MidX + half, area.MidY + half * 0.5f + 2, paint);
             return;
         }
+        half = size ?? half;
         canvas.Save();
         canvas.Translate(area.MidX, area.MidY);
         canvas.RotateDegrees(180 * Math.Clamp(field.Open, 0, 1));

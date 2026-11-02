@@ -20,6 +20,7 @@ public abstract class SkUiCorePickerBase : SkUiCoreNode, ISkUiFontElement, ISkUi
     private protected SkUiPickerModel Model { get; }
     private bool _isOpen;
     private bool _minimumHeightExplicit;
+    private SkUiCoreNode? _leadingView;
 
     private protected SkUiCorePickerBase()
     {
@@ -119,6 +120,21 @@ public abstract class SkUiCorePickerBase : SkUiCoreNode, ISkUiFontElement, ISkUi
 
     /// <summary>Whether the field shows a chevron: <c>null</c> (default) the look's <see cref="SkUiLook.PickerShowsChevron"/>, <c>true</c> on every look, <c>false</c> none (see <c>SkUiPickerBase.IsChevronVisible</c>).</summary>
     public bool? IsChevronVisible { get => Model.ShowsChevron; set => SetIsChevronVisible(value); }
+
+    /// <summary>The shown chevron's color; <c>null</c> (default): the look's (see <see cref="SkUiPickerBase.ChevronColor"/>).</summary>
+    public Color? ChevronColor { get => Model.ChevronColor; set => SetChevronColor(value); }
+
+    /// <summary>The shown chevron's width in DIPs; <c>null</c> (default): the look's (see <see cref="SkUiPickerBase.ChevronSize"/>).</summary>
+    public double? ChevronSize { get => Model.ChevronSize; set => SetChevronSize(value); }
+
+    /// <summary>The room the shown chevron takes at the end side in DIPs; <c>null</c> (default): the look's (see <see cref="SkUiPickerBase.ChevronAreaWidth"/>).</summary>
+    public double? ChevronAreaWidth { get => Model.ChevronAreaWidth; set => SetChevronAreaWidth(value); }
+
+    /// <summary>The space between the field's edges and its text in DIPs; <c>null</c> (default): the look's (see <see cref="SkUiPickerBase.TextPadding"/>).</summary>
+    public Thickness? TextPadding { get => Model.Padding; set => SetTextPadding(value); }
+
+    /// <summary>A node inside the field at its start side, before the text (see <see cref="SkUiPickerBase.LeadingView"/>).</summary>
+    public SkUiCoreNode? LeadingView { get => _leadingView; set => SetLeadingView(value); }
 
     /// <summary>Whether the popup shows a Clear button (see <c>SkUiPickerBase.IsPopupClearButtonVisible</c>).</summary>
     public bool IsPopupClearButtonVisible { get => Model.ShowsPopupClearButton; set => SetIsPopupClearButtonVisible(value); }
@@ -274,6 +290,61 @@ public abstract class SkUiCorePickerBase : SkUiCoreNode, ISkUiFontElement, ISkUi
     /// <summary>Sets <see cref="IsChevronVisible"/>.</summary>
     public SkUiCorePickerBase SetIsChevronVisible(bool? value) => Update(ref Model.ShowsChevron, value, nameof(IsChevronVisible), measure: true);
 
+    /// <summary>Sets <see cref="ChevronColor"/> (<c>null</c>: the look's).</summary>
+    public SkUiCorePickerBase SetChevronColor(Color? value) => Update(ref Model.ChevronColor, value, nameof(ChevronColor));
+
+    /// <summary>Sets <see cref="ChevronSize"/> (<c>null</c>: the look's).</summary>
+    public SkUiCorePickerBase SetChevronSize(double? value)
+    {
+        if (value is { } size)
+            SkUiValidate.ThrowIfNegativeOrNotFinite(size, nameof(value));
+        return Update(ref Model.ChevronSize, value, nameof(ChevronSize));
+    }
+
+    /// <summary>Sets <see cref="ChevronAreaWidth"/> (<c>null</c>: the look's).</summary>
+    public SkUiCorePickerBase SetChevronAreaWidth(double? value)
+    {
+        if (value is { } width)
+            SkUiValidate.ThrowIfNegativeOrNotFinite(width, nameof(value));
+        return Update(ref Model.ChevronAreaWidth, value, nameof(ChevronAreaWidth), measure: true);
+    }
+
+    /// <summary>Sets <see cref="TextPadding"/> (<c>null</c>: the look's).</summary>
+    public SkUiCorePickerBase SetTextPadding(Thickness? value)
+    {
+        SkUiValidate.ThrowIfNotThickness(value, nameof(value));
+        return Update(ref Model.Padding, value, nameof(TextPadding), measure: true);
+    }
+
+    /// <summary>Sets <see cref="LeadingView"/>.</summary>
+    public SkUiCorePickerBase SetLeadingView(SkUiCoreNode? value)
+    {
+        if (ReferenceEquals(_leadingView, value))
+            return this;
+        if (value is not null)
+        {
+            if (value.Parent is not null)
+                throw new InvalidOperationException("Child already has a parent.");
+            if (WouldCreateParentCycle(value))
+                throw new InvalidOperationException("A view cannot create a parent cycle.");
+        }
+        if (_leadingView is { } previous)
+        {
+            previous.AttachTo(null);
+            SkUiDiagnostics.NotifyChildRemoved(this, previous, 0);
+        }
+        _leadingView = value;
+        if (value is not null)
+        {
+            value.AttachTo(this);
+            SkUiDiagnostics.NotifyChildAdded(this, value, 0);
+        }
+        OnPropertyChanged(nameof(LeadingView));
+        InvalidateRender(SkUiRenderDirty.Children);
+        Model.TextChanged();
+        return this;
+    }
+
     /// <summary>Sets <see cref="IsPopupClearButtonVisible"/>.</summary>
     public SkUiCorePickerBase SetIsPopupClearButtonVisible(bool value) => Update(ref Model.ShowsPopupClearButton, value, nameof(IsPopupClearButtonVisible), paint: false);
 
@@ -392,7 +463,21 @@ public abstract class SkUiCorePickerBase : SkUiCoreNode, ISkUiFontElement, ISkUi
     protected override Size MeasureContent(double widthConstraint, double heightConstraint)
     {
         Model.HasExplicitMinimumHeight = _minimumHeightExplicit;
+        Model.LeadingSize = _leadingView is { IsVisible: true } leading ? leading.Measure(widthConstraint, heightConstraint) : Size.Zero;
         return Model.Measure(widthConstraint, heightConstraint);
+    }
+
+    /// <inheritdoc />
+    protected override void ArrangeContent(Size size) => _leadingView?.Arrange(Model.LeadingFrame(size.Width, size.Height));
+
+    /// <inheritdoc />
+    internal override IReadOnlyList<IVisualTreeElement> VisualChildren => _leadingView is { } leading ? [leading] : [];
+
+    /// <inheritdoc />
+    internal override void AddRenderChildren(List<ISkUiRenderable> children)
+    {
+        if (_leadingView is not null)
+            children.Add(_leadingView);
     }
 
     /// <inheritdoc />
