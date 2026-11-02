@@ -20,6 +20,9 @@ public sealed class PickerDemoPage : ComponentDemoPage
     private const string Title1 = "Select a monkey";
     private const string AppAcceptText = "(app's: SkUiStrings.Current)";
     private const string LocalAcceptText = "Done";
+    private const string ChevronOfLook = "null (the look's)";
+    private const string ChevronShown = "true";
+    private const string ChevronHidden = "false";
 
     private static readonly string[] MonkeyNames = ["Baboon", "Capuchin Monkey", "Blue Monkey", "Squirrel Monkey", "Golden Lion Tamarin", "Howler Monkey"];
     private static readonly string[] NumberNames = [.. Enumerable.Range(1, 500).Select(number => $"Item {number}")];
@@ -93,7 +96,9 @@ public sealed class PickerDemoPage : ComponentDemoPage
         Text(nameof(SkUiPicker.Placeholder), "", value => _skia.Placeholder = value.Length == 0 ? null : value, () => _skia.Placeholder ?? "");
         Toggle(nameof(SkUiPicker.IsClearButtonVisible), false, value => _skia.IsClearButtonVisible = value, () => _skia.IsClearButtonVisible);
         Toggle(nameof(SkUiPicker.IsPopupClearButtonVisible), false, value => _skia.IsPopupClearButtonVisible = value, () => _skia.IsPopupClearButtonVisible);
-        Toggle(nameof(SkUiPicker.IsChevronVisible), true, value => _skia.IsChevronVisible = value, () => _skia.IsChevronVisible);
+        Choice(nameof(SkUiPicker.IsChevronVisible), [ChevronOfLook, ChevronShown, ChevronHidden], ChevronOfLook,
+            value => _skia.IsChevronVisible = value switch { ChevronShown => true, ChevronHidden => false, _ => null },
+            () => _skia.IsChevronVisible switch { true => ChevronShown, false => ChevronHidden, null => ChevronOfLook });
         // A search field in the list: for the 500 numbers, not for the six monkeys.
         Toggle(nameof(SkUiPicker.IsSearchEnabled), false, value => _skia.IsSearchEnabled = value, () => _skia.IsSearchEnabled);
         Number(nameof(SkUiPicker.SearchMinimumItemCount), 0, 50, 0, value => _skia.SearchMinimumItemCount = (int)value, () => _skia.SearchMinimumItemCount, whole: true);

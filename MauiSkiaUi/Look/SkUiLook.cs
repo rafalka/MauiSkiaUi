@@ -1025,8 +1025,17 @@ public class SkUiLook
     /// <summary>The space between a picker field's edges and its text, in DIPs (the chevron's room is added at the end).</summary>
     public virtual Thickness PickerFieldPadding => new(12, 8);
 
-    /// <summary>The room a picker field keeps for its chevron at the end, in DIPs (the chevron is drawn centered in it).</summary>
+    /// <summary>
+    /// The room a picker field keeps for its chevron at the end, in DIPs (the chevron is drawn centered in it), while it shows one
+    /// (<see cref="PickerShowsChevron"/>, or the picker's own <c>IsChevronVisible</c>).
+    /// </summary>
     public virtual double PickerChevronWidth => 32;
+
+    /// <summary>
+    /// Whether picker fields show a chevron unless a picker sets its own <c>IsChevronVisible</c> (default <c>true</c>; the iOS, Mac
+    /// and Android looks: <c>false</c>, as MAUI's pickers there). Without one the field keeps no room for it.
+    /// </summary>
+    public virtual bool PickerShowsChevron => true;
 
     /// <summary>Optional picker field painter; when set, replaces <see cref="DrawPickerFieldCore"/>.</summary>
     public Action<SKCanvas, SkUiPickerFieldPaint>? PickerFieldPainter { get; set; }

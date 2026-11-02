@@ -84,7 +84,7 @@ public class SkUiLook
     // DefaultSkUiLook: PickerFieldStyle (Default → DefaultPickerFieldStyle: outline; underline, filled, none);
     // AndroidSkUiLook: underline. A picker's own FieldStyle and chrome (M5) come in field.Style / field.Chrome.
     public void DrawPickerField(SKCanvas canvas, SkUiPickerFieldPaint field) { … } // → PickerFieldPainter ?? DrawPickerFieldCore
-    public virtual Thickness PickerFieldPadding => new(12, 8); // and PickerChevronWidth (32), DefaultPickerMinimumHeight (44)
+    public virtual Thickness PickerFieldPadding => new(12, 8); // and PickerChevronWidth (32), PickerShowsChevron, DefaultPickerMinimumHeight (44)
     // Text fields (Phase D, TextInput.md): chrome behind the text, as the picker field's (FieldFocus);
     // DefaultSkUiLook: TextFieldStyle (Default → DefaultTextFieldStyle: outline; underline, filled); AndroidSkUiLook: underline.
     // A field's own FieldStyle wins; its FillColor / BorderColor / BorderWidth / CornerRadii come in field.Chrome (SkUiFieldChrome).

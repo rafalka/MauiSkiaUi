@@ -3,7 +3,10 @@ using Xunit;
 
 namespace MauiSkiaUi.Tests;
 
-/// <summary><see cref="SkUiPickerBase.IsChevronVisible"/>: a hidden chevron gives its room back, on both layers and every kind of picker.</summary>
+/// <summary>
+/// <see cref="SkUiPickerBase.IsChevronVisible"/>: the look's chevron by default, a hidden one gives its room back, a shown one appears
+/// also on looks without one; on both layers and every kind of picker.
+/// </summary>
 [Collection(GlobalStateCollection.Name)]
 public sealed class PickerChevronTests : IDisposable
 {
@@ -47,10 +50,66 @@ public sealed class PickerChevronTests : IDisposable
     }
 
     [Fact]
-    public void TheChevronIsShownByDefault()
+    public void TheLookDecidesByDefault()
     {
-        Assert.True(new SkUiPicker().IsChevronVisible);
-        Assert.True(new SkUiCorePicker().IsChevronVisible);
+        Assert.Null(new SkUiPicker().IsChevronVisible);
+        Assert.Null(new SkUiCorePicker().IsChevronVisible);
+    }
+
+    [Fact]
+    public void TheLooksSayWhetherFieldsShowAChevron()
+    {
+        Assert.True(new DefaultSkUiLook().PickerShowsChevron);
+        Assert.True(new WindowsSkUiLook().PickerShowsChevron);
+        Assert.False(new IosSkUiLook().PickerShowsChevron);
+        Assert.False(new MacSkUiLook().PickerShowsChevron);
+        Assert.False(new AndroidSkUiLook().PickerShowsChevron);
+        // Each keeps a width for the chevron a picker shows.
+        Assert.True(new IosSkUiLook().PickerChevronWidth > 0);
+        Assert.True(new AndroidSkUiLook().PickerChevronWidth > 0);
+    }
+
+    [Fact]
+    public void APickerShowsAChevronOnALookWithout()
+    {
+        SkUiLook.Current = new MacSkUiLook();
+        var picker = new SkUiPicker { ItemsSource = Fruits, SelectedIndex = 0, HorizontalOptions = LayoutOptions.Start };
+        var root = Root(picker);
+        var without = picker.Width;
+
+        picker.IsChevronVisible = true;
+        SkUiTestHelpers.Arrange(root, 360, 700);
+        Assert.Equal(without + SkUiLook.Current.PickerChevronWidth, picker.Width, 0.5);
+
+        picker.IsChevronVisible = null; // the look's again: none
+        SkUiTestHelpers.Arrange(root, 360, 700);
+        Assert.Equal(without, picker.Width, 0.5);
+    }
+
+    [Fact]
+    public void ALookWithoutAChevronKeepsNoRoom()
+    {
+        SkUiPicker NewPicker() => new() { ItemsSource = Fruits, SelectedIndex = 0, HorizontalOptions = LayoutOptions.Start };
+        var with = NewPicker();
+        Root(with);
+
+        SkUiLook.Current = new HiddenChevronLook();
+        var without = NewPicker();
+        Root(without);
+
+        Assert.Equal(with.Width - SkUiLook.Current.PickerChevronWidth, without.Width, 0.5);
+    }
+
+    [Fact]
+    public void ACorePickerShowsAChevronOnALookWithout()
+    {
+        SkUiLook.Current = new AndroidSkUiLook();
+        var core = new SkUiCorePicker().SetItemsSource(Fruits).SetSelectedIndex(0);
+        var without = core.Measure(double.PositiveInfinity, double.PositiveInfinity).Width;
+
+        core.SetIsChevronVisible(true);
+
+        Assert.Equal(without + SkUiLook.Current.PickerChevronWidth, core.Measure(double.PositiveInfinity, double.PositiveInfinity).Width, 0.5);
     }
 
     [Fact]
@@ -122,5 +181,35 @@ public sealed class PickerChevronTests : IDisposable
         Assert.False(core.IsChevronVisible);
         Assert.Contains(nameof(SkUiCorePicker.IsChevronVisible), changed);
         Assert.Equal(with - SkUiLook.Current.PickerChevronWidth, core.Measure(double.PositiveInfinity, double.PositiveInfinity).Width, 0.5);
+    }
+
+    /// <summary>The default look without the chevron.</summary>
+    private sealed class HiddenChevronLook : DefaultSkUiLook
+    {
+        public override bool PickerShowsChevron => false;
+    }
+}
+
+/// <summary><see cref="SkUiPickerBase.IsChevronVisible"/> from XAML (a nullable bool).</summary>
+[Collection(RuntimeXamlCollection.Name)]
+public sealed class PickerChevronXamlTests
+{
+    [Fact]
+    public void XamlSetsTheChevron()
+    {
+        const string xaml = """
+            <ContentView xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+                         xmlns:sk="clr-namespace:MauiSkiaUi;assembly=MauiSkiaUi">
+              <sk:SkUiVerticalStackLayout>
+                <sk:SkUiPicker IsChevronVisible="True" />
+                <sk:SkUiDatePicker IsChevronVisible="False" />
+                <sk:SkUiPicker />
+              </sk:SkUiVerticalStackLayout>
+            </ContentView>
+            """;
+        var root = new ContentView();
+        Microsoft.Maui.Controls.Xaml.Extensions.LoadFromXaml(root, xaml);
+        var pickers = ((SkUiVerticalStackLayout)root.Content).Children.Cast<SkUiPickerBase>().ToArray();
+        Assert.Equal([true, false, null], pickers.Select(picker => picker.IsChevronVisible));
     }
 }

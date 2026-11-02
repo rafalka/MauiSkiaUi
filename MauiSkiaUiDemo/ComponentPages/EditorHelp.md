@@ -92,6 +92,12 @@ and skipped by the keyboard and the wheels.
 Views above and below the list in the popup (`PopupHeaderTemplate`, `PopupFooterTemplate`): a hint, a search field,
 a total.
 
+## PickerDemoPage.Search matches the start (SearchFilter)
+
+`SearchFilter`: the app's own match for the list's search (`IsSearchEnabled`), a function of the item and the phrase.
+Here an item matches when its name starts with the phrase; without it, when its text contains the phrase, ignoring case
+and accents.
+
 ## PickerMultipleDemoPage.Spider Monkey cannot be chosen (ItemEnabledBinding)
 
 `ItemEnabledBinding`: a binding on each item that tells whether it can be chosen. A disabled item is dimmed, cannot be

@@ -248,7 +248,7 @@ internal sealed class SkUiPickerModel
     internal bool TokensShown => ShowsTokens && _tokens.Count > 0;
     public DataTemplate? PopupFooterTemplate;
     public bool ShowsClearButton;
-    public bool ShowsChevron = true;
+    public bool? ShowsChevron;
     public bool IsSearchEnabled;
     public int SearchMinimumItemCount;
     public Func<object?, string, bool>? SearchFilter;
@@ -365,8 +365,8 @@ internal sealed class SkUiPickerModel
     internal SkUiTextStyle TextStyle => new(SkUiTypefaces.Resolve(FontFamily, FontAttributes), SkUiFontScaling.ScaleFontSize(EffectiveFontSize, FontAutoScalingEnabled),
         LineBreakMode.TailTruncation, null, 1, -1, CharacterSpacing, _owner.TextDirection, SkUiTextRendering.Default, FontAttributes);
 
-    /// <summary>The room the chevron takes at the end side: the look's, none while it is hidden.</summary>
-    private double ChevronWidth => ShowsChevron ? SkUiLook.Current.PickerChevronWidth : 0;
+    /// <summary>The room the chevron takes at the end side: the look's width while it shows (the picker's choice, else the look's), else none.</summary>
+    private double ChevronWidth => (ShowsChevron ?? SkUiLook.Current.PickerShowsChevron) ? SkUiLook.Current.PickerChevronWidth : 0;
 
     /// <summary>Where the text sits in the field: the look's padding, with the chevron's room at the end side.</summary>
     private Thickness TextInset

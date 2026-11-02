@@ -67,7 +67,7 @@ host.SetContent(core);
 | `VisibleRows` | 5 | Rows of each wheel (1–9) |
 | `PopupHeaderTemplate`, `PopupFooterTemplate` | `null` | The app's views above and below the wheels ([SkUiPicker](SkUiPicker.md#the-apps-views-in-the-popup)) |
 | `IsClearButtonVisible`, `IsPopupClearButtonVisible`, `ClearText` | `false`, `false`, `null` | Clear every column ([SkUiPicker](SkUiPicker.md#clearing-the-choice)); `ClearSelection()` |
-| `IsChevronVisible` | `true` | The field's chevron ([SkUiPicker](SkUiPicker.md#field-chrome)) |
+| `IsChevronVisible` | `null` | The field's chevron: the look's, shown or hidden ([SkUiPicker](SkUiPicker.md#field-chrome)) |
 | `UpdateMode`, `AcceptText`, `CancelText` | `Immediately`, `null` | `WhenFinished`: the wheels are a draft until OK ([SkUiPicker](SkUiPicker.md#when-a-choice-takes-effect)) |
 | `SelectedIndices` / `SelectedItems` | | One per column (read-only; set the columns) |
 | `SelectionChanged` | | `SkUiColumnSelectionChangedEventArgs`: `ColumnIndex`, `PreviousIndex`, `CurrentIndex` |

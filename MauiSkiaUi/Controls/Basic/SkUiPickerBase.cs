@@ -260,11 +260,16 @@ public abstract class SkUiPickerBase : SkUiView, ISkUiFontElement, ISkUiFieldChr
     public bool IsClearButtonVisible { get => (bool)GetValue(IsClearButtonVisibleProperty); set => SetValue(IsClearButtonVisibleProperty, value); }
 
     /// <summary>Bindable property for <see cref="IsChevronVisible"/>.</summary>
-    public static readonly BindableProperty IsChevronVisibleProperty = BindableProperty.Create(nameof(IsChevronVisible), typeof(bool), typeof(SkUiPickerBase), true,
-        propertyChanged: (view, _, value) => ((SkUiPickerBase)view).Apply(model => model.ShowsChevron = (bool)value, measure: true));
+    public static readonly BindableProperty IsChevronVisibleProperty = BindableProperty.Create(nameof(IsChevronVisible), typeof(bool?), typeof(SkUiPickerBase), null,
+        propertyChanged: (view, _, value) => ((SkUiPickerBase)view).Apply(model => model.ShowsChevron = (bool?)value, measure: true));
 
-    /// <summary>Whether the field shows the look's chevron (and keeps its room at the end side); <c>false</c> for a field that shows only its text or <see cref="SkUiPicker.SelectedItemTemplate"/>. Default <c>true</c>. SkiaUi extension.</summary>
-    public bool IsChevronVisible { get => (bool)GetValue(IsChevronVisibleProperty); set => SetValue(IsChevronVisibleProperty, value); }
+    /// <summary>
+    /// Whether the field shows a chevron at its end side, in the look's <see cref="SkUiLook.PickerChevronWidth"/>. <c>null</c>
+    /// (default): the look's <see cref="SkUiLook.PickerShowsChevron"/> (the default and Windows looks show one; the iOS, Mac and
+    /// Android looks, as MAUI's pickers there, none). <c>true</c>: on every look. <c>false</c>: none, its room goes to the text or <see cref="SkUiPicker.SelectedItemTemplate"/>
+    /// and the clear button moves to the end. A custom field painter gets empty <c>ChevronBounds</c> without one. SkiaUi extension.
+    /// </summary>
+    public bool? IsChevronVisible { get => (bool?)GetValue(IsChevronVisibleProperty); set => SetValue(IsChevronVisibleProperty, value); }
 
     /// <summary>Bindable property for <see cref="IsPopupClearButtonVisible"/>.</summary>
     public static readonly BindableProperty IsPopupClearButtonVisibleProperty = BindableProperty.Create(nameof(IsPopupClearButtonVisible), typeof(bool), typeof(SkUiPickerBase), false,
@@ -462,7 +467,7 @@ public abstract class SkUiPickerBase : SkUiView, ISkUiFontElement, ISkUiFieldChr
     public SkUiPickerBase SetIsClearButtonVisible(bool value) { IsClearButtonVisible = value; return this; }
 
     /// <summary>Sets <see cref="IsChevronVisible"/> (same as the property setter).</summary>
-    public SkUiPickerBase SetIsChevronVisible(bool value) { IsChevronVisible = value; return this; }
+    public SkUiPickerBase SetIsChevronVisible(bool? value) { IsChevronVisible = value; return this; }
 
     /// <summary>Sets <see cref="IsPopupClearButtonVisible"/> (same as the property setter).</summary>
     public SkUiPickerBase SetIsPopupClearButtonVisible(bool value) { IsPopupClearButtonVisible = value; return this; }

@@ -117,8 +117,8 @@ public abstract class SkUiCorePickerBase : SkUiCoreNode, ISkUiFontElement, ISkUi
     /// <summary>Whether the field shows a clear button while something is chosen (see <c>SkUiPickerBase.IsClearButtonVisible</c>).</summary>
     public bool IsClearButtonVisible { get => Model.ShowsClearButton; set => SetIsClearButtonVisible(value); }
 
-    /// <summary>Whether the field shows the look's chevron (see <c>SkUiPickerBase.IsChevronVisible</c>).</summary>
-    public bool IsChevronVisible { get => Model.ShowsChevron; set => SetIsChevronVisible(value); }
+    /// <summary>Whether the field shows a chevron: <c>null</c> (default) the look's <see cref="SkUiLook.PickerShowsChevron"/>, <c>true</c> on every look, <c>false</c> none (see <c>SkUiPickerBase.IsChevronVisible</c>).</summary>
+    public bool? IsChevronVisible { get => Model.ShowsChevron; set => SetIsChevronVisible(value); }
 
     /// <summary>Whether the popup shows a Clear button (see <c>SkUiPickerBase.IsPopupClearButtonVisible</c>).</summary>
     public bool IsPopupClearButtonVisible { get => Model.ShowsPopupClearButton; set => SetIsPopupClearButtonVisible(value); }
@@ -272,7 +272,7 @@ public abstract class SkUiCorePickerBase : SkUiCoreNode, ISkUiFontElement, ISkUi
     public SkUiCorePickerBase SetIsClearButtonVisible(bool value) => Update(ref Model.ShowsClearButton, value, nameof(IsClearButtonVisible), measure: true);
 
     /// <summary>Sets <see cref="IsChevronVisible"/>.</summary>
-    public SkUiCorePickerBase SetIsChevronVisible(bool value) => Update(ref Model.ShowsChevron, value, nameof(IsChevronVisible), measure: true);
+    public SkUiCorePickerBase SetIsChevronVisible(bool? value) => Update(ref Model.ShowsChevron, value, nameof(IsChevronVisible), measure: true);
 
     /// <summary>Sets <see cref="IsPopupClearButtonVisible"/>.</summary>
     public SkUiCorePickerBase SetIsPopupClearButtonVisible(bool value) => Update(ref Model.ShowsPopupClearButton, value, nameof(IsPopupClearButtonVisible), paint: false);
