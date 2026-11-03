@@ -5,8 +5,8 @@ using Xunit;
 namespace MauiSkiaUi.Tests;
 
 /// <summary>
-/// A surface resized before its root's new layout is committed keeps drawing the root at the scale it was drawn at, against the
-/// edge the root keeps, instead of stretching the old layout over the new size.
+/// While a root's layout and its surface's size disagree (either can change first), the root is drawn at the scale it was last drawn
+/// at, against the edge it keeps, instead of being stretched over the surface.
 /// </summary>
 public class SurfaceResizeTests
 {
@@ -52,10 +52,7 @@ public class SurfaceResizeTests
         Draw(renderer, Width, Height).Dispose();
         Draw(renderer, Width, 60).Dispose();
 
-        SkUiTestHelpers.Arrange(root, Width, 60);
-        renderer.RequestFrame();
-        while (queue.TryDequeue(out var action))
-            action();
+        Layout(root, renderer, queue, 60);
         using var laidOut = Draw(renderer, Width, 60);
         Assert.Equal(SKColors.Red, laidOut.GetPixel(20, 5));
         Assert.Equal(SKColors.Blue, laidOut.GetPixel(20, 55));
@@ -89,17 +86,49 @@ public class SurfaceResizeTests
     }
 
     [Fact]
-    public void ARootLaidOutBeforeItsSurfaceIsResizedFillsIt()
+    public void ARootLaidOutBeforeItsSurfaceIsResizedKeepsItsScale()
     {
-        // A platform that resizes the view before its buffer (Android's texture view) scales the buffer to the view.
         var (root, queue) = Root();
         using var renderer = Present(root, queue);
         Draw(renderer, Width, Height).Dispose();
 
-        SkUiTestHelpers.Arrange(root, Width, 60);
-        renderer.RequestFrame();
-        while (queue.TryDequeue(out var action))
-            action();
+        Layout(root, renderer, queue, 60);
+        using var held = Draw(renderer, Width, Height);
+        Assert.Equal(SKColors.Red, held.GetPixel(20, 5));
+        // Stretched, the bottom band would end the surface; kept at its scale, it ends the root's new height.
+        Assert.Equal(SKColors.Blue, held.GetPixel(20, 55));
+        Assert.Equal(0, held.GetPixel(20, 95).Alpha);
+
+        using var resized = Draw(renderer, Width, 60);
+        Assert.Equal(SKColors.Red, resized.GetPixel(20, 5));
+        Assert.Equal(SKColors.Blue, resized.GetPixel(20, 55));
+    }
+
+    [Fact]
+    public void ARootThatKeepsItsBottomLaidOutBeforeItsSurfaceIsResizedIsDrawnAgainstTheBottom()
+    {
+        var (root, queue) = Root();
+        root.SurfaceKeepsBottom = true;
+        using var renderer = Present(root, queue);
+        Draw(renderer, Width, Height).Dispose();
+
+        Layout(root, renderer, queue, 60);
+        using var held = Draw(renderer, Width, Height);
+        Assert.Equal(0, held.GetPixel(20, 5).Alpha);
+        Assert.Equal(SKColors.Red, held.GetPixel(20, 45));
+        Assert.Equal(SKColors.Blue, held.GetPixel(20, 95));
+    }
+
+    [Fact]
+    public void ARootLaidOutBeforeASurfaceThatScalesFramesToTheViewFillsIt()
+    {
+        // Android's texture view: the view already has the root's size and scales the old buffer to it.
+        var (root, queue) = Root();
+        using var renderer = Present(root, queue);
+        renderer.Compositor.ScalesFrameToView = true;
+        Draw(renderer, Width, Height).Dispose();
+
+        Layout(root, renderer, queue, 60);
         using var filled = Draw(renderer, Width, Height);
         Assert.Equal(SKColors.Red, filled.GetPixel(20, 5));
         Assert.Equal(SKColors.Blue, filled.GetPixel(20, 95));
@@ -107,6 +136,15 @@ public class SurfaceResizeTests
         using var resized = Draw(renderer, Width, 60);
         Assert.Equal(SKColors.Red, resized.GetPixel(20, 5));
         Assert.Equal(SKColors.Blue, resized.GetPixel(20, 55));
+    }
+
+    /// <summary>Lays the root out to <paramref name="height"/> and commits the frame.</summary>
+    private static void Layout(SkUiBox root, SkUiFrameRenderer renderer, Queue<Action> queue, int height)
+    {
+        SkUiTestHelpers.Arrange(root, Width, height);
+        renderer.RequestFrame();
+        while (queue.TryDequeue(out var action))
+            action();
     }
 
     /// <summary>A white root with a red band at its top and a blue one at its bottom.</summary>

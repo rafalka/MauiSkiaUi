@@ -153,6 +153,12 @@ internal sealed class SkUiCompositor : IDisposable
     /// </summary>
     internal const int MaxHeldFrames = 8;
 
+    /// <summary>
+    /// Whether the platform shows a frame scaled to the view's current size (Android's texture view, whose buffer can lag behind
+    /// the view): a root laid out ahead of its pixels then fills them (<see cref="SurfaceMatrix"/>). Set before the surface renders.
+    /// </summary>
+    internal bool ScalesFrameToView { get; set; }
+
     /// <summary>How much a surface's pixel width and height may scale differently and still count as a new pixel density.</summary>
     private const float DensityTolerance = 0.001f;
 
@@ -323,29 +329,19 @@ internal sealed class SkUiCompositor : IDisposable
     }
 
     /// <summary>
-    /// The root's transform into a surface of <paramref name="pixelWidth"/>×<paramref name="pixelHeight"/>: the root fills it. A
-    /// surface resized before the root's new layout is committed (the platform view gets its size as the layout runs, the UI thread
-    /// commits the frame that lays out the new size on its next pass: a popup that shrinks to its rows) keeps the scale the root was
-    /// last drawn at, against the surface's top or, for a root that keeps its bottom (<see cref="SkUiView.SurfaceKeepsBottom"/>), its
-    /// bottom edge, instead of stretching the old layout over the new size until the two agree again; for
-    /// <see cref="MaxHeldFrames"/> at most, and not when the surface only changed its pixel density. A root laid out before its
-    /// surface is resized fills the surface: a platform that resizes the view before the buffer (Android's texture view) scales the
-    /// buffer to the view.
+    /// The root's transform into a surface of <paramref name="pixelWidth"/>×<paramref name="pixelHeight"/>: the root fills it. While
+    /// the root's layout and the surface's size disagree (the platform view gets its size in its own layout pass, the UI thread
+    /// commits the frame that lays out the new size on its next one, and either can come first: a popup that shrinks to its rows),
+    /// the root keeps the scale it was last drawn at, against the surface's top or, for a root that keeps its bottom
+    /// (<see cref="SkUiView.SurfaceKeepsBottom"/>), its bottom edge, instead of being stretched over the surface until the two agree
+    /// again; for <see cref="MaxHeldFrames"/> at most, and not when the surface only changed its pixel density. On a surface that
+    /// <see cref="ScalesFrameToView"/>, a root laid out ahead of its pixels fills them: the view already has the root's size.
     /// </summary>
     private SKMatrix SurfaceMatrix(int pixelWidth, int pixelHeight)
     {
-        // Exact: whether either size changed since the last frame drawn at the root's own scale.
-        var rootChanged = _rootWidth != _drawnRootWidth || _rootHeight != _drawnRootHeight;
-        var pixelsChanged = pixelWidth != _drawnPixelWidth || pixelHeight != _drawnPixelHeight;
-        if (pixelsChanged && !rootChanged && _drawnPixelWidth > 0 && _drawnPixelHeight > 0 && _heldFrames < MaxHeldFrames
-            && Math.Abs((float)pixelWidth / _drawnPixelWidth - (float)pixelHeight / _drawnPixelHeight) >= DensityTolerance)
-        {
-            _heldFrames++;
-            return SKMatrix.CreateScaleTranslation(_drawnScaleX, _drawnScaleY, 0, _keepsBottom ? pixelHeight - _rootHeight * _drawnScaleY : 0);
-        }
         var scaleX = pixelWidth / _rootWidth;
         var scaleY = pixelHeight / _rootHeight;
-        // Only a frame drawn at the root's own scale (the same both ways, but for the pixel rounding of either side) is kept.
+        // Drawn at the root's own scale: the same both ways, but for the pixel rounding of either side.
         if (Math.Abs(pixelHeight - _rootHeight * scaleX) <= PixelTolerance || Math.Abs(pixelWidth - _rootWidth * scaleY) <= PixelTolerance)
         {
             _heldFrames = 0;
@@ -355,8 +351,17 @@ internal sealed class SkUiCompositor : IDisposable
             _drawnPixelHeight = pixelHeight;
             _drawnScaleX = scaleX;
             _drawnScaleY = scaleY;
+            return SKMatrix.CreateScale(scaleX, scaleY);
         }
-        return SKMatrix.CreateScale(scaleX, scaleY);
+        // Exact: whether the root changed since the last frame drawn at its own scale.
+        var rootChanged = _rootWidth != _drawnRootWidth || _rootHeight != _drawnRootHeight;
+        var hold = _drawnPixelWidth > 0 && _drawnPixelHeight > 0 && _heldFrames < MaxHeldFrames && (rootChanged
+            ? !ScalesFrameToView
+            : Math.Abs((float)pixelWidth / _drawnPixelWidth - (float)pixelHeight / _drawnPixelHeight) >= DensityTolerance);
+        if (!hold)
+            return SKMatrix.CreateScale(scaleX, scaleY);
+        _heldFrames++;
+        return SKMatrix.CreateScaleTranslation(_drawnScaleX, _drawnScaleY, 0, _keepsBottom ? pixelHeight - _rootHeight * _drawnScaleY : 0);
     }
 
     private static void ResetCanvas(SKCanvas canvas)

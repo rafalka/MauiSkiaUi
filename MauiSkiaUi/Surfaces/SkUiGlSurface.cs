@@ -34,6 +34,9 @@ internal sealed class SkUiGlTextureView : GLTextureView
         get => _renderer.FrameRenderer;
         set
         {
+            // The texture view scales its buffer, which can lag behind the view, to the view's size.
+            if (value is not null)
+                value.Compositor.ScalesFrameToView = true;
             _renderer.FrameRenderer = value;
             RequestRender();
         }
