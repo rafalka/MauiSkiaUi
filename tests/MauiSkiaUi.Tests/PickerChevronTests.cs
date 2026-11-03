@@ -64,9 +64,25 @@ public sealed class PickerChevronTests : IDisposable
         Assert.False(new IosSkUiLook().PickerShowsChevron);
         Assert.False(new MacSkUiLook().PickerShowsChevron);
         Assert.False(new AndroidSkUiLook().PickerShowsChevron);
-        // Each keeps a width for the chevron a picker shows.
-        Assert.True(new IosSkUiLook().PickerChevronWidth > 0);
-        Assert.True(new AndroidSkUiLook().PickerChevronWidth > 0);
+        // As in 1.0, a look without one keeps no room for it.
+        Assert.Equal(0, new IosSkUiLook().PickerChevronWidth);
+        Assert.Equal(0, new AndroidSkUiLook().PickerChevronWidth);
+    }
+
+    [Fact]
+    public void ALookThatKeepsRoomForAChevronShowsOne()
+    {
+        // A look derived from one without a chevron that gives it room (1.0's way) shows it, in that room.
+        SkUiLook.Current = new IosSkUiLook();
+        var picker = new SkUiPicker { ItemsSource = Fruits, SelectedIndex = 0, HorizontalOptions = LayoutOptions.Start };
+        Root(picker);
+        var without = picker.Width;
+
+        SkUiLook.Current = new NarrowChevronLook();
+        Assert.True(SkUiLook.Current.PickerShowsChevron);
+        var with = new SkUiPicker { ItemsSource = Fruits, SelectedIndex = 0, HorizontalOptions = LayoutOptions.Start };
+        Root(with);
+        Assert.Equal(without + NarrowChevronLook.Width, with.Width, 0.5);
     }
 
     [Fact]
@@ -79,7 +95,8 @@ public sealed class PickerChevronTests : IDisposable
 
         picker.IsChevronVisible = true;
         SkUiTestHelpers.Arrange(root, 360, 700);
-        Assert.Equal(without + SkUiLook.Current.PickerChevronWidth, picker.Width, 0.5);
+        // The look keeps no room for one: the base look's.
+        Assert.Equal(without + SkUiLook.DefaultPickerChevronWidth, picker.Width, 0.5);
 
         picker.IsChevronVisible = null; // the look's again: none
         SkUiTestHelpers.Arrange(root, 360, 700);
@@ -109,7 +126,7 @@ public sealed class PickerChevronTests : IDisposable
 
         core.SetIsChevronVisible(true);
 
-        Assert.Equal(without + SkUiLook.Current.PickerChevronWidth, core.Measure(double.PositiveInfinity, double.PositiveInfinity).Width, 0.5);
+        Assert.Equal(without + SkUiLook.DefaultPickerChevronWidth, core.Measure(double.PositiveInfinity, double.PositiveInfinity).Width, 0.5);
     }
 
     [Fact]
@@ -187,6 +204,14 @@ public sealed class PickerChevronTests : IDisposable
     private sealed class HiddenChevronLook : DefaultSkUiLook
     {
         public override bool PickerShowsChevron => false;
+    }
+
+    /// <summary>The iOS look with a narrow chevron, through its width alone.</summary>
+    private sealed class NarrowChevronLook : IosSkUiLook
+    {
+        public const double Width = 24;
+
+        public override double PickerChevronWidth => Width;
     }
 }
 

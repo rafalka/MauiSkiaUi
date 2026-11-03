@@ -83,6 +83,25 @@ public sealed class SkUiToolkitPopupPresenter : ISkUiPopupPresenter
         var covered = 0.0;
 #if ANDROID
         Android.Views.View? keyboardView = null;
+        // The observer of the window the page is attached to: a view's observer before it is attached, or after it is detached, is
+        // another one, so the listener is added on attach and removed from the same observer on detach.
+        Android.Views.ViewTreeObserver? layoutObserver = null;
+        void Observe()
+        {
+            if (layoutObserver is null && keyboardView?.ViewTreeObserver is { IsAlive: true } observer)
+            {
+                layoutObserver = observer;
+                observer.GlobalLayout += OnRoomChanged;
+            }
+        }
+        void StopObserving()
+        {
+            if (layoutObserver is { IsAlive: true } observer)
+                observer.GlobalLayout -= OnRoomChanged;
+            layoutObserver = null;
+        }
+        void OnAttached(object? sender, Android.Views.View.ViewAttachedToWindowEventArgs args) => Observe();
+        void OnDetached(object? sender, Android.Views.View.ViewDetachedFromWindowEventArgs args) => StopObserving();
 #endif
         // The popup page keeps its bottom clear of the soft keyboard (MAUI's SafeAreaEdges); the room left is reported to SkiaUi. The
         // layout's frame is read (in the page, which fills the window): its platform view gets its new frame only after this event.
@@ -121,10 +140,13 @@ public sealed class SkUiToolkitPopupPresenter : ISkUiPopupPresenter
 #if ANDROID
             // Android pans the window for the keyboard by default (adjustPan), and MAUI then leaves the page's size as it is: the
             // keyboard's inset in the popup's own window is read after each layout too (the app's pages are not touched).
-            if (popupPage.Handler?.PlatformView is Android.Views.View platform && platform.ViewTreeObserver is { } observer)
+            if (popupPage.Handler?.PlatformView is Android.Views.View platform)
             {
                 keyboardView = platform;
-                observer.GlobalLayout += OnRoomChanged;
+                platform.ViewAttachedToWindow += OnAttached;
+                platform.ViewDetachedFromWindow += OnDetached;
+                if (platform.IsAttachedToWindow)
+                    Observe();
             }
 #endif
         }
@@ -155,8 +177,12 @@ public sealed class SkUiToolkitPopupPresenter : ISkUiPopupPresenter
             if (room is not null)
                 room.SizeChanged -= OnRoomChanged;
 #if ANDROID
-            if (keyboardView?.ViewTreeObserver is { IsAlive: true } observer)
-                observer.GlobalLayout -= OnRoomChanged;
+            StopObserving();
+            if (keyboardView is not null)
+            {
+                keyboardView.ViewAttachedToWindow -= OnAttached;
+                keyboardView.ViewDetachedFromWindow -= OnDetached;
+            }
 #endif
         }
     }

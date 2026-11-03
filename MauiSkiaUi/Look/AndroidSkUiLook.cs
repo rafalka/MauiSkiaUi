@@ -119,8 +119,8 @@ public class AndroidSkUiLook : DefaultSkUiLook
     public override Thickness PickerFieldPadding => new(4, 10, 4, 11);
 
     /// <inheritdoc />
-    /// <remarks>MAUI's picker has no arrow; a picker's <c>IsChevronVisible</c> shows one in <see cref="SkUiLook.PickerChevronWidth"/>.</remarks>
-    public override bool PickerShowsChevron => false;
+    /// <remarks>MAUI's picker has no arrow; a picker's <c>IsChevronVisible</c> shows one in the base look's 32.</remarks>
+    public override double PickerChevronWidth => 0;
 
     /// <inheritdoc />
     public override double DefaultPickerMinimumHeight => 0;

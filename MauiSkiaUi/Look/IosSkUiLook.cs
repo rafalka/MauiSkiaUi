@@ -136,8 +136,8 @@ public class IosSkUiLook : DefaultSkUiLook
     public override Thickness PickerFieldPadding => new(14, 6);
 
     /// <inheritdoc />
-    /// <remarks>MAUI's picker has no arrow; a picker's <c>IsChevronVisible</c> shows one in <see cref="SkUiLook.PickerChevronWidth"/>.</remarks>
-    public override bool PickerShowsChevron => false;
+    /// <remarks>MAUI's picker has no arrow; a picker's <c>IsChevronVisible</c> shows one in the base look's 32.</remarks>
+    public override double PickerChevronWidth => 0;
 
     /// <inheritdoc />
     public override SkUiActivityIndicatorStyle ActivityIndicatorStyle => SkUiActivityIndicatorStyle.Spokes;

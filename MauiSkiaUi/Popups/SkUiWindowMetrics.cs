@@ -40,28 +40,6 @@ internal static class SkUiWindowMetrics
     /// </summary>
     public static Point SurfaceOrigin(SkUiView surfaceRoot) => SkUiDiagnostics.GetWindowOrigin(surfaceRoot) ?? Point.Zero;
 
-    /// <summary>
-    /// Test hook: whether the soft keyboard shows, instead of the platform's.
-    /// </summary>
-    [ThreadStatic] internal static Func<bool>? SoftKeyboardOverride;
-
-    /// <summary>
-    /// Whether the soft keyboard shows over the window <paramref name="surfaceRoot"/> is shown in (Android: the window's input
-    /// method insets; elsewhere the keyboard does not resize the window, so a resize is never the keyboard's).
-    /// </summary>
-    public static bool IsSoftKeyboardShown(SkUiView surfaceRoot)
-    {
-        if (SoftKeyboardOverride is { } shown)
-            return shown();
-#if ANDROID
-        if (surfaceRoot.Handler?.PlatformView is Android.Views.View { IsAttachedToWindow: true } view
-            && AndroidX.Core.View.ViewCompat.GetRootWindowInsets(view) is { } insets)
-            return insets.IsVisible(AndroidX.Core.View.WindowInsetsCompat.Type.Ime());
-#endif
-        _ = surfaceRoot;
-        return false;
-    }
-
     /// <summary>The safe area insets of the window <paramref name="surfaceRoot"/> is shown in (status bar, notch, home indicator), DIPs.</summary>
     public static Thickness SafeAreaInsets(SkUiView surfaceRoot)
     {

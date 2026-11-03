@@ -398,7 +398,7 @@ public sealed class PickerFieldOptionsTests : IDisposable
                     Padding = new Thickness(16, 10),
                     Children = { new SkUiLabel { FontFamily = SkUiTestHelpers.BundledFontFamily, Text = "Name" }, hint }
                 };
-                stack.BindingContextChanged += (_, _) => hint.Text = stack.BindingContext is string name ? hints[Array.IndexOf(names, name)] : null;
+                stack.BindingContextChanged += (_, _) => hint.Text = stack.BindingContext is string name ? hints[Array.IndexOf(names, name)] : string.Empty;
                 return stack;
             })
         };

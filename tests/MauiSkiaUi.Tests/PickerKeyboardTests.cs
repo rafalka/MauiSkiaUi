@@ -29,7 +29,6 @@ public sealed class PickerKeyboardTests : IDisposable
 
     public void Dispose()
     {
-        SkUiWindowMetrics.SoftKeyboardOverride = null;
         SkUiPopups.Presenter = _previousPresenter;
         SkUiLook.Current = _previousLook;
         foreach (var surface in _surfaces)
@@ -161,30 +160,10 @@ public sealed class PickerKeyboardTests : IDisposable
     }
 
     [Fact]
-    public void AWindowResizedByTheKeyboardKeepsTheAnchoredPopupOpen()
+    public void AWindowResizedClosesTheAnchoredPopup()
     {
         var picker = Picker();
         var (_, request) = Open(picker);
-        var window = (IWindow)picker.Window!;
-
-        // Only the height, while the keyboard shows (Android's adjustResize): kept open.
-        SkUiWindowMetrics.SoftKeyboardOverride = static () => true;
-        window.FrameChanged(new Rect(0, 0, 400, 500));
-        _ui.RunPending();
-        Assert.False(request.CloseRequested.IsCancellationRequested);
-
-        // The width (a turn, split view): closed, keyboard or not.
-        window.FrameChanged(new Rect(0, 0, 600, 500));
-        _ui.RunPending();
-        Assert.True(request.CloseRequested.IsCancellationRequested);
-    }
-
-    [Fact]
-    public void AWindowResizedWithoutTheKeyboardClosesTheAnchoredPopup()
-    {
-        var picker = Picker();
-        var (_, request) = Open(picker);
-        SkUiWindowMetrics.SoftKeyboardOverride = static () => false;
         ((IWindow)picker.Window!).FrameChanged(new Rect(0, 0, 400, 500));
         _ui.RunPending();
         Assert.True(request.CloseRequested.IsCancellationRequested);

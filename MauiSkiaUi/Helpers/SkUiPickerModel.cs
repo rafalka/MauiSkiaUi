@@ -384,9 +384,11 @@ internal sealed class SkUiPickerModel
 
     /// <summary>
     /// The room the chevron takes at the end side while it shows (the picker's choice, else the look's): the picker's
-    /// <see cref="ChevronAreaWidth"/>, else the look's width; none while hidden.
+    /// <see cref="ChevronAreaWidth"/>, else the look's width (the base look's on a look that keeps none); none while hidden.
     /// </summary>
-    private double ChevronWidth => (ShowsChevron ?? SkUiLook.Current.PickerShowsChevron) ? ChevronAreaWidth ?? SkUiLook.Current.PickerChevronWidth : 0;
+    private double ChevronWidth => (ShowsChevron ?? SkUiLook.Current.PickerShowsChevron) ? ChevronAreaWidth ?? LookChevronWidth : 0;
+
+    private static double LookChevronWidth => SkUiLook.Current.PickerChevronWidth is var width and > 0 ? width : SkUiLook.DefaultPickerChevronWidth;
 
     /// <summary>The space between the field's edges and its text: the picker's <see cref="Padding"/>, else the look's.</summary>
     private Thickness FieldPadding => Padding ?? SkUiLook.Current.PickerFieldPadding;
@@ -971,7 +973,6 @@ internal sealed class SkUiPickerModel
         private readonly List<SkUiScrollController> _scrollers = [];
         private readonly List<ScrollView> _nativeScrollers = [];
         private Window? _window;
-        private Size _windowSize;
         private ISkUiPickerPopupContent? _content;
         private string[] _texts = [];
         private object?[]? _sourceItems;
@@ -1124,10 +1125,7 @@ internal sealed class SkUiPickerModel
             _sourceItems = null;
         }
 
-        /// <summary>
-        /// An anchored popup closes when its anchor scrolls (a drawn or a MAUI scroller around it) or the window resizes, but for
-        /// the soft keyboard (only the height changed while it shows: Android's <c>adjustResize</c>), which the popup keeps clear of.
-        /// </summary>
+        /// <summary>An anchored popup closes when its anchor scrolls (a drawn or a MAUI scroller around it) or the window resizes.</summary>
         private void WatchAnchor()
         {
             for (ISkUiRenderable? current = model._owner.Node.RenderParent; current is not null; current = current.RenderParent)
@@ -1144,10 +1142,7 @@ internal sealed class SkUiPickerModel
                 }
             _window = anchor.Window;
             if (_window is not null)
-            {
-                _windowSize = new Size(_window.Width, _window.Height);
                 _window.SizeChanged += OnWindowSizeChanged;
-            }
         }
 
         private void StopWatching()
@@ -1165,19 +1160,7 @@ internal sealed class SkUiPickerModel
 
         private void OnNativeScrolled(object? sender, ScrolledEventArgs args) => Close();
 
-        private void OnWindowSizeChanged(object? sender, EventArgs args)
-        {
-            if (_window is not { } window)
-                return;
-            var size = new Size(window.Width, window.Height);
-            var keyboard = Math.Abs(size.Width - _windowSize.Width) < WindowSizeTolerance && SkUiWindowMetrics.IsSoftKeyboardShown(surfaceRoot);
-            _windowSize = size;
-            if (!keyboard)
-                Close();
-        }
-
-        // A window this little wider or narrower (rounding) keeps its width.
-        private const double WindowSizeTolerance = 0.5;
+        private void OnWindowSizeChanged(object? sender, EventArgs args) => Close();
     }
 
     #endregion

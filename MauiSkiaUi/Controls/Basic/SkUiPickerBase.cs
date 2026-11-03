@@ -264,9 +264,9 @@ public abstract class SkUiPickerBase : SkUiView, ISkUiFontElement, ISkUiFieldChr
         propertyChanged: (view, _, value) => ((SkUiPickerBase)view).Apply(model => model.ShowsChevron = (bool?)value, measure: true));
 
     /// <summary>
-    /// Whether the field shows a chevron at its end side, in the look's <see cref="SkUiLook.PickerChevronWidth"/>. <c>null</c>
-    /// (default): the look's <see cref="SkUiLook.PickerShowsChevron"/> (the default and Windows looks show one; the iOS, Mac and
-    /// Android looks, as MAUI's pickers there, none). <c>true</c>: on every look. <c>false</c>: none, its room goes to the text or <see cref="SkUiPicker.SelectedItemTemplate"/>
+    /// Whether the field shows a chevron at its end side, in the look's <see cref="SkUiLook.PickerChevronWidth"/> (the base look's 32
+    /// on a look that keeps none). <c>null</c> (default): the look's <see cref="SkUiLook.PickerShowsChevron"/> (the default and
+    /// Windows looks show one; the iOS, Mac and Android looks, as MAUI's pickers there, none). <c>true</c>: on every look. <c>false</c>: none, its room goes to the text or <see cref="SkUiPicker.SelectedItemTemplate"/>
     /// and the clear button moves to the end. A custom field painter gets empty <c>ChevronBounds</c> without one. SkiaUi extension.
     /// </summary>
     public bool? IsChevronVisible { get => (bool?)GetValue(IsChevronVisibleProperty); set => SetValue(IsChevronVisibleProperty, value); }
