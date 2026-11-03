@@ -18,6 +18,10 @@ Publishing (the NuGet publish workflow, [docs/Releasing.md](docs/Releasing.md)) 
 
 ## Unreleased
 
+### Fixes
+
+- **Android: check boxes, radio buttons, switches and selected chips no longer crash accessibility with `Xamarin.AndroidX.Core` 1.19:** an app that resolves 1.19 (through Google Play Services, `Xamarin.AndroidX.CustomView` 1.2.0.4 and others) threw `MissingMethodException: AccessibilityNodeInfoCompat.set_Checked(bool)` as soon as TalkBack or a UI-test driver (UiAutomator, Maestro) read a drawn view with a check state, since that binding turned `Checked` into the tri-state `int`. The checked state is now set on the platform node, which works with every AndroidX version; on Android 16+ all three states go through `CheckedState` (a mixed check box is partially checked, as before). CI also builds the Android TFM against the newest `Xamarin.AndroidX.Core`, so a binding change like this one fails the build (issue #78).
+
 ## 1.5.0
 
 ### New features

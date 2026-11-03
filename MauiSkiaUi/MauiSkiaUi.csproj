@@ -86,4 +86,13 @@
 		<PackageReference Include="SkiaSharp.Views.Maui.Controls" Version="$(SkiaSharpVersion)" Condition="'$(TargetFramework)' != 'net10.0'" />
 	</ItemGroup>
 
+	<!--
+		CI only (never packed): builds the Android TFM against a newer Xamarin.AndroidX.Core than MAUI brings, as apps resolve
+		through Google Play Services and other libraries, so a binding change that would fail at run time (a MissingMethodException,
+		issue #78) fails the build instead: dotnet build -f net10.0-android -p:SkUiAndroidXCoreVersion=1.19.0.1
+	-->
+	<ItemGroup Condition="'$(SkUiAndroidXCoreVersion)' != '' and $([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">
+		<PackageReference Include="Xamarin.AndroidX.Core" Version="$(SkUiAndroidXCoreVersion)" />
+	</ItemGroup>
+
 </Project>

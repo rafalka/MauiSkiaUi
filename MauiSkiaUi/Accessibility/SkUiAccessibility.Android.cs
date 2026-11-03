@@ -244,9 +244,20 @@ internal sealed class SkUiAccessibilityHelper : ExploreByTouchHelper
         if (element.CheckState is { } state)
         {
             node.Checkable = true;
-            node.Checked = state == SkUiCheckState.Checked;
-            if (state == SkUiCheckState.Indeterminate && OperatingSystem.IsAndroidVersionAtLeast(36) && node.Unwrap() is AccessibilityNodeInfo info)
-                info.CheckedState = CheckedState.Partial;
+            // On the platform node, not the compat one: AndroidX.Core 1.19's binding turned the compat Checked from a bool
+            // into the tri-state int, so either form breaks with the other version an app resolves (issue #78).
+            if (node.Unwrap() is AccessibilityNodeInfo info)
+            {
+                if (OperatingSystem.IsAndroidVersionAtLeast(36))
+                    info.CheckedState = state switch
+                    {
+                        SkUiCheckState.Checked => CheckedState.True,
+                        SkUiCheckState.Indeterminate => CheckedState.Partial,
+                        _ => CheckedState.False
+                    };
+                else
+                    info.Checked = state == SkUiCheckState.Checked;
+            }
         }
         if (element.Range is { } range)
             node.RangeInfo = AccessibilityNodeInfoCompat.RangeInfoCompat.Obtain(

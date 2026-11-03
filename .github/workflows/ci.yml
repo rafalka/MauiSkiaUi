@@ -166,6 +166,48 @@ jobs:
           path: artifacts/device-tests/ci
           if-no-files-found: ignore
 
+  # The Android TFM as MAUI resolves it, and against the newest Xamarin.AndroidX.Core that apps get through Google Play
+  # Services and other libraries: a binding change there (issue #78: AccessibilityNodeInfoCompat.Checked turned from bool
+  # into int) fails this build instead of crashing those apps. Bump ANDROIDX_CORE_VERSION when a newer binding ships.
+  build-android:
+    name: Build library (Android TFM)
+    runs-on: ubuntu-24.04
+    env:
+      ANDROIDX_CORE_VERSION: "1.19.0.1"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup .NET MAUI
+        uses: ./.github/actions/setup-dotnet-maui
+        with:
+          workloads: maui-android
+          java-version: "21"
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v4
+        with:
+          # net10.0-android defaults to API 36.
+          packages: platform-tools platforms;android-36 build-tools;36.0.0
+
+      # Scoped to the Android TFM so restore does not need the other platforms' workloads.
+      - name: Build Android TFM
+        run: >
+          dotnet build MauiSkiaUi/MauiSkiaUi.csproj
+          -c Release
+          -f net10.0-android
+          -p:TargetFrameworks=net10.0-android
+          -p:ContinuousIntegrationBuild=true
+
+      - name: Build Android TFM (newest Xamarin.AndroidX.Core)
+        run: >
+          dotnet build MauiSkiaUi/MauiSkiaUi.csproj
+          -c Release
+          -f net10.0-android
+          -p:TargetFrameworks=net10.0-android
+          -p:SkUiAndroidXCoreVersion=${{ env.ANDROIDX_CORE_VERSION }}
+          -p:ContinuousIntegrationBuild=true
+
   build-windows:
     name: Build libraries (Windows TFM)
     runs-on: windows-latest
