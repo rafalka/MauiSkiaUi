@@ -6,7 +6,7 @@ namespace MauiSkiaUi.Tests;
 /// Picker popups and the room their presenter reports (<see cref="SkUiPopupRequest.SetAvailableArea"/>: the window less the soft
 /// keyboard): an anchored searchable list stays inside it (shorter below its field, flipped above it, or on the room's bottom), a
 /// bottom pane sits on its bottom, a window popup fits its height; each returns to its bounds when the room is the whole window
-/// again, and a window resized by the keyboard keeps an anchored popup open.
+/// again; a window resize closes an anchored popup (MAUI's window does not resize for the keyboard).
 /// </summary>
 [Collection(GlobalStateCollection.Name)]
 public sealed class PickerKeyboardTests : IDisposable

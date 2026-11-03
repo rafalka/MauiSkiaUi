@@ -293,8 +293,8 @@ public abstract class SkUiPickerBase : SkUiView, ISkUiFontElement, ISkUiFieldChr
 
     /// <summary>
     /// The room the shown chevron takes at the field's end side, in DIPs (the chevron is centered in it; a narrow one puts it
-    /// closer to the text); <c>null</c> (default): the look's <see cref="SkUiLook.PickerChevronWidth"/>. No room while the
-    /// chevron is hidden (<see cref="IsChevronVisible"/>). SkiaUi extension.
+    /// closer to the text); <c>null</c> (default): the look's <see cref="SkUiLook.PickerChevronWidth"/> (the base look's 32 on a
+    /// look that keeps none). No room while the chevron is hidden (<see cref="IsChevronVisible"/>). SkiaUi extension.
     /// </summary>
     public double? ChevronAreaWidth { get => (double?)GetValue(ChevronAreaWidthProperty); set => SetValue(ChevronAreaWidthProperty, value); }
 

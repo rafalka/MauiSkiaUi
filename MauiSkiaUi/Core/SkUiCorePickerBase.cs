@@ -127,7 +127,7 @@ public abstract class SkUiCorePickerBase : SkUiCoreNode, ISkUiFontElement, ISkUi
     /// <summary>The shown chevron's width in DIPs; <c>null</c> (default): the look's (see <see cref="SkUiPickerBase.ChevronSize"/>).</summary>
     public double? ChevronSize { get => Model.ChevronSize; set => SetChevronSize(value); }
 
-    /// <summary>The room the shown chevron takes at the end side in DIPs; <c>null</c> (default): the look's (see <see cref="SkUiPickerBase.ChevronAreaWidth"/>).</summary>
+    /// <summary>The room the shown chevron takes at the end side in DIPs; <c>null</c> (default): the look's, else the base look's 32 (see <see cref="SkUiPickerBase.ChevronAreaWidth"/>).</summary>
     public double? ChevronAreaWidth { get => Model.ChevronAreaWidth; set => SetChevronAreaWidth(value); }
 
     /// <summary>The space between the field's edges and its text in DIPs; <c>null</c> (default): the look's (see <see cref="SkUiPickerBase.TextPadding"/>).</summary>
