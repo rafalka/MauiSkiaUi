@@ -138,6 +138,63 @@ public class SurfaceResizeTests
         Assert.Equal(SKColors.Blue, resized.GetPixel(20, 55));
     }
 
+    [Fact]
+    public void TouchesFollowTheRootHeldAgainstTheTop()
+    {
+        var (root, queue) = Root();
+        using var renderer = Present(root, queue);
+        Draw(renderer, Width, Height).Dispose();
+        Draw(renderer, Width, 60).Dispose();
+
+        // Drawn at its scale, not stretched: a pixel near the surface's bottom is the root's white middle, not its bottom band.
+        AssertPoint(new Point(20, 55), renderer.PixelsToRoot(new Point(20, 55)));
+        AssertPoint(new Point(20, 55), renderer.DipsToRoot(new Point(20, 55)));
+    }
+
+    [Fact]
+    public void TouchesFollowTheRootHeldAgainstTheBottom()
+    {
+        var (root, queue) = Root();
+        root.SurfaceKeepsBottom = true;
+        using var renderer = Present(root, queue);
+        Draw(renderer, Width, Height).Dispose();
+
+        // Laid out shorter before the surface is resized: drawn 40 pixels down, its bottom band at the surface's bottom.
+        Layout(root, renderer, queue, 60);
+        Draw(renderer, Width, Height).Dispose();
+        AssertPoint(new Point(20, 55), renderer.PixelsToRoot(new Point(20, 95)));
+        AssertPoint(new Point(20, 55), renderer.DipsToRoot(new Point(20, 95)));
+
+        // Resized: surface and root agree again.
+        Draw(renderer, Width, 60).Dispose();
+        AssertPoint(new Point(20, 55), renderer.PixelsToRoot(new Point(20, 55)));
+        AssertPoint(new Point(20, 55), renderer.DipsToRoot(new Point(20, 55)));
+    }
+
+    [Fact]
+    public void TouchesOnASurfaceThatScalesFramesToTheViewFollowTheView()
+    {
+        var (root, queue) = Root();
+        using var renderer = Present(root, queue);
+        renderer.Compositor.ScalesFrameToView = true;
+        Draw(renderer, Width, Height).Dispose();
+
+        // Filled: the buffer's pixels stretch over the root, and the view already has the root's size.
+        Layout(root, renderer, queue, 60);
+        Draw(renderer, Width, Height).Dispose();
+        AssertPoint(new Point(20, 57), renderer.PixelsToRoot(new Point(20, 95)));
+        AssertPoint(new Point(20, 57), renderer.DipsToRoot(new Point(20, 57)));
+    }
+
+    private static void AssertPoint(Point expected, Point? actual)
+    {
+        Assert.NotNull(actual);
+        Assert.Equal(expected.X, actual.Value.X, PointTolerance);
+        Assert.Equal(expected.Y, actual.Value.Y, PointTolerance);
+    }
+
+    private const double PointTolerance = 0.01;
+
     /// <summary>Lays the root out to <paramref name="height"/> and commits the frame.</summary>
     private static void Layout(SkUiBox root, SkUiFrameRenderer renderer, Queue<Action> queue, int height)
     {

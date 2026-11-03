@@ -21,6 +21,7 @@ internal sealed class SkUiFrameRenderer : IDisposable
     private readonly object _sizeLock = new();
     private SKSizeI _pixelSize;
     private Size _dipSize;
+    private SKMatrix _surfaceMatrix = SKMatrix.Identity;
     private int _frameQueued;
     private int _repaintPending;
     private int _gate;
@@ -139,6 +140,7 @@ internal sealed class SkUiFrameRenderer : IDisposable
         {
             _pixelSize = info.Size;
             _dipSize = Compositor.RootSize;
+            _surfaceMatrix = Compositor.PresentedSurfaceMatrix;
         }
         return needsFrame;
     }
@@ -158,24 +160,43 @@ internal sealed class SkUiFrameRenderer : IDisposable
     internal void Replay(SKCanvas canvas, SKImageInfo info) => Render(canvas, info);
 
     /// <summary>UI thread: maps a surface-pixel touch into root DIPs and dispatches it into the tree.</summary>
-    internal bool TouchPixels(SkUiTouchEvent touch)
+    internal bool TouchPixels(SkUiTouchEvent touch) =>
+        PixelsToRoot(touch.Position) is { } position && TouchRoot(touch with { Position = position });
+
+    /// <summary>
+    /// UI thread: a surface point in pixels in root DIPs, through the transform the shown frame was drawn with (the root fills the
+    /// surface, or keeps its scale while its layout and the surface's size disagree); <c>null</c> before a frame was drawn.
+    /// </summary>
+    internal Point? PixelsToRoot(Point pixel)
     {
         SKSizeI pixels;
         Size dips;
+        SKMatrix matrix;
         lock (_sizeLock)
         {
             pixels = _pixelSize;
             dips = _dipSize;
+            matrix = _surfaceMatrix;
         }
-        if (_disposed || pixels.Width <= 0 || pixels.Height <= 0 || dips.Width <= 0 || dips.Height <= 0)
-            return false;
-        return TouchDips(touch with
-        {
-            Position = new Point(touch.Position.X * dips.Width / pixels.Width, touch.Position.Y * dips.Height / pixels.Height)
-        });
+        if (_disposed || pixels.Width <= 0 || pixels.Height <= 0 || dips.Width <= 0 || dips.Height <= 0 || !matrix.TryInvert(out var toRoot))
+            return null;
+        var point = toRoot.MapPoint((float)pixel.X, (float)pixel.Y);
+        return new Point(point.X, point.Y);
     }
 
-    /// <summary>UI thread: dispatches a touch already in root-surface DIPs.</summary>
+    /// <summary>
+    /// UI thread: a surface point in DIPs (the platform view's) in root DIPs. They agree but while the shown frame keeps the
+    /// root's scale against the surface's bottom (<see cref="SkUiView.SurfaceKeepsBottom"/>): the root is drawn that much lower.
+    /// Kept against the top, the root is drawn at the view's own scale from its origin; filling it, the view has the root's size.
+    /// </summary>
+    internal Point DipsToRoot(Point point)
+    {
+        SKMatrix matrix;
+        lock (_sizeLock)
+            matrix = _surfaceMatrix;
+        return matrix.ScaleY > 0 ? new Point(point.X, point.Y - matrix.TransY / matrix.ScaleY) : point;
+    }
+
     /// <summary>
     /// UI thread: a pointer that started on the native overlay of <paramref name="overlay"/> (surface DIPs). Only the
     /// continuous gestures of the overlay's drawn ancestors see it (<see cref="SkUiPointerRouter.DispatchFromOverlay"/>).
@@ -191,7 +212,11 @@ internal sealed class SkUiFrameRenderer : IDisposable
         return _root.Router.StateOf(touch.Id);
     }
 
-    internal bool TouchDips(SkUiTouchEvent touch)
+    /// <summary>UI thread: dispatches a touch in surface DIPs (<see cref="DipsToRoot"/>).</summary>
+    internal bool TouchDips(SkUiTouchEvent touch) => TouchRoot(touch with { Position = DipsToRoot(touch.Position) });
+
+    /// <summary>UI thread: dispatches a touch in root DIPs.</summary>
+    private bool TouchRoot(SkUiTouchEvent touch)
     {
         if (_disposed)
             return false;
@@ -236,6 +261,7 @@ internal sealed class SkUiFrameRenderer : IDisposable
         {
             _pixelSize = default;
             _dipSize = default;
+            _surfaceMatrix = SKMatrix.Identity;
         }
     }
 }

@@ -180,6 +180,12 @@ internal sealed class SkUiCompositor : IDisposable
     /// <summary>Root DIP size last applied by the render thread.</summary>
     internal Size RootSize { get; private set; }
 
+    /// <summary>
+    /// Render thread: the root's transform into the surface's pixels the last frame was drawn with (<see cref="SurfaceMatrix"/>):
+    /// it fills the surface, or keeps its scale while its layout and the surface's size disagree. Touches are mapped back through it.
+    /// </summary>
+    internal SKMatrix PresentedSurfaceMatrix => _surfaceMatrix;
+
     /// <summary>True while another frame is required (pending commits, running animations, spinning content).</summary>
     internal bool NeedsFrame => _hasPending || _continuous || Volatile.Read(ref _activeAnimations) > 0;
 
