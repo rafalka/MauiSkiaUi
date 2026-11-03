@@ -86,6 +86,8 @@ The immediate `ISkUiView.Paint(SKCanvas)` / `ISkUiCoreNode.Paint` path (`SkUiImm
 
 On Android, SkiaSharp's `SKGLTextureViewRenderer` builds its render target on the framebuffer bound when the surface is created or resized. Skia leaves its own offscreen framebuffers bound after drawing into them (the GPU warm-up, layers, filters), so `SkUiGlTextureView` binds the window's framebuffer (0) and resets Skia's cached GL state before each resize; otherwise every frame after a rotation draws offscreen.
 
+A surface often gets its new size a frame or two before the frame that lays out that size is committed: the platform view is resized during layout, and the UI thread records the new layout on its next pass. Until they agree, `SkUiCompositor` draws the last committed tree at the scale it was last drawn at, against the surface's top or, when the root sets `SkUiView.SurfaceKeepsBottom` (a popup that resizes against its bottom edge), its bottom, instead of stretching it over the new size; for `MaxHeldFrames` at most, and not when only the pixel density changed. In the other order (the tree laid out first, the buffer still the old size, as on Android, whose texture view scales the buffer to the view), the tree fills the buffer as usual.
+
 Metal replaces SkiaSharp's MAUI `SKGLView` on Apple platforms. That view is backed by the deprecated GLKView/OpenGL ES, and it needed a full-frame offscreen blit to avoid ghost strokes. Rendering pauses in the background and resumes in the foreground, because iOS forbids GPU work in the background.
 
 ## Animation tiers

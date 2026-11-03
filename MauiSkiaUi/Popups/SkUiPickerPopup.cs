@@ -220,6 +220,8 @@ internal sealed class SkUiPickerPopup : SkUiContentView, ISkUiKeyHandler, ISkUiP
             if (layout.OpensAbove)
                 LayOutParts(_searchUnderRows = true);
         }
+        // Resized, the drawn content stays where the popup's edge does until it is laid out to the new size.
+        SurfaceKeepsBottom = layout.OpensAbove || layout.Placement == SkUiPopupPlacement.BottomPane;
         // Handed to the request, which lets go of it when it completes: a presenter may keep this content, and it must not keep the picker.
         _choose = null;
         return request;
@@ -350,6 +352,8 @@ internal sealed class SkUiPickerPopup : SkUiContentView, ISkUiKeyHandler, ISkUiP
         // A bottom pane over the soft keyboard: no room kept for the home indicator the keyboard covers.
         if (_opened.Placement == SkUiPopupPlacement.BottomPane)
             Padding = SkUiPopupGeometry.PaneContentPadding(_opened.SafeAreaInsets, _opened.WindowSize, available);
+        // Committed with the next frame, after a resize: set while the popup stays put, so it is in place for the next resize.
+        SurfaceKeepsBottom = bottomStays || _opened.Placement == SkUiPopupPlacement.BottomPane;
         if (bounds == request.Bounds)
             return;
         SkUiPopupParts.Fit(this, bounds, request.CornerRadius);

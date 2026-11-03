@@ -1394,6 +1394,13 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
         ResolveBackgroundFill() is { Gradient: null, Color.Alpha: 255 } fill ? fill.Color : SKColors.Transparent;
 
     /// <summary>
+    /// For a surface root: the edge its content stays against while the surface is resized ahead of the root's new layout (a frame
+    /// or two, until the UI thread commits it): the bottom when <c>true</c> (a popup that resizes against its bottom edge), the top
+    /// otherwise (default). Committed with the next frame.
+    /// </summary>
+    internal bool SurfaceKeepsBottom { get; set; }
+
+    /// <summary>
     /// Default Background when <see cref="PaintBackground"/> is unset: the view's rectangle filled with
     /// <see cref="ResolveBackgroundPaint"/> (solid colors and gradients). Subclasses may call this from a custom
     /// <see cref="PaintBackground"/> painter.

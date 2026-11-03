@@ -94,7 +94,8 @@ internal sealed class SkUiFrameRenderer : IDisposable
 #if SKUI_DIAGNOSTICS
             var recordWatch = Stopwatch.StartNew();
 #endif
-            var batch = _recorder.Sync(_root, (float)_root.Width, (float)_root.Height, _root.SurfaceClearColor, forceRoot: !_committedOnce);
+            var batch = _recorder.Sync(_root, (float)_root.Width, (float)_root.Height, _root.SurfaceClearColor, forceRoot: !_committedOnce,
+                _root.SurfaceKeepsBottom);
 #if SKUI_DIAGNOSTICS
             // UI-thread cost of recording this frame (stress harness metric).
             if (batch is not null)

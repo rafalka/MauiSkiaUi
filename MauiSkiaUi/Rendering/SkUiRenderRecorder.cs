@@ -16,7 +16,7 @@ internal sealed class SkUiRenderRecorder : IDisposable
     internal int RecordedPictures { get; private set; }
 
     /// <summary>Records pending changes under <paramref name="root"/>; returns <c>null</c> when nothing changed.</summary>
-    internal SkUiRenderBatch? Sync(ISkUiRenderable root, float rootWidth, float rootHeight, SKColor clearColor, bool forceRoot)
+    internal SkUiRenderBatch? Sync(ISkUiRenderable root, float rootWidth, float rootHeight, SKColor clearColor, bool forceRoot, bool keepsBottom = false)
     {
         var batch = new SkUiRenderBatch();
         SyncNode(root, isRoot: true, batch);
@@ -26,6 +26,7 @@ internal sealed class SkUiRenderRecorder : IDisposable
         batch.RootWidth = rootWidth;
         batch.RootHeight = rootHeight;
         batch.ClearColor = clearColor;
+        batch.KeepsBottom = keepsBottom;
         return batch;
     }
 

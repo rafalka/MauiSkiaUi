@@ -392,6 +392,8 @@ public sealed class PickerSearchTests : IDisposable
         Assert.True(request.OpensAbove);
         var search = content.SearchBar!;
         Assert.True(Grid.GetRow(search) > Grid.GetRow(content.List));
+        // Drawn against its bottom edge while the surface is resized ahead of the new layout.
+        Assert.True(content.SurfaceKeepsBottom);
         var opened = request.Bounds;
         request.BoundsChanged += (_, _) => { };
 
@@ -400,6 +402,7 @@ public sealed class PickerSearchTests : IDisposable
         Assert.Equal(opened.Bottom, bounds.Bottom, Tolerance);
         Assert.Equal(HeightFor(content, 2, opened.Width), bounds.Height, Tolerance);
         Assert.True(bounds.Top > opened.Top);
+        Assert.True(content.SurfaceKeepsBottom);
     }
 
     [Fact]
@@ -407,6 +410,10 @@ public sealed class PickerSearchTests : IDisposable
     {
         var content = Open(Picker());
         Assert.True(Grid.GetRow(content.SearchBar!) < Grid.GetRow(content.List));
+        Assert.False(content.SurfaceKeepsBottom);
+        _presenter.Current!.BoundsChanged += (_, _) => { };
+        content.Filter("ber");
+        Assert.False(content.SurfaceKeepsBottom);
     }
 
     [Fact]
