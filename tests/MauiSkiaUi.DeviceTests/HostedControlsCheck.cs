@@ -9,7 +9,8 @@ namespace MauiSkiaUi.DeviceTests;
 /// says it is: its frame, its visible part (scroll viewports) and whether it shows (snapshots, collapsed content).
 /// Steps: first layout, instant scrolls of both scrollers, an animated scroll (snapshots on Android / Windows, live on
 /// Apple) and the restore after it, a focused Entry staying live while scrolling, expanding and collapsing, replacing
-/// a hosted control, and resizing a clipping ancestor and the scroller without an offset change. What it cannot see (the soft keyboard, IME composition, touch nesting in a WebView)
+/// a hosted control, and resizing a clipping ancestor and the scroller without an offset change. What it cannot see
+/// (the soft keyboard, IME composition, touch nesting in a WebView)
 /// is on the manual checklist in docs/design/Testing.md. The comparison is
 /// <see cref="SkUiMauiContentView.FindNativePlacementMismatch"/> (shared with the overlay demo page); its tolerance can
 /// be overridden (<c>--placement-tolerance</c>) to prove the check fails on real mismatches.
@@ -211,7 +212,8 @@ internal static class HostedControlsCheck
 
     /// <summary>
     /// The check page: a drawn scroller with an Entry, an Editor, a horizontal scroller holding an Entry, a collapsed
-    /// expander holding an Entry, a WebView and an Entry that gets replaced, with drawn rows between them.
+    /// expander holding an Entry, a WebView, an Entry that gets replaced and an Entry under an ancestor with
+    /// <see cref="SkUiView.ClipToBounds"/>, with drawn rows between them.
     /// </summary>
     private sealed class Form
     {
