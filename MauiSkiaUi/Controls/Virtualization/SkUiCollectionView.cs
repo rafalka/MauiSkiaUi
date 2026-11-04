@@ -92,6 +92,7 @@ public partial class SkUiCollectionView : SkUiView, ISkUiItemsView, ISkUiRefresh
             if (args.PropertyName is nameof(FirstVisibleIndex) or nameof(LastVisibleIndex))
                 OnVisibleRowsChanged();
         };
+        _items.BandIndicesChanged += CheckLoadMore;
         _items.ScrollTargetInset = StickyGroupInset;
         _model = new ItemsModel(this);
         _body = new BodyPart(this);

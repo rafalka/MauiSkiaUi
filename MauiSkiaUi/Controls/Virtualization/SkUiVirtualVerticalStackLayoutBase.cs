@@ -417,6 +417,9 @@ public abstract class SkUiVirtualVerticalStackLayoutBase : SkUiView, ISkUiScroll
     /// <summary>The last item showing in the part of the window the scrollers' insets leave uncovered, or -1.</summary>
     internal int LastIndexInBand { get; private set; } = -1;
 
+    /// <summary><see cref="FirstIndexInBand"/> or <see cref="LastIndexInBand"/> changed (also while the visible indices stay: the insets changed).</summary>
+    internal event Action? BandIndicesChanged;
+
     /// <summary>Whether the layout has been laid out (it has a window and item sizes).</summary>
     internal bool HasWindow => !double.IsNaN(_cross) && !double.IsNaN(_arrangedWidth);
 
@@ -1421,6 +1424,8 @@ public abstract class SkUiVirtualVerticalStackLayoutBase : SkUiView, ISkUiScroll
             return;
         FirstIndexInBand = firstInBand;
         LastIndexInBand = lastInBand;
+        if (BandIndicesChanged is not null)
+            Raise(() => BandIndicesChanged?.Invoke());
         // Checked when what shows changes, not when items are added: a page appended item by item fires once. An item behind a
         // bar has not been reached yet.
         if (_remainingItemsThreshold >= 0 && lastInBand >= 0 && lastInBand >= _sizes.Count - 1 - _remainingItemsThreshold && _thresholdCount != _sizes.Count)

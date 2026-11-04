@@ -33,9 +33,11 @@ public partial class SkUiView
     /// <summary>The first read of <see cref="SafeAreaInsets"/>: its value now, kept up to date from here on.</summary>
     private Thickness StartTrackingSafeAreaInsets()
     {
-        _tracksSafeAreaInsets = true;
-        // Read before the view is in a window: the window's insets are known from then on, also without a new arrange.
+        // Read before the view is in a window: the window's insets are known from then on, also without a new arrange. Before
+        // tracking starts: on a view already loaded, MAUI invokes the handler right here, inside this value's creation, where
+        // setting the value would create it again.
         Loaded += (_, _) => UpdateSafeAreaInsets(Frame);
+        _tracksSafeAreaInsets = true;
         return WindowInsetsFor(Frame);
     }
 

@@ -718,6 +718,23 @@ public class ViewportInsetsTests
     }
 
     [Fact]
+    public void LoadMoreRunsWhenTheBandReachesTheEndWithoutAScroll()
+    {
+        var loads = 0;
+        // 500 of rows in 500: only the bottom bar keeps the last row out of the band, and nothing scrolls when it goes.
+        var list = List(10, new Thickness(0, 0, 0, 100));
+        list.LoadMoreMode = SkUiLoadMoreMode.Auto;
+        list.LoadMoreCommand = new Command(() => loads++);
+        SkUiTestHelpers.Arrange(list, 300, 500);
+        Assert.Equal(0, loads);
+
+        list.ViewportInsets = default;
+        SkUiTestHelpers.Arrange(list, 300, 500);
+        Assert.Equal(0, list.ScrollY);
+        Assert.Equal(1, loads);
+    }
+
+    [Fact]
     public void LoadMoreAtTheStartWaitsForTheBandsStart()
     {
         var loads = 0;
@@ -990,6 +1007,23 @@ public class ViewportInsetsTests
         Assert.Equal(default, child.SafeAreaInsets);
         SkUiTestHelpers.Arrange(root, 400, 800);
         Assert.Equal(default, child.SafeAreaInsets);
+    }
+
+    [Fact]
+    public void AFirstReadOnALoadedRootReturnsTheInsetsAndKeepsFollowing()
+    {
+        using var scope = new WindowScope(new Size(400, 800), Point.Zero, PhoneInsets);
+        var root = new SkUiGrid();
+        SkUiTestHelpers.Arrange(root, 400, 800);
+        // Loaded already: MAUI invokes a new Loaded handler while it is added, here inside the value's creation.
+        typeof(VisualElement).GetField("_isLoadedFired", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!.SetValue(root, true);
+
+        Assert.Equal(PhoneInsets, root.SafeAreaInsets);
+
+        var landscape = new Thickness(47, 0, 47, 21);
+        scope.Set(new Size(800, 400), Point.Zero, landscape);
+        SkUiTestHelpers.Arrange(root, 800, 400);
+        Assert.Equal(landscape, root.SafeAreaInsets);
     }
 
     [Fact]

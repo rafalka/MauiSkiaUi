@@ -67,8 +67,8 @@ Item views that take their data from the binding context in `OnBindingContextCha
 | `PrefetchBehindFactor` | 0.5 | Viewport lengths kept created behind the window |
 | `ReleaseFactor` | 2 | Items further than this many viewport lengths are released (never closer than the prefetch distance plus half a viewport); `∞` keeps every created item |
 | `PrefetchBudget` | `null` (automatic) | UI-thread time per frame for prefetch (at least one item per frame); leave it automatic |
-| `RemainingItemsThreshold` | -1 | When what shows changes and the last visible item is this close to the end, `RemainingItemsThresholdReached` is raised and `RemainingItemsThresholdReachedCommand` (+ `…Parameter`) runs, once per item count |
-| `ItemCount`, `FirstVisibleIndex`, `LastVisibleIndex` | | Read-only; the visible indices raise `PropertyChanged` |
+| `RemainingItemsThreshold` | -1 | When what shows changes and the last item in the uncovered band (see below) is this close to the end, `RemainingItemsThresholdReached` is raised and `RemainingItemsThresholdReachedCommand` (+ `…Parameter`) runs, once per item count |
+| `ItemCount`, `FirstVisibleIndex`, `LastVisibleIndex` | | Read-only; the visible indices raise `PropertyChanged`. They count items showing under views drawn over the scroller |
 | `ScrollToIndex(index, position, animated)`, `ScrollToItem(item, …)` | | Scrolls the innermost vertical scroller around the layout (`MakeVisible`, `Start`, `Center`, `End`). The item is measured first; it keeps its place on screen while items before it are measured on the way, so it lands where asked |
 | `GetRealizedView(index)`, `RemeasureItem(index)` | | The item's view while realized; measure an item again (a released item's height is forgotten and estimated) |
 | `ItemRealized`, `ItemReleased` | | `SkUiVirtualItemEventArgs`: `Index`, `View`, `Item` |
@@ -101,6 +101,10 @@ Creating an item view (inflating its template, binding, measuring) runs on the U
 - **Falling behind:** when items had to be created as they came into view during a scroll, the next budgets are doubled (up to 4×), then relax again.
 
 **Fixed.** Setting a `TimeSpan` replaces the automatic budget: `TimeSpan.Zero` creates one prefetched item per frame (deterministic steps, tests); a large value creates everything ahead in one frame. The **SkUiVirtualVerticalStackLayout** demo page shows the item cost, the budget in use and the frame length in its status line.
+
+## Under drawn bars
+
+The layout has no `ViewportInsets` of its own: it has no viewport to cover. It follows the insets of the [`SkUiScrollView`](SkUiScrollView.md#how-it-works) around it (`SkUiVirtualScrollView` inherits them): `ScrollToIndex`, `ScrollToItem` and snap points place items in the band the insets leave, and `RemainingItemsThreshold` waits for an item to reach that band, so an item still behind a bottom bar has not been reached.
 
 ## Custom lists (`SkUiVirtualVerticalStackLayoutBase`)
 
