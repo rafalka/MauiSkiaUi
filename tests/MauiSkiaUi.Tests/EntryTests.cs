@@ -582,10 +582,16 @@ public class EntryTests
         var root = surface.Root;
         surface.Frame();
         Assert.True(field.Focus());
+        // The outer scroller moves in a continuation of the inner one's scroll: on the test thread between frames, as in the
+        // app. On a pool thread it can start too late for the frames below.
+        using var ui = TestUiContext.Install();
         // The keyboard covers the whole inner scroller (y 420 to 570): only the outer one can bring the field above it.
         root.FocusManager.SetKeyboardTop(300);
         for (var time = 0; time <= 2000; time += 50)
+        {
             surface.Frame(time);
+            ui.RunPending();
+        }
         Assert.Equal(150, inner.KeyboardInset, 1);
         Assert.Equal(300, outer.KeyboardInset, 1);
         var bounds = SkUiDiagnostics.GetRootBounds(field)!.Value;
