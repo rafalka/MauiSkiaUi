@@ -34,7 +34,7 @@ Checked against .NET MAUI 10.0.120 (`MauiApiParityTests` compares every drawn co
 | RadioButton | SkUi* + Core | Done: `Content` (text or a drawn view), text properties, border chrome, `ControlTemplate` with `SkUiContentPresenter` (SkUi* only: the Core radio stays a circle to compose; `TemplateBinding` → `AncestorType`); group exclusion, `Value`, `RadioButtonGroup` |
 | Label | SkUi* + Core | Done: text properties, spans and span taps, `TextType="Html"`, plus custom line breaking and tappable HTML links |
 | Button | SkUi* + Core | Done: `ImageSource` + `ContentLayout`, text properties |
-| Image, ImageButton | SkUi* + Core | Done, plus shared memory / disk cache, transformations, downsampling; runtime SVG files: planned |
+| Image, ImageButton | SkUi* + Core | Done, plus shared memory / disk cache, transformations, downsampling; runtime SVG files: planned for 1.7 |
 | BoxView | SkUi* + Core | Done, gradient `Background` |
 | Ellipse, Line, Rectangle, RoundRectangle, Path, Polygon, Polyline | SkUi* + Core | Done: brushes, stroke model, `Aspect`, geometries and path markup |
 | Border | SkUi* + Core | Done: `StrokeShape`, brush stroke, dashes, stroke inset and shape clip; gradient `Background` |

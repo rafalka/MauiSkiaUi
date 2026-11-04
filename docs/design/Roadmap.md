@@ -13,7 +13,9 @@ What the next releases bring, and the work after them. What has shipped is in th
 | **1.4.0** | 10.0.120 | 27 | 10.0.402 | As 1.1.0 | `master`, released 29 October 2026 |
 | **1.5.0** | 10.0.120 | 27 | 10.0.402 | As 1.1.0 | `master`, released 3 November 2026 |
 | **1.5.1** | 10.0.120 | 27 | 10.0.402 | As 1.1.0 | `master`, released 3 November 2026 |
-| **1.6.0** | 10.0.120 or a later 10.0.x | 27 | 10.0.402 | As 1.1.0 | `devel` (planned) |
+| **1.6.0** | 10.0.120 or a later 10.0.x | 27 | 10.0.402 | As 1.1.0 | `devel` (next) |
+| **1.7.0** | 10.0.120 or a later 10.0.x | 27 | 10.0.402 | As 1.1.0 | Planned |
+| **1.8.0** | 10.0.120 or a later 10.0.x | 27 | 10.0.402 | As 1.1.0 | Planned |
 
 SkiaUi stays on MAUI 10.x. Development happens on `devel`; `master` holds stable releases ([Releasing.md](../Releasing.md#branches-and-versions)).
 
@@ -34,7 +36,7 @@ Work merged into `devel` after 1.0.0 shipped with 1.1.0 too.
 
 ### 1.2.0: MAUI parity (shipped)
 
-More MAUI pages port by changing the XAML prefix: MAUI's pan, swipe, pinch and pointer recognizers on drawn views; the collection view's and carousel's `ItemsLayout`, `ScrollTo`, snap points, `ItemsUpdatingScrollMode` and text headers; `IndicatorTemplate`; MAUI 10's new members (`SafeAreaEdges` on the surface root, `Switch.OffColor`, `CheckBox.Command`); and a test that compares the drawn controls' API with MAUI's. `TemplateBinding`, data headers and platform-specifics become conversions in the migration checker. Collection view reordering follows in 1.3. Steps, order and decisions: [the archived plan](../archive/ImplementationPlan-1.2.md); what it left open is below ([1.3.0](#130-reordering-and-drawn-form-controls-next-on-devel), [backlog](#backlog-1x), [verification backlog](#verification-backlog), [held for 2.0](#held-for-20), [not planned](#not-planned)).
+More MAUI pages port by changing the XAML prefix: MAUI's pan, swipe, pinch and pointer recognizers on drawn views; the collection view's and carousel's `ItemsLayout`, `ScrollTo`, snap points, `ItemsUpdatingScrollMode` and text headers; `IndicatorTemplate`; MAUI 10's new members (`SafeAreaEdges` on the surface root, `Switch.OffColor`, `CheckBox.Command`); and a test that compares the drawn controls' API with MAUI's. `TemplateBinding`, data headers and platform-specifics become conversions in the migration checker. Collection view reordering follows in 1.3. Steps, order and decisions: [the archived plan](../archive/ImplementationPlan-1.2.md); what it left open is below ([1.3.0](#130-reordering-and-drawn-form-controls-shipped), [backlog](#backlog-1x), [verification backlog](#verification-backlog), [held for 2.0](#held-for-20), [not planned](#not-planned)).
 
 ### 1.3.0: reordering and drawn form controls (shipped)
 
@@ -59,11 +61,27 @@ Steps, order and decisions: [the archived plan](../archive/ImplementationPlan-1.
 
 Searchable picker lists (`IsSearchEnabled`), the pickers' chevron (`IsChevronVisible`, color, size and room), field padding (`TextPadding`) and a leading view in picker fields, on both layers; resized surfaces no longer stretch their content, and picker popups size every templated row ([#73](https://github.com/rafalka/MauiSkiaUi/issues/73)–[#76](https://github.com/rafalka/MauiSkiaUi/issues/76)). 1.5.1: Android accessibility with `Xamarin.AndroidX.Core` 1.19 ([#78](https://github.com/rafalka/MauiSkiaUi/issues/78)), and bugfix releases from `devel`.
 
-### 1.6.0: viewport insets, tiles, Core containers and performance (planned, on `devel`)
+### 1.6.0: viewport insets (next, on `devel`)
 
-Steps, order and open decisions: [ImplementationPlan-1.6.md](ImplementationPlan-1.6.md).
+Steps and decisions: [ImplementationPlan-1.6.md](ImplementationPlan-1.6.md). The rest of what was planned for 1.6 moved to [1.8.0](#180-performance-tiles-core-containers-and-password-reveal-planned).
 
-- **Viewport insets (done on `1.6-implementation`; device checks in the [verification backlog](#verification-backlog)):** `ViewportInsets` on the scroll views and the collection view (the virtual stack follows its scroller's), so edge-to-edge pages scroll content under drawn top and bottom bars while scroll bars, `ScrollTo`, snap points, the refresh indicator, sticky headers and keyboard reveal work in the uncovered band; the surface root's `SafeAreaInsets` readable for binding.
+- **Viewport insets (done on `devel`; device checks in the [verification backlog](#verification-backlog)):** `ViewportInsets` on the scroll views and the collection view (the virtual stack follows its scroller's), so edge-to-edge pages scroll content under drawn top and bottom bars while scroll bars, `ScrollTo`, snap points, the refresh indicator, sticky headers and keyboard reveal work in the uncovered band; the surface root's `SafeAreaInsets` readable for binding.
+- **Fix:** hosted native views follow a resize of what clips them ([#81](https://github.com/rafalka/MauiSkiaUi/issues/81), in review in [#82](https://github.com/rafalka/MauiSkiaUi/pull/82)).
+
+### 1.7.0: runtime SVG images (planned)
+
+One feature: `.svg` files drawn at runtime on both layers, from any image source (downloaded, from Raw assets, files, streams, text), in a new optional package, `SkiaUi.Maui.Svg`, so `SkiaUi.Maui` keeps no extra dependency. An SVG added as a `MauiImage` keeps working as the PNG generated at build time. Steps, order and open decisions: [ImplementationPlan-1.7.md](ImplementationPlan-1.7.md).
+
+- **Loading:** on Svg.Skia, through a vector decoder hook in the image loader, so every source gets the caches, progress and load events; parsed off the UI thread, with the intrinsic size from `width` / `height` / `viewBox`.
+- **Drawing:** vectors placed by `Aspect`, sharp at any size and under composite-time scale; a raster when the app sets decode bounds or transformations.
+- **Recoloring:** `TintColor` and text replacements before parsing, on the source.
+- **Untrusted documents:** no external requests, a nesting limit (a small file can otherwise overflow the stack and end the process), one `LoadError` for bad input.
+- **Package:** released with the others at one version ([Releasing.md](../Releasing.md)); its first publish needs a nuget.org Trusted Publishing policy. Docs and a gallery page.
+
+### 1.8.0: performance, tiles, Core containers and password reveal (planned)
+
+Moved from 1.6. Steps, order and open decisions: [ImplementationPlan-1.8.md](ImplementationPlan-1.8.md).
+
 - **Performance:** the device results measured again on the current toolchain; Core measure invalidation without re-recording ancestors; shaped borders sharing their outlines and clips.
 - **Layouts and containers:** a tile layout for galleries of equal tiles (with an overflow tile); Core twins of the state container and the expander (with independent `ScaleX` / `ScaleY` and `AnchorX` / `AnchorY` on Core nodes; animating one scale axis of a Core node no longer scales both).
 - **Text input:** password reveal (show / hide) in drawn password fields.
@@ -86,7 +104,6 @@ Multi-target the one `SkiaUi.Maui` package (`net10.0-*` plus `net11.0-*`) so app
 ### New controls and packages
 
 - **Calendar** (`SkUiCalendar` + `SkUiCoreCalendar`, [FR-33](Requirements.md#functional-requirements)): one drawn node per month, render-thread swiping on the carousel's engine, year / decade / century views, single, multiple and range selection, per-day styles; then a calendar popup for the date pickers and a date range picker. Steps F1–F7 in the [archived plan](../archive/ImplementationPlan-1.0.md#phase-f--calendar-skuicalendar).
-- **Runtime SVG images** in an optional `SkiaUi.Maui.Svg` package on Svg.Skia: SVG sources for both layers, drawn as vectors at any size, recoloring, trimming checks ([archived plan, phase E](../archive/ImplementationPlan-1.0.md#phase-e--svg-images-later)).
 - **Community Toolkit layouts** in `SkiaUi.Maui.CommunityToolkit`: drawn `UniformItemsLayout` and `DockLayout` on the toolkit's layout managers; needs `SkUiLayout.AffectsChildLayout` and `OnChildrenChanged` made public ([Popups.md](Popups.md#integration-packages)).
 
 ### MAUI parity
@@ -127,7 +144,7 @@ Multi-target the one `SkiaUi.Maui` package (`net10.0-*` plus `net11.0-*`) so app
 - Scheme defaults resolved at paint time on the Core layer: Core controls copy `SkUiColors.Accent`, `TrackOff`, `Muted` and so on into fields when they are created, so a Core tree made before `SkUiColorScheme.Current` changes (dark mode) keeps the old colors.
 - Text shadows on mid-range Android: they are cast from the glyphs and rasterized on the CPU once per item, which holds a scrolling list on the S9 at 45 fps; cast them on the GPU as outline shadows are.
 - Relayout boundaries below the surface root (the root is one); raster cache of stable subtrees with a per-frame budget, for what is expensive to composite every frame (dashed strokes of complex paths: 33 fps on the S9).
-- Core's first frame is no faster than SkUi\*'s on devices (1,000 buttons: S9 169 vs 167 ms, iPhone 8 35 vs 37 ms) although Core builds its tree three times faster; `scripts/bench.sh` `core-buttons` `firstFrame` on the S9 went from 110 to 140 ms (Release) with gradient backgrounds (MAUI parity P7). Measured again in 1.6 first ([plan, R1](ImplementationPlan-1.6.md#phase-r--performance-backed-by-measurements)).
+- Core's first frame is no faster than SkUi\*'s on devices (1,000 buttons: S9 169 vs 167 ms, iPhone 8 35 vs 37 ms) although Core builds its tree three times faster; `scripts/bench.sh` `core-buttons` `firstFrame` on the S9 went from 110 to 140 ms (Release) with gradient backgrounds (MAUI parity P7). Measured again in 1.8 first ([plan, R1](ImplementationPlan-1.8.md#phase-r--performance-backed-by-measurements)).
 - Recording Core-only subtrees off the UI thread (the look, the color scheme and the text and image caches would have to be safe to read from it); hit-testing against render-thread transforms while animations run.
 - Overlay masks, so drawn popups can cover hosted native controls (mostly WebView, media and maps now that text fields are drawn); cheaper overlay bookkeeping on Android.
 - A test that keeps the Core layer to [FR-C1](Requirements.md#core-layer-fr-c): no Core node derives from `BindableObject` or `Element`, and the `Microsoft.Maui.Controls` types the Core API uses (`FontAttributes`, `DataTemplate` for picker popups, the host's `SkUiView`) are a list a new one has to join.
