@@ -1303,6 +1303,8 @@ public abstract class SkUiVirtualVerticalStackLayoutBase : SkUiView, ISkUiScroll
             var frameLength = _horizontal ? node.Frame.Width : node.Frame.Height;
             if (frameLength >= 0)
                 y += _horizontal ? node.Frame.X : node.Frame.Y;
+            else if (parent is SkUiScrollView unarranged)
+                y += unarranged.CoverAlong(_horizontal).Before; // where the first arrange will put the scroller's content
             if (parent is SkUiScrollView scroller)
             {
                 var (offset, viewport) = _horizontal ? scroller.HorizontalWindow : scroller.VerticalWindow;

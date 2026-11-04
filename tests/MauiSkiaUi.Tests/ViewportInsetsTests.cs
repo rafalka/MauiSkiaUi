@@ -718,6 +718,95 @@ public class ViewportInsetsTests
     }
 
     [Fact]
+    public void AStartInsetChangingNearTheEndDoesNotReachTheLastRow()
+    {
+        var loads = 0;
+        var list = List(20, default);
+        list.LoadMoreMode = SkUiLoadMoreMode.Auto;
+        list.LoadMoreCommand = new Command(() => loads++);
+        SkUiTestHelpers.Arrange(list, 300, 500);
+        _ = list.ScrollToAsync(430, animated: false);
+        SkUiTestHelpers.Arrange(list, 300, 500);
+        Assert.Equal(18, list.LastVisibleIndex);
+        var ranges = 0;
+        list.VisibleRangeChanged += (_, _) => ranges++;
+
+        // What shows stays in place: row 19 neither shows nor is reached, also not between the change and the layout.
+        list.ViewportInsets = new Thickness(0, 100, 0, 0);
+        Assert.Equal(0, loads);
+        SkUiTestHelpers.Arrange(list, 300, 500);
+
+        Assert.Equal(530, list.ScrollY);
+        Assert.Equal(18, list.LastVisibleIndex);
+        Assert.Equal(0, loads);
+        Assert.Equal(0, ranges);
+    }
+
+    [Fact]
+    public void AStartInsetChangingNearTheEndDoesNotReachTheThreshold()
+    {
+        var reached = 0;
+        var list = new SkUiVirtualScrollView
+        {
+            ItemsSource = Rows(20),
+            ItemTemplate = new DataTemplate(() => new SkUiBox { HeightRequest = RowHeight }),
+            PrefetchBudget = TimeSpan.FromSeconds(10),
+            RemainingItemsThreshold = 0
+        };
+        list.RemainingItemsThresholdReached += (_, _) => reached++;
+        SkUiTestHelpers.Arrange(list, 300, 500);
+        list.ScrollTo(0, 430);
+        SkUiTestHelpers.Arrange(list, 300, 500);
+
+        list.ViewportInsets = new Thickness(0, 100, 0, 0);
+        SkUiTestHelpers.Arrange(list, 300, 500);
+
+        Assert.Equal(18, list.LastVisibleIndex);
+        Assert.Equal(0, reached);
+    }
+
+    [Fact]
+    public void AStartInsetShrinkingDoesNotReachTheFirstRow()
+    {
+        var loads = 0;
+        var list = List(20, new Thickness(0, 100, 0, 0));
+        list.LoadMoreMode = SkUiLoadMoreMode.Auto;
+        list.LoadMorePosition = SkUiLoadMorePosition.Start;
+        list.LoadMoreCommand = new Command(() => loads++);
+        SkUiTestHelpers.Arrange(list, 300, 500);
+        _ = list.ScrollToAsync(200, animated: false);
+        SkUiTestHelpers.Arrange(list, 300, 500);
+        list.IsLoadMoreActive = false;
+        loads = 0;
+
+        list.ViewportInsets = default;
+        SkUiTestHelpers.Arrange(list, 300, 500);
+
+        Assert.Equal(100, list.ScrollY);
+        Assert.Equal(0, loads);
+    }
+
+    [Fact]
+    public void TheFirstLayoutCountsTheStartInsetBeforeTheContentIsArranged()
+    {
+        var reached = 0;
+        var list = new SkUiVirtualScrollView
+        {
+            ItemsSource = Rows(10),
+            ItemTemplate = new DataTemplate(() => new SkUiBox { HeightRequest = RowHeight }),
+            PrefetchBudget = TimeSpan.FromSeconds(10),
+            RemainingItemsThreshold = 0,
+            ViewportInsets = new Thickness(0, 60, 0, 0)
+        };
+        list.RemainingItemsThresholdReached += (_, _) => reached++;
+        SkUiTestHelpers.Arrange(list, 300, 500);
+
+        // The band ends at 440 in the rows: the last row (450..500) is not in it.
+        Assert.Equal(8, list.LastVisibleIndex);
+        Assert.Equal(0, reached);
+    }
+
+    [Fact]
     public void LoadMoreRunsWhenTheBandReachesTheEndWithoutAScroll()
     {
         var loads = 0;

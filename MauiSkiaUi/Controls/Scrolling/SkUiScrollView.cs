@@ -35,6 +35,7 @@ public class SkUiScrollView : SkUiContentView, ISkUiScrollHost, IViewportInsets
     private List<SkUiMauiContentView>? _overlayDescendants;
     /// <summary>Registered descendants that follow what this scroller shows (virtual layouts).</summary>
     private List<ISkUiScrollListener>? _scrollListeners;
+    private bool _holdScrollListeners;
     /// <summary>The viewport the last measure offered the content (the arranged viewport is not known before the first arrange).</summary>
     private Size _measureViewport;
 
@@ -205,7 +206,17 @@ public class SkUiScrollView : SkUiContentView, ISkUiScrollHost, IViewportInsets
 
     private void OnViewportInsetsChanged(Thickness value)
     {
-        Scroller.SetViewportInsets(value);
+        // The offset moves now and the content with the arrange this asks for: until then a listener (a virtual layout) would
+        // work out what shows from a window off by the change, and act on it (load more). The arrange notifies them.
+        _holdScrollListeners = true;
+        try
+        {
+            Scroller.SetViewportInsets(value);
+        }
+        finally
+        {
+            _holdScrollListeners = false;
+        }
         InvalidateMeasureOverride();
         // Mirrored content moves with the extent, also when the rectangle it is arranged in stays the same.
         if (IsRightToLeft && Scroller.Horizontal)
@@ -454,7 +465,7 @@ public class SkUiScrollView : SkUiContentView, ISkUiScrollHost, IViewportInsets
 
     private void NotifyScrollListeners()
     {
-        if (_scrollListeners is not { Count: > 0 } listeners)
+        if (_holdScrollListeners || _scrollListeners is not { Count: > 0 } listeners)
             return;
         // A listener may realize or release views, and so (un)register nested listeners.
         if (listeners.Count == 1)
