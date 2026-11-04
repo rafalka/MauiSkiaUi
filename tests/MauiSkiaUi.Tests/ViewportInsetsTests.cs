@@ -766,6 +766,127 @@ public class ViewportInsetsTests
     }
 
     [Fact]
+    public void ALayoutPassBeforeTheArrangeSeesTheWindowTheArrangeWillProduce()
+    {
+        // Top and side insets at once (the rows measure again at the new width), as when the safe area binds to them.
+        var reached = 0;
+        var ranges = new List<(int First, int Last)>();
+        var list = new SkUiVirtualScrollView
+        {
+            ItemsSource = Rows(20),
+            ItemTemplate = new DataTemplate(() => new SkUiBox { HeightRequest = RowHeight }),
+            PrefetchBudget = TimeSpan.FromSeconds(10),
+            RemainingItemsThreshold = 0
+        };
+        list.RemainingItemsThresholdReached += (_, _) => reached++;
+        SkUiTestHelpers.Arrange(list, 300, 500);
+        list.ScrollTo(0, 430);
+        SkUiTestHelpers.Arrange(list, 300, 500);
+        list.VisibleRangeChanged += (_, args) => ranges.Add((args.FirstVisibleIndex, args.LastVisibleIndex));
+
+        list.ViewportInsets = new Thickness(10, 100, 10, 0);
+        SkUiTestHelpers.Arrange(list, 300, 500);
+
+        Assert.Equal(530, list.ScrollY);
+        Assert.Equal(18, list.LastVisibleIndex);
+        Assert.Equal(0, reached);
+        Assert.Empty(ranges);
+    }
+
+    [Fact]
+    public void AListsLayoutPassBeforeTheArrangeSeesTheWindowTheArrangeWillProduce()
+    {
+        var reached = 0;
+        var list = List(20, default);
+        list.RemainingItemsThreshold = 0;
+        list.RemainingItemsThresholdReached += (_, _) => reached++;
+        SkUiTestHelpers.Arrange(list, 300, 500);
+        _ = list.ScrollToAsync(430, animated: false);
+        SkUiTestHelpers.Arrange(list, 300, 500);
+
+        list.ViewportInsets = new Thickness(10, 100, 10, 0);
+        SkUiTestHelpers.Arrange(list, 300, 500);
+
+        Assert.Equal(18, list.LastVisibleIndex);
+        Assert.Equal(0, reached);
+    }
+
+    [Fact]
+    public void ItemsChangedBeforeTheArrangeSeeTheWindowTheArrangeWillProduce()
+    {
+        var reached = 0;
+        var rows = Rows(20);
+        var list = new SkUiVirtualScrollView
+        {
+            ItemsSource = rows,
+            ItemTemplate = new DataTemplate(() => new SkUiBox { HeightRequest = RowHeight }),
+            PrefetchBudget = TimeSpan.FromSeconds(10),
+            RemainingItemsThreshold = 0
+        };
+        list.RemainingItemsThresholdReached += (_, _) => reached++;
+        SkUiTestHelpers.Arrange(list, 300, 500);
+        list.ScrollTo(0, 430);
+        SkUiTestHelpers.Arrange(list, 300, 500);
+
+        list.ViewportInsets = new Thickness(0, 100, 0, 0);
+        rows.Insert(19, new Row(99));
+        SkUiTestHelpers.Arrange(list, 300, 500);
+
+        Assert.Equal(18, list.LastVisibleIndex);
+        Assert.Equal(0, reached);
+    }
+
+    [Fact]
+    public void ARightToLeftEndInsetChangingNearTheEndDoesNotReachTheLastRow()
+    {
+        var reached = 0;
+        var list = List(20, default);
+        list.Orientation = ItemsLayoutOrientation.Horizontal;
+        list.ItemExtent = 100;
+        list.FlowDirection = FlowDirection.RightToLeft;
+        list.RemainingItemsThreshold = 0;
+        list.RemainingItemsThresholdReached += (_, _) => reached++;
+        SkUiTestHelpers.Arrange(list, 500, 200);
+        // The end is on the left: 150 from it, the last row (at 0..100 of 2000) does not show.
+        _ = list.ScrollToAsync(150, animated: false);
+        SkUiTestHelpers.Arrange(list, 500, 200);
+        Assert.Equal(18, list.LastVisibleIndex);
+        var ranges = 0;
+        list.VisibleRangeChanged += (_, _) => ranges++;
+        // A list that fired on its way in: the threshold fires once per item count, so a new item opens it again.
+        ((ObservableCollection<Row>)list.ItemsSource!).Insert(0, new Row(99));
+        SkUiTestHelpers.Arrange(list, 500, 200);
+        var last = list.LastVisibleIndex;
+        var offset = list.ScrollX;
+        reached = 0;
+        ranges = 0;
+
+        list.ViewportInsets = new Thickness(100, 0, 0, 0);
+        SkUiTestHelpers.Arrange(list, 500, 200);
+
+        Assert.Equal(offset + 100, list.ScrollX);
+        Assert.Equal(last, list.LastVisibleIndex);
+        Assert.Equal(0, reached);
+        Assert.Equal(0, ranges);
+    }
+
+    [Fact]
+    public void AScrollToATargetRightAfterAnInsetChangeUsesTheNewLayout()
+    {
+        var stack = Stack(10);
+        var scroll = Scroller(stack, default);
+        SkUiTestHelpers.Arrange(scroll, 300, 300);
+
+        // The target's frame and the extent follow the new insets only with the arrange: the request waits for it.
+        scroll.ViewportInsets = new Thickness(0, 50, 0, 50);
+        var scrolled = scroll.ScrollToAsync((Element)stack.Children[9], ScrollToPosition.End, animated: false);
+        SkUiTestHelpers.Arrange(scroll, 300, 300);
+
+        Assert.True(scrolled.IsCompletedSuccessfully);
+        Assert.Equal(800, scroll.ScrollY);
+    }
+
+    [Fact]
     public void AStartInsetShrinkingDoesNotReachTheFirstRow()
     {
         var loads = 0;
@@ -776,13 +897,17 @@ public class ViewportInsetsTests
         SkUiTestHelpers.Arrange(list, 300, 500);
         _ = list.ScrollToAsync(200, animated: false);
         SkUiTestHelpers.Arrange(list, 300, 500);
+        // Loaded: the load-more row at the start goes.
         list.IsLoadMoreActive = false;
+        SkUiTestHelpers.Arrange(list, 300, 500);
+        var scrolled = list.ScrollY;
         loads = 0;
 
         list.ViewportInsets = default;
+        Assert.Equal(0, loads);
         SkUiTestHelpers.Arrange(list, 300, 500);
 
-        Assert.Equal(100, list.ScrollY);
+        Assert.Equal(scrolled - 100, list.ScrollY);
         Assert.Equal(0, loads);
     }
 

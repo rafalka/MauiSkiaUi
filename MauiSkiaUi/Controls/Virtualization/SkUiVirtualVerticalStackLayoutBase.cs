@@ -1301,10 +1301,12 @@ public abstract class SkUiVirtualVerticalStackLayoutBase : SkUiView, ISkUiScroll
         while (node.SkiaParent is { } parent)
         {
             var frameLength = _horizontal ? node.Frame.Width : node.Frame.Height;
+            // A scroller's content is where its coming arrange puts it: the offset already moved with a changed inset, and a
+            // pass that runs before that arrange (a changed measure, changed items) must not read a window off by the change.
             if (frameLength >= 0)
-                y += _horizontal ? node.Frame.X : node.Frame.Y;
+                y += (_horizontal ? node.Frame.X : node.Frame.Y) + (parent is SkUiScrollView arranged ? arranged.PendingCoverShift(_horizontal) : 0);
             else if (parent is SkUiScrollView unarranged)
-                y += unarranged.CoverAlong(_horizontal).Before; // where the first arrange will put the scroller's content
+                y += unarranged.CoverAlong(_horizontal).Before;
             if (parent is SkUiScrollView scroller)
             {
                 var (offset, viewport) = _horizontal ? scroller.HorizontalWindow : scroller.VerticalWindow;

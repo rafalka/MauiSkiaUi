@@ -150,6 +150,7 @@ internal sealed class SkUiScrollController(ISkUiRenderable owner, Action<SkUiRen
         var (left, right, bottom) = Gutters(rightToLeft);
         ScrollportLeft = Math.Min(left, size.Width);
         Viewport = new Size(Math.Max(0, size.Width - left - right), Math.Max(0, size.Height - bottom));
+        ArrangedCover = Cover;
     }
 
     private bool _rightToLeft;
@@ -224,6 +225,22 @@ internal sealed class SkUiScrollController(ISkUiRenderable owner, Action<SkUiRen
                 ? new Thickness(viewport.Left + end, viewport.Top, viewport.Right + start, viewport.Bottom)
                 : new Thickness(viewport.Left + start, viewport.Top, viewport.Right + end, viewport.Bottom);
         }
+    }
+
+    /// <summary>
+    /// The <see cref="Cover"/> the content was last arranged inside. Until the arrange a change asks for, the content's frame
+    /// still follows this one, while the offset already moved by the change (<see cref="SetViewportInsets"/>).
+    /// </summary>
+    public Thickness ArrangedCover { get; private set; }
+
+    /// <summary>
+    /// How far the coming arrange moves the content along one axis, in DIPs: what a frame read now is short of. The left side
+    /// also right to left: mirrored content moves with what covers its end, as the extent grows by it.
+    /// </summary>
+    public double PendingCoverShift(bool horizontal)
+    {
+        var cover = Cover;
+        return horizontal ? cover.Left - ArrangedCover.Left : cover.Top - ArrangedCover.Top;
     }
 
     /// <summary>
@@ -612,7 +629,8 @@ internal sealed class SkUiScrollController(ISkUiRenderable owner, Action<SkUiRen
     /// </summary>
     public Task ScrollToTargetAsync(Func<Point> resolve, bool animated, bool afterLayout)
     {
-        if (_arranged && !afterLayout)
+        // Exact: a cover not arranged yet also waits, as neither the target's frame nor the extent follow it before the arrange.
+        if (_arranged && !afterLayout && ArrangedCover == Cover)
         {
             var target = resolve();
             return ScrollToAsync(target.X, target.Y, animated, resolve);

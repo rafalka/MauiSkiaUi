@@ -35,7 +35,6 @@ public class SkUiScrollView : SkUiContentView, ISkUiScrollHost, IViewportInsets
     private List<SkUiMauiContentView>? _overlayDescendants;
     /// <summary>Registered descendants that follow what this scroller shows (virtual layouts).</summary>
     private List<ISkUiScrollListener>? _scrollListeners;
-    private bool _holdScrollListeners;
     /// <summary>The viewport the last measure offered the content (the arranged viewport is not known before the first arrange).</summary>
     private Size _measureViewport;
 
@@ -206,17 +205,7 @@ public class SkUiScrollView : SkUiContentView, ISkUiScrollHost, IViewportInsets
 
     private void OnViewportInsetsChanged(Thickness value)
     {
-        // The offset moves now and the content with the arrange this asks for: until then a listener (a virtual layout) would
-        // work out what shows from a window off by the change, and act on it (load more). The arrange notifies them.
-        _holdScrollListeners = true;
-        try
-        {
-            Scroller.SetViewportInsets(value);
-        }
-        finally
-        {
-            _holdScrollListeners = false;
-        }
+        Scroller.SetViewportInsets(value);
         InvalidateMeasureOverride();
         // Mirrored content moves with the extent, also when the rectangle it is arranged in stays the same.
         if (IsRightToLeft && Scroller.Horizontal)
@@ -435,6 +424,9 @@ public class SkUiScrollView : SkUiContentView, ISkUiScrollHost, IViewportInsets
         return horizontal ? (cover.Left, cover.Right) : (cover.Top, cover.Bottom);
     }
 
+    /// <summary>How far the coming arrange moves the content along one physical axis (see <see cref="SkUiScrollController.PendingCoverShift"/>).</summary>
+    internal double PendingCoverShift(bool horizontal) => Scroller.PendingCoverShift(horizontal);
+
     /// <summary>The soft keyboard's cover of the viewport's bottom (see <see cref="SkUiScrollController.KeyboardInset"/>), set by the focus manager.</summary>
     internal double KeyboardInset
     {
@@ -465,7 +457,7 @@ public class SkUiScrollView : SkUiContentView, ISkUiScrollHost, IViewportInsets
 
     private void NotifyScrollListeners()
     {
-        if (_holdScrollListeners || _scrollListeners is not { Count: > 0 } listeners)
+        if (_scrollListeners is not { Count: > 0 } listeners)
             return;
         // A listener may realize or release views, and so (un)register nested listeners.
         if (listeners.Count == 1)
