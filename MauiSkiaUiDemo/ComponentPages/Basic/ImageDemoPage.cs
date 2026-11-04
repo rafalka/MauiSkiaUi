@@ -146,7 +146,9 @@ public sealed class ImageDemoPage : ComponentDemoPage
             > 0 => $"Loading {_skia.LoadingProgress:P0}",
             _ => "Loading"
         };
-        Feedback(_skia.IsLoading ? loading : _skia.LoadError is not null ? "Load failed: " + _skia.LoadError.Message
+        // Read once: without a UI context (headless) this continues on another thread, and a new source can clear the error.
+        var error = _skia.LoadError;
+        Feedback(_skia.IsLoading ? loading : error is not null ? "Load failed: " + error.Message
                 : $"Image {_skia.ImageSize.Width:F0} x {_skia.ImageSize.Height:F0} {_lastLoad} · {cache}",
             _native.IsLoading ? "Loading" : _native.Source is null ? SampleEmpty : NativeStatus());
     }
