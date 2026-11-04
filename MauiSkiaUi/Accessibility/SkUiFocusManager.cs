@@ -598,7 +598,7 @@ internal sealed class SkUiFocusManager(SkUiView root)
         if (scroller.Stepper is { } stepper)
             return stepper.Step(forward, page);
         var useX = horizontal || (scroller.Horizontal && !scroller.Vertical);
-        var extent = useX ? scroller.Viewport.Width : scroller.Viewport.Height;
+        var extent = scroller.PageLength(vertical: !useX);
         var step = (forward ? 1 : -1) * (page ? extent * 0.875 : LineStep);
         // Wheel deltas are positive towards the start.
         return scroller.Wheel(useX ? -step : 0, useX ? 0 : -step) != new Point(useX ? -step : 0, useX ? 0 : -step);

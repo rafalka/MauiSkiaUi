@@ -255,8 +255,8 @@ internal static class SkUiSemantics
     {
         var sign = forward ? 1 : -1;
         return scroller.Horizontal && !scroller.Vertical
-            ? (sign * scroller.Viewport.Width * 0.8, 0)
-            : (0, scroller.Vertical ? sign * scroller.Viewport.Height * 0.8 : 0);
+            ? (sign * scroller.PageLength(vertical: false) * 0.8, 0)
+            : (0, scroller.Vertical ? sign * scroller.PageLength(vertical: true) * 0.8 : 0);
     }
 
     /// <summary>One step of a range element's increment / decrement: 5 % of the range (as Android's seek bars).</summary>

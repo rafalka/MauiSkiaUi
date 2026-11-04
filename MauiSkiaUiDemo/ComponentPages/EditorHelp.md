@@ -481,6 +481,33 @@ Sets `PressFeedback` of every card, chip and tile to `Fade`: instead of the look
 children fade to the look's `PressedContentOpacity` (0.4), composited without re-recording. The dark remove disc always
 fades: a dark tint would hardly show on it.
 
+## EdgeToEdgeScrollingDemoPage.Content
+
+What scrolls under the bars: a collection view with a sticky header and pull to refresh, a grouped list with sticky group
+headers, or a scroll view with a text field at its end.
+
+## EdgeToEdgeScrollingDemoPage.ViewportInsets
+
+Passes the bars' sizes to `ViewportInsets`. Turned off, the first and last rows stay under the bars, and the scroll bar,
+snap points, the sticky parts and the refresh indicator work against the covered edges.
+
+## EdgeToEdgeScrollingDemoPage.Top bar height
+
+The height of the translucent top bar. Its size goes to `ViewportInsets`; while scrolled, what shows stays in place.
+
+## EdgeToEdgeScrollingDemoPage.Bottom bar height
+
+The height of the translucent bottom bar. Its size goes to `ViewportInsets`; a soft keyboard counts instead of it when it
+reaches higher.
+
+## EdgeToEdgeScrollingDemoPage.IsStickyHeader
+
+The collection view's header stays pinned under the top bar, drawn inside the insets, instead of scrolling with the rows.
+
+## EdgeToEdgeScrollingDemoPage.Scroll to row (Start)
+
+Scrolls to the row with `ScrollToPosition.Start`: it lands right below the top bar, not under it.
+
 ## OverlayScrollingDemoPage.Check native placement
 
 Compares every native view with where the drawn tree places it, also with the soft keyboard up, and reports the views

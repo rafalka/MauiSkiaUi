@@ -30,7 +30,7 @@ All SkiaUi controls inherit [`SkUiView`](SkUiView.md) behavior:
 
 ## Key properties
 
-`Content`, `ContentTemplate`, `ControlTemplate` (+ `TemplateRoot`), `Padding` (+ `SetContent` / `SetControlTemplate` / `SetPadding`), `SafeAreaEdges` (MAUI 10; default `None`, edge to edge, as MAUI's content views: set `Container` or `All` on a surface root to pad its content by the window's insets, as [layouts](SkUiLayout.md#safe-area) do; ignored inside a surface); `ContentLoading`, `ContentLoadingDelay`, `ContentLoadedAnimation`, `IsContentLoaded`, `ContentLoaded`, `LoadContent()`.
+`Content`, `ContentTemplate`, `ControlTemplate` (+ `TemplateRoot`), `Padding` (+ `SetContent` / `SetControlTemplate` / `SetPadding`), `SafeAreaEdges` (MAUI 10; default `None`, edge to edge, as MAUI's content views: set `Container` or `All` on a surface root to pad its content by the window's insets, as [layouts](SkUiLayout.md#safe-area) do; ignored inside a surface), `SafeAreaInsets` (read-only: the window's insets as [values to bind](SkUiLayout.md#safe-area)); `ContentLoading`, `ContentLoadingDelay`, `ContentLoadedAnimation`, `IsContentLoaded`, `ContentLoaded`, `LoadContent()`.
 
 ## ContentTemplate
 

@@ -13,7 +13,7 @@
                     x:DataType="local:OrderListModel">
 
     <!-- The page scrolls natively: the list gets a fixed height (a list measured without one creates every item). -->
-    <sk:SkUiGrid RowDefinitions="Auto,420" RowSpacing="8">
+    <sk:SkUiGrid RowDefinitions="Auto,420,Auto" RowSpacing="8">
         <sk:SkUiLabel Text="{Binding Status}" FontSize="13" TextColor="{x:Static samples:SampleColors.Caption}" />
 
         <!--
@@ -61,5 +61,8 @@
                 </sk:SkUiGrid>
             </DataTemplate>
         </sk:SkUiCollectionView>
+
+        <!-- The same orders on a page of their own: edge to edge, under translucent bars, following the insets (rotate it). -->
+        <sk:SkUiButton Grid.Row="2" Text="Open edge to edge" Clicked="OnOpenEdgeToEdgeClicked" />
     </sk:SkUiGrid>
 </samples:SamplePage>

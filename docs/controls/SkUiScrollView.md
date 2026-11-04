@@ -39,6 +39,32 @@ Extends [`SkUiContentView`](SkUiContentView.md). Measures content unconstrained 
 
 **Snap points** (`SnapPointsType`, `SnapPointsAlignment`: MAUI's CollectionView enums; a SkiaUi extension, MAUI's ScrollView has none): the children of the content are the snap targets, lined up with the viewport's start, center or end. With `Mandatory`, drags, flings and wheel / trackpad scrolling (after a 150 ms pause) end on the snap point nearest to where the motion would stop; with `MandatorySingle` a swipe moves one snap point from where the drag started, and a slow drag settles on the nearest (a carousel). The settle is a render-thread spring that starts at the release velocity and never passes its target. Programmatic scrolls do not snap.
 
+**Viewport insets** (SkiaUi extension; also on `SkUiCoreScrollView`, `SetViewportInsets`): an edge-to-edge page draws translucent bars over the scroller and says what they cover with `ViewportInsets` (`Thickness`, physical edges, default none). The content is arranged inside the insets and the extent grows by them (`ContentSize` includes them), so it scrolls under the bars and nothing is covered at the ends of the range.
+
+- **What uses the band they leave:** the scroll bars' track, `SnapPointsAlignment`, `ScrollToAsync(element / node, position)`, keyboard and screen-reader reveal, keyboard paging. `ScrollToAsync(x, y)` stays raw offsets.
+- **Across the scroll axis** they pad the content and keep the scroll bar out of them (a landscape notch); an `Always` bar's gutter moves in with the content.
+- **The keyboard** covers a bottom bar, so of the two the larger counts, not their sum.
+- **Changing them while scrolled** moves the offset by the change, so what shows stays in place; a scroller at the start of its range stays there, which is also why bars measured after the first layout need no care.
+- **`Padding` keeps its meaning**, space inside the scrolled content (as in MAUI): use it for room that is not covered by anything.
+- **`IViewportInsets`** is implemented by the scroll views and `SkUiCollectionView`: an app's inset helper can take any of them without knowing its type.
+
+```xml
+<sk:SkUiGrid>
+    <sk:SkUiScrollView x:Name="Scroller"><!-- content --></sk:SkUiScrollView>
+    <sk:SkUiContentView x:Name="TopBar" VerticalOptions="Start" Background="#C80F766E"><!-- title --></sk:SkUiContentView>
+    <sk:SkUiContentView x:Name="BottomBar" VerticalOptions="End" Background="#C80F766E"><!-- actions --></sk:SkUiContentView>
+</sk:SkUiGrid>
+```
+
+```csharp
+void UpdateInsets(object? sender, EventArgs args) =>
+    Scroller.ViewportInsets = new Thickness(0, TopBar.Height, 0, BottomBar.Height);
+TopBar.SizeChanged += UpdateInsets;
+BottomBar.SizeChanged += UpdateInsets;
+```
+
+The bars size themselves for the notch from the surface root's [`SafeAreaInsets`](SkUiLayout.md#safe-area). The gallery's "Edge-to-edge scrolling" page shows every behavior; the samples app's "Order list" example opens a full page that follows the insets through a rotation ([OrdersEdgeToEdgePage](../../samples/MauiSkiaUiSamples/Samples/Controls/OrdersEdgeToEdgePage.xaml.cs)).
+
 **Overscroll events** (SkiaUi extensions; also on `SkUiCoreScrollView`), for effects and gestures at the edges (stretchy headers, pull to dismiss, pull to load the next page, a refresh of your own; for MAUI's pull-to-refresh wrap the scroller in [`SkUiRefreshView`](SkUiRefreshView.md)):
 - `Overscrolled` reports `OverscrollX` / `OverscrollY` (DIPs shown past the edges; negative past the top or left) and `IsDragging` whenever they change: while a drag pulls past an edge, while a fling bounces, and while the content springs back (once per frame, reported from the render thread), ending at 0. One argument instance is reused per scroller: read it in the handler. Changing translation, scale, rotation or opacity from it re-records nothing.
 - `PullReleased` reports the edge and the distance when a drag is released past an edge, before the content springs back (once per edge).
@@ -102,7 +128,7 @@ await scroller.ScrollToAsync(finalLabel, ScrollToPosition.Center, animated: true
 
 ## Key properties / APIs
 
-`Orientation`, `ScrollX`, `ScrollY`, `ContentSize`, `HorizontalScrollBarVisibility`, `VerticalScrollBarVisibility`, `VerticalScrollBar`, `HorizontalScrollBar`, `Overscroll`, `SnapPointsType`, `SnapPointsAlignment`, `PullEdges`, `OverscrollX`, `OverscrollY`, `Overscrolled`, `PullReleased`, `IsScrolling`, `Scrolled`, `ScrollToRequested`, `ScrollTo`, `ScrollToAsync` (offset, element, Core node), `GetScrollPositionForElement`, `AnimateScrollTo`. Core: [`SkUiCoreScrollView`](SkUiCore.md) has the same features (`Set*` setters, `ScrollToAsync(SkUiCoreNode, …)`, `GetScrollPositionForNode`).
+`Orientation`, `ScrollX`, `ScrollY`, `ContentSize`, `ViewportInsets`, `HorizontalScrollBarVisibility`, `VerticalScrollBarVisibility`, `VerticalScrollBar`, `HorizontalScrollBar`, `Overscroll`, `SnapPointsType`, `SnapPointsAlignment`, `PullEdges`, `OverscrollX`, `OverscrollY`, `Overscrolled`, `PullReleased`, `IsScrolling`, `Scrolled`, `ScrollToRequested`, `ScrollTo`, `ScrollToAsync` (offset, element, Core node), `GetScrollPositionForElement`, `AnimateScrollTo`. Core: [`SkUiCoreScrollView`](SkUiCore.md) has the same features (`Set*` setters, `ScrollToAsync(SkUiCoreNode, …)`, `GetScrollPositionForNode`).
 
 ## Differences from MAUI ScrollView
 
@@ -113,6 +139,7 @@ await scroller.ScrollToAsync(finalLabel, ScrollToPosition.Center, animated: true
 | Bounce / overscroll | Per look or per scroller (`Overscroll`), not only the platform's |
 | Snap points | `SnapPointsType` / `SnapPointsAlignment` on the content's children (MAUI has them on CollectionView only) |
 | Overscroll events | `Overscrolled`, `PullReleased` and `PullEdges` for effects and gestures at the edges; MAUI has none (a `RefreshView` around the scroller ports as `SkUiRefreshView`) |
+| Content insets | `ViewportInsets` says what bars drawn over the scroller cover, for every behavior (iOS `contentInset` / Android `clipToPadding="false"`; MAUI has no API) |
 | Nested scrolling | Supported (axis-aware, chaining, fling hand-off; also with Core `SkUiCoreScrollView` and native ancestors) |
 | `ScrollToAsync` tasks | Cancelled (not completed) when a newer scroll, a drag or unloading supersedes them |
 | Overlay snapshot while scrolling | `SkUiMauiContentView.ScrollMode` (snapshot on Android / Windows, live on Apple by default) |

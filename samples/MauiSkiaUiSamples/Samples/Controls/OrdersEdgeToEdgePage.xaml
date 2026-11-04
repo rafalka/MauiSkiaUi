@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!--
+  An edge-to-edge page: the list fills the whole window, translucent drawn bars lie over it, and the list scrolls under them.
+  The page keeps out of the way (no navigation bar, SafeAreaEdges="None"), so the drawn root reaches the window's edges and its
+  SafeAreaInsets tell how far the status bar, notch and home indicator reach in. The code-behind passes those and the bars'
+  sizes on, again whenever they change (OrdersEdgeToEdgePage.xaml.cs).
+-->
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:sk="clr-namespace:MauiSkiaUi;assembly=MauiSkiaUi"
+             xmlns:samples="clr-namespace:MauiSkiaUiSamples"
+             xmlns:local="clr-namespace:MauiSkiaUiSamples.Samples.Controls"
+             x:Class="MauiSkiaUiSamples.Samples.Controls.OrdersEdgeToEdgePage"
+             x:DataType="local:OrderListModel"
+             Title="Orders"
+             Shell.NavBarIsVisible="False"
+             SafeAreaEdges="None"
+             BackgroundColor="{x:Static samples:SampleColors.Surface}">
+
+    <!-- One cell: the list fills it, and the bars lie over it, at its top and its bottom. -->
+    <sk:SkUiGrid x:Name="Root">
+        <sk:SkUiCollectionView x:Name="Orders" BackgroundColor="{x:Static samples:SampleColors.Surface}"
+                               ItemsSource="{Binding Orders}" ItemSpacing="1"
+                               ItemTappedCommand="{Binding OpenCommand}"
+                               IsStickyHeader="True"
+                               RemainingItemsThreshold="5" RemainingItemsThresholdReachedCommand="{Binding LoadMoreCommand}"
+                               IsPullToRefreshEnabled="True" IsRefreshing="{Binding IsRefreshing}"
+                               RefreshCommand="{Binding RefreshCommand}">
+            <!-- Sticky: pinned under the top bar, inside ViewportInsets. -->
+            <sk:SkUiCollectionView.Header>
+                <sk:SkUiLabel Text="Today" Padding="14,6" FontSize="13" FontAttributes="Bold"
+                              TextColor="{x:Static samples:SampleColors.Ink}" BackgroundColor="{x:Static samples:SampleColors.Page}" />
+            </sk:SkUiCollectionView.Header>
+            <DataTemplate x:DataType="local:OrderItem">
+                <sk:SkUiGrid ColumnDefinitions="*,Auto" Padding="14,10" BackgroundColor="{x:Static samples:SampleColors.Surface}">
+                    <sk:SkUiVerticalStackLayout Spacing="2" VerticalOptions="Center">
+                        <sk:SkUiLabel Text="{Binding Title}" FontSize="15" TextColor="{x:Static samples:SampleColors.Ink}" />
+                        <sk:SkUiLabel Text="{Binding Detail}" FontSize="12" TextColor="{x:Static samples:SampleColors.Caption}" />
+                    </sk:SkUiVerticalStackLayout>
+                    <sk:SkUiButton Grid.Column="1" Text="Pay" FontSize="13" Padding="14,6" VerticalOptions="Center"
+                                   Command="{Binding PayCommand}" />
+                </sk:SkUiGrid>
+            </DataTemplate>
+        </sk:SkUiCollectionView>
+
+        <!-- The bars size themselves: their padding (set in code) adds the safe area to their content. -->
+        <sk:SkUiGrid x:Name="TopBar" VerticalOptions="Start" ColumnDefinitions="Auto,*" ColumnSpacing="12"
+                     BackgroundColor="#CC0F6E6E">
+            <sk:SkUiButton Text="Back" FontSize="13" Padding="14,6" VerticalOptions="Center" Clicked="OnBackClicked" />
+            <sk:SkUiLabel Grid.Column="1" Text="Orders" FontSize="17" FontAttributes="Bold" TextColor="White" VerticalOptions="Center" />
+        </sk:SkUiGrid>
+
+        <sk:SkUiVerticalStackLayout x:Name="BottomBar" VerticalOptions="End" Spacing="2" BackgroundColor="#CC0F6E6E">
+            <sk:SkUiLabel Text="{Binding Status}" FontSize="13" TextColor="White" />
+            <sk:SkUiLabel x:Name="Readout" FontSize="12" TextColor="White" />
+        </sk:SkUiVerticalStackLayout>
+    </sk:SkUiGrid>
+</ContentPage>

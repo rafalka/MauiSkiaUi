@@ -47,6 +47,14 @@ All SkiaUi controls inherit [`SkUiView`](SkUiView.md) behavior:
 <sk:SkUiGrid RowDefinitions="Auto,*">…</sk:SkUiGrid>
 ```
 
+`SafeAreaInsets` (read-only, bindable, on every drawn view; SkiaUi extension) gives a surface root the same overlap as values, whatever its `SafeAreaEdges`: for a root that stays edge to edge and sizes its own bars. It changes with rotation and window resizes, and is zero on views inside a surface. Bind the bars' padding and a scroller's [`ViewportInsets`](SkUiScrollView.md#how-it-works) to it:
+
+```xml
+<sk:SkUiGrid x:Name="Root">
+    <sk:SkUiScrollView ViewportInsets="{Binding SafeAreaInsets, Source={x:Reference Root}}">…</sk:SkUiScrollView>
+</sk:SkUiGrid>
+```
+
 ## Children in code
 
 Every drawn layout has MAUI `Layout`'s child members, so code-behind ports by renaming the type: `Add`, `Insert`, `Remove`, `RemoveAt`, `Clear`, `Contains`, `IndexOf`, `Count` and the indexer take `IView` (as MAUI's) and require drawn views (an `ArgumentException` names a native one; host it in an [`SkUiMauiContentView`](SkUiMauiContentView.md)). As with MAUI, `Add(null)` / `Insert(i, null)` and `RemoveAt` past the end do nothing. `AddRange` adds many children with one re-measure (`StartUpdating` / `EndUpdating`). Collection initializers work:

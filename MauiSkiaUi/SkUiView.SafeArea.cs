@@ -13,6 +13,56 @@ public partial class SkUiView
         propertyChanged: (bindable, _, _) => ((SkUiView)bindable).OnSafeAreaEdgesChanged(),
         defaultValueCreator: bindable => ((SkUiView)bindable).DefaultSafeAreaEdges);
 
+    private static readonly BindablePropertyKey SafeAreaInsetsPropertyKey = BindableProperty.CreateReadOnly(
+        nameof(SafeAreaInsets), typeof(Thickness), typeof(SkUiView), default(Thickness),
+        defaultValueCreator: bindable => ((SkUiView)bindable).StartTrackingSafeAreaInsets());
+
+    /// <summary>Bindable property for <see cref="SafeAreaInsets"/> (read-only).</summary>
+    public static readonly BindableProperty SafeAreaInsetsProperty = SafeAreaInsetsPropertyKey.BindableProperty;
+
+    /// <summary>
+    /// On a surface root: how far the window's bars, notch and home indicator reach into it on each edge, in DIPs, whatever its
+    /// <c>SafeAreaEdges</c> say; it follows rotation and window resizes. Zero on drawn views inside a surface, which do not apply
+    /// the safe area: an edge-to-edge page binds its bars' padding and a scroller's <c>ViewportInsets</c> to the root's. Nothing
+    /// asks the platform for it until it is first read. SkiaUi extension.
+    /// </summary>
+    public Thickness SafeAreaInsets => (Thickness)GetValue(SafeAreaInsetsProperty);
+
+    private bool _tracksSafeAreaInsets;
+
+    /// <summary>The first read of <see cref="SafeAreaInsets"/>: its value now, kept up to date from here on.</summary>
+    private Thickness StartTrackingSafeAreaInsets()
+    {
+        _tracksSafeAreaInsets = true;
+        // Read before the view is in a window: the window's insets are known from then on, also without a new arrange.
+        Loaded += (_, _) => UpdateSafeAreaInsets(Frame);
+        return WindowInsetsFor(Frame);
+    }
+
+    /// <summary>A surface root is arranged to <paramref name="frame"/> by its native parent (or loaded): <see cref="SafeAreaInsets"/> follows the window.</summary>
+    private void UpdateSafeAreaInsets(Rect frame)
+    {
+        if (!_tracksSafeAreaInsets || SkiaParent is not null || _relayingOut)
+            return;
+        SetValue(SafeAreaInsetsPropertyKey, WindowInsetsFor(frame));
+    }
+
+    /// <summary>How far the window's insets reach into a surface root arranged to <paramref name="frame"/>.</summary>
+    private Thickness WindowInsetsFor(Rect frame)
+    {
+        // Inside a surface, or not arranged yet.
+        if (SkiaParent is not null || frame.Width <= 0 || frame.Height <= 0)
+            return default;
+        var (window, origin, safeArea) = WindowPlacement();
+        var placed = new Rect(origin.X - Frame.X + frame.X, origin.Y - Frame.Y + frame.Y, frame.Width, frame.Height);
+        return SafeAreaPadding((SafeAreaRegions.Container, SafeAreaRegions.Container, SafeAreaRegions.Container, SafeAreaRegions.Container),
+            placed, window, safeArea, double.PositiveInfinity);
+    }
+
+    private (Size Window, Point Origin, Thickness SafeArea) WindowPlacement() =>
+        WindowPlacementOverride?.Invoke(this)
+            ?? (SkUiWindowMetrics.WindowSize(this), SkUiWindowMetrics.SurfaceOrigin(this), SkUiWindowMetrics.SafeAreaInsets(this));
+
     /// <summary>
     /// The value <c>SafeAreaEdges</c> reads before it is set: <c>None</c> (edge to edge), or MAUI's <c>Default</c> on the
     /// scroll view. <see cref="SafeAreaRegions.Default"/> on an edge keeps nothing clear on drawn views.
@@ -115,8 +165,7 @@ public partial class SkUiView
         // Nothing to keep clear (content views by default) asks the platform for nothing.
         if (IsContainer(left) || IsContainer(top) || IsContainer(right) || IsContainer(bottom) || IsSoftInput(bottom))
         {
-            var (window, origin, safeArea) = WindowPlacementOverride?.Invoke(this)
-                ?? (SkUiWindowMetrics.WindowSize(this), SkUiWindowMetrics.SurfaceOrigin(this), SkUiWindowMetrics.SafeAreaInsets(this));
+            var (window, origin, safeArea) = WindowPlacement();
             // The native view still has the previous frame: its parent's origin plus the new frame's position.
             var placed = new Rect(origin.X - Frame.X + frame.X, origin.Y - Frame.Y + frame.Y, frame.Width, frame.Height);
             inset = SafeAreaPadding((left, top, right, bottom), placed, window, safeArea, _safeArea?.KeyboardTop ?? double.PositiveInfinity);

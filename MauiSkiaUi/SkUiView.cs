@@ -610,11 +610,16 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
         // one character per line), and RelayoutIfNeeded reuses that constraint.
         // A surface root keeps the window's insets clear per SafeAreaEdges: padding that changed measures it again, and
         // tells its native parent, which may size it by its content.
-        if (SkiaParent is null && UpdateSafeAreaInset(this.ComputeFrame(bounds)))
+        if (SkiaParent is null)
         {
-            _measureDirty = true;
-            _arrangeDirty = true;
-            InvalidateMeasure();
+            var rootFrame = this.ComputeFrame(bounds);
+            UpdateSafeAreaInsets(rootFrame);
+            if (UpdateSafeAreaInset(rootFrame))
+            {
+                _measureDirty = true;
+                _arrangeDirty = true;
+                InvalidateMeasure();
+            }
         }
         if (SkiaParent is null && !IsMeasureValidFor(bounds.Size))
             ((IView)this).Measure(bounds.Width, bounds.Height);
@@ -645,6 +650,11 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
         _lastArrangeBounds = bounds;
         _arrangeDirty = false;
         _laidOut = true;
+        // Something changed the layout while the tree was arranged (a bar's SizeChanged setting a list's insets): the native
+        // layout is in its own pass and may not come back, so the root lays out again before its next frame. Also on the first
+        // layout, when the invalidation above could only ask the native layout.
+        if (SkiaParent is null && _measureDirty)
+            _relayoutPending = true;
         Handler?.PlatformArrange(Frame);
         // Offset-only changes are composite-time; the recorder re-records content only when the size changed.
         if (frameChanged)

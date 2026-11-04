@@ -165,22 +165,106 @@ internal sealed class SkUiScrollController(ISkUiRenderable owner, Action<SkUiRen
 
     /// <summary>
     /// The part of the viewport's bottom the soft keyboard covers while a text field in the scroller is focused (DIPs; vertical
-    /// scrollers only): added to the end inset, so the content's end can be scrolled out from under the keyboard.
+    /// scrollers only), so the content's end can be scrolled out from under the keyboard. It covers a bottom bar too: of it and
+    /// the end of <see cref="ViewportInsets"/>, the larger counts.
     /// </summary>
     public double KeyboardInset { get; set; }
 
-    /// <summary><see cref="Insets"/> with the <see cref="KeyboardInset"/> at the end of a vertical scroller.</summary>
-    public (double Start, double End) EffectiveInsets => Vertical && KeyboardInset > 0 ? (Insets.Start, Insets.End + KeyboardInset) : Insets;
+    /// <summary>
+    /// The parts of the viewport the app says are covered by views drawn over the scroller (its bars; the owner's public
+    /// <c>ViewportInsets</c>). Physical edges, as the safe area's: Left stays left in right-to-left layouts.
+    /// </summary>
+    public Thickness ViewportInsets { get; private set; }
 
-    /// <summary>Whether <see cref="Insets"/> apply to the vertical axis (else to the horizontal one).</summary>
-    public bool InsetsVertical => Vertical;
+    /// <summary>
+    /// Sets <see cref="ViewportInsets"/>; the owner lays out again. The content moves with the inset at its start, so a scroller
+    /// that is scrolled moves its offset by the change and what it shows stays in place; one at the start of its range stays
+    /// there, with nothing covered.
+    /// </summary>
+    public void SetViewportInsets(Thickness value)
+    {
+        var previous = ViewportInsets;
+        ViewportInsets = value;
+        // Not laid out yet: nothing shows to keep in place.
+        if (Bounds == Size.Zero)
+            return;
+        double dx = 0, dy = 0;
+        // Exact: offsets are clamped to 0 at the start of the range.
+        if (Vertical && Y > 0)
+            dy = Math.Max(-Y, value.Top - previous.Top);
+        if (Horizontal)
+        {
+            // Content is mirrored right to left: an inset on the right (the start) grows the extent and the content's distance
+            // from it alike, so nothing moves, unless the scroller is at its start (the right end), where it stays.
+            var left = value.Left - previous.Left;
+            if (_rightToLeft)
+                dx = Math.Max(-X, X >= MaxX - AtStartTolerance ? left + value.Right - previous.Right : left);
+            else if (X > 0)
+                dx = Math.Max(-X, left);
+        }
+        CorrectOffset(dx, dy);
+    }
 
-    /// <summary><see cref="Insets"/> as physical left / right (0 when they apply to the vertical axis).</summary>
-    private (double Left, double Right) HorizontalInsets =>
-        InsetsVertical ? (0, 0) : _rightToLeft ? (EffectiveInsets.End, EffectiveInsets.Start) : (EffectiveInsets.Start, EffectiveInsets.End);
+    /// <summary>How close to the right end a right-to-left horizontal scroller counts as at its start, in DIPs.</summary>
+    private const double AtStartTolerance = 0.5;
 
-    /// <summary><see cref="Insets"/> as top / bottom (0 when they apply to the horizontal axis).</summary>
-    private (double Top, double Bottom) VerticalInsets => InsetsVertical ? EffectiveInsets : (0, 0);
+    /// <summary>
+    /// What covers the viewport on each physical edge: <see cref="ViewportInsets"/>, the owner's <see cref="Insets"/> along the
+    /// scroll axis on top of them, and the keyboard, which covers a bottom bar rather than adds to it (a sticky footer keeps
+    /// adding to it: it is laid out at the viewport's end whatever covers that).
+    /// </summary>
+    public Thickness Cover
+    {
+        get
+        {
+            var (viewport, (start, end)) = (ViewportInsets, Insets);
+            if (Vertical)
+                return new Thickness(viewport.Left, viewport.Top + start, viewport.Right, Math.Max(viewport.Bottom, KeyboardInset) + end);
+            return _rightToLeft
+                ? new Thickness(viewport.Left + end, viewport.Top, viewport.Right + start, viewport.Bottom)
+                : new Thickness(viewport.Left + start, viewport.Top, viewport.Right + end, viewport.Bottom);
+        }
+    }
+
+    /// <summary>
+    /// <see cref="Cover"/> as the owner arranges content, before mirroring: Left is the side the content starts from, the right
+    /// one in right-to-left layouts.
+    /// </summary>
+    public Thickness FlowCover
+    {
+        get
+        {
+            var cover = Cover;
+            return _rightToLeft ? new Thickness(cover.Right, cover.Top, cover.Left, cover.Bottom) : cover;
+        }
+    }
+
+    /// <summary>The uncovered band along the scroll axis, from <see cref="Cover"/>: the start and the end (the start on the right in right-to-left layouts).</summary>
+    public (double Start, double End) EffectiveInsets
+    {
+        get
+        {
+            var cover = FlowCover;
+            return Vertical ? (cover.Top, cover.Bottom) : (cover.Left, cover.Right);
+        }
+    }
+
+    /// <summary>The size of the band <see cref="Cover"/> leaves uncovered in the viewport.</summary>
+    public Size Band
+    {
+        get
+        {
+            var cover = Cover;
+            return new Size(Math.Max(0, Viewport.Width - cover.HorizontalThickness), Math.Max(0, Viewport.Height - cover.VerticalThickness));
+        }
+    }
+
+    /// <summary>What one page is along an axis: the uncovered band, or the viewport when everything is covered.</summary>
+    public double PageLength(bool vertical)
+    {
+        var band = vertical ? Band.Height : Band.Width;
+        return band > 0 ? band : vertical ? Viewport.Height : Viewport.Width;
+    }
 
     /// <summary>The scroller's arranged size (scrollport and gutters).</summary>
     public Size Bounds { get; private set; }
@@ -574,9 +658,11 @@ internal sealed class SkUiScrollController(ISkUiRenderable owner, Action<SkUiRen
     /// </summary>
     public Point GetOffsetFor(Rect target, ScrollToPosition position)
     {
-        // The band the insets leave uncovered: offsets are computed in it and moved back by the start inset.
-        var (top, bottom) = VerticalInsets;
-        var (left, right) = HorizontalInsets;
+        // The band the insets leave uncovered: offsets are computed in it and moved back by the start inset. An axis that
+        // does not scroll has nothing to place (its insets only pad the content).
+        var cover = Cover;
+        var (top, bottom) = Vertical ? (cover.Top, cover.Bottom) : (0, 0);
+        var (left, right) = Horizontal ? (cover.Left, cover.Right) : (0, 0);
         var width = Math.Max(0, Viewport.Width - left - right);
         var height = Math.Max(0, Viewport.Height - top - bottom);
         var x = target.X - left;
@@ -820,7 +906,7 @@ internal sealed class SkUiScrollController(ISkUiRenderable owner, Action<SkUiRen
 
     /// <summary>
     /// The snap offsets along one axis, sorted: each child of the content (or the content itself, without children) aligned
-    /// to the viewport by <see cref="SnapPointsAlignment"/>, clamped to the scroll range. Content that knows its snap points
+    /// to the uncovered band by <see cref="SnapPointsAlignment"/>, clamped to the scroll range. Content that knows its snap points
     /// (<see cref="ISkUiSnapPointSource"/>) lists those between <paramref name="from"/> and <paramref name="to"/>.
     /// </summary>
     internal List<double> SnapOffsets(bool horizontal, double from = double.NegativeInfinity, double to = double.PositiveInfinity)
@@ -846,19 +932,21 @@ internal sealed class SkUiScrollController(ISkUiRenderable owner, Action<SkUiRen
         content.GetRenderChildren(items);
         if (items.Count == 0)
             items.Add(content);
-        var viewport = horizontal ? Viewport.Width : Viewport.Height;
+        var cover = Cover;
+        var (low, high) = horizontal ? (cover.Left, cover.Right) : (cover.Top, cover.Bottom);
+        var band = Math.Max(0, (horizontal ? Viewport.Width : Viewport.Height) - low - high);
         foreach (var item in items)
         {
             var props = GetProps(item);
             if (!props.IsVisible || (horizontal ? props.Width : props.Height) <= 0)
                 continue;
-            var start = ReferenceEquals(item, content) ? 0 : horizontal ? contentProps.X + props.X : contentProps.Y + props.Y;
+            var start = ReferenceEquals(item, content) ? low : horizontal ? contentProps.X + props.X : contentProps.Y + props.Y;
             var size = horizontal ? props.Width : props.Height;
             var offset = SnapPointsAlignment switch
             {
-                SnapPointsAlignment.Center => start + size / 2 - viewport / 2,
-                SnapPointsAlignment.End => start + size - viewport,
-                _ => start
+                SnapPointsAlignment.Center => start + size / 2 - low - band / 2,
+                SnapPointsAlignment.End => start + size - low - band,
+                _ => start - low
             };
             points.Add(Math.Clamp(offset, 0, max));
         }
@@ -1105,6 +1193,8 @@ internal sealed class SkUiScrollController(ISkUiRenderable owner, Action<SkUiRen
         // A bar that always shows sits in its reserved gutter; a fading one in a hover strip over the scrollport's edge.
         var (gutterLeft, gutterRight, gutterBottom) = Gutters(rightToLeft);
         var port = Scrollport;
+        // Out of what covers the viewport: across a bar too (a landscape notch). A reserved gutter moves in with the content.
+        var cover = Cover;
         var reservedVertical = gutterLeft + gutterRight > 0;
         var reservedHorizontal = gutterBottom > 0;
         if (showVertical || _verticalBar is not null)
@@ -1115,11 +1205,12 @@ internal sealed class SkUiScrollController(ISkUiRenderable owner, Action<SkUiRen
             if (showVertical)
             {
                 var strip = reservedVertical ? gutterLeft + gutterRight : Math.Min(port.Width, hit);
-                var x = reservedVertical ? (rightToLeft ? 0 : port.Right) : rightToLeft ? port.Left : port.Right - strip;
+                var x = reservedVertical
+                    ? (rightToLeft ? cover.Left : port.Right - cover.Right)
+                    : rightToLeft ? port.Left + cover.Left : port.Right - cover.Right - strip;
                 // Along the band the insets leave uncovered.
-                var (insetTop, insetBottom) = VerticalInsets;
-                var track = Math.Max(0, port.Height - insetTop - insetBottom - 2 * margin - (showHorizontal && !reservedHorizontal ? corner : 0));
-                bar.ArrangeOwned(new Rect(x, insetTop + margin, strip, track), thumbAtStart: rightToLeft);
+                var track = Math.Max(0, port.Height - cover.VerticalThickness - 2 * margin - (showHorizontal && !reservedHorizontal ? corner : 0));
+                bar.ArrangeOwned(new Rect(x, cover.Top + margin, strip, track), thumbAtStart: rightToLeft);
             }
         }
         if (showHorizontal || _horizontalBar is not null)
@@ -1130,11 +1221,10 @@ internal sealed class SkUiScrollController(ISkUiRenderable owner, Action<SkUiRen
             if (showHorizontal)
             {
                 var strip = reservedHorizontal ? gutterBottom : Math.Min(port.Height, hit);
-                var y = reservedHorizontal ? port.Bottom : port.Bottom - VerticalInsets.Bottom - strip;
+                var y = reservedHorizontal ? port.Bottom - cover.Bottom : port.Bottom - cover.Bottom - strip;
                 var corneredVertical = showVertical && !reservedVertical;
-                var (insetLeft, insetRight) = HorizontalInsets;
-                var left = port.Left + insetLeft + margin + (corneredVertical && rightToLeft ? corner : 0);
-                var track = Math.Max(0, port.Width - insetLeft - insetRight - 2 * margin - (corneredVertical ? corner : 0));
+                var left = port.Left + cover.Left + margin + (corneredVertical && rightToLeft ? corner : 0);
+                var track = Math.Max(0, port.Width - cover.HorizontalThickness - 2 * margin - (corneredVertical ? corner : 0));
                 bar.ArrangeOwned(new Rect(left, y, track, strip), thumbAtStart: false);
             }
         }

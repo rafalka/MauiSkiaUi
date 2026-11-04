@@ -63,7 +63,7 @@ Searchable picker lists (`IsSearchEnabled`), the pickers' chevron (`IsChevronVis
 
 Steps, order and open decisions: [ImplementationPlan-1.6.md](ImplementationPlan-1.6.md).
 
-- **Viewport insets (first):** `ViewportInsets` on the scroll views, the collection view and the virtual stack, so edge-to-edge pages scroll content under drawn top and bottom bars while scroll bars, `ScrollTo`, snap points, the refresh indicator, sticky headers and keyboard reveal work in the uncovered band; the surface root's safe area readable for binding.
+- **Viewport insets (done on `1.6-implementation`; device checks in the [verification backlog](#verification-backlog)):** `ViewportInsets` on the scroll views and the collection view (the virtual stack follows its scroller's), so edge-to-edge pages scroll content under drawn top and bottom bars while scroll bars, `ScrollTo`, snap points, the refresh indicator, sticky headers and keyboard reveal work in the uncovered band; the surface root's `SafeAreaInsets` readable for binding.
 - **Performance:** the device results measured again on the current toolchain; Core measure invalidation without re-recording ancestors; shaped borders sharing their outlines and clips.
 - **Layouts and containers:** a tile layout for galleries of equal tiles (with an overflow tile); Core twins of the state container and the expander (with independent `ScaleX` / `ScaleY` and `AnchorX` / `AnchorY` on Core nodes; animating one scale axis of a Core node no longer scales both).
 - **Text input:** password reveal (show / hide) in drawn password fields.
@@ -144,6 +144,7 @@ Device runs that are still open. How to run them: [Testing.md](Testing.md#device
 - **MAUI gesture recognizers on drawn views (1.2):** swipe, pan, pinch, pointer, secondary-button and triple taps on Android, iOS, Mac Catalyst and Windows, against the native view on the gallery's "MAUI gesture recognizers" page.
 - **Snap points on lists (1.2):** flings and drags ending on rows on a phone (Android and iOS), with the gallery's "Items layouts and snap points" page.
 - **Reordering collection view items (1.3):** a long press and drag on Android and iOS, a mouse drag on Mac Catalyst and Windows, auto-scroll near the ends, grids and grouped lists, the lift's look; the "Move up" / "Move down" actions with TalkBack and VoiceOver; on the gallery's reordering page.
+- **Viewport insets (1.6):** the samples app's edge-to-edge orders page was checked through rotations on an iPhone 17 simulator, an Android API 37 emulator (with a cutout and 3-button navigation) and Mac Catalyst (window resize). Still open: Windows; real devices; the gallery's "Edge-to-edge scrolling" page on Android; the keyboard covering more than the bottom bar on a device.
 - **`SafeAreaEdges` on the surface root (1.2):** a drawn layout root on a notched iPhone (portrait and landscape, with the keyboard for `SoftInput`) and on an Android phone with edge-to-edge.
 
 ## Held for 2.0

@@ -133,8 +133,8 @@ public partial class SkUiCollectionView
         var focusRow = _tappedSelection is { } tapped && _selectedSet.Contains(tapped) ? RowOfTapped() : -1;
         var focus = focusRow >= 0 ? Math.Max(0, rows.IndexOf(focusRow)) : 0;
 
-        // The band the sticky parts leave uncovered, in item coordinates: a sticky group header covers the start too.
-        var (insetStart, insetEnd) = Scroller.Insets;
+        // The band the insets and the sticky parts leave uncovered, in item coordinates: a sticky group header covers the start too.
+        var (insetStart, insetEnd) = Controller.EffectiveInsets;
         insetStart += StickyGroupInset(rows[focus]);
         var band = Math.Max(0, (_horizontal ? Controller.Viewport.Width : Controller.Viewport.Height) - insetStart - insetEnd);
         var visibleStart = ItemsHost.VisibleStart + insetStart;

@@ -505,14 +505,14 @@ public partial class SkUiCollectionView
 
     /// <summary>
     /// The scroll speed the pointer asks for, in DIPs per second (negative: towards the physical start, the top or left): up
-    /// to the look's <see cref="SkUiLook.ReorderAutoScrollSpeed"/> at an end of the part the sticky header and footer leave.
+    /// to the look's <see cref="SkUiLook.ReorderAutoScrollSpeed"/> at an end of the part the insets, the sticky header and the footer leave.
     /// </summary>
     private double AutoScrollSpeed(ReorderDrag drag)
     {
         var at = drag.Pointer.GetPosition(this);
         var along = _horizontal ? at.X : at.Y;
         var length = _horizontal ? Width : Height;
-        var (start, end) = Scroller.Insets;
+        var (start, end) = Controller.EffectiveInsets;
         if (_horizontal && IsRightToLeft)
             (start, end) = (end, start);
         var low = start;

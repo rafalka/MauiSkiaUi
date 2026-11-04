@@ -117,7 +117,7 @@ public partial class SkUiCollectionView
             return;
         var rows = Model.RowCount;
         var atEnd = rows == 0
-            || (LoadMorePosition == SkUiLoadMorePosition.End ? ItemsHost.LastVisibleIndex == rows - 1 : ItemsHost.FirstVisibleIndex == 0);
+            || (LoadMorePosition == SkUiLoadMorePosition.End ? ItemsHost.LastIndexInBand == rows - 1 : ItemsHost.FirstIndexInBand == 0);
         if (atEnd && CanLoadMore)
             RunLoadMore();
     }

@@ -12,7 +12,7 @@ namespace MauiSkiaUi.Core;
 /// <see cref="HorizontalScrollBarVisibility"/>). <see cref="Overscrolled"/> and <see cref="PullReleased"/> report pulls past
 /// the edges (also of content that does not overflow, with <see cref="PullEdges"/>).
 /// </summary>
-public class SkUiCoreScrollView : SkUiCoreContentView, ISkUiScrollHost
+public class SkUiCoreScrollView : SkUiCoreContentView, ISkUiScrollHost, IViewportInsets
 {
     /// <summary>A container in a skeleton made from content, also while empty: its children are the bones.</summary>
     internal override bool IsSkeletonContainer => true;
@@ -27,6 +27,31 @@ public class SkUiCoreScrollView : SkUiCoreContentView, ISkUiScrollHost
         _scroller = new SkUiScrollController(this, InvalidateRender, OnOffsetChanged);
         _scroller.OverscrollChanged += () => Overscrolled?.Invoke(this, _scroller.OverscrolledArgs());
         _scroller.PullReleased += (edge, distance) => PullReleased?.Invoke(this, new SkUiPullReleasedEventArgs(edge, distance));
+    }
+
+    /// <summary>
+    /// The parts of the viewport covered by views drawn over this scroller, in DIPs on each physical edge (see
+    /// <see cref="SkUiScrollView.ViewportInsets"/>): the content scrolls under them, and scroll bars, snap points, scrolling to a
+    /// node and reveal use the band left uncovered.
+    /// </summary>
+    public Thickness ViewportInsets
+    {
+        get => _scroller.ViewportInsets;
+        set => SetViewportInsets(value);
+    }
+
+    /// <summary>Sets <see cref="ViewportInsets"/>.</summary>
+    public SkUiCoreScrollView SetViewportInsets(Thickness value)
+    {
+        SkUiValidate.ThrowIfNotThickness(value, nameof(value));
+        if (_scroller.ViewportInsets == value) return this;
+        _scroller.SetViewportInsets(value);
+        OnPropertyChanged(nameof(ViewportInsets));
+        InvalidateMeasure();
+        // Mirrored content moves with the extent, also when the rectangle it is arranged in stays the same.
+        if (IsRightToLeft && _scroller.Horizontal)
+            Content?.InvalidateMeasure();
+        return this;
     }
 
     /// <summary>Edges a drag can pull the content past also when it does not overflow or overscroll is off (see <see cref="SkUiScrollView.PullEdges"/>).</summary>
@@ -190,7 +215,7 @@ public class SkUiCoreScrollView : SkUiCoreContentView, ISkUiScrollHost
     /// <summary>Current vertical offset (DIPs).</summary>
     public double ScrollY => _scroller.Y;
 
-    /// <summary>Measured content extent including padding.</summary>
+    /// <summary>Measured content extent including padding and <see cref="ViewportInsets"/>.</summary>
     public Size ContentSize => _scroller.Extent;
 
     /// <summary>Viewport size (DIPs).</summary>
@@ -257,8 +282,9 @@ public class SkUiCoreScrollView : SkUiCoreContentView, ISkUiScrollHost
             ? _scroller.GetOffsetFor(bounds, position)
             : new Point(ScrollX, ScrollY);
 
-    // The keyboard's cover at the end of a vertical scroller.
-    private double KeyboardEnd => _scroller.Vertical ? _scroller.KeyboardInset : 0;
+    /// <inheritdoc />
+    /// <remarks>Inside what covers the viewport as well: the measure and the arrange of the base class keep the content there.</remarks>
+    private protected override Thickness ContentInset => base.ContentInset + _scroller.FlowCover;
 
     /// <inheritdoc />
     protected override Size MeasureContent(double widthConstraint, double heightConstraint)
@@ -270,12 +296,12 @@ public class SkUiCoreScrollView : SkUiCoreContentView, ISkUiScrollHost
         // Across the scroll axis an explicitly sized content keeps its size (clipped), as SkUiScrollView.
         if (Content is { } content)
         {
-            width = SkUiScrollController.CrossConstraint(width, content.Width, content.MaximumWidth, content.Margin.HorizontalThickness + Padding.HorizontalThickness);
-            height = SkUiScrollController.CrossConstraint(height, content.Height, content.MaximumHeight, content.Margin.VerticalThickness + Padding.VerticalThickness);
+            var inset = ContentInset;
+            width = SkUiScrollController.CrossConstraint(width, content.Width, content.MaximumWidth, content.Margin.HorizontalThickness + inset.HorizontalThickness);
+            height = SkUiScrollController.CrossConstraint(height, content.Height, content.MaximumHeight, content.Margin.VerticalThickness + inset.VerticalThickness);
         }
+        // Includes what covers the viewport (ContentInset), so the content's ends scroll out from under it.
         var extent = base.MeasureContent(_scroller.Horizontal ? double.PositiveInfinity : width, _scroller.Vertical ? double.PositiveInfinity : height);
-        // The keyboard's cover (the only inset a Core scroller has) extends the end, so the content's end scrolls out from under it.
-        extent = new Size(extent.Width, extent.Height + KeyboardEnd);
         _scroller.Extent = extent;
         return new Size(Math.Min(widthConstraint, extent.Width + left + right), Math.Min(heightConstraint, extent.Height + bottom));
     }
@@ -287,7 +313,7 @@ public class SkUiCoreScrollView : SkUiCoreContentView, ISkUiScrollHost
         var viewport = _scroller.Viewport;
         var extent = _scroller.Extent;
         // Content keeps its layout origin; the offset is a composite-time children translation.
-        base.ArrangeContent(new Size(Math.Max(extent.Width, viewport.Width), Math.Max(0, Math.Max(extent.Height, viewport.Height) - KeyboardEnd)));
+        base.ArrangeContent(new Size(Math.Max(extent.Width, viewport.Width), Math.Max(extent.Height, viewport.Height)));
         InvalidateRender(SkUiRenderDirty.Props);
         if (!_rtlStartApplied && IsRightToLeft && _scroller.Horizontal && _scroller.MaxX > 0)
         {

@@ -101,6 +101,8 @@ public abstract class SkUiVirtualVerticalStackLayoutBase : SkUiView, ISkUiScroll
 
     // The current pass: the window in item coordinates (padding excluded), moved by anchor corrections.
     private double _top, _bottom;
+    // What of the window no view drawn over the scrollers covers (their insets): the load-more triggers read it.
+    private double _bandTop, _bandBottom;
     private int _anchor = -1;
     private double _anchorStart;
     private double _shift;
@@ -408,6 +410,12 @@ public abstract class SkUiVirtualVerticalStackLayoutBase : SkUiView, ISkUiScroll
     /// sticky group header over the list, as high as it is for that item. <c>null</c>: none.
     /// </summary>
     internal Func<int, double>? ScrollTargetInset { get; set; }
+
+    /// <summary>The first item showing in the part of the window the scrollers' insets leave uncovered, or -1.</summary>
+    internal int FirstIndexInBand { get; private set; } = -1;
+
+    /// <summary>The last item showing in the part of the window the scrollers' insets leave uncovered, or -1.</summary>
+    internal int LastIndexInBand { get; private set; } = -1;
 
     /// <summary>Whether the layout has been laid out (it has a window and item sizes).</summary>
     internal bool HasWindow => !double.IsNaN(_cross) && !double.IsNaN(_arrangedWidth);
@@ -1049,6 +1057,8 @@ public abstract class SkUiVirtualVerticalStackLayoutBase : SkUiView, ISkUiScroll
         var window = ComputeWindow();
         _top = window.Top - PadStart;
         _bottom = window.Bottom - PadStart;
+        _bandTop = window.BandTop - PadStart;
+        _bandBottom = window.BandBottom - PadStart;
         _shift = 0;
         _childrenChanged = false;
         _passStart = Stopwatch.GetTimestamp();
@@ -1251,6 +1261,8 @@ public abstract class SkUiVirtualVerticalStackLayoutBase : SkUiView, ISkUiScroll
         _shift += delta;
         _top += delta;
         _bottom += delta;
+        _bandTop += delta;
+        _bandBottom += delta;
     }
 
     /// <summary>Moves the innermost vertical scroller's offset by <paramref name="delta"/> (scroll anchoring).</summary>
@@ -1273,12 +1285,14 @@ public abstract class SkUiVirtualVerticalStackLayoutBase : SkUiView, ISkUiScroll
     /// <summary>
     /// What can show, in this layout's coordinates: the intersection of every ancestor scroller's viewport (and the surface),
     /// with the innermost viewport's length (for prefetch distances). Before the first arrange, positions are unknown and
-    /// taken as the start of each parent. Without any bound, nothing shows.
+    /// taken as the start of each parent. Without any bound, nothing shows. The band is the part of it left uncovered by the
+    /// scrollers' insets (<see cref="SkUiScrollController.Cover"/>).
     /// </summary>
-    private (double Top, double Bottom, double Length) ComputeWindow()
+    private (double Top, double Bottom, double Length, double BandTop, double BandBottom) ComputeWindow()
     {
         // Along the axis, in physical coordinates (frames are mirrored in right-to-left layouts).
         double top = double.NegativeInfinity, bottom = double.PositiveInfinity, length = double.PositiveInfinity;
+        double bandTop = double.NegativeInfinity, bandBottom = double.PositiveInfinity;
         double y = 0;
         SkUiView node = this;
         while (node.SkiaParent is { } parent)
@@ -1292,6 +1306,9 @@ public abstract class SkUiVirtualVerticalStackLayoutBase : SkUiView, ISkUiScroll
                 top = Math.Max(top, offset - y);
                 bottom = Math.Min(bottom, offset + viewport - y);
                 length = Math.Min(length, viewport);
+                var (before, after) = scroller.CoverAlong(_horizontal);
+                bandTop = Math.Max(bandTop, offset + before - y);
+                bandBottom = Math.Min(bandBottom, offset + viewport - after - y);
                 y -= offset;
             }
             node = parent;
@@ -1302,14 +1319,20 @@ public abstract class SkUiVirtualVerticalStackLayoutBase : SkUiView, ISkUiScroll
             top = Math.Max(top, -y);
             bottom = Math.Min(bottom, rootLength - y);
             length = Math.Min(length, rootLength);
+            bandTop = Math.Max(bandTop, -y);
+            bandBottom = Math.Min(bandBottom, rootLength - y);
         }
         if (double.IsInfinity(length))
-            return (0, 0, 0);
+            return (0, 0, 0, 0, 0);
         bottom = Math.Max(top, bottom);
+        bandBottom = Math.Max(bandTop, bandBottom);
         // Right to left, items run from the layout's right edge: the window in item coordinates is mirrored.
         if (_horizontal && IsRightToLeft && Frame.Width > 0)
+        {
             (top, bottom) = (Frame.Width - bottom, Frame.Width - top);
-        return (top, bottom, length);
+            (bandTop, bandBottom) = (Frame.Width - bandBottom, Frame.Width - bandTop);
+        }
+        return (top, bottom, length, bandTop, bandBottom);
     }
 
     private bool IsFlinging
@@ -1377,18 +1400,30 @@ public abstract class SkUiVirtualVerticalStackLayoutBase : SkUiView, ISkUiScroll
             first = _sizes.IndexAt(Math.Max(0, Math.Min(_top + VisibleSliver, _bottom - VisibleSliver)));
             last = _sizes.IndexAt(Math.Max(0, Math.Max(_bottom - VisibleSliver, _top + VisibleSliver)));
         }
-        if (first == FirstVisibleIndex && last == LastVisibleIndex)
-            return;
-        FirstVisibleIndex = first;
-        LastVisibleIndex = last;
-        Raise(() =>
+        if (first != FirstVisibleIndex || last != LastVisibleIndex)
         {
-            OnPropertyChanged(nameof(FirstVisibleIndex));
-            OnPropertyChanged(nameof(LastVisibleIndex));
-            VisibleRangeChanged?.Invoke(this, new SkUiVisibleRangeChangedEventArgs(first, last));
-        });
-        // Checked when what shows changes, not when items are added: a page appended item by item fires once.
-        if (_remainingItemsThreshold >= 0 && last >= 0 && last >= _sizes.Count - 1 - _remainingItemsThreshold && _thresholdCount != _sizes.Count)
+            FirstVisibleIndex = first;
+            LastVisibleIndex = last;
+            Raise(() =>
+            {
+                OnPropertyChanged(nameof(FirstVisibleIndex));
+                OnPropertyChanged(nameof(LastVisibleIndex));
+                VisibleRangeChanged?.Invoke(this, new SkUiVisibleRangeChangedEventArgs(first, last));
+            });
+        }
+        int firstInBand = -1, lastInBand = -1;
+        if (_sizes.Count > 0 && _bandBottom > _bandTop && _bandBottom > 0 && _bandTop < _sizes.TotalLength)
+        {
+            firstInBand = _sizes.IndexAt(Math.Max(0, Math.Min(_bandTop + VisibleSliver, _bandBottom - VisibleSliver)));
+            lastInBand = _sizes.IndexAt(Math.Max(0, Math.Max(_bandBottom - VisibleSliver, _bandTop + VisibleSliver)));
+        }
+        if (firstInBand == FirstIndexInBand && lastInBand == LastIndexInBand)
+            return;
+        FirstIndexInBand = firstInBand;
+        LastIndexInBand = lastInBand;
+        // Checked when what shows changes, not when items are added: a page appended item by item fires once. An item behind a
+        // bar has not been reached yet.
+        if (_remainingItemsThreshold >= 0 && lastInBand >= 0 && lastInBand >= _sizes.Count - 1 - _remainingItemsThreshold && _thresholdCount != _sizes.Count)
         {
             _thresholdCount = _sizes.Count;
             Raise(() =>

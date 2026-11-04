@@ -255,7 +255,10 @@ public sealed class SkUiCoreScrollBar : SkUiCoreNode
         var extent = Vertical ? _scroller.Extent.Height : _scroller.Extent.Width;
         var max = Vertical ? _scroller.MaxY : _scroller.MaxX;
         var minimum = Math.Max(0, SkUiLook.Current.ScrollBarMinimumThumbLength);
-        var length = extent <= 0 ? track : Math.Clamp(track * viewport / extent, Math.Min(minimum, track), track);
+        // The visible part of the content: what covers the viewport counts for neither.
+        var band = Vertical ? _scroller.Band.Height : _scroller.Band.Width;
+        var content = extent - (viewport - band);
+        var length = content <= 0 ? track : Math.Clamp(track * band / content, Math.Min(minimum, track), track);
         var range = Math.Max(0, track - length);
         _thumb.SetTrack(max > 0 ? (float)(range / max) : 0, (float)range);
         var frame = Vertical ? new Rect(cross, 0, thickness, length) : new Rect(0, cross, length, thickness);
@@ -432,8 +435,8 @@ public sealed class SkUiCoreScrollBar : SkUiCoreNode
             }
             else
             {
-                // Page one viewport towards the press, as desktop scroll bars do.
-                var page = (bar.Vertical ? scroller.Viewport.Height : scroller.Viewport.Width) * (along < thumbStart ? -1 : 1);
+                // Page one viewport (what is not covered of it) towards the press, as desktop scroll bars do.
+                var page = scroller.PageLength(bar.Vertical) * (along < thumbStart ? -1 : 1);
                 _ = bar.Vertical ? scroller.ScrollToAsync(scroller.X, scroller.Y + page, animated: true) : scroller.ScrollToAsync(scroller.X + page, scroller.Y, animated: true);
             }
             return true;

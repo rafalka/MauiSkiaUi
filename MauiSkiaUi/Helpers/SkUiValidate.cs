@@ -39,6 +39,9 @@ internal static class SkUiValidate
     /// <summary><c>null</c> (the look's), or a thickness whose sides are finite and not negative.</summary>
     public static bool OptionalThickness(BindableObject bindable, object? value) => value is null || value is Thickness thickness && IsThickness(thickness);
 
+    /// <summary>A thickness with finite, non-negative sides.</summary>
+    public static bool ThicknessValue(BindableObject bindable, object? value) => value is Thickness thickness && IsThickness(thickness);
+
     /// <summary>Whether every side of <paramref name="thickness"/> is finite and not negative.</summary>
     public static bool IsThickness(Thickness thickness) =>
         IsLength(thickness.Left) && IsLength(thickness.Top) && IsLength(thickness.Right) && IsLength(thickness.Bottom);

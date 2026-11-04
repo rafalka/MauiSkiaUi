@@ -409,6 +409,21 @@ Animations of layout properties (`WidthRequest`, `HeightRequest`, `Margin`) and 
 
 Plain lists can also use the lighter `SkUiVirtualScrollView` ([SkUiVirtualVerticalStackLayout.md](controls/SkUiVirtualVerticalStackLayout.md)).
 
+## Edge-to-edge pages (`ContentInset`, `clipToPadding`)
+
+A page that scrolls its content under translucent bars passes the bars' sizes to `ViewportInsets` on the drawn scroller or list. These patterns map to it:
+
+| MAUI page | Drawn |
+| --- | --- |
+| iOS `UIScrollView.ContentInset` / `ScrollIndicatorInsets` from a handler or mapper | `ViewportInsets` (the scroll bar follows) |
+| Android `SetClipToPadding(false)` plus padding on the `RecyclerView` / `NestedScrollView` | `ViewportInsets` |
+| Empty spacer views as a `CollectionView` `Header` and `Footer`, or a `Grid` row, to keep the first and last rows clear of the bars | Drop them, `ViewportInsets` |
+| `Padding` on a `ScrollView` under bars | `ViewportInsets`: padding works for the ends of the range, but scroll bars, `ScrollToAsync`, snap points and reveal would still use the covered edges |
+| Scrolling to an item, then adding the bar's height by hand | `ScrollTo` / `ScrollToAsync(element, position)` place it in the band |
+| Reading the safe area from platform code to size bars | The surface root's `SafeAreaInsets` (bindable) |
+
+Drawn views inside a surface still ignore `SafeAreaEdges`: only the root applies it, and the bars of an edge-to-edge root pad themselves from `SafeAreaInsets`. Details: [SkUiScrollView](controls/SkUiScrollView.md#how-it-works), [SkUiCollectionView](controls/SkUiCollectionView.md#key-properties).
+
 ## Carousels (`CarouselView`, `IndicatorView`)
 
 `SkUiCarouselView` ([SkUiCarouselView.md](controls/SkUiCarouselView.md)) and `SkUiIndicatorView` ([SkUiIndicatorView.md](controls/SkUiIndicatorView.md)) keep MAUI's names; the usual changes:

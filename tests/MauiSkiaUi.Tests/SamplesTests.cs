@@ -56,6 +56,50 @@ public class SamplesTests
     }
 
     [Fact]
+    public void TheEdgeToEdgeOrdersFollowTheInsetsThroughARotation()
+    {
+        using var dispatcher = SkUiTestHelpers.UseTestDispatcher();
+        var portrait = new Thickness(0, 47, 0, 34);
+        SkUiView.WindowPlacementOverride = _ => (new Size(400, 800), Point.Zero, portrait);
+        try
+        {
+            var page = new OrdersEdgeToEdgePage(new OrderListModel());
+            var root = (SkUiGrid)page.Content;
+            var list = root.Children.OfType<SkUiCollectionView>().Single();
+            var bars = root.Children.OfType<SkUiView>().Where(view => view is not SkUiCollectionView).ToList();
+            SkUiTestHelpers.Arrange(root, 400, 800);
+            SkUiTestHelpers.Arrange(root, 400, 800); // the insets set while the bars are arranged
+
+            Assert.Equal(portrait, root.SafeAreaInsets);
+            Assert.True(bars[0].Height > 47);
+            Assert.True(bars[1].Height > 34);
+            Assert.Equal(new Thickness(0, bars[0].Height, 0, bars[1].Height), list.ViewportInsets);
+            // The rows start below the top bar and the sticky header.
+            Assert.Equal(bars[0].Height + list.ScrollView.Insets.Start, ((View)list.ScrollView.Content!).Frame.Y);
+            _ = list.ScrollToAsync(300, animated: false);
+            var topInPortrait = bars[0].Height;
+
+            // In landscape the notch is at the side, there is no status bar, and the top bar shrinks by it.
+            var landscape = new Thickness(47, 0, 47, 21);
+            SkUiView.WindowPlacementOverride = _ => (new Size(800, 400), Point.Zero, landscape);
+            SkUiTestHelpers.Arrange(root, 800, 400);
+            SkUiTestHelpers.Arrange(root, 800, 400);
+
+            Assert.Equal(landscape, root.SafeAreaInsets);
+            Assert.Equal(new Thickness(47, bars[0].Height, 47, bars[1].Height), list.ViewportInsets);
+            var body = ((View)list.ScrollView.Content!).Frame;
+            Assert.Equal(new Rect(47, bars[0].Height + list.ScrollView.Insets.Start, 800 - 2 * 47, body.Height), body);
+            Assert.Equal(topInPortrait - 47, bars[0].Height, 1);
+            // What shows stays where it shows: the offset moved with the inset at the start.
+            Assert.Equal(300 - 47, list.ScrollY, 1);
+        }
+        finally
+        {
+            SkUiView.WindowPlacementOverride = null;
+        }
+    }
+
+    [Fact]
     public void EveryExamplePageIsOneDrawnSurfaceThatLaysOutAndDraws()
     {
         using var dispatcher = SkUiTestHelpers.UseTestDispatcher();

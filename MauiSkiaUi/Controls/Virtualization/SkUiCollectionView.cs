@@ -37,7 +37,7 @@ namespace MauiSkiaUi;
 /// </para>
 /// </remarks>
 [ContentProperty(nameof(ItemTemplate))]
-public partial class SkUiCollectionView : SkUiView, ISkUiItemsView, ISkUiRefreshOwner
+public partial class SkUiCollectionView : SkUiView, ISkUiItemsView, ISkUiRefreshOwner, IViewportInsets
 {
     /// <summary>A container in a skeleton made from content, also while empty: its children are the bones.</summary>
     internal override bool IsSkeletonContainer => true;
@@ -672,6 +672,39 @@ public partial class SkUiCollectionView : SkUiView, ISkUiItemsView, ISkUiRefresh
         set => SetValue(HorizontalScrollBarVisibilityProperty, value);
     }
 
+    /// <summary>Bindable property for <see cref="ViewportInsets"/>.</summary>
+    public static readonly BindableProperty ViewportInsetsProperty = BindableProperty.Create(nameof(ViewportInsets), typeof(Thickness), typeof(SkUiCollectionView), default(Thickness),
+        validateValue: SkUiValidate.ThicknessValue,
+        propertyChanged: (view, _, value) => ((SkUiCollectionView)view).OnViewportInsetsChanged((Thickness)value));
+
+    /// <summary>
+    /// The parts of the list covered by views drawn over it (translucent bars of an edge-to-edge page), in DIPs on each physical
+    /// edge (default none): the items scroll under them and are not covered at the ends of the list. Scroll bars,
+    /// <see cref="ScrollTo(int, int, ScrollToPosition, bool)"/>, <see cref="KeepSelectionVisible"/>, snap points, the load-more
+    /// triggers and reordering's auto-scroll use the band left uncovered; the sticky header and footer and sticky group
+    /// headers are drawn inside it, pinned under the bars, and the refresh indicator comes down from its start. See
+    /// <see cref="SkUiScrollView.ViewportInsets"/>. SkiaUi extension.
+    /// </summary>
+    public Thickness ViewportInsets
+    {
+        get => (Thickness)GetValue(ViewportInsetsProperty);
+        set => SetValue(ViewportInsetsProperty, value);
+    }
+
+    /// <summary>Sets <see cref="ViewportInsets"/> (same as the property setter).</summary>
+    public SkUiCollectionView SetViewportInsets(Thickness value)
+    {
+        SkUiValidate.ThrowIfNotThickness(value, nameof(value));
+        ViewportInsets = value;
+        return this;
+    }
+
+    private void OnViewportInsetsChanged(Thickness value)
+    {
+        Scroller.ViewportInsets = value;
+        InvalidateMeasureOverride();
+    }
+
     /// <inheritdoc cref="SkUiScrollView.Overscroll" />
     public SkUiOverscrollMode Overscroll { get => (SkUiOverscrollMode)GetValue(OverscrollProperty); set => SetValue(OverscrollProperty, value); }
 
@@ -1092,9 +1125,9 @@ public partial class SkUiCollectionView : SkUiView, ISkUiItemsView, ISkUiRefresh
 
     /// <inheritdoc />
     /// <remarks>
-    /// The list fills the view and a sticky header or footer is drawn over it: their sizes along the axis become the
-    /// scroller's <see cref="SkUiScrollView.Insets"/>, so the items scroll behind them but are never covered at the start
-    /// or the end.
+    /// The list fills the view and a sticky header or footer is drawn over it, inside <see cref="ViewportInsets"/>: their sizes
+    /// along the axis become the scroller's <see cref="SkUiScrollView.Insets"/>, so the items scroll behind them but are never
+    /// covered at the start or the end.
     /// </remarks>
     protected override Size MeasureContent(double widthConstraint, double heightConstraint)
     {
@@ -1102,31 +1135,42 @@ public partial class SkUiCollectionView : SkUiView, ISkUiItemsView, ISkUiRefresh
         var viewport = Along(new Size(widthConstraint, heightConstraint));
         _viewportLength = double.IsFinite(viewport) ? viewport : Along(new Size(Width, Height));
         UpdateEmpty();
-        var header = MeasurePart(_stickyHeaderHost, widthConstraint, heightConstraint);
-        var footer = MeasurePart(_stickyFooterHost, widthConstraint, heightConstraint);
+        // The sticky parts fit between the insets across the axis.
+        var insets = ViewportInsets;
+        var partWidth = Math.Max(0, widthConstraint - insets.HorizontalThickness);
+        var partHeight = Math.Max(0, heightConstraint - insets.VerticalThickness);
+        var header = MeasurePart(_stickyHeaderHost, partWidth, partHeight);
+        var footer = MeasurePart(_stickyFooterHost, partWidth, partHeight);
         Scroller.Insets = (Along(header), Along(footer));
         var list = ((IView)Scroller).Measure(widthConstraint, heightConstraint);
-        MeasurePart(_stickyGroupHost, widthConstraint, heightConstraint);
+        MeasurePart(_stickyGroupHost, partWidth, partHeight);
         ((IView)Refresh.Layer).Measure(widthConstraint, double.PositiveInfinity);
         ((IView?)_dragHost)?.Measure(widthConstraint, heightConstraint);
-        var across = Math.Max(Across(list), Math.Max(Across(header), Across(footer)));
-        var along = Math.Max(Along(list), Along(header) + Along(footer));
+        var alongInsets = _horizontal ? insets.HorizontalThickness : insets.VerticalThickness;
+        var acrossInsets = _horizontal ? insets.VerticalThickness : insets.HorizontalThickness;
+        var across = Math.Max(Across(list), Math.Max(Across(header), Across(footer)) + acrossInsets);
+        var along = Math.Max(Along(list), Along(header) + Along(footer) + alongInsets);
         return _horizontal ? new Size(along, across) : new Size(across, along);
     }
 
     /// <inheritdoc />
     protected override void ArrangeContent(Size size)
     {
-        var length = Along(size);
         var header = AlongOf(_stickyHeaderHost);
         var footer = AlongOf(_stickyFooterHost);
         ((IView)Scroller).Arrange(new Rect(0, 0, size.Width, size.Height));
-        ((IView?)_stickyHeaderHost)?.Arrange(Slot(0, header, size));
-        ((IView?)_stickyFooterHost)?.Arrange(Slot(Math.Max(header, length - footer), footer, size));
+        // What the insets leave of the view (before mirroring: Left is the side the items start from).
+        var insets = ViewportInsets;
+        var inside = new Rect(IsRightToLeft ? insets.Right : insets.Left, insets.Top,
+            Math.Max(0, size.Width - insets.HorizontalThickness), Math.Max(0, size.Height - insets.VerticalThickness));
+        var start = _horizontal ? inside.X : inside.Y;
+        var length = Along(inside.Size);
+        ((IView?)_stickyHeaderHost)?.Arrange(Slot(start, header, inside));
+        ((IView?)_stickyFooterHost)?.Arrange(Slot(start + Math.Max(header, length - footer), footer, inside));
         // The current group's header, below the sticky header (moved by a translation while the next group pushes it).
-        ((IView?)_stickyGroupHost)?.Arrange(Slot(header, AlongOf(_stickyGroupHost), size));
+        ((IView?)_stickyGroupHost)?.Arrange(Slot(start + header, AlongOf(_stickyGroupHost), inside));
         // Between the sticky parts: the indicator comes down from below the header, clipped there.
-        ((IView)Refresh.Layer).Arrange(Slot(header, Math.Max(0, length - header - footer), size));
+        ((IView)Refresh.Layer).Arrange(Slot(start + header, Math.Max(0, length - header - footer), inside));
         // Over the whole list: the proxy of a dragged item is placed by its translation.
         ((IView?)_dragHost)?.Arrange(new Rect(0, 0, size.Width, size.Height));
         UpdateStickyGroupHeader();
@@ -1140,9 +1184,9 @@ public partial class SkUiCollectionView : SkUiView, ISkUiItemsView, ISkUiRefresh
     /// <summary>A size across the list's axis.</summary>
     private double Across(Size size) => _horizontal ? size.Height : size.Width;
 
-    /// <summary>The band <paramref name="length"/> long at <paramref name="start"/> along the axis, across all of <paramref name="size"/>.</summary>
-    private Rect Slot(double start, double length, Size size) =>
-        _horizontal ? new Rect(start, 0, length, size.Height) : new Rect(0, start, size.Width, length);
+    /// <summary>The band <paramref name="length"/> long at <paramref name="start"/> along the axis, across all of <paramref name="inside"/>.</summary>
+    private Rect Slot(double start, double length, Rect inside) =>
+        _horizontal ? new Rect(start, inside.Y, length, inside.Height) : new Rect(inside.X, start, inside.Width, length);
 
     /// <summary>Measures a part created on demand, unbounded along the axis (nothing when it does not exist).</summary>
     private Size MeasurePart(SkUiView? part, double width, double height) =>

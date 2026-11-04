@@ -15,6 +15,7 @@ namespace MauiSkiaUiSamples.Samples.Controls;
 /// <item>Taps: <c>ItemTappedCommand</c> gets the tapped item; the Pay button in each row keeps its own taps.</item>
 /// <item>A sticky header, an empty view, loading more near the end (<c>RemainingItemsThreshold</c>) and pull-to-refresh
 /// (<c>IsRefreshing</c> two-way, <c>RefreshCommand</c>).</item>
+/// <item>The same list on a full page of its own, edge to edge under translucent bars: <see cref="OrdersEdgeToEdgePage"/>.</item>
 /// </list>
 /// </summary>
 public sealed partial class OrderListSample : SamplePage, ISample
@@ -23,7 +24,8 @@ public sealed partial class OrderListSample : SamplePage, ISample
         SampleSection.Controls,
         Title: "Order list (collection view)",
         Summary: "SkUiCollectionView in XAML: a virtualized list with a sticky header, selection styled by a visual state, " +
-                 "a button inside each row, loading more near the end and pull-to-refresh.",
+                 "a button inside each row, loading more near the end and pull-to-refresh; and, on a page of its own, " +
+                 "edge to edge under translucent bars.",
         HowTo:
         [
             "Bind `ItemsSource` and put a `DataTemplate` of drawn views inside `<sk:SkUiCollectionView>`.",
@@ -33,7 +35,10 @@ public sealed partial class OrderListSample : SamplePage, ISample
             "Add `<sk:SkUiCollectionView.Header>`, `.Footer` and `.EmptyView`; `IsStickyHeader=\"True\"` keeps the header at " +
                 "the top.",
             "Load pages with `RemainingItemsThreshold` and its command; refresh with `IsPullToRefreshEnabled`, " +
-                "`IsRefreshing` and `RefreshCommand`."
+                "`IsRefreshing` and `RefreshCommand`.",
+            "Edge to edge (\"Open edge to edge\"): hide the navigation bar and set the page's `SafeAreaEdges=\"None\"`, " +
+                "draw the bars over the list, pad them from the drawn root's `SafeAreaInsets`, and pass their sizes to the " +
+                "list's `ViewportInsets`, again in `PropertyChanged` and `SizeChanged`."
         ],
         ThingsToKnow:
         [
@@ -43,14 +48,22 @@ public sealed partial class OrderListSample : SamplePage, ISample
             "Setting `IsRefreshing` to true, by a pull or from code, runs `RefreshCommand`; set it back to false when done.",
             "Groups, multiple selection, grids and horizontal lists are shown in the Contacts sample and the " +
                 "\"CollectionView (groups, grid, horizontal)\" demo page.",
-            "Templates must create drawn views; put native ones inside `SkUiMauiContentView`."
-        ]);
+            "Templates must create drawn views; put native ones inside `SkUiMauiContentView`.",
+            "`ViewportInsets` keep what the list shows in place when they change, so rotating needs no scroll code. " +
+                "`SafeAreaInsets` is zero on views inside the surface: read it from the root."
+        ])
+    {
+        MoreSources = ["OrdersEdgeToEdgePage.xaml", "OrdersEdgeToEdgePage.xaml.cs"]
+    };
 
     public OrderListSample() : base(Info)
     {
         InitializeComponent();
         BindingContext = new OrderListModel();
     }
+
+    private async void OnOpenEdgeToEdgeClicked(object? sender, EventArgs args) =>
+        await Navigation.PushAsync(new OrdersEdgeToEdgePage((OrderListModel)BindingContext));
 }
 
 /// <summary>An order row's data, with the command of its own button.</summary>

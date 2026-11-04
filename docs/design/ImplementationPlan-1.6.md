@@ -22,7 +22,7 @@ The scroller already has the mechanism, internal: `SkUiScrollController.Insets` 
   - Scroll bars: the track in the uncovered band (done for `Insets` on `SkUiScrollView`; the Core scroll view gets it). `SnapPointsAlignment` Start / Center / End against the band. `ScrollToAsync(x, y)` stays raw offsets; `ScrollToAsync(element / node, position)` places it in the band.
   - Tests: content arranged after the start inset; extent; each behavior above with and without insets; insets changing while scrolled keep the visible content where it is (the offset moves by the change).
 - **V2 Lists and refresh.** Size: M.
-  - `ViewportInsets` on `SkUiCollectionView` and `SkUiVirtualVerticalStackLayout`: `ScrollTo(index / item, position)`, `KeepSelectionVisible`, the sticky header and footer (drawn inside the insets, pinned under the bars), sticky group headers, snap points, load-more triggers (the band's end, not the viewport's), reorder auto-scroll zones.
+  - `ViewportInsets` on `SkUiCollectionView`, and on `SkUiVirtualScrollView` by inheritance; a bare `SkUiVirtualVerticalStackLayout` has no scroller of its own to cover and follows the insets of the `SkUiScrollView` around it: `ScrollTo(index / item, position)`, `KeepSelectionVisible`, the sticky header and footer (drawn inside the insets, pinned under the bars), sticky group headers, snap points, load-more triggers (the band's end, not the viewport's), reorder auto-scroll zones.
   - `SkUiRefreshView`: the indicator travels from the start inset, not from the viewport's edge; a pull starts as before.
   - Not in V: the carousel (its peek insets already define its band) and the Core collection-like containers (no Core virtual list yet).
   - Tests: as V1, for each list behavior; a grouped list with sticky group headers under a top inset.
@@ -102,9 +102,9 @@ V comes first; T, S1 and E are independent of it and of each other.
 
 ## Decisions
 
-- **D1 A new `ViewportInsets`, not `Padding`.** Padding keeps its meaning (space inside the scrolled content, as in MAUI), so 1.x pages draw as before; `ViewportInsets` says which part of the viewport is covered. **Proposed.**
-- **D2 The keyboard and the end inset.** The keyboard covers the bottom bar, so the end inset is the larger of the two, not their sum. **Proposed.**
-- **D3 The safe area stays the app's.** Drawn views inside a surface still do not apply `SafeAreaEdges` ([not planned](Roadmap.md#not-planned)); the surface root exposes the insets so the app sizes its bars and passes them on. **Proposed.**
+- **D1 A new `ViewportInsets`, not `Padding`.** Padding keeps its meaning (space inside the scrolled content, as in MAUI), so 1.x pages draw as before; `ViewportInsets` says which part of the viewport is covered. **Implemented.**
+- **D2 The keyboard and the end inset.** The keyboard covers the bottom bar, so the end inset is the larger of the two, not their sum. A collection view's sticky footer still adds to that, as it did to the keyboard before. **Implemented.**
+- **D3 The safe area stays the app's.** Drawn views inside a surface still do not apply `SafeAreaEdges` ([not planned](Roadmap.md#not-planned)); the surface root exposes the insets so the app sizes its bars and passes them on. **Implemented.**
 - **D4 The tile layout is a layout, not a virtualized list.** Galleries with many items use the collection view's grid; the tile layout is for a page's strip or block of tiles. **Proposed.**
 - **D5 Core `ScaleX` / `ScaleY` become independent.** Today Core nodes scale uniformly, and animating `ScaleX` or `ScaleY` on a Core node scales both. With separate scales an animation of `ScaleX` scales X only, as on SkUi\* views and in MAUI; `Scale` still sets both. A behavior change for Core code that animates one axis, so it goes under `### Breaking changes` in the changelog with the fix (animate `Scale`). **Decided:** independent.
 - **D6 Reveal names.** `IsPasswordRevealed` / `ShowsPasswordRevealButton` / `HidesPasswordOnUnfocus`: MAUI has no API to follow. **Proposed.**

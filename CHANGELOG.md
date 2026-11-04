@@ -18,6 +18,22 @@ Publishing (the NuGet publish workflow, [docs/Releasing.md](docs/Releasing.md)) 
 
 ## Unreleased
 
+### New features
+
+- **Viewport insets:** `ViewportInsets` (`Thickness`, default none) on `SkUiScrollView` (and so `SkUiVirtualScrollView`), `SkUiCoreScrollView` (`SetViewportInsets`) and `SkUiCollectionView` says which parts of the viewport are covered by views drawn over the scroller, so an edge-to-edge page scrolls its content under translucent bars with nothing covered at the ends of the range. `Padding` keeps its meaning.
+  - The band left uncovered is what the scroll bars' track, `SnapPointsAlignment`, `ScrollToAsync(element / node, position)`, `ScrollToIndex` / `ScrollTo`, `KeepSelectionVisible`, keyboard and screen-reader reveal, keyboard paging, load-more triggers, `RemainingItemsThreshold` and reordering's auto-scroll use. `ScrollToAsync(x, y)` stays raw offsets.
+  - Insets across the scroll axis pad the content and keep the scroll bar out of them (a landscape notch). The keyboard and the end inset count as the larger of the two.
+  - Changing the insets while scrolled keeps what shows in place; at the start of the range the scroller stays there.
+  - The collection view's sticky header, footer and group headers are drawn inside the insets; the refresh indicator of the collection view and of `SkUiRefreshView` comes down from the start inset (the refresh view reads it from its content's first vertical scroller).
+  - A bare `SkUiVirtualVerticalStackLayout` follows the insets of the `SkUiScrollView` around it.
+  - All of them implement `IViewportInsets`, for app helpers that pass bars' sizes and the safe area on to whichever scroller or list a page shows.
+- **`SafeAreaInsets` on the surface root:** read-only and bindable, how far the window's bars, notch and home indicator reach into the root, whatever its `SafeAreaEdges` say; it follows rotation and window resizes, and zero inside a surface. An app binds its bars' padding and `ViewportInsets` to it. Nothing asks the platform until it is first read.
+- **Demo and samples:** the gallery's "Edge-to-edge scrolling" page; the samples app's "Order list" example opens a full edge-to-edge page that follows the insets through a rotation.
+
+### Fixes
+
+- **Layout changes made while a surface root is arranged are no longer lost:** a `SizeChanged` handler that changed a view's layout during the root's first arrange (a bar setting a list's insets) asked the native layout, which was in its own pass and did not come back, so the tree stayed as it was until something else laid it out. The root now lays out again before its next frame.
+
 ## 1.5.1
 
 ### Fixes

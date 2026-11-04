@@ -548,7 +548,7 @@ public partial class SkUiCollectionView
                 var length = ReferenceEquals(view, EmptyHost) && view.IsVisible
                     ? Math.Max(_owner.AlongOf(view), _owner.Along(size) - others)
                     : _owner.AlongOf(view);
-                ((IView)view).Arrange(_owner.Slot(position, length, size));
+                ((IView)view).Arrange(_owner.Slot(position, length, new Rect(Point.Zero, size)));
                 position += length;
             }
         }

@@ -206,7 +206,7 @@ public partial class SkUiCollectionView
             var shift = 0d;
             if (IsStickyGroupHeader && Model.HasGroupHeaders && Model.RowCount > 0 && ItemsHost.HasWindow)
             {
-                var start = ItemsHost.VisibleStart + Scroller.Insets.Start;
+                var start = ItemsHost.VisibleStart + Controller.EffectiveInsets.Start;
                 if (start > 0 && start < ItemsHost.TotalLength)
                 {
                     var group = Model.RowAt(ItemsHost.RowAtOffset(start)).Group;
