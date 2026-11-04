@@ -2,7 +2,7 @@
 
 **Goal:** edge-to-edge pages scroll their content under drawn top and bottom bars and still show every row clear of them at the ends of the range, with scrolling, scroll bars, snapping, refresh and reveal working in the uncovered band.
 
-**Scope:** phase V, on `devel`, and the fix for hosted native views that keep an old clip when what clips them is resized ([#81](https://github.com/rafalka/MauiSkiaUi/issues/81), in review in [#82](https://github.com/rafalka/MauiSkiaUi/pull/82)). The other work first planned for 1.6 (performance, the tile layout, Core containers, password reveal) moved to [1.8](ImplementationPlan-1.8.md); 1.7 brings [runtime SVG images](Roadmap.md#170-runtime-svg-images-planned).
+**Scope:** phase V, on `devel`, and the fix for hosted native views that keep an old clip when what clips them is resized ([#81](https://github.com/rafalka/MauiSkiaUi/issues/81), in review in [#82](https://github.com/rafalka/MauiSkiaUi/pull/82)). The other work first planned for 1.6 (performance, the tile layout, Core containers, password reveal) moved to [1.8](ImplementationPlan-1.8.md); 1.7 brings [vector icons](Roadmap.md#170-vector-icons-planned).
 
 **Baseline:** .NET MAUI 10.0.120 (or the latest 10.0.x when 1.6 ships), SkiaSharp 4.154.0, from `devel` after 1.5.1. What has shipped is in the [changelog](../../CHANGELOG.md); the rest of the 1.x backlog stays in the [roadmap](Roadmap.md#backlog-1x).
 

@@ -1,137 +1,124 @@
-# SkiaUi 1.7 implementation plan: runtime SVG images
+# SkiaUi 1.7 implementation plan: vector icons
 
-**Goal:** `.svg` files draw at runtime on both layers, from any image source (downloaded, from Raw assets, files, streams, text), sharp at any size and under any scale, recolored from code, in a new optional package, `SkiaUi.Maui.Svg`. A document from the network can neither reach anything else nor take the app down. `SkiaUi.Maui` gets no new dependency, and an app that does not use the package pays nothing.
+**Goal:** an app's `.svg` icons draw at runtime on both layers, sharp at the size the view has and in the color the theme asks for, as cheap per frame as a bitmap. `SkiaUi.Maui` gets a small SVG reader of its own, with no new dependency and no new package.
 
-**Scope:** this one feature. An SVG added as a `MauiImage` keeps working as the PNG generated at build time. Starting point: [the archived plan, phase E](../archive/ImplementationPlan-1.0.md#phase-e--svg-images-later); this plan replaces its design where the two differ.
+**Scope:** this one feature, for icons. It reads the part of SVG that icons use and reports anything else as a `LoadError`. A `MauiImage` keeps working exactly as today, and an app can use both. Full SVG (gradients, `<use>`, filters, downloaded illustrations) stays in the [backlog](Roadmap.md#new-controls-and-packages).
 
-**Baseline:** .NET MAUI 10.0.120 (or the latest 10.0.x when 1.7 ships), SkiaSharp 4.154.0, Svg.Skia 5.2.3 (what MAUI's Resizetizer uses), branch `1.7-implementation` from `devel` after 1.6.0. What has shipped is in the [changelog](../../CHANGELOG.md); the rest of the 1.x backlog stays in the [roadmap](Roadmap.md#backlog-1x).
+**Baseline:** .NET MAUI 10.0.120 (or the latest 10.0.x when 1.7 ships), SkiaSharp 4.154.0, branch `1.7-implementation` from `devel` after 1.6.0. What has shipped is in the [changelog](../../CHANGELOG.md); the rest of the 1.x backlog stays in the [roadmap](Roadmap.md#backlog-1x).
 
 **Rules** (as in 1.4, from [Requirements.md](Requirements.md#principles)):
 
-- 1.x keeps the 1.0 API: changes to `SkiaUi.Maui` are additive.
-- Both layers: every image view of both layers draws SVG through the one shared loader, cache and `SkUiImageSlot`.
+- 1.x keeps the 1.0 API: everything here is additive.
+- Both layers: each member lands on the SkUi\* side and its Core twin, with one shared reader and the one image loader and cache.
 - A feature a view does not use costs nothing per frame (`scripts/bench.sh --baseline v1.6.0`), and raster decoding gains no work.
-- The engine stays generic: `SkiaUi.Maui` knows vector images and a decoder hook, not SVG. Like `SkiaUi.Maui.CommunityToolkit`, the package uses only public API, with no `InternalsVisibleTo` to it.
 
-## What a spike found
+## What a prototype found
 
-Run on 4 November 2026 on macOS arm64 with CoreCLR, using Svg.Skia 5.2.3's `netstandard2.0` DLLs from the Resizetizer 10.0.120 package and SkiaSharp 4.154.0. It has not run on a device, with the package's `net10.0` assets, or under Native AOT, which is what [G1](#phase-g--gate-on-the-real-package) is for.
+Run on 4 November 2026 on macOS arm64 with CoreCLR and SkiaSharp 4.154.0, on a CPU raster surface. A throwaway reader (not in the repository) drew each file at 3× its size, and its pixels were compared with Svg.Skia 5.2.3's; a pixel differs when a channel is off by more than 48. Nothing has run on a phone, on a GPU or under Native AOT, which is what [M1](#phase-m--measurements-demo-and-docs) is for.
 
-| Question | Result | What it means here |
-| --- | --- | --- |
-| Works with SkiaSharp 4.154.0? | Yes: paths, gradients, CSS, filters, clips, `use`, text | The package asks for SkiaSharp 4.148 and MAUI's copy references 4.150; both are below our pin, and nothing else was needed |
-| Parse time | Warm: 0.1 ms for an icon, about 1 ms for a rich document. Cold, first in the process: 175–630 ms | Always off the UI thread; the cold parse is the number to measure on the S9 |
-| Parsing in parallel | 64 parses on 8 threads, no errors | Fits the loader's decode queue |
-| Picture lifetime | **Drawing `SKSvg.Picture` after disposing the `SKSvg` crashes the process (SIGSEGV).** A copy recorded into our own `SKPictureRecorder` survives | [S2](#phase-s--skiauimauisvg) records a copy |
-| Replay cost | Rich document at 96 × 48, CPU raster: picture 27 µs, image 2 µs | Vectors cost more per frame than bitmaps; [D2](#decisions) and M1 |
-| Deep nesting | **Uncatchable stack overflow.** 512 nested `<g>` on a 512 KB stack (a 4 KB file), 1,500 on 1.5 MB; 256 and 1,024 pass on those stacks | A downloaded file can kill the app: [S3](#phase-s--skiauimauisvg) |
-| Remote references | **By default the parser fetches `<image>` and `<use>` URLs itself.** `SvgDocument.ResolveExternalImages` and `ResolveExternalElements` are `Local, Remote`; set to `None`, no requests | Tracking and requests to internal hosts: [D4](#decisions) |
-| Entities | External entities are not resolved (default `None`); entity bombs end in an `XmlException` | Safe with the defaults, so DTDs can stay on |
-| Bad input | `XmlException` for broken XML, **`NullReferenceException` for `<html/>`**, a 1 × 1 picture for an empty `<svg>` | Normalized to one error for `LoadError` |
-| Intrinsic size | `viewBox` alone and percentages give the `viewBox`; no size at all gives the content's bounds; `width="100000000"` is taken as it is | Clamp for layout and rasters |
-| Trimming | ILLink over the app and these DLLs: 3 warnings, all in Svg.Custom's `ColorConverter` (`TypeDescriptor`, reflection over named colors). IL 3.4 MB, 2.3 MB after linking | **Named colors may break when trimmed**: must be run, not only analyzed |
-| Blocked images | A blocked `<image>` draws a broken-image placeholder (`EnableBrokenImagePlaceholders` is on) | Turned off |
-| Scripts | `EnableJavaScript` is off by default | Stays off |
+**Coverage**, with the features in [R1](#phase-r--the-reader):
 
-## Phase G — Gate on the real package
+| Icons | Files | Drawn | Largest difference | The rest |
+| --- | --- | --- | --- | --- |
+| A design tool's export for a mobile app, mostly 24 × 24, all `currentColor` | 69 | **69** | 0.04% | |
+| An existing mobile app's image folder | 47 | 29 | 1.06% | 18 are 512 × 512 PNGs embedded in an SVG pattern: not vector art, so they stay `MauiImage` |
+| Status badges with text as paths | 8 | 7 | 0% | 1 fills a rect with a pattern whose `<image>` has no data: re-export it |
 
-- **G1 Svg.Skia in real app builds** (first; decides whether the rest goes ahead as planned). Size: S, device time.
-  - A scratch branch of the samples app with the real `Svg.Skia` 5.2.3 package on the pinned SkiaSharp, drawing one document with named colors, gradients, CSS and text.
-  - Builds and draws on iOS, Android, Mac Catalyst and Windows, including that the package's `HarfBuzzSharp` and SkiaSharp dependencies resolve to our pinned versions on each TFM.
-  - `scripts/device_tests.sh -t maccatalyst --aot` and `--trim`: **the named colors draw correctly**. If they do not, a `DynamicDependency` or a linker descriptor in the package keeps what `ColorConverter` reflects over; if that cannot work, the package is documented as not trimmable.
-  - Numbers to record: app size with and without the package on each platform; the cold first parse and the stack depth that overflows on the Galaxy S9 and the iPhone 8, on the threads the decode queue uses.
-  - Also checked: the license of each dependency in 5.2.3 (Svg.Custom was MS-PL in 4.9.0; Svg.Skia is MIT).
-  - Stop and rethink if it cannot run under Native AOT at all, or a cold parse takes seconds on the S9.
+Dashed strokes hide their errors when every stroke has one color, so those files were also compared with each stroke recolored: 0.00%. Three older exports, whose `pt` size has a different aspect ratio from their `viewBox`, differ by 14–20% for a reason not yet known; [R2](#phase-r--the-reader) settles it.
 
-## Phase C — Vector images in `SkiaUi.Maui`
+**Cost** of a 24 dp gear icon (46 path verbs) shown at 72 px:
 
-- **C1 Vector entries.** Size: M.
-  - `SkUiDecodedImage` and `SkUiCachedImage` carry either frames or an `SKPicture` (`Vector`). The entry owns the picture and disposes it with its last reference; pictures already recorded keep their own native references, as they do with frames (checked in the spike).
-  - `SkUiImageSlot.Paint` draws a vector through `SkUiImageDrawing` and a new `SkUiLook.DrawVectorImage` (a protected virtual core on the look, as `DrawImageCore`), placed by the existing `ComputeImageDestination`. It **clips to the destination**, because a nested picture's cull rect does not clip what it draws. `ImagePainter` takes an `SKImage`, so it does not run for vectors, and its doc says so.
-  - Everything that reads frames learns about vectors: `SkUiImageSlot.Image` and `IsShowingPlaceholder`, the slider thumb's `hasImage`, the avatar's `ShowsImage`, `SkUiImageFade.GetDrawable` (which takes the frame as its key and treats `null` as no fade), `Frames[_frame]`, and `SkUiImageLoader.Transform`. A `HasContent` on the slot replaces the null checks.
-  - Memory cost for the LRU: the larger of the picture's `ApproximateBytesUsed` and the encoded size (the approximation is low: 248 bytes for an icon).
-  - Tests, with a test decoder and no SVG: each `Aspect`, a clip at the destination, sharp pixels when drawn scaled, every slot user (image, image button, button, slider thumb, avatar, placeholders, both layers), fade-in, cache sharing and eviction; leak scenario.
-- **C2 Decoder hook** ([D1](#decisions)). Size: S.
-  - `SkUiImageDecoder.RegisterVectorDecoder(ISkUiVectorImageDecoder)`: `CanDecode(ReadOnlySpan<byte>)` and `Decode(byte[])`, returning the picture and its size in DIPs. Consulted only where `SKCodec.Create` returned `null`, so raster decoding gains nothing.
-  - Decode bounds and transformations give a raster ([D2](#decisions)). Unlike a bitmap, a vector rasterizes **up** to the bounds (fit or cover), limited by `MaxDecodeDimension`; `Transform` rasterizes at the bounds, else at the size in DIPs × the display scale.
-  - Without a registered decoder, bytes that look like XML fail with a message naming `SkiaUi.Maui.Svg` and `UseSkiaUiSvg()`, rather than "Unsupported or corrupt image".
-  - Tests: file, package asset, URI (with progress and the disk cache), stream and shared in-flight loads with the test decoder; a corrupt cached file is downloaded again; keys differ by bounds.
-- **C3 Source hooks.** Size: S.
-  - `SkUiImageSource.WithContentFilter(string key, Func<byte[], byte[]> filter)`: bytes pass through the filter before decoding, on the decode queue, whatever the source. The key joins the cache key; the disk cache keeps the original bytes.
-  - `SkUiImageSource.FromMaui` asks an `ImageSource` that implements a new `ISkUiImageSourceProvider` for its source, instead of failing with "not supported". `SkUiMauiImageSources.AffectsImage` gains one more property name that such a source raises when its image changes.
-  - Tests: filtered bytes, keys, a MAUI source's change reloads each control that tracks one (image, button, slider, avatar).
+| Approach | First icon in the process | Each further icon | Draw per frame |
+| --- | --- | --- | --- |
+| `MauiImage` (PNG decode) | 1.4 ms | 32 µs | 1.7 µs |
+| **This plan** (reader, then a bitmap at the view's size) | 5.7 ms | 28 µs | about 1.7 µs (assumed: an image of the same size) |
+| Generated C# recorded as a picture | 0.9 ms | 6 µs | 9 µs |
+| Svg.Skia, recorded as a picture | 100 ms | 360 µs | 9 µs |
 
-## Phase S — `SkiaUi.Maui.Svg`
+Memory per icon on screen is the same as a `MauiImage` of that size (20 KB at 72 px). In the package, one icon takes 0.8 KB against 7.4 KB of PNGs across five densities.
 
-- **S1 Project and release wiring.** Size: S.
-  - `MauiSkiaUi.Svg/` modeled on `MauiSkiaUi.CommunityToolkit` (same TFMs, trim analysis, package metadata and `ProjectReference`), `SvgSkiaVersion` in [Directory.Build.props](../../Directory.Build.props), [SkiaUi.slnx](../../SkiaUi.slnx).
-  - CI: the Apple and Windows restore and build steps in [ci.yml](../../.github/workflows/ci.yml), the release loops in `nuget-pack.yml` and `nuget-publish.yml`, the note in `scripts/merge_nupkgs.py`.
-  - **Before the first publish, a nuget.org Trusted Publishing policy must cover the new package, or its push fails** ([Releasing.md](../Releasing.md)). The repository owner sets this up.
-  - `UseSkiaUiSvg()` on `MauiAppBuilder`, as `UseSkiaUiCommunityToolkit()`.
-- **S2 Decoder.** Size: M.
-  - `CanDecode`: after a BOM and white space, `<`, and an `<svg` root within the first kilobytes (past the prolog, comments and a doctype). `Decode` runs `SKSvg.FromSvg` from the bytes, **records a copy of the picture into our own recorder, then disposes the `SKSvg`**.
-  - Size: `width` / `height`, else the `viewBox`, else the content's bounds; clamped to `MaxDecodeDimension` keeping its aspect ratio. A document with no size at all or an empty picture is an error, as is any parser exception: one `InvalidDataException`, shown in `LoadError`.
-  - Settings: `EnableBrokenImagePlaceholders` off, `EnableJavaScript` off, `EnableTextSelectionRendering` off. `TypefaceProviders` gets one that resolves through `SkUiFonts`, so `<text>` finds fonts registered with `ConfigureFonts`.
-  - Tests: the spike's documents as pixel checks; `viewBox`, percent, missing and huge sizes; text with the bundled font (Linux CI has no system fonts); first frame of an animated document.
-- **S3 Untrusted documents** ([D4](#decisions)). Size: M.
-  - `UseSkiaUiSvg()` sets `ResolveExternalImages` and `ResolveExternalElements` to `None`. They are process-wide statics, so this also applies to an app's own direct use of Svg.Skia, and the docs say so. `data:` images keep working (test).
-  - Before parsing, a forward-only `XmlReader` pass rejects documents nested deeper than `SkUiSvg.MaxDepth` (proposed 128, below the 256 that passed on a 512 KB stack; G1's device numbers confirm it). External entities stay unresolved; DTDs stay on, because older design tools export entities in them.
-  - Element depth is not the only recursion: test chains of `<use>`, `<symbol>`, `<pattern>`, `<mask>`, `<clipPath>` and gradient `href`s, and reference cycles (a direct `<use>` cycle passed). **If a chain can overflow the stack, parsing moves to one worker thread with a large stack,** which covers what a depth scan cannot.
-  - Cost limit: documents over `SkUiSvg.MaxOperations` (from M1) are an error rather than a frame-time problem. The loader's 32 MiB limit on encoded bytes still applies.
-  - Tests: every case above in the headless suite, except that a chain which overflows is run on the devices only after the fix; a loopback `HttpListener` asserts that no request is made (`<image>`, `<use>`, `fill="url(...)"`, CSS `@import`, entities, `file:` references).
-- **S4 Sources and recoloring** ([D3](#decisions), [D5](#decisions)). Size: M.
-  - A plain source needs nothing new: `Source="logo.svg"` (a `MauiAsset`), `Source="https://..."`, a file or a stream draws once the package is registered.
-  - Core: `SkUiSvg.FromText(string, ...)` and `source.WithSvgOptions(tintColor, replacements)`. SkUi\*: `SkUiSvgImageSource`, a MAUI `ImageSource` usable in XAML (`Source`, `TintColor`, `Replacements`), through C3's provider.
-  - `Replacements`: text replaced before parsing, through `WithContentFilter`, for `currentColor` and theme colors. `TintColor`: the whole image in one color (SrcIn), kept as a vector by wrapping the copy from S2 in a color-filtered layer. Both join the cache key, and a change reloads.
-  - A MAUI `Image` does not draw `SkUiSvgImageSource`; the docs say so.
-  - Tests: pixels and keys for both options; a changed tint reloads and shares entries by value; XAML loading (`RuntimeXamlCollection`); leak scenario `SvgImagesSwitched` on both layers, in `tests/Shared/MemoryLeaks`.
+## Phase R — The reader
+
+Internal to `MauiSkiaUi/Imaging`: bytes to a small tree of nodes, and that tree to an `SKImage` at a given size and color.
+
+- **R1 Parsing** ([D3](#decisions)). Size: M.
+  - `XmlReader`, forward only, into own nodes. A document is read whole before it draws, because `<defs>` often follows what refers to it.
+  - Elements: `svg`, `g`, `path`, `rect`, `circle`, `ellipse`, `line`, `polyline`, `polygon`, `defs`, `clipPath`, `mask`, `style`, and one-line `text` (`x`, `y`, `font-size`, `font-family`, `font-weight`, `text-anchor`).
+  - Properties, inherited as SVG says: `fill`, `stroke`, `stroke-width`, `stroke-linecap`, `stroke-linejoin`, `stroke-miterlimit`, `stroke-dasharray`, `stroke-dashoffset`, `fill-rule`, `clip-rule`, `opacity`, `fill-opacity`, `stroke-opacity`, `color`, `display`, `transform`, `clip-path`, `mask`. As attributes, in an inline `style`, and from `.class` rules in `<style>` (comma lists; a rule beats an attribute, an inline style beats a rule).
+  - Colors: `#rgb`, `#rgba`, `#rrggbb`, `#rrggbbaa`, `rgb()`, `rgba()`, `none`, `currentColor`, the CSS named colors from a static table (no reflection).
+  - Lengths: numbers, `px`, `pt`. `viewBox`, root `width` / `height` (percentages fall back to the `viewBox`), `preserveAspectRatio`.
+  - Tests: each element and property with its inheritance; forward references; the cascade; BOM, prolog, comments, CDATA in `<style>`.
+- **R2 Drawing.** Size: M.
+  - Paths through `SKPath.ParseSvgPathData`; a clip through `ClipPath`; a mask through a layer with `DstIn` (luminance unless `mask-type: alpha`); dashes through `SKPathEffect.CreateDash`; group opacity through a layer; `text` through the fonts the text engine uses ([`SkUiFonts`](../../MauiSkiaUi/Helpers/SkUiFonts.cs)).
+  - Tests: pixel checks against Svg.Skia, used by the test project only ([D7](#decisions)), on documents written for the tests. `SKUI_VECTOR_CORPUS=<folder>` adds every `.svg` in a folder, so an app's private icons can be checked without entering the repository. The `pt` / `viewBox` case above, against a browser's result. Text with the bundled font (Linux CI has no system fonts).
+- **R3 Bad and hostile files** ([D4](#decisions)). Size: S.
+  - DTDs prohibited, no XML resolver. No element can reach outside the document, so a file makes no requests and reads nothing. `MaxDepth` on nesting (proposed 64) and on chains of `clip-path` and `mask`, cycles rejected, `MaxBytes` (proposed 1 MiB) and `MaxElements` (proposed 20,000). The size is clamped to `MaxDecodeDimension`, aspect kept.
+  - An SVG feature the reader cannot draw (`image`, `use`, `symbol`, `pattern`, gradients, `filter`, `foreignObject`, `tspan`, `textPath`, `marker`, a `url()` paint, a selector other than a class) fails with an `InvalidDataException` naming it, shown in `LoadError`. Other unknown elements are skipped with their content, as a design tool's template elements are. `script` and the `animate` elements are skipped too: an animated file draws its first state.
+  - Tests: nesting that overflowed the stack in Svg.Skia (512 levels), entity bombs, reference cycles, `stroke-dasharray=".001"` on a long path and huge stroke widths finish in bounded time; bad path data; `<html/>`, empty and truncated files; no document opens a socket or a file.
+
+## Phase L — In the image loader
+
+- **L1 Where bytes become an image** ([D1](#decisions)). Size: S.
+  - `SkUiImageDecoder.Decode`: where `SKCodec.Create` returns `null` and the bytes start with `<` after a BOM and white space, the reader runs. Raster decoding gains nothing, and every source gets it: `Source="check.svg"`, a URI with its disk cache and progress, a file, a stream.
+  - The bitmap is drawn at the decode bounds, larger ones too, or else at the intrinsic size × the display scale, which `SkUiImageLoadContext.DecodeAsync` passes on. `IsReduced` is `true`, because larger bounds give more pixels. Transformations apply to it as to any image.
+  - `.svg` files ship as `MauiAsset`. A `MauiImage` of the same name wins, because the lookup finds its generated PNG first, and so does an Android drawable: tests, and the docs say so.
+  - Tests: every source kind, keys differ by bounds, a corrupt cached file is downloaded again, raster paths unchanged.
+- **L2 Following the view** ([D2](#decisions)). Size: M.
+  - A vector loads first at its intrinsic size, so measure works and nothing waits for an arrange. `SkUiImage` and `SkUiCoreImage` then draw it again at the arranged size in exact pixels when that differs by more than a pixel, keeping the shown image meanwhile. `DownsampleToViewSize`'s 16 DIP steps do not apply: a 24 DIP icon drawn at 32 and scaled down is soft. Explicit decode bounds win; `Aspect.Center` draws unscaled.
+  - An icon whose view has its intrinsic size loads once. The other slot users (button icon, slider thumb, avatar, placeholders) draw at the intrinsic size or L3's `Size`, as they do a `MauiImage`.
+  - A new `IsVector` on `SkUiDecodedImage` and `SkUiCachedImage`. The shared logic sits next to `SkUiViewSizedDecode`.
+  - Tests: sharp pixels at larger and smaller sizes on both layers; an unchanged size loads once; a size animation does not queue a load per frame (later loads replace earlier ones); a list of one icon shares one entry per size and color.
+- **L3 Source and color** ([D5](#decisions)). Size: S.
+  - `SkUiVectorImageSource`, a MAUI `ImageSource` shaped like `FontImageSource`, so it works in every property that takes an image: `Source` (as `Image.Source`'s string), `Color` (the value of `currentColor`), `Size` (the longest edge in DIPs; 0: the file's). `FromMaui` maps it, and `AffectsImage` gains `Source`.
+  - Core: `SkUiImageSource.FromVector(source, color, size)` and `FromVectorText(svg, color, size)`. Color and size join the cache key, so a theme change is a new load of about 30 µs.
+  - `Source="check.svg"` needs none of this and draws `currentColor` black, as SVG says. `SkUiTintTransformation` still recolors a file whose colors are written out.
+  - Tests: pixels and keys; a changed `Color` reloads in each control that tracks a source (image, button, slider, avatar); `AppThemeBinding` and `DynamicResource` on `Color`; XAML loading (`RuntimeXamlCollection`); `ImageSourceParityTests`; leak scenario `VectorIconsSwitched` on both layers, in `tests/Shared/MemoryLeaks`.
 
 ## Phase M — Measurements, demo and docs
 
-- **M1 Cost of vectors.** Size: S–M, device time.
-  - Bench scenarios: 1,000 SVG icons against the same icons as PNGs, on both layers (first frame, per-frame composite, recording allocation), a cold and a warm parse. They set options through `TrySet` and the project reference has an `Exists` condition, so `--baseline v1.6.0` still builds.
-  - On the S9 and the iPhone 8: a scrolling list of 50 icons per screen, one complex document, and a scale animation. Compare with PNGs in frame time and memory; add gradients and blurs to [`SkUiGpuWarmUp`](../../MauiSkiaUi/Rendering/SkUiGpuWarmUp.cs) if the first draw hitches.
-  - Sets `MaxOperations`, the guidance on when to rasterize, and whether [D2](#decisions) needs an automatic raster after all. Results go in [Performance.md](../Performance.md).
+- **M1 Cost on devices.** Size: S, device time.
+  - Bench scenarios: 1,000 vector icons against the same icons as PNGs, on both layers (first frame, per-frame composite, allocation). They set options through `TrySet`, so `--baseline v1.6.0` still builds.
+  - On the Galaxy S9 and the iPhone 8: the first icon in the process, a scrolling list of 50 icons per screen, a theme change on a page of icons, against PNGs and font glyphs. Under Native AOT on Mac Catalyst: named colors and `XmlReader`. Results go in [Performance.md](../Performance.md).
+  - If the first icon is a visible hitch on the S9, warm the reader up in the background at startup.
 - **M2 Demo and docs.** Size: S.
-  - A gallery page next to the image page: sources, aspects, a scale animation showing sharp edges, tint and replacements following dark mode, a bad document showing `LoadError`, on both layers.
-  - New `docs/controls/SkUiSvg.md` with supported features, what degrades, and the security defaults; [SkUiImage.md](../controls/SkUiImage.md) (sources, "SVG at runtime" row), [SkUiCore.md](../controls/SkUiCore.md), the controls index; [Development.md](../../Development.md), [Releasing.md](../Releasing.md) and [README.md](../../README.md) (three packages); [Migration.md](../Migration.md) and the migration skills in `plugins/skiaui-migration` (runtime SVG views from image libraries map to `SkUiImage` with this package); a package `README.md`.
+  - A gallery page next to the image page: sizes, colors following dark mode, an icon in a button and a slider thumb, both layers side by side, a file with a gradient showing its `LoadError`.
+  - [SkUiImage.md](../controls/SkUiImage.md): a section with the project-file line, what the reader supports, what fails, and when to use a `MauiImage` instead; its "SVG at runtime" row. [SkUiCore.md](../controls/SkUiCore.md). [Migration.md](../Migration.md) and the migration skills in `plugins/skiaui-migration`: `FontImageSource` icons and tint behaviors map to `SkUiVectorImageSource`.
 
 ## Not in 1.7
 
-SVG animation (animated documents draw their first frame; Svg.Skia has the pieces, which makes this a candidate for later); scripts; external resources of any kind, including relative `<image>` references to app assets; hit-testing parts of a document; screen readers reading `<title>` (an image is read from `SemanticProperties.Description`, as now); `.svgz`; a separate drawn SVG control (`SkUiImage` is the view); `SkUiSvgImageSource` on MAUI's native `Image`.
+Gradients (the likely next addition: additive, and 13% of the sample SVGs in the reference repositories need only them); `<use>`, `<symbol>`, `<pattern>`, embedded images, filters, full CSS, multi-line or styled text; scale animations redrawing the vector (the bitmap stretches, as a `MauiImage` does); a warning at build time for an icon the reader would reject; `SkUiVectorImageSource` on MAUI's native `Image`.
 
 ## Docs, migration and demo
 
-Done with each step: [CHANGELOG.md](../../CHANGELOG.md) (an entry under `## Unreleased`; the core hooks and the package are one feature), [Roadmap.md](Roadmap.md); the rest as listed in [M2](#phase-m--measurements-demo-and-docs).
+Done with each step: [CHANGELOG.md](../../CHANGELOG.md) (one entry under `## Unreleased`), [Roadmap.md](Roadmap.md); the rest as listed in [M2](#phase-m--measurements-demo-and-docs).
 
 ## Order
 
 | # | Steps | Size | Why here |
 | --- | --- | --- | --- |
-| 1 | G1 | S | Decides whether the design below stands; everything else assumes it |
-| 2 | C1 | M | The engine change every other step draws through; testable without SVG |
-| 3 | C2, C3 | S, S | Hooks on C1 |
-| 4 | S1, S2 | S, M | First real SVG on screen |
-| 5 | S3 | M | **Before any network document is tried in the demo;** a release blocker |
-| 6 | S4 | M | Options on S2 |
-| 7 | M1 | S–M | Judges D2 and sets `MaxOperations` (S3's limit) |
-| 8 | M2 | S | Documents what M1 settled |
-
-C1 can start before G1 ends, since it has no SVG dependency.
+| 1 | R1, R2 | M, M | Everything draws through it; testable alone, with the corpus check from the start |
+| 2 | R3 | S | Limits and errors belong to the parser before any file comes from a real source |
+| 3 | L1 | S | First icon on screen; `MauiAsset` lookup checked on each platform |
+| 4 | L2 | M | Sharp at any size |
+| 5 | L3 | S | Color and the XAML API |
+| 6 | M1 | S | Device numbers, against the prototype's |
+| 7 | M2 | S | Documents what M1 settled |
 
 ## Decisions
 
-- **D1 A decoder hook, not a new source type.** Every source already reads bytes, and SVG support belongs where bytes become an image, so `Source="https://.../logo.svg"` gets the disk cache, progress, shared loads and events without new code; XAML and existing properties work unchanged. The archived plan's source-type hook would have needed `SkUiImageSource` opened to other assemblies (its constructor is `private protected`, and `LoadAsync` returns an internal type). **Proposed.**
-- **D2 Vector by default; a raster only when asked for.** Without decode bounds or transformations, an SVG replays as a vector: sharp at any size and under composite-time scale, one cheap op to record. `DownsampleToViewSize`, explicit bounds or a transformation give a bitmap, through options that already mean "decode to pixels", so an app can choose it for a heavy document or a long list. This narrows the archived plan's automatic raster for documents "too costly to replay": knowing the view's size needs a second load, so it comes only if M1 shows that apps cannot manage without it. **Proposed.**
-- **D3 Names.** `SkiaUi.Maui.Svg`, namespace `MauiSkiaUi.Svg`, `UseSkiaUiSvg()`, `SkUiSvg`, `SkUiSvgImageSource`, `ISkUiVectorImageDecoder`, `ISkUiImageSourceProvider`, `WithContentFilter`, `WithSvgOptions`, `DrawVectorImage`. **Proposed.**
-- **D4 Closed by default, with no option to open it in 1.7.** Runtime SVGs are often downloaded, and an image must not make requests or read files. An option can follow if a real app needs it. **Proposed.**
-- **D5 Two ways to recolor, both on the source.** `TintColor` covers one-color icons; `Replacements` covers multi-color documents and `currentColor`. A transformation such as `SkUiTintTransformation` still works, but rasterizes (D2). **Proposed.**
-- **D6 The package follows the one-version rule.** It is released with the others and depends on `SkiaUi.Maui` of the same version ([Releasing.md](../Releasing.md)). Whether 1.7 first goes out as a prerelease line (as the release process offers big features) is decided after M1. **Proposed.**
+- **D1 The reader lives in the decoder, not behind a new source kind.** Every source already reads bytes, so URIs, the disk cache, progress, shared loads and events work with no new code; Android's XML drawables already render at the decode bounds through the same loader. **Proposed.**
+- **D2 A bitmap at the view's size, not a picture.** A bitmap draws about five times faster per frame on a CPU raster surface, needs no change to `SkUiImageSlot`, the fade or the slot's users, and is what an icon needs: it is sized by layout and rarely animated in scale. **Proposed.**
+- **D3 Our own subset, not Svg.Skia.** For icons it loads about 13 times faster per icon and about 18 times faster for the first one, adds no dependency, package or Trusted Publishing policy, avoids Svg.Custom's reflection over named colors when trimmed, and has no external references to close. It costs a reader to maintain and files it will not draw, which fail visibly. The design on Svg.Skia is in this file at commit `c56d20a`, if a real app needs full SVG. **Proposed.**
+- **D4 Fail, do not guess.** An icon with a part missing looks like a design bug that is hard to trace, while a `LoadError` names the element. Elements that are not SVG are skipped, which matched Svg.Skia's result on the one such file scanned. **Proposed.**
+- **D5 Color on the source, as `FontImageSource`.** It reaches every control that takes an image, moving an icon from a font glyph is a one-element change, and the view gains no property. `currentColor` is what these icons use, so `Color` replaces only that and leaves colors written in the file alone. Names: `SkUiVectorImageSource`, `FromVector`, `FromVectorText`. **Proposed.**
+- **D6 No source generator.** Against the reader it saves about 7 µs per icon, once, and draws no faster than a picture. Its first call is slower than `SKPath.ParseSvgPathData` on a string constant, because the method has to be compiled. A generator would also need its own SVG parser, since SkiaSharp's native library does not belong in the compiler, and a name lookup from XAML would keep every icon in a trimmed app. Build-time work, if ever wanted, fits an MSBuild task as Resizetizer does. **Proposed.**
+- **D7 Svg.Skia as a test oracle only.** A `PackageReference` in `tests/MauiSkiaUi.Tests`, so pixels are compared with the renderer MAUI's Resizetizer uses and `SkiaUi.Maui` gets nothing. The prototype used that package's `netstandard2.0` DLLs: if the real package does not restore on CI, the comparison moves to expected PNGs generated once and committed. **Proposed.**
 
 ## Acceptance
 
-- Headless suite and memory-leak scenarios pass (new: vector entries, untrusted documents, `SvgImagesSwitched`); 0 build warnings with the trim and AOT analyzers in both packages.
+- Headless suite and memory-leak scenarios pass (new: reader, hostile files, `VectorIconsSwitched`); 0 build warnings with the trim and AOT analyzers.
 - `scripts/bench.sh --baseline v1.6.0` shows no regression in the existing scenarios, raster image scenarios included.
-- `SkiaUi.Maui`'s dependencies are unchanged, and an app without the package restores and draws as before.
-- No test document makes a network or file request, and none of the hostile documents ends the process, on the S9 and the iPhone 8 as well as headless.
-- The gallery page checked on iOS, Android, Mac Catalyst and Windows; under Native AOT on Mac Catalyst (CI), named colors included; M1's numbers in [Performance.md](../Performance.md).
+- `SkiaUi.Maui`'s dependencies are unchanged.
+- The coverage table above holds with the shipped reader: the corpus check over those folders draws what the prototype drew, within the same differences.
+- No hostile test file ends the process or makes a request, on the S9 and the iPhone 8 as well as headless.
+- The gallery page checked on iOS, Android, Mac Catalyst and Windows; under Native AOT on Mac Catalyst (CI); M1's numbers in [Performance.md](../Performance.md).

@@ -68,15 +68,14 @@ Steps and decisions: [ImplementationPlan-1.6.md](ImplementationPlan-1.6.md). The
 - **Viewport insets (done on `devel`; device checks in the [verification backlog](#verification-backlog)):** `ViewportInsets` on the scroll views and the collection view (the virtual stack follows its scroller's), so edge-to-edge pages scroll content under drawn top and bottom bars while scroll bars, `ScrollTo`, snap points, the refresh indicator, sticky headers and keyboard reveal work in the uncovered band; the surface root's `SafeAreaInsets` readable for binding.
 - **Fix:** hosted native views follow a resize of what clips them ([#81](https://github.com/rafalka/MauiSkiaUi/issues/81), in review in [#82](https://github.com/rafalka/MauiSkiaUi/pull/82)).
 
-### 1.7.0: runtime SVG images (planned)
+### 1.7.0: vector icons (planned)
 
-One feature: `.svg` files drawn at runtime on both layers, from any image source (downloaded, from Raw assets, files, streams, text), in a new optional package, `SkiaUi.Maui.Svg`, so `SkiaUi.Maui` keeps no extra dependency. An SVG added as a `MauiImage` keeps working as the PNG generated at build time. Steps, order and open decisions: [ImplementationPlan-1.7.md](ImplementationPlan-1.7.md).
+One feature: an app's `.svg` icons drawn at runtime on both layers, through a small SVG reader in `SkiaUi.Maui`, with no new dependency or package. A `MauiImage` keeps working as today, and an app can use both. Steps, order and open decisions: [ImplementationPlan-1.7.md](ImplementationPlan-1.7.md).
 
-- **Loading:** on Svg.Skia, through a vector decoder hook in the image loader, so every source gets the caches, progress and load events; parsed off the UI thread, with the intrinsic size from `width` / `height` / `viewBox`.
-- **Drawing:** vectors placed by `Aspect`, sharp at any size and under composite-time scale; a raster when the app sets decode bounds or transformations.
-- **Recoloring:** `TintColor` and text replacements before parsing, on the source.
-- **Untrusted documents:** no external requests, a nesting limit (a small file can otherwise overflow the stack and end the process), one `LoadError` for bad input.
-- **Package:** released with the others at one version ([Releasing.md](../Releasing.md)); its first publish needs a nuget.org Trusted Publishing policy. Docs and a gallery page.
+- **Reader:** the part of SVG that icons use: shapes and paths, fill and stroke, dashes, transforms, clips, masks, class rules and one-line text. Anything else is a `LoadError` naming what failed, and a file cannot make requests or take the app down.
+- **Drawing:** a bitmap at the view's size in exact pixels, so an icon stays sharp at any size and draws as cheaply as an image.
+- **Recoloring:** `SkUiVectorImageSource`, shaped like `FontImageSource`, whose `Color` is the value of `currentColor`.
+- **Loading:** in the image decoder, so every source gets it, along with the caches, progress and load events. Files ship as `MauiAsset`.
 
 ### 1.8.0: performance, tiles, Core containers and password reveal (planned)
 
@@ -104,6 +103,7 @@ Multi-target the one `SkiaUi.Maui` package (`net10.0-*` plus `net11.0-*`) so app
 ### New controls and packages
 
 - **Calendar** (`SkUiCalendar` + `SkUiCoreCalendar`, [FR-33](Requirements.md#functional-requirements)): one drawn node per month, render-thread swiping on the carousel's engine, year / decade / century views, single, multiple and range selection, per-day styles; then a calendar popup for the date pickers and a date range picker. Steps F1–F7 in the [archived plan](../archive/ImplementationPlan-1.0.md#phase-f--calendar-skuicalendar).
+- **Full SVG** in an optional `SkiaUi.Maui.Svg` package on Svg.Skia, for what [1.7's icon reader](ImplementationPlan-1.7.md) leaves out: gradients, `<use>`, filters and CSS in downloaded files and rich illustrations. Needs a vector entry in the image cache and protection against hostile files (a spike's findings: [the plan at commit `c56d20a`](https://github.com/rafalka/MauiSkiaUi/blob/c56d20a/docs/design/ImplementationPlan-1.7.md)).
 - **Community Toolkit layouts** in `SkiaUi.Maui.CommunityToolkit`: drawn `UniformItemsLayout` and `DockLayout` on the toolkit's layout managers; needs `SkUiLayout.AffectsChildLayout` and `OnChildrenChanged` made public ([Popups.md](Popups.md#integration-packages)).
 
 ### MAUI parity

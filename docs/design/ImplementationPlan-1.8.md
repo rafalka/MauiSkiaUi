@@ -2,7 +2,7 @@
 
 **Goal:** the Core layer stops re-recording ancestors on a measure change and shaped borders stop costing seconds on the first frame; galleries of equal tiles lay out by themselves; the Core twins of the state container and the expander close the Core layer's container gaps; drawn password fields can show their text.
 
-**Scope:** moved from the 1.6 plan, whose [viewport insets](ImplementationPlan-1.6.md) ship alone; 1.7 brings [runtime SVG images](Roadmap.md#170-runtime-svg-images-planned). Nothing here is started.
+**Scope:** moved from the 1.6 plan, whose [viewport insets](ImplementationPlan-1.6.md) ship alone; 1.7 brings [vector icons](Roadmap.md#170-vector-icons-planned). Nothing here is started.
 
 **Baseline:** .NET MAUI 10.0.120 (or the latest 10.0.x when 1.8 ships), SkiaSharp 4.154.0, branch `1.8-implementation` from `devel` after 1.7.0. .NET 11 / MAUI 11 waits until it is released ([roadmap](Roadmap.md#net-11--maui-11-support)). What has shipped is in the [changelog](../../CHANGELOG.md); the rest of the 1.x backlog stays in the [roadmap](Roadmap.md#backlog-1x).
 
