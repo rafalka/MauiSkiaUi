@@ -10,7 +10,10 @@ What the next releases bring, and the work after them. What has shipped is in th
 | **1.1.0** | 10.0.120 | 27 | 10.0.402 | iOS 15, **Mac Catalyst 17**, Android 5.0 (API 21), Windows 10 1809 | `master`, released 26 October 2026 |
 | **1.2.0** | 10.0.120 | 27 | 10.0.402 | As 1.1.0 | `master`, released 27 October 2026 |
 | **1.3.0** | 10.0.120 | 27 | 10.0.402 | As 1.1.0 | `master`, released 28 October 2026 |
-| **1.4.0** | 10.0.120 or a later 10.0.x | 27 | 10.0.402 | As 1.1.0 | `devel` (in progress) |
+| **1.4.0** | 10.0.120 | 27 | 10.0.402 | As 1.1.0 | `master`, released 29 October 2026 |
+| **1.5.0** | 10.0.120 | 27 | 10.0.402 | As 1.1.0 | `master`, released 3 November 2026 |
+| **1.5.1** | 10.0.120 | 27 | 10.0.402 | As 1.1.0 | `master`, released 3 November 2026 |
+| **1.6.0** | 10.0.120 or a later 10.0.x | 27 | 10.0.402 | As 1.1.0 | `devel` (planned) |
 
 SkiaUi stays on MAUI 10.x. Development happens on `devel`; `master` holds stable releases ([Releasing.md](../Releasing.md#branches-and-versions)).
 
@@ -45,12 +48,27 @@ Collection view reordering, moved from 1.2 (a new feature rather than a port by 
 - **Fixed on `devel`:** centered single lines in fonts with a line gap ([#61](https://github.com/rafalka/MauiSkiaUi/issues/61)), the dim press on light and transparent buttons ([#62](https://github.com/rafalka/MauiSkiaUi/issues/62)), and `RunsTappedCommand`, so a host that hands its `TappedCommand` to the node it draws is one element and focus stop ([#63](https://github.com/rafalka/MauiSkiaUi/issues/63)).
 - **Added:** `PressFeedback = Fade` for `ShowsPressEffect`, a composited fade to the look's `PressedContentOpacity` for dark content the tint hardly changes ([#64](https://github.com/rafalka/MauiSkiaUi/issues/64)); `DefaultMinimumHeight`, a protected virtual on both button layers used while no minimum height is set ([#65](https://github.com/rafalka/MauiSkiaUi/issues/65)); and `SkUiDisplayBinding`, the public item-text reader the pickers now share, which lets go of the last item ([#66](https://github.com/rafalka/MauiSkiaUi/issues/66)); `SkUiDragger` / `SkUiCoreDragger`, a handle that reports drags in its parent's coordinates for an app's own resizing ([doc](../controls/SkUiDragger.md)), and the grid splitters built on it, which resize grid rows or columns in drawn grids, MAUI's `Grid` and Core tables (column grips in the header) ([doc](../controls/SkUiGridSplitter.md)); the demo's component pages resize their preview area with one.
 
-### 1.4.0: images and look details (next, on `devel`)
+### 1.4.0: images and look details (shipped)
 
-Steps, order and open decisions: [ImplementationPlan-1.4.md](ImplementationPlan-1.4.md).
+Steps, order and decisions: [the archived plan](../archive/ImplementationPlan-1.4.md).
 
 - **Images:** a cache key per view (done: `CacheKey`, `SkUiImageCache.RemoveByKeyAsync`), downsampling to the view's size (done: `DownsampleToViewSize`), download progress (done: `LoadingProgress`, `DownloadProgress`), fade-in (done: `FadeAnimationEnabled`), Android vector (XML) drawables (done).
 - **Look details:** progress bar heights (done: they matched; Material 2's square ends fixed), popup chrome (done: look members, Android's corners measured), Android text 1–2 % wider than a `TextView` (done: plain text kerns; Apple's optical size), the radio label about 2 DIPs wider than MAUI's on Apple (done: padding 7, not 8), an opt-in Fluent pips pager (done: `SkUiIndicatorStyle.Pips`, `NavigationButtonVisibility`).
+
+### 1.5.0 and 1.5.1: pickers (shipped)
+
+Searchable picker lists (`IsSearchEnabled`), the pickers' chevron (`IsChevronVisible`, color, size and room), field padding (`TextPadding`) and a leading view in picker fields, on both layers; resized surfaces no longer stretch their content, and picker popups size every templated row ([#73](https://github.com/rafalka/MauiSkiaUi/issues/73)–[#76](https://github.com/rafalka/MauiSkiaUi/issues/76)). 1.5.1: Android accessibility with `Xamarin.AndroidX.Core` 1.19 ([#78](https://github.com/rafalka/MauiSkiaUi/issues/78)), and bugfix releases from `devel`.
+
+### 1.6.0: viewport insets, tiles, Core containers and performance (planned, on `devel`)
+
+Steps, order and open decisions: [ImplementationPlan-1.6.md](ImplementationPlan-1.6.md).
+
+- **Viewport insets (first):** `ViewportInsets` on the scroll views, the collection view and the virtual stack, so edge-to-edge pages scroll content under drawn top and bottom bars while scroll bars, `ScrollTo`, snap points, the refresh indicator, sticky headers and keyboard reveal work in the uncovered band; the surface root's safe area readable for binding.
+- **Performance:** the device results measured again on the current toolchain; Core measure invalidation without re-recording ancestors; shaped borders sharing their outlines and clips.
+- **Layouts and containers:** a tile layout for galleries of equal tiles (with an overflow tile); Core twins of the state container and the expander (with independent `ScaleX` / `ScaleY` and `AnchorX` / `AnchorY` on Core nodes; animating one scale axis of a Core node no longer scales both).
+- **Text input:** password reveal (show / hide) in drawn password fields.
+
+.NET 11 / MAUI 11 waits until it is released.
 
 ## Backlog (1.x)
 
@@ -70,8 +88,6 @@ Multi-target the one `SkiaUi.Maui` package (`net10.0-*` plus `net11.0-*`) so app
 - **Calendar** (`SkUiCalendar` + `SkUiCoreCalendar`, [FR-33](Requirements.md#functional-requirements)): one drawn node per month, render-thread swiping on the carousel's engine, year / decade / century views, single, multiple and range selection, per-day styles; then a calendar popup for the date pickers and a date range picker. Steps F1–F7 in the [archived plan](../archive/ImplementationPlan-1.0.md#phase-f--calendar-skuicalendar).
 - **Runtime SVG images** in an optional `SkiaUi.Maui.Svg` package on Svg.Skia: SVG sources for both layers, drawn as vectors at any size, recoloring, trimming checks ([archived plan, phase E](../archive/ImplementationPlan-1.0.md#phase-e--svg-images-later)).
 - **Community Toolkit layouts** in `SkiaUi.Maui.CommunityToolkit`: drawn `UniformItemsLayout` and `DockLayout` on the toolkit's layout managers; needs `SkUiLayout.AffectsChildLayout` and `OnChildrenChanged` made public ([Popups.md](Popups.md#integration-packages)).
-- **Tile / wrap-grid layout** for galleries of equal tiles.
-- `SkUiTwoStateView` (a second content set chosen by a `bool?`); Core twins of the state container and the expander (the expander needs `ScaleY` / `AnchorY` on Core nodes).
 
 ### MAUI parity
 
@@ -84,7 +100,6 @@ Multi-target the one `SkiaUi.Maui` package (`net10.0-*` plus `net11.0-*`) so app
 
 ### Text input
 
-- Password reveal (show / hide while keeping the password keyboard and autofill).
 - Autofill groups smaller than a surface; keyboard inline suggestions and the autofilled highlight on Android.
 - A token template for pickers (the searchable list shipped: `IsSearchEnabled`).
 - A split caret at bidi boundaries, visual Left / Right through mixed-direction lines, allocation-free re-shaping per keystroke.
@@ -109,12 +124,10 @@ Multi-target the one `SkiaUi.Maui` package (`net10.0-*` plus `net11.0-*`) so app
 
 ### Architecture and performance
 
-- Measure invalidation without re-recording ancestors for Core nodes (done for SkUi\* views): `SkUiCoreNode.InvalidateMeasure` marks each Core ancestor's content dirty, so one label's new text re-records every container up to the host.
 - Scheme defaults resolved at paint time on the Core layer: Core controls copy `SkUiColors.Accent`, `TrackOff`, `Muted` and so on into fields when they are created, so a Core tree made before `SkUiColorScheme.Current` changes (dark mode) keeps the old colors.
-- Shaped borders' first frame: 400 ticket-shaped cards take 1–2 s to their first frame on the iPhone 8 and the Galaxy S9, because each card computes its outline and its content clip (a path operation) when it is first laid out; borders of one shape and size could share them ([Performance.md](../Performance.md#drawing-effects)).
 - Text shadows on mid-range Android: they are cast from the glyphs and rasterized on the CPU once per item, which holds a scrolling list on the S9 at 45 fps; cast them on the GPU as outline shadows are.
 - Relayout boundaries below the surface root (the root is one); raster cache of stable subtrees with a per-frame budget, for what is expensive to composite every frame (dashed strokes of complex paths: 33 fps on the S9).
-- Core's first frame is no faster than SkUi\*'s on devices (1,000 buttons: S9 169 vs 167 ms, iPhone 8 35 vs 37 ms) although Core builds its tree three times faster; `scripts/bench.sh` `core-buttons` `firstFrame` on the S9 went from 110 to 140 ms (Release) with gradient backgrounds (MAUI parity P7). The device results in [Performance.md](../Performance.md) are from MAUI 10.0.110 and SkiaSharp 4.153.1 (21 October 2026): measure them again on the current toolchain first.
+- Core's first frame is no faster than SkUi\*'s on devices (1,000 buttons: S9 169 vs 167 ms, iPhone 8 35 vs 37 ms) although Core builds its tree three times faster; `scripts/bench.sh` `core-buttons` `firstFrame` on the S9 went from 110 to 140 ms (Release) with gradient backgrounds (MAUI parity P7). Measured again in 1.6 first ([plan, R1](ImplementationPlan-1.6.md#phase-r--performance-backed-by-measurements)).
 - Recording Core-only subtrees off the UI thread (the look, the color scheme and the text and image caches would have to be safe to read from it); hit-testing against render-thread transforms while animations run.
 - Overlay masks, so drawn popups can cover hosted native controls (mostly WebView, media and maps now that text fields are drawn); cheaper overlay bookkeeping on Android.
 - A test that keeps the Core layer to [FR-C1](Requirements.md#core-layer-fr-c): no Core node derives from `BindableObject` or `Element`, and the `Microsoft.Maui.Controls` types the Core API uses (`FontAttributes`, `DataTemplate` for picker popups, the host's `SkUiView`) are a list a new one has to join.
