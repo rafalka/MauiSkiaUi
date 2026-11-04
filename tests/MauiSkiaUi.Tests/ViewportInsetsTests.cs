@@ -430,7 +430,7 @@ public class ViewportInsetsTests
     [Fact]
     public void EveryScrollerAndListTakesInsetsThroughTheInterface()
     {
-        IViewportInsets[] targets = [new SkUiScrollView(), new SkUiVirtualScrollView(), new SkUiCoreScrollView(), new SkUiCollectionView()];
+        ISkUiViewportInsets[] targets = [new SkUiScrollView(), new SkUiVirtualScrollView(), new SkUiCoreScrollView(), new SkUiCollectionView()];
         var insets = new Thickness(1, 2, 3, 4);
         foreach (var target in targets)
         {
@@ -1099,6 +1099,56 @@ public class ViewportInsetsTests
         surface.Frame();
 
         Assert.Equal(100, LayerFrame(refresh).Y);
+    }
+
+    [Fact]
+    public void TheRefreshViewsLayerStaysAboveItsScrollersEndInset()
+    {
+        var scroll = new SkUiScrollView
+        {
+            Content = new SkUiBox { HeightRequest = 2000 },
+            Overscroll = SkUiOverscrollMode.None,
+            ViewportInsets = new Thickness(0, 0, 0, 80)
+        };
+        var refresh = new SkUiRefreshView { Content = scroll };
+        using var surface = new SkUiTestSurface(refresh, 300, 500);
+        surface.Frame();
+        Assert.Equal(new Rect(0, 0, 300, 420), LayerFrame(refresh));
+
+        // Both ends, and a later change of only the end reaches it.
+        scroll.ViewportInsets = new Thickness(0, 60, 0, 80);
+        surface.Frame();
+        Assert.Equal(new Rect(0, 60, 300, 360), LayerFrame(refresh));
+        scroll.ViewportInsets = new Thickness(0, 60, 0, 100);
+        surface.Frame();
+        Assert.Equal(new Rect(0, 60, 300, 340), LayerFrame(refresh));
+
+        // The keyboard covers the scroller, but no view of the surface does: the layer stays.
+        scroll.ViewportInsets = default;
+        ((ISkUiScrollHost)scroll).KeyboardInset = 200;
+        surface.Frame();
+        Assert.Equal(new Rect(0, 0, 300, 500), LayerFrame(refresh));
+    }
+
+    [Fact]
+    public void TheRefreshViewsLayerEndsAtTheBandOfAScrollerAboveAFooter()
+    {
+        var scroll = new SkUiScrollView
+        {
+            Content = new SkUiBox { HeightRequest = 2000 },
+            Overscroll = SkUiOverscrollMode.None,
+            ViewportInsets = new Thickness(0, 0, 0, 60)
+        };
+        var column = new SkUiGrid { RowDefinitions = [new(GridLength.Star), new(GridLength.Auto)] };
+        column.Children.Add(scroll);
+        var footer = new SkUiBox { HeightRequest = 40 };
+        Grid.SetRow(footer, 1);
+        column.Children.Add(footer);
+        var refresh = new SkUiRefreshView { Content = column };
+        using var surface = new SkUiTestSurface(refresh, 300, 500);
+        surface.Frame();
+
+        Assert.Equal(new Rect(0, 0, 300, 400), LayerFrame(refresh));
     }
 
     [Fact]

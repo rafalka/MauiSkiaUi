@@ -47,7 +47,7 @@ Extends [`SkUiContentView`](SkUiContentView.md). Measures content unconstrained 
 - **Changing them while scrolled** moves the offset by the change, so what shows stays in place; a scroller at the start of its range stays there, which is also why bars measured after the first layout need no care.
 - **`Padding` keeps its meaning**, space inside the scrolled content (as in MAUI): use it for room that is not covered by anything.
 - **Hosted native views** ([`SkUiMauiContentView`](SkUiMauiContentView.md)) show above the drawn surface, so they are clipped to the band: one scrolled under a translucent bar is cut off at the bar instead of showing through it.
-- **`IViewportInsets`** is implemented by the scroll views and `SkUiCollectionView`: an app's inset helper can take any of them without knowing its type.
+- **`ISkUiViewportInsets`** is implemented by the scroll views and `SkUiCollectionView`: an app's inset helper can take any of them without knowing its type.
 
 ```xml
 <sk:SkUiGrid>

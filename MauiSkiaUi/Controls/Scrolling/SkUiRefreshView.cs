@@ -461,6 +461,10 @@ public class SkUiRefreshView : SkUiView, ISkUiRefreshOwner
     private double TopOf(ISkUiScrollHost host) =>
         SkUiDiagnostics.GetRootBounds(host) is { } bounds && SkUiDiagnostics.GetRootBounds(this) is { } own ? bounds.Top - own.Top : 0;
 
+    /// <summary>How far <paramref name="host"/> ends above this view's bottom, in DIPs (0 when not on a surface).</summary>
+    private double BelowOf(ISkUiScrollHost host) =>
+        SkUiDiagnostics.GetRootBounds(host) is { } bounds && SkUiDiagnostics.GetRootBounds(this) is { } own ? own.Bottom - bounds.Bottom : 0;
+
     /// <summary>What a pull pulled: a scroller of the content, or the view itself.</summary>
     private enum PullSource
     {
@@ -843,7 +847,8 @@ public class SkUiRefreshView : SkUiView, ISkUiRefreshOwner
 
     /// <summary>
     /// Where the indicator shows: all of the view, or, when views drawn over the content's first vertical scroller cover it
-    /// (<see cref="SkUiScrollView.ViewportInsets"/>), what they leave, so the indicator comes down from under the top bar.
+    /// (<see cref="SkUiScrollView.ViewportInsets"/>), what they leave, so the indicator comes down from under the top bar and
+    /// stays above the bottom one. The keyboard does not count: it is no view of this surface, and moves no layer.
     /// </summary>
     private Rect IndicatorArea(Rect bounds)
     {
@@ -852,11 +857,13 @@ public class SkUiRefreshView : SkUiView, ISkUiRefreshOwner
             return bounds;
         // Before mirroring, as the layer is arranged.
         var cover = host.Scroller.FlowCover;
-        // Exact: nothing covers the scroller's top or sides.
-        if (cover.Top == 0 && cover.Left == 0 && cover.Right == 0)
+        var coverBottom = host.Scroller.DrawnCover.Bottom;
+        // Exact: nothing covers the scroller.
+        if (cover.Top == 0 && cover.Left == 0 && cover.Right == 0 && coverBottom == 0)
             return bounds;
         _layerTop = cover.Top == 0 ? 0 : Math.Min(bounds.Height, TopOf(host) + cover.Top);
-        return new Rect(cover.Left, _layerTop, Math.Max(0, bounds.Width - cover.HorizontalThickness), Math.Max(0, bounds.Height - _layerTop));
+        var layerBottom = coverBottom == 0 ? bounds.Height : bounds.Height - BelowOf(host) - coverBottom;
+        return new Rect(cover.Left, _layerTop, Math.Max(0, bounds.Width - cover.HorizontalThickness), Math.Max(0, layerBottom - _layerTop));
     }
 
     // Where the indicator's layer starts below this view's top.

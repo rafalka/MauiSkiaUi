@@ -12,7 +12,7 @@ namespace MauiSkiaUi.Core;
 /// <see cref="HorizontalScrollBarVisibility"/>). <see cref="Overscrolled"/> and <see cref="PullReleased"/> report pulls past
 /// the edges (also of content that does not overflow, with <see cref="PullEdges"/>).
 /// </summary>
-public class SkUiCoreScrollView : SkUiCoreContentView, ISkUiScrollHost, IViewportInsets
+public class SkUiCoreScrollView : SkUiCoreContentView, ISkUiScrollHost, ISkUiViewportInsets
 {
     /// <summary>A container in a skeleton made from content, also while empty: its children are the bones.</summary>
     internal override bool IsSkeletonContainer => true;

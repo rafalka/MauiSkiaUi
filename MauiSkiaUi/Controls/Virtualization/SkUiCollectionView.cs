@@ -37,7 +37,7 @@ namespace MauiSkiaUi;
 /// </para>
 /// </remarks>
 [ContentProperty(nameof(ItemTemplate))]
-public partial class SkUiCollectionView : SkUiView, ISkUiItemsView, ISkUiRefreshOwner, IViewportInsets
+public partial class SkUiCollectionView : SkUiView, ISkUiItemsView, ISkUiRefreshOwner, ISkUiViewportInsets
 {
     /// <summary>A container in a skeleton made from content, also while empty: its children are the bones.</summary>
     internal override bool IsSkeletonContainer => true;
