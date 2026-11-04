@@ -394,23 +394,24 @@ public class SkUiScrollView : SkUiContentView, ISkUiScrollHost, ISkUiViewportIns
             Scroller.Clamp();
         }
         Scroller.ArrangeScrollBars(IsRightToLeft);
-        // Hosted native views are clipped to what is not covered: also when a change of it did not move the content (the bottom).
-        var drawnCover = Scroller.DrawnCover;
-        // Exact: an unchanged cover keeps their clip.
-        if (drawnCover != _overlaysCover)
+        // Hosted native views are clipped to the scrollport left uncovered: also when a change of it moved no content (a smaller
+        // viewport with the content still taller than it, an inset at the bottom), so no offset change or arrange reaches them.
+        var overlaysPort = UncoveredScrollport;
+        // Exact: an unchanged rectangle keeps their clip.
+        if (overlaysPort != _overlaysPort)
         {
-            _overlaysCover = drawnCover;
+            _overlaysPort = overlaysPort;
             SyncRegisteredOverlays();
-            OverlayCoverSyncs++;
+            OverlayClipSyncs++;
         }
         Scroller.OnArranged();
         NotifyScrollListeners();
     }
 
-    private Thickness _overlaysCover;
+    private Rect _overlaysPort;
 
-    /// <summary>How many arranges passed a changed cover on to the hosted native views (tests).</summary>
-    internal int OverlayCoverSyncs { get; private set; }
+    /// <summary>How many arranges passed a changed clip on to the hosted native views (tests).</summary>
+    internal int OverlayClipSyncs { get; private set; }
 
     /// <summary>
     /// The vertical scroll offset and viewport height, in this scroller's children space: what a descendant can show. Before

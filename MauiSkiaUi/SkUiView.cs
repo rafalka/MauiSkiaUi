@@ -643,8 +643,10 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
         Frame = frame;
         if (_arrangeDirty || previousSize != Frame.Size)
             ArrangeContent(Frame.Size);
-        // Descendants keep their cached frames, but their root-relative position changed (native overlays follow).
-        if (previousFrame.Location != Frame.Location && Handler is null && SurfaceHostsNativeViews)
+        // Descendants keep their cached frames, but their root-relative position changed (native overlays follow), or the
+        // clip of native views below this view did (a scroller passes on its own: its clip also changes with its gutter).
+        var clipResized = previousSize != Frame.Size && ClipToBounds && this is not SkUiScrollView;
+        if ((clipResized || previousFrame.Location != Frame.Location) && Handler is null && SurfaceHostsNativeViews)
             NotifyMoved();
         var frameChanged = _lastArrangeBounds != bounds || previousFrame != Frame;
         _lastArrangeBounds = bounds;

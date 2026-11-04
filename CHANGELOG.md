@@ -34,6 +34,7 @@ Publishing (the NuGet publish workflow, [docs/Releasing.md](docs/Releasing.md)) 
 ### Fixes
 
 - **Layout changes made while a surface root is arranged are no longer lost:** a `SizeChanged` handler that changed a view's layout during the root's first arrange (a bar setting a list's insets) asked the native layout, which was in its own pass and did not come back, so the tree stayed as it was until something else laid it out. The root now lays out again before its next frame.
+- **Hosted native views follow a smaller clip:** a `SkUiMauiContentView` kept its old clip when an `SkUiScrollView` above it, or an ancestor with `ClipToBounds`, changed size without moving it (a sheet giving a list less height when the keyboard opens), and showed over what lies below until the next scroll. The clip is now placed again whenever that rectangle changes.
 
 ## 1.5.1
 

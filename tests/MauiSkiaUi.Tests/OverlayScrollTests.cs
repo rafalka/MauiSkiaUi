@@ -72,17 +72,39 @@ public class OverlayScrollTests
     public void AnInsetThatDoesNotMoveTheContentStillPlacesHostedViewsAgain()
     {
         var (root, scroll, _) = Form(SkUiOverlayScrollMode.Live);
-        var syncs = scroll.OverlayCoverSyncs;
+        var syncs = scroll.OverlayClipSyncs;
 
         scroll.ViewportInsets = new Thickness(0, 0, 0, 30);
         SkUiTestHelpers.Arrange(root, 200, 250);
-        Assert.Equal(syncs + 1, scroll.OverlayCoverSyncs);
+        Assert.Equal(syncs + 1, scroll.OverlayClipSyncs);
 
         // Nothing changed: nothing to do.
         SkUiTestHelpers.Arrange(root, 200, 250);
         scroll.KeyboardInset = 100;
         SkUiTestHelpers.Arrange(root, 200, 250);
-        Assert.Equal(syncs + 1, scroll.OverlayCoverSyncs);
+        Assert.Equal(syncs + 1, scroll.OverlayClipSyncs);
+    }
+
+    [Fact]
+    public void ResizingTheScrollerWithoutMovingTheContentPlacesHostedViewsAgain()
+    {
+        var (root, scroll, overlay) = Form(SkUiOverlayScrollMode.Live);
+        var syncs = scroll.OverlayClipSyncs;
+        var frame = overlay.Frame;
+
+        // The content stays taller than the viewport: the offset stays and nothing below the scroller is arranged again.
+        scroll.VerticalOptions = LayoutOptions.Start;
+        scroll.HeightRequest = 120;
+        SkUiTestHelpers.Arrange(root, 200, 250);
+
+        Assert.Equal(0, scroll.ScrollY);
+        Assert.Equal(frame, overlay.Frame);
+        Assert.Equal(new Rect(0, 50, 200, 120), overlay.ComputeRootRelativeClip());
+        Assert.Equal(syncs + 1, scroll.OverlayClipSyncs);
+
+        // The same size again: nothing to do.
+        SkUiTestHelpers.Arrange(root, 200, 250);
+        Assert.Equal(syncs + 1, scroll.OverlayClipSyncs);
     }
 
     [Fact]

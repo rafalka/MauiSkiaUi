@@ -8,8 +8,8 @@ namespace MauiSkiaUi.DeviceTests;
 /// from the platform (<see cref="SkUiMauiContentView.GetNativePlacement"/>) and compared with where the drawn tree
 /// says it is: its frame, its visible part (scroll viewports) and whether it shows (snapshots, collapsed content).
 /// Steps: first layout, instant scrolls of both scrollers, an animated scroll (snapshots on Android / Windows, live on
-/// Apple) and the restore after it, a focused Entry staying live while scrolling, expanding and collapsing, and
-/// replacing a hosted control. What it cannot see (the soft keyboard, IME composition, touch nesting in a WebView)
+/// Apple) and the restore after it, a focused Entry staying live while scrolling, expanding and collapsing, replacing
+/// a hosted control, and resizing a clipping ancestor and the scroller without an offset change. What it cannot see (the soft keyboard, IME composition, touch nesting in a WebView)
 /// is on the manual checklist in docs/design/Testing.md. The comparison is
 /// <see cref="SkUiMauiContentView.FindNativePlacementMismatch"/> (shared with the overlay demo page); its tolerance can
 /// be overridden (<c>--placement-tolerance</c>) to prove the check fails on real mismatches.
@@ -148,6 +148,23 @@ internal static class HostedControlsCheck
             form.Replaced.Content = new Entry { Placeholder = "Replacement" };
             await Task.Delay(300);
             Check("content replaced");
+
+            // A clipping ancestor shrinks over a native view that stays where it is: no offset change, and nothing arranged
+            // again below the ancestor's child.
+            await form.Scroll.ScrollToAsync(form.Clipping, ScrollToPosition.Start, animated: false);
+            await Task.Delay(150);
+            Check("clipping ancestor");
+            form.Clipping.HeightRequest = 70;
+            await Task.Delay(300);
+            Check("clipping ancestor resized");
+
+            // The scroller itself gets smaller, cutting through a native view, with the content still taller than it.
+            await form.Scroll.ScrollToAsync(0, 0, animated: false);
+            await Task.Delay(150);
+            form.Scroll.VerticalOptions = LayoutOptions.Start;
+            form.Scroll.HeightRequest = 30;
+            await Task.Delay(300);
+            Check("scroller resized");
         }
         catch (Exception exception)
         {
@@ -218,15 +235,21 @@ internal static class HostedControlsCheck
             };
             var web = Host(new WebView { Source = new HtmlWebViewSource { Html = "<html><body style='font:20px sans-serif;background:#cde'><h2>Hosted WebView</h2><p>Line</p><p>Line</p><p>Line</p></body></html>" } }, 180);
             Replaced = Host(new Entry { Placeholder = "Entry to replace" }, 44);
+            var clipped = Host(new Entry { Placeholder = "Entry in a clipping ancestor" }, 44);
+            Clipping = new SkUiContentView
+            {
+                ClipToBounds = true, HeightRequest = 100,
+                Content = new SkUiVerticalStackLayout { Children = { Row(0, 60), clipped } }
+            };
             var stack = new SkUiVerticalStackLayout
             {
                 Spacing = 10, Padding = new Thickness(12),
-                Children = { EntryHost, Row(0, 120), editor, Row(0, 80), Inner, Row(0, 80), Expander, Row(0, 80), web, Row(0, 80), Replaced, Row(0, 900) }
+                Children = { EntryHost, Row(0, 120), editor, Row(0, 80), Inner, Row(0, 80), Expander, Row(0, 80), web, Row(0, 80), Replaced, Row(0, 80), Clipping, Row(0, 900) }
             };
             _column = stack;
             Scroll = new SkUiScrollView { Content = stack };
             Root = new SkUiContentView { Background = Colors.White, Content = Scroll };
-            Hosts = [("Entry", EntryHost), ("Editor", editor), ("inner Entry", inInner), ("expander Entry", InExpander), ("WebView", web), ("replaced Entry", Replaced)];
+            Hosts = [("Entry", EntryHost), ("Editor", editor), ("inner Entry", inInner), ("expander Entry", InExpander), ("WebView", web), ("replaced Entry", Replaced), ("clipped Entry", clipped)];
         }
 
         private readonly SkUiVerticalStackLayout _column;
@@ -238,6 +261,7 @@ internal static class HostedControlsCheck
         public SkUiScrollView Scroll { get; }
         public SkUiScrollView Inner { get; }
         public SkUiExpander Expander { get; }
+        public SkUiContentView Clipping { get; }
         public Entry Entry { get; }
         public SkUiMauiContentView EntryHost { get; }
         public SkUiMauiContentView InExpander { get; }

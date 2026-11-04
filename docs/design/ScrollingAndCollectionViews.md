@@ -92,7 +92,7 @@ SkUiScrollView (SkUi*) ─┐                      ┌─ SkUiCoreScrollView (Co
 | **Offset** | `(ScrollX, ScrollY)`, clamped to `[0, max(0, extent − viewport)]`. It is a children translation, so there is no re-record, remeasure or rearrange. |
 | **Motion** | Tweens and flings run on the render thread with exponential decay. The last shown offset is reported back when motion stops, and a press during motion stops it. |
 | **RTL** | Horizontal scrollers start at their logical start (the right end). Children are mirrored inside the extent (`ChildrenSpaceWidth`). |
-| **Overlays** | `SkUiScrollView` syncs registered `SkUiMauiContentView` descendants on each offset change (and bounce). |
+| **Overlays** | `SkUiScrollView` syncs registered `SkUiMauiContentView` descendants on each offset change (and bounce), and when the scrollport they are clipped to changes without moving them. |
 | **Overscroll** | A drag's leftover after chaining pulls the dragged scroller past its edge through a rubber band (shown = `(1 − 1 / (pull · 0.55 / viewport + 1)) · viewport`); a drag back takes the pull back first; the release springs back (critically damped, on the render thread). A fling that reaches an edge runs past it with its velocity there (peaking within 15 % of the viewport) and settles. At an edge a scroller claims an outward drag only when no outer drawn scroller and no native ancestor (`SkUiPointerRouter.NativeAncestorCanScroll`) can scroll that way. |
 | **Scroll bars** | MAUI's `ScrollBarVisibility` per axis: `Default` shows while the offset changes and fades out after the look's delay, `Always` while the content overflows, `Never` hides. The vertical bar is on the left in RTL; both bars leave the corner free. |
 | **Scroll to a target** | `ScrollToAsync(Element / Core node, ScrollToPosition, animated)` with MAUI's `GetScrollPositionForElement` arithmetic (nested scrollers' offsets included), waiting for the first layout; `ScrollToRequested` with MAUI's arguments. |
@@ -135,7 +135,7 @@ Native overlays (`SkUiMauiContentView`) sit as **sibling platform views** of the
   - Capture: Android `View.Draw` (unaffected by what covers the view on screen), iOS `DrawViewHierarchy`, Windows `RenderTargetBitmap` (WebView2: `CoreWebView2.CapturePreviewAsync`, which `RenderTargetBitmap` cannot capture).
 - **Restore:** `SkUiMauiContentView.SnapshotRestoreDelay` (150 ms) after motion stops, with fresh bounds. A new drag within the delay reuses the snapshot.
 - **Focus:** a focused control stays live.
-- **Clipping:** every overlay sits in a clip wrapper sized to its visible rectangle (ancestor scroll viewports and clipping ancestors), so it neither draws nor takes touches outside it.
+- **Clipping:** every overlay sits in a clip wrapper sized to its visible rectangle (ancestor scroll viewports and clipping ancestors), so it neither draws nor takes touches outside it. It follows a resize of the scroller or clipping ancestor that moves nothing (`SkUiScrollView.ArrangeContent`, `SkUiView.Arrange`).
   - On Android, wrappers are positioned directly: the MAUI parent may skip re-measuring the container, so a relayout request is not enough.
 - **Demo:** "Native overlays in ScrollView" (mode switch, snapshot highlighting, restore delay).
 - **Verified** on a Galaxy S9: snapshots during the drag, restore after, clipping under the drawn header / footer, typing into an Entry inside a nested carousel. On the iOS simulator: live sync and clipping.
