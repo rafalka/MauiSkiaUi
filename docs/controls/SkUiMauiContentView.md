@@ -8,7 +8,7 @@ Hosts a real MAUI `VisualElement` (Entry, Editor, WebView, …) as a **native ov
 
 The placeholder participates in SkiaUi measure/arrange. The wrapped control's platform view is added as a sibling of the Skia surface inside `SkUiOverlayContainer`. The node never takes drawn pointers, so taps and text input go to the native control (drags are the exception, below). Position uses `ComputeRootRelativeFrame()` (Frame offsets + `TranslationX`/`TranslationY` up the hosted ancestor chain, minus scroll offsets).
 
-**Clipping:** the overlay is clipped to the viewports of ancestor scrollers and to ancestors with `ClipToBounds`, so a scrolled control never covers drawn content around the scroller and cannot be touched outside it. While an [`SkUiExpander`](SkUiExpander.md) animates, it clips its native content too.
+**Clipping:** the overlay is clipped to the viewports of ancestor scrollers and to ancestors with `ClipToBounds`, so a scrolled control never covers drawn content around the scroller and cannot be touched outside it. That excludes what views drawn over the scroller cover (its [`ViewportInsets`](SkUiScrollView.md#how-it-works), a list's sticky header and footer): native views show above the drawn surface, so one scrolled under a translucent bar is cut off at the bar instead of showing through it. The soft keyboard does not clip it (it shows over the native view by itself). While an [`SkUiExpander`](SkUiExpander.md) animates, it clips its native content too.
 
 **Visibility:** the native view is hidden while the host or any drawn ancestor is invisible (`IsVisible="False"`, the collapsed content of an expander), and shown again when they are.
 

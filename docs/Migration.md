@@ -422,7 +422,7 @@ A page that scrolls its content under translucent bars passes the bars' sizes to
 | Scrolling to an item, then adding the bar's height by hand | `ScrollTo` / `ScrollToAsync(element, position)` place it in the band |
 | Reading the safe area from platform code to size bars | The surface root's `SafeAreaInsets` (bindable) |
 
-Drawn views inside a surface still ignore `SafeAreaEdges`: only the root applies it, and the bars of an edge-to-edge root pad themselves from `SafeAreaInsets`. Details: [SkUiScrollView](controls/SkUiScrollView.md#how-it-works), [SkUiCollectionView](controls/SkUiCollectionView.md#key-properties).
+Native views hosted in `SkUiMauiContentView` show above the drawn surface, so they are cut off at the bars instead of scrolling visibly under them. Drawn views inside a surface still ignore `SafeAreaEdges`: only the root applies it, and the bars of an edge-to-edge root pad themselves from `SafeAreaInsets`. Details: [SkUiScrollView](controls/SkUiScrollView.md#how-it-works), [SkUiCollectionView](controls/SkUiCollectionView.md#key-properties).
 
 ## Carousels (`CarouselView`, `IndicatorView`)
 

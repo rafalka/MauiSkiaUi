@@ -214,17 +214,22 @@ internal sealed class SkUiScrollController(ISkUiRenderable owner, Action<SkUiRen
     /// scroll axis on top of them, and the keyboard, which covers a bottom bar rather than adds to it (a sticky footer keeps
     /// adding to it: it is laid out at the viewport's end whatever covers that).
     /// </summary>
-    public Thickness Cover
+    public Thickness Cover => CoverWith(KeyboardInset);
+
+    /// <summary>
+    /// <see cref="Cover"/> by views drawn in this surface, without the keyboard: what a native view hosted in the content must
+    /// stay out of, as it would show over them (the keyboard shows over it).
+    /// </summary>
+    public Thickness DrawnCover => CoverWith(0);
+
+    private Thickness CoverWith(double keyboard)
     {
-        get
-        {
-            var (viewport, (start, end)) = (ViewportInsets, Insets);
-            if (Vertical)
-                return new Thickness(viewport.Left, viewport.Top + start, viewport.Right, Math.Max(viewport.Bottom, KeyboardInset) + end);
-            return _rightToLeft
-                ? new Thickness(viewport.Left + end, viewport.Top, viewport.Right + start, viewport.Bottom)
-                : new Thickness(viewport.Left + start, viewport.Top, viewport.Right + end, viewport.Bottom);
-        }
+        var (viewport, (start, end)) = (ViewportInsets, Insets);
+        if (Vertical)
+            return new Thickness(viewport.Left, viewport.Top + start, viewport.Right, Math.Max(viewport.Bottom, keyboard) + end);
+        return _rightToLeft
+            ? new Thickness(viewport.Left + end, viewport.Top, viewport.Right + start, viewport.Bottom)
+            : new Thickness(viewport.Left + start, viewport.Top, viewport.Right + end, viewport.Bottom);
     }
 
     /// <summary>

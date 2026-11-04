@@ -402,7 +402,8 @@ public partial class SkUiMauiContentView : SkUiView
 
     /// <summary>
     /// Root-relative rectangle the overlay may draw and take touches in: the intersection of the viewports of ancestor
-    /// scrollers and of ancestors that clip their children (<see cref="SkUiView.ClipToBounds"/>). Empty when scrolled out.
+    /// scrollers (what views drawn over them do not cover: a native view shows above the drawn surface) and of ancestors that
+    /// clip their children (<see cref="SkUiView.ClipToBounds"/>). Empty when scrolled out.
     /// </summary>
     internal Rect ComputeRootRelativeClip()
     {
@@ -413,9 +414,13 @@ public partial class SkUiMauiContentView : SkUiView
             if (ancestor is not SkUiScrollView && !ancestor.ClipsHostedViews)
                 continue;
             var rect = RootRelativeFrame(ancestor);
-            // A scroller shows its content in its scrollport only (not in a reserved scroll bar gutter).
+            // A scroller shows its content in its scrollport only (not in a reserved scroll bar gutter), and a native view not
+            // under the bars and sticky parts drawn over it.
             if (ancestor is SkUiScrollView scroller)
-                rect = new Rect(rect.X + scroller.Scrollport.X, rect.Y + scroller.Scrollport.Y, scroller.Scrollport.Width, scroller.Scrollport.Height);
+            {
+                var port = scroller.UncoveredScrollport;
+                rect = new Rect(rect.X + port.X, rect.Y + port.Y, port.Width, port.Height);
+            }
             clip = clipped ? clip.Intersect(rect) : rect;
             clipped = true;
             if (clip.Width <= 0 || clip.Height <= 0)

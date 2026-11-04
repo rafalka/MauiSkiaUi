@@ -205,6 +205,13 @@ public sealed class EdgeToEdgeScrollingDemoPage : ComponentDemoPage
             label.Text = $"Row {index}";
             rows.Children.Add(label);
         }
+        // A native view shows above the drawn surface: it is cut off at the bars instead of scrolling visibly under them.
+        rows.Children.Insert(3, new SkUiMauiContentView
+        {
+            Content = new Entry { Placeholder = "A native field, cut off at the bars" },
+            HeightRequest = 44,
+            Margin = new Thickness(16, 8)
+        });
         // Focus it on a phone: it scrolls above the keyboard, or above the bottom bar when that is taller.
         rows.Children.Add(new SkUiEntry { Placeholder = "A text field at the end", Margin = new Thickness(16, 8) });
         return rows;

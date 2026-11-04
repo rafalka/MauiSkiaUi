@@ -291,6 +291,17 @@ public class SkUiScrollView : SkUiContentView, ISkUiScrollHost, IViewportInsets
     /// <summary>Where the content shows, in local coordinates: the arranged rectangle minus reserved scroll bar gutters.</summary>
     internal Rect Scrollport => Scroller.Scrollport;
 
+    /// <summary>The scrollport without what views drawn over the scroller cover: where a hosted native view may show, as it would show over them.</summary>
+    internal Rect UncoveredScrollport
+    {
+        get
+        {
+            var (port, cover) = (Scroller.Scrollport, Scroller.DrawnCover);
+            return new Rect(port.X + cover.Left, port.Y + cover.Top,
+                Math.Max(0, port.Width - cover.HorizontalThickness), Math.Max(0, port.Height - cover.VerticalThickness));
+        }
+    }
+
     /// <summary>Offset at which the content is drawn: the scroll offset plus a bounce past the edges (native overlays follow it).</summary>
     internal Point VisualScrollOffset => new(Scroller.ChildrenOffset.X, Scroller.ChildrenOffset.Y);
 
@@ -383,9 +394,23 @@ public class SkUiScrollView : SkUiContentView, ISkUiScrollHost, IViewportInsets
             Scroller.Clamp();
         }
         Scroller.ArrangeScrollBars(IsRightToLeft);
+        // Hosted native views are clipped to what is not covered: also when a change of it did not move the content (the bottom).
+        var drawnCover = Scroller.DrawnCover;
+        // Exact: an unchanged cover keeps their clip.
+        if (drawnCover != _overlaysCover)
+        {
+            _overlaysCover = drawnCover;
+            SyncRegisteredOverlays();
+            OverlayCoverSyncs++;
+        }
         Scroller.OnArranged();
         NotifyScrollListeners();
     }
+
+    private Thickness _overlaysCover;
+
+    /// <summary>How many arranges passed a changed cover on to the hosted native views (tests).</summary>
+    internal int OverlayCoverSyncs { get; private set; }
 
     /// <summary>
     /// The vertical scroll offset and viewport height, in this scroller's children space: what a descendant can show. Before

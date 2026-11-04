@@ -26,6 +26,7 @@ Publishing (the NuGet publish workflow, [docs/Releasing.md](docs/Releasing.md)) 
   - Changing the insets while scrolled keeps what shows in place; at the start of the range the scroller stays there.
   - The collection view's sticky header, footer and group headers are drawn inside the insets; the refresh indicator of the collection view and of `SkUiRefreshView` comes down from the start inset (the refresh view reads it from its content's first vertical scroller).
   - A bare `SkUiVirtualVerticalStackLayout` follows the insets of the `SkUiScrollView` around it.
+  - Native views hosted in the content (`SkUiMauiContentView`) are clipped to the band, as they show above the drawn surface: they are cut off at a bar and do not take its touches. This also keeps them out of a list's sticky header and footer, which they used to cover.
   - All of them implement `IViewportInsets`, for app helpers that pass bars' sizes and the safe area on to whichever scroller or list a page shows.
 - **`SafeAreaInsets` on the surface root:** read-only and bindable, how far the window's bars, notch and home indicator reach into the root, whatever its `SafeAreaEdges` say; it follows rotation and window resizes, and zero inside a surface. An app binds its bars' padding and `ViewportInsets` to it. Nothing asks the platform until it is first read.
 - **Demo and samples:** the gallery's "Edge-to-edge scrolling" page; the samples app's "Order list" example opens a full edge-to-edge page that follows the insets through a rotation.

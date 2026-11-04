@@ -21,6 +21,71 @@ public class OverlayScrollTests
     }
 
     [Fact]
+    public void ClipLeavesOutWhatViewsDrawnOverTheScrollerCover()
+    {
+        var (root, scroll, overlay) = Form(SkUiOverlayScrollMode.Live);
+        scroll.ViewportInsets = new Thickness(10, 56, 20, 30);
+        SkUiTestHelpers.Arrange(root, 200, 250);
+
+        // The scroll viewport is y 50..250: the band is y 106..220, x 10..180.
+        Assert.Equal(new Rect(10, 106, 170, 114), overlay.ComputeRootRelativeClip());
+
+        // Scrolled up under the top bar, it shows only below the bar.
+        var frame = overlay.ComputeRootRelativeFrame();
+        scroll.ScrollTo(0, frame.Y - 90);
+        var visible = overlay.ComputeRootRelativeFrame().Intersect(overlay.ComputeRootRelativeClip());
+        Assert.Equal(106, visible.Y, 3);
+        Assert.Equal(24, visible.Height, 3);
+
+        // All under the bar: nothing shows or takes touches.
+        scroll.ScrollTo(0, frame.Y);
+        Assert.True(overlay.ComputeRootRelativeFrame().Intersect(overlay.ComputeRootRelativeClip()).Height <= 0);
+    }
+
+    [Fact]
+    public void ClipLeavesOutAStickyHeaderOfAList()
+    {
+        var overlay = new SkUiMauiContentView { Content = new BoxView(), HeightRequest = 40 };
+        var list = new SkUiCollectionView
+        {
+            ItemsSource = new[] { "row" },
+            ItemTemplate = new DataTemplate(() => overlay),
+            ViewportInsets = new Thickness(0, 60, 0, 40)
+        };
+        list.SetHeader(new SkUiBox { HeightRequest = 30 }, sticky: true);
+        SkUiTestHelpers.Arrange(list, 200, 400);
+
+        Assert.Equal(new Rect(0, 90, 200, 270), overlay.ComputeRootRelativeClip());
+    }
+
+    [Fact]
+    public void TheKeyboardDoesNotClipAHostedView()
+    {
+        // It shows over the native view by itself; a focused native field stays whole while it scrolls into view.
+        var (root, scroll, overlay) = Form(SkUiOverlayScrollMode.Live);
+        scroll.KeyboardInset = 100;
+        SkUiTestHelpers.Arrange(root, 200, 250);
+        Assert.Equal(new Rect(0, 50, 200, 200), overlay.ComputeRootRelativeClip());
+    }
+
+    [Fact]
+    public void AnInsetThatDoesNotMoveTheContentStillPlacesHostedViewsAgain()
+    {
+        var (root, scroll, _) = Form(SkUiOverlayScrollMode.Live);
+        var syncs = scroll.OverlayCoverSyncs;
+
+        scroll.ViewportInsets = new Thickness(0, 0, 0, 30);
+        SkUiTestHelpers.Arrange(root, 200, 250);
+        Assert.Equal(syncs + 1, scroll.OverlayCoverSyncs);
+
+        // Nothing changed: nothing to do.
+        SkUiTestHelpers.Arrange(root, 200, 250);
+        scroll.KeyboardInset = 100;
+        SkUiTestHelpers.Arrange(root, 200, 250);
+        Assert.Equal(syncs + 1, scroll.OverlayCoverSyncs);
+    }
+
+    [Fact]
     public void ClipIsTheScrollViewportAndEmptyWhenScrolledOut()
     {
         var (_, scroll, overlay) = Form(SkUiOverlayScrollMode.Live);
