@@ -40,6 +40,7 @@ internal struct SkUiViewSizedDecode
     {
         IsWaiting = false;
         _decided = false;
+        _sizedAsVector = false;
     }
 
     /// <summary>
@@ -76,6 +77,9 @@ internal struct SkUiViewSizedDecode
 
     /// <summary>The load going out is bounded by the view because its source says it is a vector (<see cref="ForVectorSource"/>).</summary>
     public void MarkSizedAsVector() => _sizedAsVector = true;
+
+    /// <summary>Whether the last load was bounded that way and <see cref="TakeSizedBitmap"/> has not been asked.</summary>
+    public readonly bool IsSizedAsVector => _sizedAsVector;
 
     /// <summary>
     /// Whether a source that says it is a vector turned out to be a bitmap (a <c>MauiImage</c> of that name won), bounded for

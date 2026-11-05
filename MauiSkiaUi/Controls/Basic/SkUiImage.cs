@@ -371,7 +371,7 @@ public class SkUiImage : SkUiView
         InvalidatePaint();
         // Fitting and covering decode to different bounds; a centered image is not downsampled to the view.
         if (_downsampleToViewSize && (SkUiViewSizedDecode.Fills(old) != SkUiViewSizedDecode.Fills(value) || (old == Aspect.Center) != (value == Aspect.Center)))
-            Reload();
+            Load(restart: false, keepShown: _slot?.Entry is { IsVector: true });
         else if (_slot?.Entry is { IsVector: true })
         {
             if (value == Aspect.Center && old != Aspect.Center)
@@ -439,7 +439,7 @@ public class SkUiImage : SkUiView
     /// </summary>
     public Task ReloadAsync() => Load(restart: false);
 
-    private Task Load(bool restart)
+    private Task Load(bool restart, bool keepShown = false)
     {
         _viewSizedDecode.ForgetVector();
         var source = SkUiImageSource.FromMaui(_source);
@@ -447,12 +447,12 @@ public class SkUiImage : SkUiView
         {
             _viewSizedDecode.Stop();
             _viewSizedDecode.MarkSizedAsVector();
-            return Slot.Load(source, sized);
+            return Slot.Load(source, sized, keepShown);
         }
         if (source is null || !SkUiViewSizedDecode.AppliesTo(_downsampleToViewSize, _options, _aspect))
         {
             _viewSizedDecode.Stop();
-            return Slot.Load(source, _options);
+            return Slot.Load(source, _options, keepShown);
         }
         if (restart || !_viewSizedDecode.HasBounds)
         {
@@ -461,7 +461,7 @@ public class SkUiImage : SkUiView
             Slot.Load(null, _options);
             return Task.CompletedTask;
         }
-        return Slot.Load(source, _viewSizedDecode.Apply(_options, _aspect));
+        return Slot.Load(source, _viewSizedDecode.Apply(_options, _aspect), keepShown);
     }
 
     /// <inheritdoc />
@@ -476,7 +476,8 @@ public class SkUiImage : SkUiView
                 Slot.Load(SkUiImageSource.FromMaui(_source), redraw, keepShown: true);
             return;
         }
-        if (idle && Slot.Entry is not null && _viewSizedDecode.TakeSizedBitmap())
+        var sizedBitmap = idle && _source is not null && Slot.Entry is not null && _viewSizedDecode.TakeSizedBitmap();
+        if (sizedBitmap)
         {
             if (!_downsampleToViewSize)
             {
@@ -487,7 +488,7 @@ public class SkUiImage : SkUiView
         }
         // A view that outgrew an image decoded at full size keeps it: larger bounds give no more pixels.
         if (_viewSizedDecode.OnArranged(size, out var grew) && !(grew && Slot.Entry is { IsReduced: false }))
-            Slot.Load(SkUiImageSource.FromMaui(_source), _viewSizedDecode.Apply(_options, _aspect), keepShown: grew);
+            Slot.Load(SkUiImageSource.FromMaui(_source), _viewSizedDecode.Apply(_options, _aspect), keepShown: grew || sizedBitmap);
     }
 
     /// <summary>The part of the arranged <paramref name="size"/> the image is drawn in.</summary>
@@ -558,8 +559,8 @@ public class SkUiImage : SkUiView
             return;
         _fade.ForgetDrawable();
         Slot.EndFade();
-        if (Slot.Entry is { IsVector: true })
-            InvalidateMeasureOverride(); // the redraw that waited for the fade
+        if (Slot.Entry is { IsVector: true } || _viewSizedDecode.IsSizedAsVector)
+            InvalidateMeasureOverride(); // the redraw or reload that waited for the fade
         InvalidatePaint();
         InvalidateRender(SkUiRenderDirty.Props);
     }

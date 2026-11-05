@@ -72,7 +72,7 @@ public class SkUiVectorImageSource : ImageSource
     }
 }
 
-/// <summary>An SVG with a color and a size (see <see cref="SkUiImageSource.FromVector"/>): the bytes come from <see cref="Inner"/> or <see cref="Text"/>.</summary>
+/// <summary>An SVG with a color and a size (see <see cref="SkUiImageSource.FromVector(SkUiImageSource, Color?, double)"/>): the bytes come from <see cref="Inner"/> or <see cref="Text"/>.</summary>
 internal sealed record SkUiVectorSource : SkUiImageSource
 {
     public SkUiVectorSource(SkUiImageSource? inner, string? text, Color? color, double size)

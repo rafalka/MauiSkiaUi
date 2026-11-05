@@ -251,6 +251,88 @@ public sealed class VectorIconSizingTests : IDisposable
     }
 
     [Fact]
+    public async Task SetImage_after_a_sized_vector_stays()
+    {
+        var node = new SkUiCoreImage();
+        node.Measure(96, 96);
+        node.Arrange(new Rect(0, 0, 96, 96));
+        node.SetSource(SkUiImageSource.FromVector(File(Icon), Colors.Red));
+        await node.LoadingTask;
+        Assert.True(node.CachedImage!.IsVector);
+        using var bitmap = new SKBitmap(8, 8);
+        bitmap.Erase(SKColors.Red);
+        using var picture = SKImage.FromBitmap(bitmap);
+
+        node.SetImage(picture, ownsImage: false);
+        node.InvalidateMeasure();
+        node.Measure(96, 96);
+        node.Arrange(new Rect(0, 0, 96, 96));
+        await node.LoadingTask;
+
+        Assert.NotNull(node.CachedImage);
+        Assert.False(node.CachedImage!.IsVector);
+    }
+
+    [Fact]
+    public async Task Changing_the_aspect_with_DownsampleToViewSize_keeps_the_icon_shown()
+    {
+        var bytes = Encoding.UTF8.GetBytes(Wide);
+        var gate = new TaskCompletionSource();
+        gate.SetResult();
+        var image = new SkUiImage
+        {
+            DownsampleToViewSize = true,
+            CacheKey = Key(),
+            Source = ImageSource.FromStream(async token =>
+            {
+                await gate.Task.WaitAsync(token);
+                return new MemoryStream(bytes);
+            })
+        };
+        for (var pass = 0; pass < 4; pass++)
+        {
+            SkUiTestHelpers.Arrange(image, 100, 100);
+            await image.LoadingTask;
+        }
+        var shown = image.CachedImage;
+        Assert.True(shown!.IsVector);
+
+        gate = new TaskCompletionSource();
+        image.Aspect = Aspect.AspectFill;
+        Assert.Same(shown, image.CachedImage); // the load waits at the gate, and the icon stays until it is done
+        gate.SetResult();
+        await image.LoadingTask;
+    }
+
+    [Fact]
+    public async Task A_fade_finishes_before_a_bitmap_behind_a_vector_source_loads_without_bounds()
+    {
+        var path = Path.Combine(_testDirectory, Key() + ".png");
+        await System.IO.File.WriteAllBytesAsync(path, ImageLoadingTests.Png(SKColors.Red, 400, 200));
+        var bounds = new SkUiImage { WidthRequest = 50, HeightRequest = 50 };
+        SkUiTestHelpers.Arrange(bounds, 50, 50);
+        bounds.Source = new SkUiVectorImageSource { Source = path, Color = Colors.Blue }; // puts the bounded bitmap in the cache
+        await bounds.LoadingTask;
+        var image = new SkUiImage { FadeAnimationEnabled = true, FadeAnimationForCachedImages = true, FadeAnimationDuration = LongFade };
+        SkUiTestHelpers.Arrange(image, 50, 50);
+        var frames = new Queue<Action>();
+        using var renderer = new SkUiFrameRenderer(image, frames.Enqueue, () => { }, () => { });
+        renderer.RequestFrame();
+        Run(frames);
+
+        image.Source = new SkUiVectorImageSource { Source = path, Color = Colors.Blue };
+        Assert.True(image.IsFadingIn);
+        SkUiTestHelpers.Arrange(image, 50, 50);
+        Assert.Equal(50, image.CachedImage!.Frames[0].Width);
+
+        image.AnimationClock.Tick(image.AnimationClock.FrameTime + TimeSpan.FromMilliseconds(LongFade + 1));
+        SkUiTestHelpers.Arrange(image, 50, 50);
+        await image.LoadingTask;
+
+        Assert.Equal(400, image.CachedImage!.Frames[0].Width);
+    }
+
+    [Fact]
     public async Task Explicit_bounds_win()
     {
         var image = new SkUiImage { DownsampleWidth = 48, DownsampleHeight = 48, Source = File(Icon) };

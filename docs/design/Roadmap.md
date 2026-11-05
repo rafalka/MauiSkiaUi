@@ -76,7 +76,7 @@ One feature: an app's `.svg` icons drawn at runtime on both layers, through a sm
 
 - **Reader:** the part of SVG that icons use: shapes and paths, fill and stroke, dashes, transforms, clips, masks, class rules and one-line text. What it knows it cannot draw is a `LoadError` naming it, and a file cannot make requests, take the app down or hold a thread for long.
 - **Drawing:** a bitmap at the view's size in exact pixels, so an icon stays sharp at any size and draws as cheaply as an image.
-- **Recoloring:** `SkUiVectorImageSource`, shaped like `FontImageSource`, whose `Color` is the value of `currentColor`.
+- **Recoloring:** `SkUiVectorImageSource`, shaped like `FontImageSource`, whose `Color` is the starting value of `currentColor`.
 - **Loading:** in the image decoder, so every source gets it, along with the caches, progress and load events. Files ship as `MauiAsset`.
 
 ### 1.8.0: performance, tiles, Core containers and password reveal (planned)

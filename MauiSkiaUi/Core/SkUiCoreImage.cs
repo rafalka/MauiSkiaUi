@@ -218,7 +218,7 @@ public class SkUiCoreImage : SkUiCoreNode
         // Fitting and covering decode to different bounds; a centered image is not downsampled to the node.
         if (_downsampleToViewSize && _source is not null
             && (SkUiViewSizedDecode.Fills(old) != SkUiViewSizedDecode.Fills(value) || (old == Aspect.Center) != (value == Aspect.Center)))
-            Load(restart: false);
+            Load(restart: false, keepShown: _slot.Entry is { IsVector: true });
         else if (_slot.Entry is { IsVector: true })
         {
             if (value == Aspect.Center && old != Aspect.Center)
@@ -352,19 +352,19 @@ public class SkUiCoreImage : SkUiCoreNode
     }
 
     // A new source (restart) waits for the next arrange with DownsampleToViewSize; new settings reuse the bounds decided.
-    private Task Load(bool restart)
+    private Task Load(bool restart, bool keepShown = false)
     {
         _viewSizedDecode.ForgetVector();
         if (SkUiViewSizedDecode.ForVectorSource(_source, ImageArea(Frame.Size), _options, _aspect, out var sized))
         {
             _viewSizedDecode.Stop();
             _viewSizedDecode.MarkSizedAsVector();
-            return _slot.Load(_source, sized);
+            return _slot.Load(_source, sized, keepShown);
         }
         if (_source is null || !SkUiViewSizedDecode.AppliesTo(_downsampleToViewSize, _options, _aspect))
         {
             _viewSizedDecode.Stop();
-            return _slot.Load(_source, _options);
+            return _slot.Load(_source, _options, keepShown);
         }
         if (restart || !_viewSizedDecode.HasBounds)
         {
@@ -373,7 +373,7 @@ public class SkUiCoreImage : SkUiCoreNode
             _slot.Load(null, _options);
             return Task.CompletedTask;
         }
-        return _slot.Load(_source, _viewSizedDecode.Apply(_options, _aspect));
+        return _slot.Load(_source, _viewSizedDecode.Apply(_options, _aspect), keepShown);
     }
 
     /// <inheritdoc />
@@ -388,7 +388,8 @@ public class SkUiCoreImage : SkUiCoreNode
                 _slot.Load(_source, redraw, keepShown: true);
             return;
         }
-        if (idle && _slot.Entry is not null && _viewSizedDecode.TakeSizedBitmap())
+        var sizedBitmap = idle && _source is not null && _slot.Entry is not null && _viewSizedDecode.TakeSizedBitmap();
+        if (sizedBitmap)
         {
             if (!_downsampleToViewSize)
             {
@@ -399,7 +400,7 @@ public class SkUiCoreImage : SkUiCoreNode
         }
         // A view that outgrew an image decoded at full size keeps it: larger bounds give no more pixels.
         if (_viewSizedDecode.OnArranged(size, out var grew) && !(grew && _slot.Entry is { IsReduced: false }))
-            _slot.Load(_source, _viewSizedDecode.Apply(_options, _aspect), keepShown: grew);
+            _slot.Load(_source, _viewSizedDecode.Apply(_options, _aspect), keepShown: grew || sizedBitmap);
     }
 
     /// <summary>The part of the arranged <paramref name="size"/> the image is drawn in.</summary>
@@ -452,8 +453,8 @@ public class SkUiCoreImage : SkUiCoreNode
             return;
         _fade.ForgetDrawable();
         _slot.EndFade();
-        if (_slot.Entry is { IsVector: true })
-            InvalidateMeasure(); // the redraw that waited for the fade
+        if (_slot.Entry is { IsVector: true } || _viewSizedDecode.IsSizedAsVector)
+            InvalidateMeasure(); // the redraw or reload that waited for the fade
         InvalidatePaint();
         InvalidateRender(SkUiRenderDirty.Props);
     }

@@ -13,13 +13,13 @@ internal sealed class SkUiVectorPainter
 
     /// <summary>
     /// How much work one drawing may do, in the costs below: masks referring to masks and a file's largest values can otherwise
-    /// hold a thread for minutes. Real icons use a few thousand.
+    /// hold a thread for minutes. Real icons stay far below it, also with a few layers at the largest bitmap.
     /// </summary>
     internal const long MaxWork = 4_000_000;
 
     private const int ElementCost = 20;
     private const int StrokeCostPerCharacter = 15; // on top of reading the path: its joins and caps cost far more than a fill
-    private const int LayerPixelsPerCost = 16;
+    private const int LayerPixelsPerCost = 256; // measured: a layer of the whole bitmap costs far less time per pixel than a stroke per character
     private const int DashCost = 20;
     private const int ClipOperationCostPerPoint = 8;
     private const double MaxDashes = 1_000_000; // Skia draws no more than about this many of one stroke
@@ -241,7 +241,7 @@ internal sealed class SkUiVectorPainter
         paint.ColorFilter = luma;
         OpenLayer(paint);
         // A region in user units; without a width and a height it is larger than anything an icon shows.
-        if (mask["width"] is { } widthText && mask["height"] is { } heightText)
+        if (SkUiVectorDocument.IsUserSpaceMask(mask) && mask["width"] is { } widthText && mask["height"] is { } heightText)
         {
             var region = SKRect.Create(
                 mask["x"] is { } xText ? SkUiVectorValues.Length(xText, "x") : 0,

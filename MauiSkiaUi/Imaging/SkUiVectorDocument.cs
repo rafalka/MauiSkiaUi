@@ -20,7 +20,7 @@ internal sealed class SkUiVectorNode(string name, SkUiVectorNode? parent)
     /// <summary>The characters directly inside a <c>style</c> or <c>text</c> element.</summary>
     public string? Text => _text?.ToString();
 
-    /// <summary>How many characters of attributes and text this element has: what drawing it has to read each time.</summary>
+    /// <summary>How many characters of attributes, their names too, and text this element has: what drawing it reads each time.</summary>
     public long Size { get; private set; }
 
     public void AppendText(string text) => (_text ??= new StringBuilder()).Append(text);
@@ -29,8 +29,8 @@ internal sealed class SkUiVectorNode(string name, SkUiVectorNode? parent)
     public void MeasureSize()
     {
         Size = _text?.Length ?? 0;
-        foreach (var value in Attributes.Values)
-            Size += value.Length;
+        foreach (var (attribute, value) in Attributes)
+            Size += attribute.Length + 1 + value.Length;
     }
 
     public string? this[string attribute] => Attributes.GetValueOrDefault(attribute);
@@ -109,13 +109,6 @@ internal sealed class SkUiVectorDocument
     {
         "image", "use", "symbol", "pattern", "linearGradient", "radialGradient", "filter", "foreignObject", "tspan", "textPath", "marker", "switch"
     };
-
-    // Properties that change how an element looks, with the value that changes nothing; any other value fails.
-    private static readonly (string Property, string Neutral)[] NotApplied =
-    [
-        ("filter", "none"), ("mix-blend-mode", "normal"), ("paint-order", "normal"), ("vector-effect", "none"),
-        ("transform-origin", "0 0"), ("transform-box", "view-box")
-    ];
 
     private static readonly XmlReaderSettings ReaderSettings = new()
     {
@@ -288,11 +281,7 @@ internal sealed class SkUiVectorDocument
             if (node[property] is { } paint && paint.TrimStart().StartsWith("url(", StringComparison.OrdinalIgnoreCase))
                 throw SkUiVectorValues.Unsupported($"a {property} that refers to a gradient or pattern");
         }
-        foreach (var (property, neutral) in NotApplied)
-        {
-            if (node[property] is { } value && !value.Trim().Equals(neutral, StringComparison.OrdinalIgnoreCase))
-                throw SkUiVectorValues.Unsupported($"a {property}");
-        }
+        CheckNotApplied(node);
         if (node.Name is ClipPathElement or MaskElement)
         {
             CheckReference(node);
@@ -301,6 +290,71 @@ internal sealed class SkUiVectorDocument
         }
         foreach (var child in node.Children)
             Finish(child, rules, token);
+    }
+
+    // Properties that change how an element looks and are not drawn: only values that change nothing are read.
+    private static void CheckNotApplied(SkUiVectorNode node)
+    {
+        CheckValue(node, "filter", static value => value.Equals("none", StringComparison.OrdinalIgnoreCase));
+        CheckValue(node, "mix-blend-mode", static value => value.Equals("normal", StringComparison.OrdinalIgnoreCase));
+        CheckValue(node, "vector-effect", static value => value.Equals("none", StringComparison.OrdinalIgnoreCase));
+        CheckValue(node, "transform-box", static value => value.Equals("view-box", StringComparison.OrdinalIgnoreCase));
+        CheckValue(node, "transform-origin", IsZeroOrigin);
+        CheckValue(node, "paint-order", PaintsFillFirst);
+    }
+
+    private static void CheckValue(SkUiVectorNode node, string property, Func<string, bool> changesNothing)
+    {
+        if (node[property] is { } value && !changesNothing(value.Trim()))
+            throw SkUiVectorValues.Unsupported($"a {property}");
+    }
+
+    private static bool IsZeroOrigin(string value)
+    {
+        foreach (var part in value.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries))
+        {
+            if (!(SkUiVectorValues.TryLength(part.TrimEnd('%'), out var length) && length == 0)) // exact: zero is the point
+                return false;
+        }
+        return true;
+    }
+
+    // The order is the one SVG draws in anyway; a keyword left out comes after the ones named.
+    private static bool PaintsFillFirst(string value)
+    {
+        var fill = -1;
+        var stroke = -1;
+        var parts = value.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
+        for (var index = 0; index < parts.Length; index++)
+        {
+            if (parts[index].Equals("normal", StringComparison.OrdinalIgnoreCase))
+                return true;
+            if (parts[index].Equals("fill", StringComparison.OrdinalIgnoreCase))
+                fill = index;
+            else if (parts[index].Equals("stroke", StringComparison.OrdinalIgnoreCase))
+                stroke = index;
+        }
+        return stroke < 0 || (fill >= 0 && fill < stroke);
+    }
+
+    // A fraction of the element's bounds, written as one or as a percentage; null: not a number.
+    private static double? BoundsFraction(string value)
+    {
+        var text = value.Trim();
+        var percent = text.EndsWith('%');
+        if (!SkUiVectorValues.TryLength(percent ? text[..^1] : text, out var number))
+            return null;
+        return percent ? number / 100d : number;
+    }
+
+    // At least the element's bounds, as SVG's own default region (-10%, 120%): the content is not cut, so no region applies.
+    private static bool RegionCoversBounds(SkUiVectorNode node)
+    {
+        var x = node["x"] is { } xText ? BoundsFraction(xText) : 0;
+        var y = node["y"] is { } yText ? BoundsFraction(yText) : 0;
+        var width = node["width"] is { } widthText ? BoundsFraction(widthText) : 1;
+        var height = node["height"] is { } heightText ? BoundsFraction(heightText) : 1;
+        return x <= 0 && y <= 0 && x + width >= 1 && y + height >= 1;
     }
 
     private static void CheckReference(SkUiVectorNode node)
@@ -312,10 +366,8 @@ internal sealed class SkUiVectorDocument
             if (node[property] is { } value && !IsNone(value))
                 throw SkUiVectorValues.Unsupported($"a {property} on a <{node.Name}>");
         }
-        // The default region is the element's bounds with a margin: content rarely reaches past it, so it is not applied.
-        if (node.Name == MaskElement && node["maskUnits"]?.Trim() != UserSpaceOnUse
-            && (node["x"] ?? node["y"] ?? node["width"] ?? node["height"]) is not null)
-            throw SkUiVectorValues.Unsupported($"a <mask> region in {ObjectBoundingBox} units");
+        if (node.Name == MaskElement && !IsUserSpaceMask(node) && !RegionCoversBounds(node))
+            throw SkUiVectorValues.Unsupported($"a <mask> region smaller than the element in {ObjectBoundingBox} units");
     }
 
     private static void ApplyCascade(SkUiVectorNode node, SkUiVectorStyleRules rules)
@@ -342,6 +394,9 @@ internal sealed class SkUiVectorDocument
             node.Attributes[property] = value;
         }
     }
+
+    /// <summary>Whether a mask's region is in user units; otherwise it is at least the element's bounds and not applied.</summary>
+    internal static bool IsUserSpaceMask(SkUiVectorNode mask) => mask["maskUnits"]?.Trim() == UserSpaceOnUse;
 
     /// <summary>The id in <c>url(#id)</c>; <c>null</c> for <c>none</c>.</summary>
     internal static string? ReferenceId(string value, string name)
@@ -496,7 +551,7 @@ internal sealed class SkUiVectorStyleRules
             {
                 foreach (var rule in rules)
                 {
-                    Charge(rule.Declarations.Count);
+                    Charge(1 + rule.Declarations.Count);
                     _matching.Add(rule);
                 }
             }
