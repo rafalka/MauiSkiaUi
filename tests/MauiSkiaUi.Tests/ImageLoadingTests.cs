@@ -904,6 +904,31 @@ public sealed class ImageLoadingTests : IDisposable
     }
 
     [Fact]
+    public async Task LargeImagesDecodeDownsampledButKeepSourceLayoutSize()
+    {
+        var previous = SkUiImageDecoder.MaxDecodeDimension;
+        SkUiImageDecoder.MaxDecodeDimension = 256;
+        try
+        {
+            using var bitmap = new SKBitmap(1200, 600);
+            using (var canvas = new SKCanvas(bitmap)) canvas.Clear(SKColors.Orange);
+            using var encoded = bitmap.Encode(SKEncodedImageFormat.Png, 100);
+            var bytes = encoded.ToArray();
+            var image = new SkUiCoreImage().SetSourceStream(_ => Task.FromResult<Stream>(new MemoryStream(bytes)));
+            await image.LoadingTask;
+            Assert.Equal(new Size(1200, 600), image.ImageSize);
+            var decoded = SkUiImageDecoder.Decode(bytes);
+            using var frame = Assert.Single(decoded.Frames);
+            Assert.Equal(new Size(1200, 600), decoded.Size);
+            Assert.True(frame.Width <= 256 && frame.Height <= 256);
+        }
+        finally
+        {
+            SkUiImageDecoder.MaxDecodeDimension = previous;
+        }
+    }
+
+    [Fact]
     public void XmlDrawablesRenderAtTheirBoundsUpToTheDecodeLimitAndNotElsewhere()
     {
         var intrinsic = new SKSizeI(144, 72); // 48 × 24 dp at 3x
