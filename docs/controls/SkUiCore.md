@@ -128,7 +128,7 @@ var consent = new SkUiCoreLabel()
 Every Core image property (`SkUiCoreImage.SetSource` and its placeholders, `SkUiCoreImageButton`, `SkUiCoreButton.SetImageSource`, `SkUiCoreSlider.SetThumbImageSource`, `SkUiCoreAvatar.SetImageSource`) takes an `SkUiImageSource`, and MAUI's `ImageSource` and strings convert to it implicitly, as the SkUi\* controls convert them:
 
 - **`SkUiImageSource.FromMaui(ImageSource?)`**: files and `MauiImage`s, URIs with `CachingEnabled` / `CacheValidity`, streams, `FontImageSource` glyphs and `SkUiVectorImageSource` icons. `null` or an empty source gives `null`; an unsupported kind fails when it loads (`LoadError`), as on `SkUiImage`.
-- **`SkUiImageSource.FromVector(source, color, size)`** and **`FromVectorText(svg, color, size)`**: an SVG icon, as [`SkUiVectorImageSource`](SkUiImage.md#vector-icons). `color` is the value of `currentColor` and `size` the longest edge in DIPs; a string converts as below. Equal sources share one image.
+- **`SkUiImageSource.FromVector(source, color, size)`** and **`FromVectorText(svg, color, size)`**: an SVG icon, as [`SkUiVectorImageSource`](SkUiImage.md#vector-icons). `color` is the starting value of `currentColor` and `size` the longest edge in DIPs; a string is read as below. Equal sources share one image.
 - **`SkUiImageSource.FromString(string?)`**: MAUI's XAML rule (`ImageSourceConverter`): an absolute HTTP(S) URI is downloaded, anything else is a file (a package name such as `icon.png`, an absolute path, a `file:` URI).
 
 ```csharp

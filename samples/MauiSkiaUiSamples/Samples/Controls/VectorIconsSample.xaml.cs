@@ -30,7 +30,7 @@ public sealed partial class VectorIconsSample : SamplePage, ISample
         ],
         ThingsToKnow:
         [
-            "`Color` replaces `currentColor` only: colors written in the file stay, as the green in the status icon.",
+            "`Color` is the starting value of `currentColor`: colors written in the file stay, as the green in the status icon, and a `color` in the file wins for what is inside it.",
             "`SkUiImage` and `SkUiImageButton` draw the icon again in exact pixels at the size they show it; without a size of " +
                 "its own, the view takes the file's size or `Size`.",
             "Gradients, `<use>`, `<pattern>`, filters and embedded images are not drawn: the load fails with a `LoadError` " +

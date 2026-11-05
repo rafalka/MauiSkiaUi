@@ -20,10 +20,9 @@ Publishing (the NuGet publish workflow, [docs/Releasing.md](docs/Releasing.md)) 
 
 ### New features
 
-- **Vector icons:** an `.svg` file, `MauiAsset`, download or stream now draws at runtime on both layers (`Source="check.svg"`), through a small SVG reader in `SkiaUi.Maui` with no new dependency. It is drawn again at the size its view shows it in exact pixels, larger or smaller, on `SkUiImage`, `SkUiImageButton` and their Core twins; explicit decode bounds win. A `MauiImage` of the same name still wins. A file with something the reader cannot draw (a gradient, `<use>`, an embedded image) fails with a `LoadError` naming it.
-  - `SkUiVectorImageSource`, a MAUI `ImageSource` shaped like `FontImageSource`, works in every image property of the SkUi* controls: `Source`, `Color` (the value of `currentColor`; colors written in the file stay) and `Size` (the longest edge in DIPs). `Color` takes `AppThemeBinding`, `DynamicResource` and bindings, and a new color keeps the icon shown until it is drawn.
+- **Vector icons:** an `.svg` file, `MauiAsset`, download or stream now draws at runtime on both layers (`Source="check.svg"`), through a small SVG reader in `SkiaUi.Maui` with no new dependency. It is drawn again at the size its view shows it in exact pixels, larger or smaller, on `SkUiImage`, `SkUiImageButton` and their Core twins; explicit decode bounds win. A `MauiImage` of the same name still wins. A file with something the reader knows it cannot draw (a gradient, `<use>`, an embedded image) fails with a `LoadError` naming it, and a file cannot make requests or hold a thread for long.
+  - `SkUiVectorImageSource`, a MAUI `ImageSource` shaped like `FontImageSource`, works in every image property of the SkUi* controls: `Source`, `Color` (the starting value of `currentColor`; colors written in the file stay) and `Size` (the longest edge in DIPs). `Color` takes `AppThemeBinding`, `DynamicResource` and bindings, and a new color keeps the icon shown until it is drawn.
   - Core: `SkUiImageSource.FromVector(source, color, size)` and `FromVectorText(svg, color, size)`.
-
   - Once loaded, an icon costs what a PNG of its size does: [Performance.md](docs/Performance.md#vector-icons).
   - The samples app's "Icons from SVG files" example and the gallery's "SVG icons at runtime" page; how to use them: [SkUiImage.md](docs/controls/SkUiImage.md#vector-icons), and moving icons over: [Migration.md](docs/Migration.md#icons-fontimagesource-tint-behaviors-mauiimage-svgs).
 

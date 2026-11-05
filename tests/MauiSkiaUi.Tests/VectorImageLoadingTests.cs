@@ -112,7 +112,7 @@ public sealed class VectorImageLoadingTests : IDisposable
         var bounded = SkUiImageDecoder.Decode(Bytes(Wide), maxPixels: new SKSizeI(limit * 4, 0));
         Assert.Equal(new SKSizeI(limit, limit / 2), new SKSizeI(bounded.Frames[0].Width, bounded.Frames[0].Height));
 
-        var large = SkUiImageDecoder.Decode(Bytes("""<svg xmlns="http://www.w3.org/2000/svg" width="1e30" height="5e29"/>"""));
+        var large = SkUiImageDecoder.Decode(Bytes("""<svg xmlns="http://www.w3.org/2000/svg" width="100000" height="50000"/>"""));
         Assert.Equal(new SKSizeI(limit, limit / 2), new SKSizeI(large.Frames[0].Width, large.Frames[0].Height));
     }
 

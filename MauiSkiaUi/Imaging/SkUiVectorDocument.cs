@@ -1,17 +1,37 @@
+using System.Text;
 using System.Xml;
 using SkiaSharp;
 
 namespace MauiSkiaUi;
 
 /// <summary>An element of a vector icon. Its attributes hold the winning value of each property once the document is read.</summary>
-internal sealed class SkUiVectorNode(string name)
+internal sealed class SkUiVectorNode(string name, SkUiVectorNode? parent)
 {
+    private StringBuilder? _text;
+
     public string Name { get; } = name;
+
+    /// <summary>The element around this one; <c>null</c> for the root.</summary>
+    public SkUiVectorNode? Parent { get; } = parent;
+
     public Dictionary<string, string> Attributes { get; } = new(StringComparer.Ordinal);
     public List<SkUiVectorNode> Children { get; } = [];
 
     /// <summary>The characters directly inside a <c>style</c> or <c>text</c> element.</summary>
-    public string? Text { get; set; }
+    public string? Text => _text?.ToString();
+
+    /// <summary>How many characters of attributes and text this element has: what drawing it has to read each time.</summary>
+    public long Size { get; private set; }
+
+    public void AppendText(string text) => (_text ??= new StringBuilder()).Append(text);
+
+    /// <summary>Works out <see cref="Size"/>, once the cascade has set the attributes.</summary>
+    public void MeasureSize()
+    {
+        Size = _text?.Length ?? 0;
+        foreach (var value in Attributes.Values)
+            Size += value.Length;
+    }
 
     public string? this[string attribute] => Attributes.GetValueOrDefault(attribute);
 }
@@ -22,8 +42,10 @@ internal sealed class SkUiVectorNode(string name)
 /// </summary>
 /// <remarks>
 /// A file cannot reach outside itself: no element here refers to anything but the document, a DTD is skipped and its entities
-/// are not expanded, and there is no XML resolver. What cannot be drawn fails with <see cref="InvalidDataException"/> naming
-/// it, so an icon is never shown with a part missing. Elements that are not SVG are skipped with their content.
+/// are not expanded, and there is no XML resolver. What it knows it cannot draw fails with <see cref="InvalidDataException"/>
+/// naming it, instead of showing an icon with a part missing. Elements it does not know (<c>title</c>, <c>metadata</c>,
+/// <c>script</c>, the <c>animate</c> elements, a design tool's own) are skipped with their content, and so are properties that
+/// do not change how an icon looks. Reading and drawing are bounded in work as well as in size, and can be cancelled.
 /// </remarks>
 internal sealed class SkUiVectorDocument
 {
@@ -36,8 +58,18 @@ internal sealed class SkUiVectorDocument
     /// <summary>How deep elements nest; drawing recurses over them.</summary>
     internal const int MaxDepth = 64;
 
+    /// <summary>The largest intrinsic size in DIPs: what the file says goes to layout, which has no use for more.</summary>
+    internal const float MaxSize = 1_000_000;
+
+    /// <summary>The most selectors in a file's style sheets. Icons have a handful.</summary>
+    internal const int MaxStyleRules = 5_000;
+
+    /// <summary>How many class names and declarations the cascade may go through: a small file can otherwise multiply them.</summary>
+    internal const int MaxStyleWork = 1_000_000;
+
     internal const string SvgElement = "svg";
     internal const string GroupElement = "g";
+    internal const string AnchorElement = "a";
     internal const string PathElement = "path";
     internal const string RectElement = "rect";
     internal const string CircleElement = "circle";
@@ -63,10 +95,12 @@ internal sealed class SkUiVectorDocument
     private const string ViewBoxAttribute = "viewBox";
     private const string SvgNamespace = "http://www.w3.org/2000/svg";
     private const string ObjectBoundingBox = "objectBoundingBox";
+    private const string UserSpaceOnUse = "userSpaceOnUse";
+    private const string ImportantSuffix = "!important";
 
     private static readonly HashSet<string> Drawn = new(StringComparer.Ordinal)
     {
-        SvgElement, GroupElement, PathElement, RectElement, CircleElement, EllipseElement, LineElement, PolylineElement, PolygonElement,
+        SvgElement, GroupElement, AnchorElement, PathElement, RectElement, CircleElement, EllipseElement, LineElement, PolylineElement, PolygonElement,
         TextElement, DefsElement, ClipPathElement, MaskElement, StyleElement
     };
 
@@ -74,6 +108,23 @@ internal sealed class SkUiVectorDocument
     private static readonly HashSet<string> NotDrawn = new(StringComparer.Ordinal)
     {
         "image", "use", "symbol", "pattern", "linearGradient", "radialGradient", "filter", "foreignObject", "tspan", "textPath", "marker", "switch"
+    };
+
+    // Properties that change how an element looks, with the value that changes nothing; any other value fails.
+    private static readonly (string Property, string Neutral)[] NotApplied =
+    [
+        ("filter", "none"), ("mix-blend-mode", "normal"), ("paint-order", "normal"), ("vector-effect", "none"),
+        ("transform-origin", "0 0"), ("transform-box", "view-box")
+    ];
+
+    private static readonly XmlReaderSettings ReaderSettings = new()
+    {
+        DtdProcessing = DtdProcessing.Ignore,
+        XmlResolver = null,
+        MaxCharactersFromEntities = 0,
+        MaxCharactersInDocument = MaxBytes * 2L,
+        IgnoreComments = true,
+        IgnoreProcessingInstructions = true
     };
 
     private readonly Dictionary<string, SkUiVectorNode> _references = new(StringComparer.Ordinal);
@@ -106,13 +157,35 @@ internal sealed class SkUiVectorDocument
     }
 
     /// <summary>Reads a document; <see cref="InvalidDataException"/> when it is not one this class can draw.</summary>
-    public static SkUiVectorDocument Parse(byte[] bytes)
+    public static SkUiVectorDocument Parse(byte[] bytes, CancellationToken token = default)
     {
         if (bytes.Length > MaxBytes)
             throw new InvalidDataException($"SVG: the file is larger than {MaxBytes} bytes.");
+        // A UTF-16 BOM stays for the reader to see. White space before an XML declaration is tolerated: some exports start with it.
+        var start = bytes is [0xFF, 0xFE, ..] or [0xFE, 0xFF, ..] ? 0 : TextStart(bytes);
+        using var stream = new MemoryStream(bytes, start, bytes.Length - start, writable: false);
+        using var reader = XmlReader.Create(stream, ReaderSettings);
+        return Read(reader, token);
+    }
+
+    /// <summary>
+    /// Reads a document from its text, as <see cref="Parse(byte[], CancellationToken)"/>. An encoding the text declares means
+    /// nothing here: it is already characters.
+    /// </summary>
+    public static SkUiVectorDocument ParseText(string text, CancellationToken token = default)
+    {
+        if (text.Length > MaxBytes)
+            throw new InvalidDataException($"SVG: the file is larger than {MaxBytes} bytes.");
+        using var characters = new StringReader(text.TrimStart(' ', '\t', '\r', '\n', '\uFEFF'));
+        using var reader = XmlReader.Create(characters, ReaderSettings);
+        return Read(reader, token);
+    }
+
+    private static SkUiVectorDocument Read(XmlReader reader, CancellationToken token)
+    {
         try
         {
-            return Read(bytes);
+            return ReadElements(reader, token);
         }
         catch (XmlException error)
         {
@@ -120,21 +193,8 @@ internal sealed class SkUiVectorDocument
         }
     }
 
-    private static SkUiVectorDocument Read(byte[] bytes)
+    private static SkUiVectorDocument ReadElements(XmlReader reader, CancellationToken token)
     {
-        // A UTF-16 BOM stays for the reader to see. White space before an XML declaration is tolerated: some exports start with it.
-        var start = bytes is [0xFF, 0xFE, ..] or [0xFE, 0xFF, ..] ? 0 : TextStart(bytes);
-        using var stream = new MemoryStream(bytes, start, bytes.Length - start, writable: false);
-        using var reader = XmlReader.Create(stream, new XmlReaderSettings
-        {
-            DtdProcessing = DtdProcessing.Ignore,
-            XmlResolver = null,
-            MaxCharactersFromEntities = 0,
-            MaxCharactersInDocument = MaxBytes * 2L,
-            IgnoreComments = true,
-            IgnoreProcessingInstructions = true
-        });
-
         SkUiVectorNode? root = null;
         var open = new Stack<SkUiVectorNode>();
         var styleSheets = new List<SkUiVectorNode>();
@@ -165,12 +225,14 @@ internal sealed class SkUiVectorDocument
                         throw new InvalidDataException($"SVG: elements nest deeper than {MaxDepth} levels.");
                     if (++count > MaxElements)
                         throw new InvalidDataException($"SVG: the file has more than {MaxElements} elements.");
+                    token.ThrowIfCancellationRequested();
                     var empty = reader.IsEmptyElement;
-                    var node = new SkUiVectorNode(name);
+                    open.TryPeek(out var parent);
+                    var node = new SkUiVectorNode(name, parent);
                     ReadAttributes(reader, node);
                     if (name == StyleElement)
                         styleSheets.Add(node);
-                    if (open.TryPeek(out var parent))
+                    if (parent is not null)
                         parent.Children.Add(node);
                     else
                         root = node;
@@ -185,7 +247,7 @@ internal sealed class SkUiVectorDocument
                 case XmlNodeType.SignificantWhitespace:
                 case XmlNodeType.Whitespace:
                     if (open.TryPeek(out var holder) && holder.Name is TextElement or StyleElement)
-                        holder.Text += reader.Value;
+                        holder.AppendText(reader.Value);
                     break;
             }
             more = reader.Read();
@@ -193,11 +255,11 @@ internal sealed class SkUiVectorDocument
         if (root is null)
             throw new InvalidDataException("SVG: the file has no root element.");
 
-        var rules = new List<(string Class, List<KeyValuePair<string, string>> Declarations)>();
+        var rules = new SkUiVectorStyleRules();
         foreach (var sheet in styleSheets)
             ReadStyleSheet(sheet.Text ?? string.Empty, rules);
         var document = new SkUiVectorDocument(root);
-        document.Finish(root, rules);
+        document.Finish(root, rules, token);
         return document;
     }
 
@@ -215,40 +277,70 @@ internal sealed class SkUiVectorDocument
     }
 
     /// <summary>Applies the cascade (attribute, then class rules, then the inline style) and checks what the document refers to.</summary>
-    private void Finish(SkUiVectorNode node, List<(string Class, List<KeyValuePair<string, string>> Declarations)> rules)
+    private void Finish(SkUiVectorNode node, SkUiVectorStyleRules rules, CancellationToken token)
     {
-        if (node[ClassAttribute] is { } classes && rules.Count > 0)
-        {
-            foreach (var (name, declarations) in rules)
-            {
-                if (!HasClass(classes, name))
-                    continue;
-                foreach (var (property, value) in declarations)
-                    node.Attributes[property] = value;
-            }
-        }
-        if (node[StyleAttribute] is { } style)
-        {
-            foreach (var (property, value) in Declarations(style))
-                node.Attributes[property] = value;
-        }
+        token.ThrowIfCancellationRequested();
+        ApplyCascade(node, rules);
+        node.MeasureSize();
 
         foreach (var property in (ReadOnlySpan<string>)[FillProperty, StrokeProperty])
         {
             if (node[property] is { } paint && paint.TrimStart().StartsWith("url(", StringComparison.OrdinalIgnoreCase))
                 throw SkUiVectorValues.Unsupported($"a {property} that refers to a gradient or pattern");
         }
-        if (node["filter"] is { } filter && !IsNone(filter))
-            throw SkUiVectorValues.Unsupported("a filter");
+        foreach (var (property, neutral) in NotApplied)
+        {
+            if (node[property] is { } value && !value.Trim().Equals(neutral, StringComparison.OrdinalIgnoreCase))
+                throw SkUiVectorValues.Unsupported($"a {property}");
+        }
         if (node.Name is ClipPathElement or MaskElement)
         {
-            if (node[node.Name == MaskElement ? "maskContentUnits" : "clipPathUnits"] == ObjectBoundingBox)
-                throw SkUiVectorValues.Unsupported($"<{node.Name}> in {ObjectBoundingBox} units");
+            CheckReference(node);
             if (node[IdAttribute] is { } id)
                 _references.TryAdd(id, node);
         }
         foreach (var child in node.Children)
-            Finish(child, rules);
+            Finish(child, rules, token);
+    }
+
+    private static void CheckReference(SkUiVectorNode node)
+    {
+        if (node[node.Name == MaskElement ? "maskContentUnits" : "clipPathUnits"] == ObjectBoundingBox)
+            throw SkUiVectorValues.Unsupported($"<{node.Name}> in {ObjectBoundingBox} units");
+        foreach (var property in (ReadOnlySpan<string>)[ClipPathProperty, MaskProperty])
+        {
+            if (node[property] is { } value && !IsNone(value))
+                throw SkUiVectorValues.Unsupported($"a {property} on a <{node.Name}>");
+        }
+        // The default region is the element's bounds with a margin: content rarely reaches past it, so it is not applied.
+        if (node.Name == MaskElement && node["maskUnits"]?.Trim() != UserSpaceOnUse
+            && (node["x"] ?? node["y"] ?? node["width"] ?? node["height"]) is not null)
+            throw SkUiVectorValues.Unsupported($"a <mask> region in {ObjectBoundingBox} units");
+    }
+
+    private static void ApplyCascade(SkUiVectorNode node, SkUiVectorStyleRules rules)
+    {
+        HashSet<string>? important = null;
+        if (node[ClassAttribute] is { } classes && rules.Count > 0)
+        {
+            foreach (var declarations in rules.Matching(classes))
+                Apply(node, declarations, ref important);
+        }
+        if (node[StyleAttribute] is { } style)
+            Apply(node, Declarations(style).ToList(), ref important);
+    }
+
+    // Later declarations win, except over one marked !important, which only another !important replaces.
+    private static void Apply(SkUiVectorNode node, List<SkUiVectorDeclaration> declarations, ref HashSet<string>? important)
+    {
+        foreach (var (property, value, isImportant) in declarations)
+        {
+            if (isImportant)
+                (important ??= new HashSet<string>(StringComparer.Ordinal)).Add(property);
+            else if (important?.Contains(property) == true)
+                continue;
+            node.Attributes[property] = value;
+        }
     }
 
     /// <summary>The id in <c>url(#id)</c>; <c>null</c> for <c>none</c>.</summary>
@@ -267,17 +359,7 @@ internal sealed class SkUiVectorDocument
 
     private static bool IsNone(string value) => value.Trim().Equals("none", StringComparison.OrdinalIgnoreCase);
 
-    private static bool HasClass(string classes, string name)
-    {
-        foreach (var range in classes.AsSpan().SplitAny(" \t\r\n"))
-        {
-            if (classes.AsSpan()[range].SequenceEqual(name))
-                return true;
-        }
-        return false;
-    }
-
-    private static void ReadStyleSheet(string css, List<(string, List<KeyValuePair<string, string>>)> rules)
+    private static void ReadStyleSheet(string css, SkUiVectorStyleRules rules)
     {
         var rest = RemoveComments(css).AsSpan().Trim();
         while (!rest.IsEmpty)
@@ -290,9 +372,9 @@ internal sealed class SkUiVectorDocument
             var declarations = Declarations(rest[(open + 1)..close].ToString()).ToList();
             foreach (var selector in selectors.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries))
             {
-                if (selector[0] != '.' || selector.AsSpan(1).IndexOfAny(" .#:[>+~*") >= 0)
+                if (selector[0] != '.' || selector.AsSpan(1).IndexOfAny(" \t\r\n.#:[>+~*") >= 0)
                     throw SkUiVectorValues.Unsupported($"the style selector \"{selector}\"");
-                rules.Add((selector[1..], declarations));
+                rules.Add(selector[1..], declarations);
             }
             rest = rest[(close + 1)..].TrimStart();
         }
@@ -301,16 +383,21 @@ internal sealed class SkUiVectorDocument
     private static string RemoveComments(string css)
     {
         var start = css.IndexOf("/*", StringComparison.Ordinal);
+        if (start < 0)
+            return css;
+        var kept = new StringBuilder(css.Length);
+        var from = 0;
         while (start >= 0)
         {
+            kept.Append(css, from, start - from);
             var end = css.IndexOf("*/", start + 2, StringComparison.Ordinal);
-            css = end < 0 ? css[..start] : css.Remove(start, end + 2 - start);
-            start = css.IndexOf("/*", StringComparison.Ordinal);
+            from = end < 0 ? css.Length : end + 2;
+            start = css.IndexOf("/*", from, StringComparison.Ordinal);
         }
-        return css;
+        return kept.Append(css, from, css.Length - from).ToString();
     }
 
-    private static IEnumerable<KeyValuePair<string, string>> Declarations(string text)
+    private static IEnumerable<SkUiVectorDeclaration> Declarations(string text)
     {
         foreach (var declaration in text.Split(';', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries))
         {
@@ -318,9 +405,10 @@ internal sealed class SkUiVectorDocument
             if (colon <= 0)
                 continue;
             var value = declaration[(colon + 1)..].Trim();
-            if (value.EndsWith("!important", StringComparison.OrdinalIgnoreCase))
-                value = value[..^"!important".Length].TrimEnd();
-            yield return new KeyValuePair<string, string>(declaration[..colon].Trim(), value);
+            var important = value.EndsWith(ImportantSuffix, StringComparison.OrdinalIgnoreCase);
+            if (important)
+                value = value[..^ImportantSuffix.Length].TrimEnd();
+            yield return new SkUiVectorDeclaration(declaration[..colon].Trim(), value, important);
         }
     }
 
@@ -332,9 +420,12 @@ internal sealed class SkUiVectorDocument
             var box = SkUiVectorValues.Numbers(text, ViewBoxAttribute);
             if (box.Length != 4 || box[2] <= 0 || box[3] <= 0)
                 throw SkUiVectorValues.Invalid(ViewBoxAttribute, text);
-            viewBox = SKRect.Create(box[0], box[1], box[2], box[3]);
+            var rect = SKRect.Create(box[0], box[1], box[2], box[3]);
+            if (!float.IsFinite(rect.Right) || !float.IsFinite(rect.Bottom))
+                throw SkUiVectorValues.Invalid(ViewBoxAttribute, text);
+            viewBox = rect;
         }
-        // Percentages say nothing without a container: the viewBox gives the size instead.
+        // Percentages and units relative to a font or a window say nothing without one: the viewBox gives the size instead.
         var width = RootLength(root, WidthAttribute);
         var height = RootLength(root, HeightAttribute);
         if (viewBox is { } view)
@@ -344,13 +435,21 @@ internal sealed class SkUiVectorDocument
         }
         if (width is not > 0 || height is not > 0)
             throw new InvalidDataException("SVG: the file has no size: it needs a viewBox, or a width and a height.");
+        if (width > MaxSize || height > MaxSize || !float.IsFinite(width.Value) || !float.IsFinite(height.Value))
+            throw new InvalidDataException($"SVG: the file's size is more than {MaxSize} on a side.");
         return (new SKSize(width.Value, height.Value), viewBox ?? SKRect.Create(width.Value, height.Value));
     }
 
     private static float? RootLength(SkUiVectorNode root, string attribute)
     {
-        if (root[attribute] is not { } text || text.TrimEnd().EndsWith('%'))
+        if (root[attribute] is not { } text)
             return null;
+        var value = text.AsSpan().Trim();
+        foreach (var unit in (ReadOnlySpan<string>)["%", "em", "ex", "rem", "ch", "vw", "vh", "vmin", "vmax", "auto"])
+        {
+            if (value.EndsWith(unit, StringComparison.OrdinalIgnoreCase))
+                return null;
+        }
         return SkUiVectorValues.Length(text, attribute);
     }
 
@@ -360,5 +459,56 @@ internal sealed class SkUiVectorDocument
         while (start < bytes.Length && bytes[start] is (byte)' ' or (byte)'\t' or (byte)'\r' or (byte)'\n')
             start++;
         return start;
+    }
+}
+
+/// <summary>A property set in a style sheet or an inline style.</summary>
+internal readonly record struct SkUiVectorDeclaration(string Property, string Value, bool IsImportant);
+
+/// <summary>A file's class rules, by class: a look-up per class name of an element instead of a walk over every rule.</summary>
+internal sealed class SkUiVectorStyleRules
+{
+    private readonly Dictionary<string, List<(int Order, List<SkUiVectorDeclaration> Declarations)>> _byClass = new(StringComparer.Ordinal);
+    private readonly List<(int Order, List<SkUiVectorDeclaration> Declarations)> _matching = [];
+    private int _work;
+
+    /// <summary>How many selectors were added.</summary>
+    public int Count { get; private set; }
+
+    public void Add(string name, List<SkUiVectorDeclaration> declarations)
+    {
+        if (++Count > SkUiVectorDocument.MaxStyleRules)
+            throw new InvalidDataException($"SVG: the style sheets have more than {SkUiVectorDocument.MaxStyleRules} selectors.");
+        if (!_byClass.TryGetValue(name, out var rules))
+            _byClass[name] = rules = [];
+        rules.Add((Count, declarations));
+    }
+
+    /// <summary>The declarations for an element's <c>class</c> attribute, in the order of their rules (later rules win).</summary>
+    public IEnumerable<List<SkUiVectorDeclaration>> Matching(string classes)
+    {
+        _matching.Clear();
+        var lookup = _byClass.GetAlternateLookup<ReadOnlySpan<char>>();
+        foreach (var range in classes.AsSpan().SplitAny(" \t\r\n"))
+        {
+            Charge(1);
+            if (lookup.TryGetValue(classes.AsSpan()[range], out var rules))
+            {
+                foreach (var rule in rules)
+                {
+                    Charge(rule.Declarations.Count);
+                    _matching.Add(rule);
+                }
+            }
+        }
+        _matching.Sort(static (a, b) => a.Order.CompareTo(b.Order));
+        return _matching.Select(static rule => rule.Declarations);
+    }
+
+    private void Charge(int work)
+    {
+        _work += work;
+        if (_work > SkUiVectorDocument.MaxStyleWork)
+            throw new InvalidDataException("SVG: the style rules take too much work to apply.");
     }
 }

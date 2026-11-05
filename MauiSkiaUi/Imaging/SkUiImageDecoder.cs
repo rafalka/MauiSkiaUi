@@ -40,14 +40,14 @@ public static class SkUiImageDecoder
     /// <paramref name="displayScale"/>, with <paramref name="vector"/>'s color and size when it comes from such a source.
     /// </summary>
     internal static SkUiDecodedImage Decode(byte[] bytes, float sourceScale = 1, SKSizeI maxPixels = default, bool fill = false,
-        float displayScale = 1, SkUiVectorSource? vector = null)
+        float displayScale = 1, SkUiVectorSource? vector = null, CancellationToken token = default)
     {
         using var data = SKData.CreateCopy(bytes);
         using var codec = SKCodec.Create(data);
         if (codec is null)
         {
             return SkUiVectorDocument.LooksLikeSvg(bytes)
-                ? DecodeVector(bytes, sourceScale, maxPixels, fill, displayScale, vector)
+                ? DrawVector(SkUiVectorDocument.Parse(bytes, token), sourceScale, maxPixels, fill, displayScale, vector, token)
                 : throw new InvalidDataException("Unsupported or corrupt image.");
         }
         var origin = codec.EncodedOrigin;
@@ -68,9 +68,9 @@ public static class SkUiImageDecoder
         return new SkUiDecodedImage([ToImage(upright ?? decoded)], [], size) { IsReduced = reduced };
     }
 
-    private static SkUiDecodedImage DecodeVector(byte[] bytes, float sourceScale, SKSizeI maxPixels, bool fill, float displayScale, SkUiVectorSource? vector)
+    internal static SkUiDecodedImage DrawVector(SkUiVectorDocument document, float sourceScale, SKSizeI maxPixels, bool fill, float displayScale,
+        SkUiVectorSource? vector, CancellationToken token)
     {
-        var document = SkUiVectorDocument.Parse(bytes);
         var size = new Size(document.Size.Width / (double)sourceScale, document.Size.Height / (double)sourceScale);
         if (vector is { Size: > 0 and var longest })
         {
@@ -78,7 +78,7 @@ public static class SkUiImageDecoder
             size = new Size(size.Width * scale, size.Height * scale);
         }
         var pixels = SkUiPackageImages.RenderSize(size.Width * displayScale, size.Height * displayScale, maxPixels, fill);
-        var image = SkUiVectorPainter.Render(document, pixels, vector?.CurrentColor ?? SKColors.Black);
+        var image = SkUiVectorPainter.Render(document, pixels, vector?.CurrentColor ?? SKColors.Black, token);
         return new SkUiDecodedImage([image], [], size) { IsReduced = true, IsVector = true };
     }
 

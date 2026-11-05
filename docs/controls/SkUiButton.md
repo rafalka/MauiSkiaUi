@@ -29,7 +29,7 @@ All SkiaUi controls inherit [`SkUiView`](SkUiView.md) behavior:
 
 ## Image and content layout
 
-As MAUI's Button, a button can show an image beside its text: `ImageSource` (MAUI's `ImageSource`: files, `MauiImage` resources, `FontImageSource` glyphs, URIs, streams, through the [shared image loader and cache](SkUiImage.md)) placed by `ContentLayout`, MAUI's own `Button.ButtonContentLayout` (`Position`: `Left`, `Top`, `Right`, `Bottom`; `Spacing`, default 10 DIPs). XAML takes MAUI's markup: `ContentLayout="Top"`, `"Right, 20"`, `"20"` (left, 20 DIPs).
+As MAUI's Button, a button can show an image beside its text: `ImageSource` (MAUI's `ImageSource`: files, `MauiImage` resources, `FontImageSource` glyphs, [`SkUiVectorImageSource` icons](SkUiImage.md#vector-icons), URIs, streams, through the [shared image loader and cache](SkUiImage.md)) placed by `ContentLayout`, MAUI's own `Button.ButtonContentLayout` (`Position`: `Left`, `Top`, `Right`, `Bottom`; `Spacing`, default 10 DIPs). XAML takes MAUI's markup: `ContentLayout="Top"`, `"Right, 20"`, `"20"` (left, 20 DIPs).
 
 ```xml
 <sk:SkUiButton Text="Settings" ImageSource="settings.png" ContentLayout="Top, 8" />

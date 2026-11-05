@@ -13,7 +13,7 @@ What the next releases bring, and the work after them. What has shipped is in th
 | **1.4.0** | 10.0.120 | 27 | 10.0.402 | As 1.1.0 | `master`, released 29 October 2026 |
 | **1.5.0** | 10.0.120 | 27 | 10.0.402 | As 1.1.0 | `master`, released 3 November 2026 |
 | **1.5.1** | 10.0.120 | 27 | 10.0.402 | As 1.1.0 | `master`, released 3 November 2026 |
-| **1.6.0** | 10.0.120 or a later 10.0.x | 27 | 10.0.402 | As 1.1.0 | `devel` (next) |
+| **1.6.0** | 10.0.120 | 27 | 10.0.402 | As 1.1.0 | `master`, released 4 November 2026 |
 | **1.7.0** | 10.0.120 or a later 10.0.x | 27 | 10.0.402 | As 1.1.0 | Planned |
 | **1.8.0** | 10.0.120 or a later 10.0.x | 27 | 10.0.402 | As 1.1.0 | Planned |
 
@@ -61,20 +61,20 @@ Steps, order and decisions: [the archived plan](../archive/ImplementationPlan-1.
 
 Searchable picker lists (`IsSearchEnabled`), the pickers' chevron (`IsChevronVisible`, color, size and room), field padding (`TextPadding`) and a leading view in picker fields, on both layers; resized surfaces no longer stretch their content, and picker popups size every templated row ([#73](https://github.com/rafalka/MauiSkiaUi/issues/73)–[#76](https://github.com/rafalka/MauiSkiaUi/issues/76)). 1.5.1: Android accessibility with `Xamarin.AndroidX.Core` 1.19 ([#78](https://github.com/rafalka/MauiSkiaUi/issues/78)), and bugfix releases from `devel`.
 
-### 1.6.0: viewport insets (next, on `devel`)
+### 1.6.0: viewport insets (shipped)
 
 Steps and decisions: [ImplementationPlan-1.6.md](ImplementationPlan-1.6.md). The rest of what was planned for 1.6 moved to [1.8.0](#180-performance-tiles-core-containers-and-password-reveal-planned).
 
-- **Viewport insets (done on `devel`; device checks in the [verification backlog](#verification-backlog)):** `ViewportInsets` on the scroll views and the collection view (the virtual stack follows its scroller's), so edge-to-edge pages scroll content under drawn top and bottom bars while scroll bars, `ScrollTo`, snap points, the refresh indicator, sticky headers and keyboard reveal work in the uncovered band; the surface root's `SafeAreaInsets` readable for binding.
-- **Fix:** hosted native views follow a resize of what clips them ([#81](https://github.com/rafalka/MauiSkiaUi/issues/81), in review in [#82](https://github.com/rafalka/MauiSkiaUi/pull/82)).
+- **Viewport insets (device checks in the [verification backlog](#verification-backlog)):** `ViewportInsets` on the scroll views and the collection view (the virtual stack follows its scroller's), so edge-to-edge pages scroll content under drawn top and bottom bars while scroll bars, `ScrollTo`, snap points, the refresh indicator, sticky headers and keyboard reveal work in the uncovered band; the surface root's `SafeAreaInsets` readable for binding.
+- **Fix:** hosted native views follow a resize of what clips them ([#81](https://github.com/rafalka/MauiSkiaUi/issues/81), fixed in [#82](https://github.com/rafalka/MauiSkiaUi/pull/82)).
 
 ### 1.7.0: vector icons (planned)
 
 Built on the branch `1.7-implementation`, not released: [what it costs](../Performance.md#vector-icons), [how to use it](../controls/SkUiImage.md#vector-icons).
 
-One feature: an app's `.svg` icons drawn at runtime on both layers, through a small SVG reader in `SkiaUi.Maui`, with no new dependency or package. A `MauiImage` keeps working as today, and an app can use both. Steps, order and open decisions: [ImplementationPlan-1.7.md](ImplementationPlan-1.7.md).
+One feature: an app's `.svg` icons drawn at runtime on both layers, through a small SVG reader in `SkiaUi.Maui`, with no new dependency or package. A `MauiImage` keeps working as today, and an app can use both. Steps and decisions: [ImplementationPlan-1.7.md](ImplementationPlan-1.7.md).
 
-- **Reader:** the part of SVG that icons use: shapes and paths, fill and stroke, dashes, transforms, clips, masks, class rules and one-line text. Anything else is a `LoadError` naming what failed, and a file cannot make requests or take the app down.
+- **Reader:** the part of SVG that icons use: shapes and paths, fill and stroke, dashes, transforms, clips, masks, class rules and one-line text. What it knows it cannot draw is a `LoadError` naming it, and a file cannot make requests, take the app down or hold a thread for long.
 - **Drawing:** a bitmap at the view's size in exact pixels, so an icon stays sharp at any size and draws as cheaply as an image.
 - **Recoloring:** `SkUiVectorImageSource`, shaped like `FontImageSource`, whose `Color` is the value of `currentColor`.
 - **Loading:** in the image decoder, so every source gets it, along with the caches, progress and load events. Files ship as `MauiAsset`.
@@ -163,6 +163,7 @@ Device runs that are still open. How to run them: [Testing.md](Testing.md#device
 - **MAUI gesture recognizers on drawn views (1.2):** swipe, pan, pinch, pointer, secondary-button and triple taps on Android, iOS, Mac Catalyst and Windows, against the native view on the gallery's "MAUI gesture recognizers" page.
 - **Snap points on lists (1.2):** flings and drags ending on rows on a phone (Android and iOS), with the gallery's "Items layouts and snap points" page.
 - **Reordering collection view items (1.3):** a long press and drag on Android and iOS, a mouse drag on Mac Catalyst and Windows, auto-scroll near the ends, grids and grouped lists, the lift's look; the "Move up" / "Move down" actions with TalkBack and VoiceOver; on the gallery's reordering page.
+- **Vector icons (1.7):** the gallery's "SVG icons at runtime" page and the samples app's example, and a `MauiImage` winning over an asset of its name, on Windows; files built to be costly on the Galaxy S9 and the iPhone 8 (`A_small_file_cannot_hold_a_thread` covers them headless).
 - **Viewport insets (1.6):** the samples app's edge-to-edge orders page was checked through rotations on an iPhone 17 simulator, an Android API 37 emulator (with a cutout and 3-button navigation, and a 180-degree flip between the landscape sides with lopsided side insets, which keeps the window's size) and Mac Catalyst (window resize). A native view cut off at a bar was checked on the iPhone simulator. Still open: Windows; real devices; the gallery's "Edge-to-edge scrolling" page on Android, with its native field; the keyboard covering more than the bottom bar on a device.
 - **`SafeAreaEdges` on the surface root (1.2):** a drawn layout root on a notched iPhone (portrait and landscape, with the keyboard for `SoftInput`) and on an Android phone with edge-to-edge.
 

@@ -60,7 +60,17 @@ internal sealed class SkUiImageLoadContext(float displayScale, bool useDiskCache
         var fill = Fill;
         var displayScale = DisplayScale;
         var vector = Vector;
-        return RenderAsync(() => SkUiImageDecoder.Decode(bytes, sourceScale, bounds, fill, displayScale, vector), token);
+        return RenderAsync(() => SkUiImageDecoder.Decode(bytes, sourceScale, bounds, fill, displayScale, vector, token), token);
+    }
+
+    /// <summary>Reads and draws an SVG's text off the UI thread, as <see cref="DecodeAsync"/>.</summary>
+    public Task<SkUiDecodedImage> DecodeVectorTextAsync(string text, CancellationToken token)
+    {
+        var bounds = MaxPixels;
+        var fill = Fill;
+        var displayScale = DisplayScale;
+        var vector = Vector;
+        return RenderAsync(() => SkUiImageDecoder.DrawVector(SkUiVectorDocument.ParseText(text, token), 1, bounds, fill, displayScale, vector, token), token);
     }
 
     /// <summary>Runs <paramref name="render"/> (a decode, a platform drawable drawn) off the UI thread, as <see cref="DecodeAsync"/>.</summary>
@@ -190,8 +200,7 @@ internal static class SkUiImageLoader
     internal static string? SourceKey(SkUiImageSource source, string? viewKey = null)
     {
         // The bytes' identity: a download on disk is shared by every color and size, and the app's factory sees the real source.
-        if (source is SkUiVectorSource { Inner: { } inner })
-            source = inner;
+        source = source.BytesSource;
         if (source is SkUiFailedImageSource)
             return null;
         if (!string.IsNullOrEmpty(viewKey))

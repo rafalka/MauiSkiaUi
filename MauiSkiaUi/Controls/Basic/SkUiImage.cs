@@ -373,7 +373,17 @@ public class SkUiImage : SkUiView
         if (_downsampleToViewSize && (SkUiViewSizedDecode.Fills(old) != SkUiViewSizedDecode.Fills(value) || (old == Aspect.Center) != (value == Aspect.Center)))
             Reload();
         else if (_slot?.Entry is { IsVector: true })
-            InvalidateMeasureOverride(); // the next arrange draws it for this aspect
+        {
+            if (value == Aspect.Center && old != Aspect.Center)
+            {
+                _viewSizedDecode.ForgetVector();
+                Slot.Load(SkUiImageSource.FromMaui(_source), _options, keepShown: true); // drawn unscaled: at its own size, not the view's
+            }
+            else
+            {
+                InvalidateMeasureOverride(); // the next arrange draws it for this aspect
+            }
+        }
     }
 
     private void OnDownsampleToViewSizeChanged(bool value)
@@ -436,6 +446,7 @@ public class SkUiImage : SkUiView
         if (SkUiViewSizedDecode.ForVectorSource(source, ImageArea(Frame.Size), _options, _aspect, out var sized))
         {
             _viewSizedDecode.Stop();
+            _viewSizedDecode.MarkSizedAsVector();
             return Slot.Load(source, sized);
         }
         if (source is null || !SkUiViewSizedDecode.AppliesTo(_downsampleToViewSize, _options, _aspect))
@@ -457,14 +468,22 @@ public class SkUiImage : SkUiView
     protected override void ArrangeContent(Size size)
     {
         base.ArrangeContent(size);
-        if (Slot.Entry is { IsVector: true } vector)
+        if (Slot.TryGetVector(out var idle, out var intrinsic, out var pixels))
         {
             // One redraw at a time: the one finishing invalidates the measure, so this runs again with the latest size. A
             // redraw would end a fade: it waits for the fade's end, which comes back here too.
-            if (!Slot.IsLoading && !Slot.IsFading
-                && _viewSizedDecode.FollowVector(ImageArea(size), vector, _options, _aspect, out var redraw))
+            if (idle && _viewSizedDecode.FollowVector(ImageArea(size), intrinsic, pixels, _options, _aspect, out var redraw))
                 Slot.Load(SkUiImageSource.FromMaui(_source), redraw, keepShown: true);
             return;
+        }
+        if (idle && Slot.Entry is not null && _viewSizedDecode.TakeSizedBitmap())
+        {
+            if (!_downsampleToViewSize)
+            {
+                Slot.Load(SkUiImageSource.FromMaui(_source), _options, keepShown: true);
+                return;
+            }
+            _viewSizedDecode.Wait();
         }
         // A view that outgrew an image decoded at full size keeps it: larger bounds give no more pixels.
         if (_viewSizedDecode.OnArranged(size, out var grew) && !(grew && Slot.Entry is { IsReduced: false }))

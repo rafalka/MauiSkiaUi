@@ -195,6 +195,61 @@ public sealed class VectorIconSizingTests : IDisposable
         Assert.Equal(1, SkUiImageLoader.LoadCount - loads);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Changing_the_aspect_to_center_draws_it_at_its_own_size(bool core)
+    {
+        var view = Show(core, File(Icon));
+        await view.Loading();
+        await view.Settle(12, 12);
+        Assert.Equal((12, 12), view.Pixels);
+
+        view.SetAspect(Aspect.Center);
+        await view.Settle(12, 12);
+        Assert.Equal((24, 24), view.Pixels);
+
+        view.SetAspect(Aspect.AspectFit);
+        await view.Settle(12, 12);
+        Assert.Equal((12, 12), view.Pixels);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task A_bitmap_behind_a_vector_source_is_not_left_at_the_views_size(bool core)
+    {
+        var path = Path.Combine(_testDirectory, Key() + ".png");
+        await System.IO.File.WriteAllBytesAsync(path, ImageLoadingTests.Png(SKColors.Red, 400, 200));
+        View view;
+        if (core)
+        {
+            var node = new SkUiCoreImage();
+            node.Measure(50, 50);
+            node.Arrange(new Rect(0, 0, 50, 50));
+            node.SetSource(SkUiImageSource.FromVector(path, Colors.Blue));
+            view = new View(() => node.CachedImage, (width, height) =>
+            {
+                node.Measure(width, height);
+                node.Arrange(new Rect(0, 0, width, height));
+            }, () => node.LoadingTask, value => node.SetAspect(value));
+        }
+        else
+        {
+            var image = new SkUiImage();
+            SkUiTestHelpers.Arrange(image, 50, 50);
+            image.Source = new SkUiVectorImageSource { Source = path, Color = Colors.Blue };
+            view = new View(() => image.CachedImage, (width, height) => SkUiTestHelpers.Arrange(image, width, height),
+                () => image.LoadingTask, value => image.Aspect = value);
+        }
+        await view.Loading();
+        Assert.Equal((50, 25), view.Pixels); // bounded: the source said it is a vector
+
+        await view.Settle(50, 50);
+
+        Assert.Equal((400, 200), view.Pixels); // as any bitmap without bounds
+    }
+
     [Fact]
     public async Task Explicit_bounds_win()
     {

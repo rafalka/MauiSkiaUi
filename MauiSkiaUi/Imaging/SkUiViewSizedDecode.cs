@@ -20,6 +20,7 @@ internal struct SkUiViewSizedDecode
     private Size _bounds; // DIPs per dimension; 0: not bounded
     private bool _decided;
     private SKSizeI _vectorPixels; // what the last redraw of a vector asked for; zero: what the entry has
+    private bool _sizedAsVector; // the current load was bounded because its source says it is a vector
 
     /// <summary>Whether a source waits for the view's next arrange to start loading.</summary>
     public bool IsWaiting { get; private set; }
@@ -67,7 +68,25 @@ internal struct SkUiViewSizedDecode
     }
 
     /// <summary>A new load of the source or new settings: the next vector shown is compared with its own pixels.</summary>
-    public void ForgetVector() => _vectorPixels = default;
+    public void ForgetVector()
+    {
+        _vectorPixels = default;
+        _sizedAsVector = false;
+    }
+
+    /// <summary>The load going out is bounded by the view because its source says it is a vector (<see cref="ForVectorSource"/>).</summary>
+    public void MarkSizedAsVector() => _sizedAsVector = true;
+
+    /// <summary>
+    /// Whether a source that says it is a vector turned out to be a bitmap (a <c>MauiImage</c> of that name won), bounded for
+    /// nothing: the view loads it again as any bitmap, once.
+    /// </summary>
+    public bool TakeSizedBitmap()
+    {
+        var sized = _sizedAsVector;
+        _sizedAsVector = false;
+        return sized;
+    }
 
     /// <summary>
     /// Whether <paramref name="source"/> is known to be a vector before it loads and the view has a size: then it is drawn for
@@ -83,11 +102,12 @@ internal struct SkUiViewSizedDecode
     }
 
     /// <summary>
-    /// Whether <paramref name="vector"/>, shown at <paramref name="size"/>, should be drawn again, with the options for it:
-    /// when its pixels differ by more than one from what that size needs. Asking again is what stops a redraw that failed
-    /// from repeating at the same size. Explicit decode bounds win, and a centered image is drawn unscaled.
+    /// Whether a vector of <paramref name="intrinsic"/> size and <paramref name="shown"/> pixels, shown at
+    /// <paramref name="size"/>, should be drawn again, with the options for it: when its pixels differ by more than one from
+    /// what that size needs. Remembering what it asked for is what stops a redraw that failed from repeating at the same size.
+    /// Explicit decode bounds win, and a centered image is drawn unscaled.
     /// </summary>
-    public bool FollowVector(Size size, SkUiCachedImage vector, in SkUiImageOptions options, Aspect aspect, out SkUiImageOptions redraw)
+    public bool FollowVector(Size size, Size intrinsic, SKSizeI shown, in SkUiImageOptions options, Aspect aspect, out SkUiImageOptions redraw)
     {
         redraw = options;
         if (!AppliesTo(enabled: true, options, aspect) || !(size.Width > 0 && size.Height > 0))
@@ -97,8 +117,8 @@ internal struct SkUiViewSizedDecode
         var bounds = new SKSizeI(SkUiImageLoader.Pixels(size.Width, scale), SkUiImageLoader.Pixels(size.Height, scale));
         if (bounds.Width <= 0 || bounds.Height <= 0)
             return false;
-        var wanted = SkUiPackageImages.RenderSize(vector.Size.Width * scale, vector.Size.Height * scale, bounds, fill);
-        var current = _vectorPixels != default ? _vectorPixels : new SKSizeI(vector.Frames[0].Width, vector.Frames[0].Height);
+        var wanted = SkUiPackageImages.RenderSize(intrinsic.Width * scale, intrinsic.Height * scale, bounds, fill);
+        var current = _vectorPixels != default ? _vectorPixels : shown;
         if (Math.Abs(wanted.Width - current.Width) <= 1 && Math.Abs(wanted.Height - current.Height) <= 1)
             return false;
         _vectorPixels = wanted;

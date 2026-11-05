@@ -167,6 +167,73 @@ public sealed class VectorImageSourceTests : IDisposable
     }
 
     [Fact]
+    public async Task Removing_a_download_through_a_vector_source_removes_its_file()
+    {
+        var handler = new Handler(Encoding.UTF8.GetBytes(Icon));
+        SkUiImageCache.HttpClient = new HttpClient(handler);
+        var uri = new Uri($"https://images.test/{Key()}.svg");
+        var source = SkUiImageSource.FromVector(SkUiImageSource.FromUri(uri), Colors.Red);
+        var image = new SkUiCoreImage().SetSource(source);
+        await image.LoadingTask;
+        var directory = SkUiImageCache.DiskCacheDirectory;
+        for (var attempt = 0; attempt < 200 && !(Directory.Exists(directory) && Directory.GetFiles(directory, "*.img").Length == 1); attempt++)
+            await Task.Delay(25);
+        Assert.Single(Directory.GetFiles(directory, "*.img"));
+
+        await SkUiImageCache.RemoveAsync(source);
+
+        Assert.Empty(Directory.GetFiles(directory, "*.img"));
+        Assert.Equal(0, SkUiImageCache.MemoryCacheCount);
+    }
+
+    [Fact]
+    public async Task A_download_through_a_vector_source_reports_progress()
+    {
+        using var _ = SkUiTestHelpers.UseTestDispatcher(); // dispatched reports write the bindable store
+        SkUiImageCache.HttpClient = new HttpClient(new Handler(Encoding.UTF8.GetBytes(Icon)));
+        var reports = 0;
+        var image = new SkUiImage();
+        image.DownloadProgress += (_, _) => Interlocked.Increment(ref reports);
+
+        image.Source = new SkUiVectorImageSource { Source = $"https://images.test/{Key()}.svg", Color = Colors.Red };
+        await image.LoadingTask;
+
+        Assert.Null(image.LoadError);
+        Assert.Equal(1, image.LoadingProgress);
+        for (var attempt = 0; attempt < 200 && Volatile.Read(ref reports) == 0; attempt++)
+            await Task.Delay(10);
+        Assert.True(Volatile.Read(ref reports) > 0);
+    }
+
+    [Fact]
+    public async Task Reloading_the_same_vector_source_reports_a_failure()
+    {
+        var opens = 0;
+        var core = new SkUiCoreImage().SetSource(SkUiImageSource.FromVector(SkUiImageSource.FromStream(_ =>
+            ++opens == 1 ? Task.FromResult<Stream>(new MemoryStream(Encoding.UTF8.GetBytes(Icon))) : throw new IOException("gone"), Key()), Colors.Red));
+        await core.LoadingTask;
+        Assert.Null(core.LoadError);
+        SkUiImageCache.ClearMemoryCache();
+
+        await core.ReloadAsync();
+
+        Assert.IsType<IOException>(core.LoadError);
+    }
+
+    [Theory]
+    [InlineData("""<?xml version="1.0" encoding="utf-16"?>""")]
+    [InlineData("""<?xml version="1.0" encoding="utf-8"?>""")]
+    [InlineData("  \n\uFEFF")]
+    public async Task Text_ignores_the_encoding_it_declares(string prefix)
+    {
+        var core = new SkUiCoreImage().SetSource(SkUiImageSource.FromVectorText(prefix + Icon, Colors.Blue));
+        await core.LoadingTask;
+
+        Assert.Null(core.LoadError);
+        Assert.Equal(SKColors.Blue, Pixel(core.CachedImage!, 6, 12));
+    }
+
+    [Fact]
     public async Task A_new_color_keeps_the_icon_shown_until_it_is_drawn()
     {
         var bytes = Encoding.UTF8.GetBytes(Icon);
@@ -411,7 +478,9 @@ public sealed class VectorImageSourceTests : IDisposable
     [Fact]
     public void Invalid_arguments_throw_or_are_ignored()
     {
-        Assert.Throws<ArgumentNullException>(() => SkUiImageSource.FromVector(null!));
+        Assert.Throws<ArgumentNullException>(() => SkUiImageSource.FromVector((SkUiImageSource)null!));
+        Assert.Throws<ArgumentNullException>(() => SkUiImageSource.FromVector((string)null!));
+        Assert.Throws<ArgumentException>(() => SkUiImageSource.FromVector(" "));
         Assert.Throws<ArgumentException>(() => SkUiImageSource.FromVector(SkUiImageSource.FromFont("A")));
         Assert.Throws<ArgumentOutOfRangeException>(() => SkUiImageSource.FromVector("check.svg", size: -1));
         Assert.Throws<ArgumentOutOfRangeException>(() => SkUiImageSource.FromVector("check.svg", size: double.NaN));
@@ -428,12 +497,13 @@ public sealed class VectorImageSourceTests : IDisposable
 
         public int Requests => Volatile.Read(ref _requests);
 
-        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
             Interlocked.Increment(ref _requests);
+            await Task.Delay(20, cancellationToken); // not inline: a load reports progress once it has started
             var content = new ByteArrayContent(body);
             content.Headers.ContentType = new MediaTypeHeaderValue("image/svg+xml");
-            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = content });
+            return new HttpResponseMessage(HttpStatusCode.OK) { Content = content };
         }
     }
 }

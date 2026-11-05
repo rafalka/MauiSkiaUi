@@ -18,6 +18,9 @@ public abstract class BenchScenario
     /// <summary>Only meaningful on a device (needs a real surface, motion or a native control).</summary>
     public virtual bool DeviceOnly => false;
 
+    /// <summary>Called once before the scenario's iterations, on the runner's thread and not timed: files it needs, for example.</summary>
+    public virtual void Prepare() { }
+
     /// <summary>Builds the tree to measure (timed as <c>generate</c>). Must return a new tree each call.</summary>
     public abstract View Build();
 

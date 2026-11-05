@@ -23,14 +23,17 @@ internal static class SkUiVectorValues
 {
     private const float PixelsPerInch = 96;
     private const int MaxShownValueLength = 40;
+    private const int MaxShownFeatureLength = 80;
 
-    /// <summary>The error for a feature of SVG that vector icons do not draw.</summary>
+    /// <summary>The error for a feature of SVG that vector icons do not draw. What it shows of the file is short.</summary>
     public static InvalidDataException Unsupported(string feature) =>
-        new($"SVG: {feature} is not supported in vector icons.");
+        new($"SVG: {Shortened(feature, MaxShownFeatureLength)} is not supported in vector icons.");
 
-    /// <summary>The error for a value that cannot be read.</summary>
+    /// <summary>The error for a value that cannot be read. What it shows of the file is short.</summary>
     public static InvalidDataException Invalid(string name, string value) =>
-        new($"SVG: invalid {name} \"{(value.Length > MaxShownValueLength ? value[..MaxShownValueLength] : value)}\".");
+        new($"SVG: invalid {name} \"{Shortened(value, MaxShownValueLength)}\".");
+
+    private static string Shortened(string text, int length) => text.Length > length ? text[..length] + "…" : text;
 
     /// <summary>A length in user units: a number, <c>px</c>, <c>pt</c>, <c>pc</c>, <c>in</c>, <c>cm</c> or <c>mm</c>.</summary>
     public static float Length(string value, string name)

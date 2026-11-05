@@ -55,6 +55,7 @@ public sealed class BenchPage : ContentPage
                 Console.WriteLine("SKUIBENCH_WARN library has no render statistics: firstFrame/update are approximated (layout + dispatcher turns), motion is not measured");
             foreach (var scenario in options.Resolve())
             {
+                scenario.Prepare();
                 for (var iteration = 0; iteration < options.Warmup + options.Runs; iteration++)
                 {
                     _status.Text = $"{scenario.Name} {iteration + 1}/{options.Warmup + options.Runs}…";

@@ -21,6 +21,7 @@ var selected = options.Resolve().Where(scenario => !scenario.DeviceOnly).ToList(
 var samples = new List<BenchSample>();
 foreach (var scenario in selected)
 {
+    scenario.Prepare();
     for (var iteration = 0; iteration < options.Warmup + options.Runs; iteration++)
     {
         var sample = Run(scenario, iteration - options.Warmup, measureRetained);

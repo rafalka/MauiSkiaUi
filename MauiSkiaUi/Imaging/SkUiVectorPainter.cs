@@ -11,8 +11,18 @@ internal sealed class SkUiVectorPainter
     /// </summary>
     internal const int MaxLayers = 12;
 
-    /// <summary>How many elements one drawing may visit: masks referring to masks can otherwise multiply the work without limit.</summary>
-    internal const int MaxOperations = 200_000;
+    /// <summary>
+    /// How much work one drawing may do, in the costs below: masks referring to masks and a file's largest values can otherwise
+    /// hold a thread for minutes. Real icons use a few thousand.
+    /// </summary>
+    internal const long MaxWork = 4_000_000;
+
+    private const int ElementCost = 20;
+    private const int StrokeCostPerCharacter = 15; // on top of reading the path: its joins and caps cost far more than a fill
+    private const int LayerPixelsPerCost = 16;
+    private const int DashCost = 20;
+    private const int ClipOperationCostPerPoint = 8;
+    private const double MaxDashes = 1_000_000; // Skia draws no more than about this many of one stroke
 
     /// <summary>
     /// How deep drawing may recurse, mask content included: a stack overflow cannot be caught, and masks can chain nesting
@@ -22,29 +32,35 @@ internal sealed class SkUiVectorPainter
 
     private readonly SkUiVectorDocument _document;
     private readonly SKCanvas _canvas;
+    private readonly SKColor _currentColor;
+    private readonly long _layerCost;
+    private readonly CancellationToken _token;
     private readonly HashSet<SkUiVectorNode> _activeMasks = [];
     private int _depth;
     private int _layers;
-    private int _operations;
+    private long _work;
 
-    private SkUiVectorPainter(SkUiVectorDocument document, SKCanvas canvas)
+    private SkUiVectorPainter(SkUiVectorDocument document, SKCanvas canvas, SKSizeI pixels, SKColor currentColor, CancellationToken token)
     {
         _document = document;
         _canvas = canvas;
+        _currentColor = currentColor;
+        _layerCost = (long)pixels.Width * pixels.Height / LayerPixelsPerCost;
+        _token = token;
     }
 
     /// <summary>A bitmap of <paramref name="pixels"/> showing <paramref name="document"/>, placed by its <c>preserveAspectRatio</c>.</summary>
-    public static SKImage Render(SkUiVectorDocument document, SKSizeI pixels, SKColor currentColor)
+    public static SKImage Render(SkUiVectorDocument document, SKSizeI pixels, SKColor currentColor, CancellationToken token = default)
     {
         var info = new SKImageInfo(pixels.Width, pixels.Height, SKImageInfo.PlatformColorType, SKAlphaType.Premul);
         using var surface = SKSurface.Create(info) ?? throw new InvalidOperationException("Could not create a vector icon surface.");
-        Draw(document, surface.Canvas, pixels, currentColor);
+        Draw(document, surface.Canvas, pixels, currentColor, token);
         surface.Flush();
         return surface.Snapshot();
     }
 
     /// <summary>Draws <paramref name="document"/> filling <paramref name="pixels"/> on <paramref name="canvas"/>.</summary>
-    internal static void Draw(SkUiVectorDocument document, SKCanvas canvas, SKSizeI pixels, SKColor currentColor)
+    internal static void Draw(SkUiVectorDocument document, SKCanvas canvas, SKSizeI pixels, SKColor currentColor, CancellationToken token = default)
     {
         var box = document.ViewBox;
         var (scaleX, scaleY, x, y) = ViewBoxMapping(document.Root["preserveAspectRatio"], box, pixels);
@@ -52,7 +68,7 @@ internal sealed class SkUiVectorPainter
         canvas.Translate(x, y);
         canvas.Scale(scaleX, scaleY);
         canvas.Translate(-box.Left, -box.Top);
-        new SkUiVectorPainter(document, canvas).Draw(document.Root, SkUiVectorState.Initial(currentColor));
+        new SkUiVectorPainter(document, canvas, pixels, currentColor, token).Draw(document.Root, SkUiVectorState.Initial(currentColor));
         canvas.Restore();
     }
 
@@ -77,8 +93,7 @@ internal sealed class SkUiVectorPainter
         if (node.Name is SkUiVectorDocument.DefsElement or SkUiVectorDocument.ClipPathElement or SkUiVectorDocument.MaskElement
             || !IsDrawnElement(node))
             return;
-        if (++_operations > MaxOperations)
-            throw new InvalidDataException($"SVG: drawing takes more than {MaxOperations} operations.");
+        Charge(ElementCost + node.Size);
         if (IsHidden(node))
             return;
 
@@ -112,7 +127,7 @@ internal sealed class SkUiVectorPainter
             OpenLayer(null);
         DrawContent(node, state);
         if (mask is not null)
-            ApplyMask(mask, state);
+            ApplyMask(mask);
 
         _layers = layers;
         _canvas.RestoreToCount(restore);
@@ -125,6 +140,7 @@ internal sealed class SkUiVectorPainter
         {
             case SkUiVectorDocument.SvgElement:
             case SkUiVectorDocument.GroupElement:
+            case SkUiVectorDocument.AnchorElement:
                 foreach (var child in node.Children)
                     Draw(child, state);
                 break;
@@ -151,9 +167,29 @@ internal sealed class SkUiVectorPainter
         }
         if (state.StrokeWidth > 0 && state.Color(state.Stroke, state.StrokeOpacity) is { } stroke)
         {
-            using var paint = state.StrokePaint(stroke);
-            _canvas.DrawPath(path, paint);
+            Charge(node.Size * StrokeCostPerCharacter);
+            if (state.Dash is { } dash)
+                Charge(DashCost * Dashes(path, dash));
+            using var paint = state.StrokePaint(stroke, out var dashEffect);
+            using (dashEffect)
+                _canvas.DrawPath(path, paint);
         }
+    }
+
+    // How many dashes the stroke has at most: its length over the pattern's, in the units of both.
+    private static long Dashes(SKPath path, float[] dash)
+    {
+        var pattern = 0d;
+        foreach (var length in dash)
+            pattern += length;
+        var total = 0d;
+        using var measure = new SKPathMeasure(path);
+        do
+        {
+            total += measure.Length;
+        }
+        while (measure.NextContour());
+        return (long)Math.Min(MaxDashes, total / pattern * dash.Length);
     }
 
     private void DrawText(SkUiVectorNode node, in SkUiVectorState state)
@@ -161,10 +197,15 @@ internal sealed class SkUiVectorPainter
         var text = string.Join(' ', (node.Text ?? string.Empty).Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
         if (text.Length == 0)
             return;
+        foreach (var attribute in (ReadOnlySpan<string>)["dx", "dy", "rotate", "textLength"])
+        {
+            if (node[attribute] is not null)
+                throw SkUiVectorValues.Unsupported($"a <text> with {attribute}");
+        }
         var attributes = state.FontAttributes;
         using var font = SkUiTextLayout.CreateFont(SkUiTypefaces.Resolve(state.FontFamily, attributes), state.FontSize, attributes);
-        var x = node["x"] is { } xs && SkUiVectorValues.Numbers(xs, "x") is [var first, ..] ? first : 0;
-        var y = node["y"] is { } ys && SkUiVectorValues.Numbers(ys, "y") is [var second, ..] ? second : 0;
+        var x = TextPosition(node, "x");
+        var y = TextPosition(node, "y");
         if (state.Color(state.Fill, state.FillOpacity) is { } fill)
         {
             using var paint = new SKPaint { IsAntialias = true, Color = fill };
@@ -172,29 +213,45 @@ internal sealed class SkUiVectorPainter
         }
         if (state.StrokeWidth > 0 && state.Color(state.Stroke, state.StrokeOpacity) is { } stroke)
         {
-            using var paint = state.StrokePaint(stroke);
-            _canvas.DrawText(text, x, y, state.TextAlign, font, paint);
+            Charge(node.Size * StrokeCostPerCharacter);
+            using var paint = state.StrokePaint(stroke, out var dashEffect);
+            using (dashEffect)
+                _canvas.DrawText(text, x, y, state.TextAlign, font, paint);
         }
     }
 
-    private void ApplyMask(SkUiVectorNode mask, in SkUiVectorState state)
+    private static float TextPosition(SkUiVectorNode node, string attribute)
+    {
+        if (node[attribute] is not { } text)
+            return 0;
+        return SkUiVectorValues.Numbers(text, attribute) switch
+        {
+            [] => 0,
+            [var position] => position,
+            _ => throw SkUiVectorValues.Unsupported($"a <text> with a list of {attribute} positions")
+        };
+    }
+
+    private void ApplyMask(SkUiVectorNode mask)
     {
         if (!_activeMasks.Add(mask))
             throw new InvalidDataException("SVG: a mask refers to itself.");
         using var paint = new SKPaint { BlendMode = SKBlendMode.DstIn };
-        if (mask["mask-type"] is not "alpha")
-            paint.ColorFilter = SKColorFilter.CreateLumaColor();
+        using var luma = mask["mask-type"] is not "alpha" ? SKColorFilter.CreateLumaColor() : null;
+        paint.ColorFilter = luma;
         OpenLayer(paint);
-        if (mask["maskUnits"] == "userSpaceOnUse"
-            && SkUiVectorValues.TryLength(mask["width"] ?? string.Empty, out var width)
-            && SkUiVectorValues.TryLength(mask["height"] ?? string.Empty, out var height))
+        // A region in user units; without a width and a height it is larger than anything an icon shows.
+        if (mask["width"] is { } widthText && mask["height"] is { } heightText)
         {
-            SkUiVectorValues.TryLength(mask["x"] ?? "0", out var x);
-            SkUiVectorValues.TryLength(mask["y"] ?? "0", out var y);
-            _canvas.ClipRect(SKRect.Create(x, y, width, height), SKClipOperation.Intersect, antialias: true);
+            var region = SKRect.Create(
+                mask["x"] is { } xText ? SkUiVectorValues.Length(xText, "x") : 0,
+                mask["y"] is { } yText ? SkUiVectorValues.Length(yText, "y") : 0,
+                SkUiVectorValues.Length(widthText, "width"),
+                SkUiVectorValues.Length(heightText, "height"));
+            _canvas.ClipRect(region, SKClipOperation.Intersect, antialias: true);
         }
-        // A mask's content inherits from the mask, not from what uses it; only currentColor's start carries over.
-        var content = SkUiVectorState.Initial(state.CurrentColor).Inherit(mask);
+        // A mask's content inherits from the mask and what is around it, not from what uses it.
+        var content = StateAt(mask);
         foreach (var child in mask.Children)
             Draw(child, content);
         _canvas.Restore();
@@ -204,10 +261,34 @@ internal sealed class SkUiVectorPainter
         _activeMasks.Remove(mask);
     }
 
+    // The state inside a clipPath or mask: what it and the elements around it set, whatever uses it.
+    private SkUiVectorState StateAt(SkUiVectorNode node)
+    {
+        var path = new Stack<SkUiVectorNode>();
+        for (var current = node; current is not null; current = current.Parent)
+        {
+            Charge(ElementCost + current.Size);
+            path.Push(current);
+        }
+        var state = SkUiVectorState.Initial(_currentColor);
+        foreach (var element in path)
+            state = state.Inherit(element);
+        return state;
+    }
+
+    private void Charge(long work)
+    {
+        _token.ThrowIfCancellationRequested();
+        _work += work;
+        if (_work > MaxWork)
+            throw new InvalidDataException("SVG: drawing the file takes too much work.");
+    }
+
     private void OpenLayer(SKPaint? paint)
     {
         if (++_layers > MaxLayers)
             throw new InvalidDataException($"SVG: more than {MaxLayers} layers of opacity and masks are open at once.");
+        Charge(_layerCost);
         if (paint is null)
             _canvas.SaveLayer();
         else
@@ -216,28 +297,40 @@ internal sealed class SkUiVectorPainter
 
     private SKPath ClipGeometry(SkUiVectorNode clip)
     {
+        var inherited = StateAt(clip);
         SKPath? union = null;
-        foreach (var child in clip.Children)
+        try
         {
-            if (++_operations > MaxOperations)
-                throw new InvalidDataException($"SVG: drawing takes more than {MaxOperations} operations.");
-            if (child.Name == SkUiVectorDocument.TextElement || child[SkUiVectorDocument.ClipPathProperty] is not null)
-                throw SkUiVectorValues.Unsupported($"<{child.Name}> with a clip of its own or text in a clipPath");
-            if (IsHidden(child) || !IsShape(child))
-                continue;
-            using var geometry = Geometry(child, child["clip-rule"]?.Trim() == "evenodd");
-            if (geometry is null)
-                continue;
-            using var moved = child["transform"] is { } transform ? Moved(geometry, SkUiVectorValues.Transform(transform)) : null;
-            var next = moved ?? geometry;
-            if (union is null)
+            foreach (var child in clip.Children)
             {
-                union = new SKPath(next);
-                continue;
+                Charge(ElementCost + child.Size);
+                if (child.Name == SkUiVectorDocument.TextElement || child[SkUiVectorDocument.ClipPathProperty] is not null)
+                    throw SkUiVectorValues.Unsupported($"<{child.Name}> with a clip of its own or text in a clipPath");
+                if (IsHidden(child) || !IsShape(child))
+                    continue;
+                var state = inherited.Inherit(child);
+                if (!state.Visible)
+                    continue;
+                using var geometry = Geometry(child, state.ClipEvenOdd);
+                if (geometry is null)
+                    continue;
+                using var moved = child["transform"] is { } transform ? Moved(geometry, SkUiVectorValues.Transform(transform)) : null;
+                var next = moved ?? geometry;
+                if (union is null)
+                {
+                    union = new SKPath(next);
+                    continue;
+                }
+                Charge(ClipOperationCostPerPoint * (union.PointCount + next.PointCount));
+                var combined = union.Op(next, SKPathOp.Union) ?? throw new InvalidDataException("SVG: a clipPath could not be combined.");
+                union.Dispose();
+                union = combined;
             }
-            var combined = union.Op(next, SKPathOp.Union) ?? throw new InvalidDataException("SVG: a clipPath could not be combined.");
-            union.Dispose();
-            union = combined;
+        }
+        catch
+        {
+            union?.Dispose();
+            throw;
         }
         union ??= new SKPath();
         if (clip["transform"] is not { } own)
@@ -258,7 +351,7 @@ internal sealed class SkUiVectorPainter
         or SkUiVectorDocument.PolylineElement or SkUiVectorDocument.PolygonElement;
 
     private static bool IsDrawnElement(SkUiVectorNode node) => IsShape(node)
-        || node.Name is SkUiVectorDocument.SvgElement or SkUiVectorDocument.GroupElement or SkUiVectorDocument.TextElement;
+        || node.Name is SkUiVectorDocument.SvgElement or SkUiVectorDocument.GroupElement or SkUiVectorDocument.AnchorElement or SkUiVectorDocument.TextElement;
 
     private static bool IsHidden(SkUiVectorNode node) => node["display"]?.Trim() == "none";
 
@@ -381,6 +474,7 @@ internal readonly record struct SkUiVectorState
     public float[]? Dash { get; init; }
     public float DashOffset { get; init; }
     public bool EvenOdd { get; init; }
+    public bool ClipEvenOdd { get; init; }
     public bool Visible { get; init; }
     public string? FontFamily { get; init; }
     public float FontSize { get; init; }
@@ -424,6 +518,7 @@ internal readonly record struct SkUiVectorState
                 "stroke-dasharray" => state with { Dash = DashArray(value, name) },
                 "stroke-dashoffset" => state with { DashOffset = StrokeLength(value, name) },
                 "fill-rule" => state with { EvenOdd = value == "evenodd" },
+                "clip-rule" => state with { ClipEvenOdd = value == "evenodd" },
                 "visibility" => state with { Visible = value == "visible" },
                 "font-family" => state with { FontFamily = Family(value) },
                 "font-size" => state with { FontSize = SkUiVectorValues.Length(value, name) },
@@ -445,10 +540,14 @@ internal readonly record struct SkUiVectorState
         return color.WithAlpha((byte)Math.Round(color.Alpha * opacity));
     }
 
-    /// <summary>A stroke paint with this state's settings.</summary>
-    public SKPaint StrokePaint(SKColor color)
+    /// <summary>
+    /// A stroke paint with this state's settings. A paint does not take over a path effect it is given: the caller disposes
+    /// <paramref name="dash"/> as well.
+    /// </summary>
+    public SKPaint StrokePaint(SKColor color, out SKPathEffect? dash)
     {
-        var paint = new SKPaint
+        dash = Dash is { } pattern ? SKPathEffect.CreateDash(pattern, DashOffset) : null;
+        return new SKPaint
         {
             IsAntialias = true,
             Style = SKPaintStyle.Stroke,
@@ -456,11 +555,9 @@ internal readonly record struct SkUiVectorState
             StrokeCap = Cap,
             StrokeJoin = Join,
             StrokeMiter = MiterLimit,
-            Color = color
+            Color = color,
+            PathEffect = dash
         };
-        if (Dash is { } dash)
-            paint.PathEffect = SKPathEffect.CreateDash(dash, DashOffset);
-        return paint;
     }
 
     private static float StrokeLength(string value, string name)

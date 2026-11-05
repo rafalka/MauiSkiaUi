@@ -34,7 +34,7 @@ public class SkUiVectorImageSource : ImageSource
         set => SetValue(SourceProperty, value);
     }
 
-    /// <summary>The value of <c>currentColor</c> (<c>null</c>: black, as SVG says); colors written in the file stay.</summary>
+    /// <summary>The starting value of <c>currentColor</c> (<c>null</c>: black, as SVG says); colors written in the file stay, a <c>color</c> among them.</summary>
     public Color? Color
     {
         get => (Color?)GetValue(ColorProperty);
@@ -105,14 +105,14 @@ internal sealed record SkUiVectorSource : SkUiImageSource
     /// <summary>The identity of the bytes (see <see cref="SkUiImageLoader.SourceKey"/>): every color and size of a file shares it.</summary>
     internal override string? CacheKey => Inner is null ? "svg:" + Text : Inner.CacheKey;
 
+    internal override SkUiImageSource BytesSource => Inner ?? this;
+
     /// <summary>Whether <paramref name="other"/> draws the same bytes.</summary>
     public bool SameFile(SkUiVectorSource other) => Equals(Inner, other.Inner) && Text == other.Text;
 
     internal override Task<SkUiDecodedImage> LoadAsync(SkUiImageLoadContext context, CancellationToken token)
     {
         context.Vector = this;
-        return Inner is null
-            ? context.DecodeAsync(System.Text.Encoding.UTF8.GetBytes(Text!), sourceScale: 1, token)
-            : Inner.LoadAsync(context, token);
+        return Inner is null ? context.DecodeVectorTextAsync(Text!, token) : Inner.LoadAsync(context, token);
     }
 }

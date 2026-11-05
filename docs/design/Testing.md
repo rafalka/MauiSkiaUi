@@ -81,6 +81,7 @@ One scenario catalog, [`tests/Shared/MemoryLeaks`](../../tests/Shared/MemoryLeak
 | `LabelsReshaped` | Wrapped, truncated, RTL, Arabic, emoji, Simple / Shaped labels; text and width changed repeatedly |
 | `ContentTemplated` | Buttons with images (a long-lived shared icon edited while shown); radio buttons with text and view content and a long-lived shared `ControlTemplate`: tapped, content swapped, template removed and applied again; Core radio buttons grouped by `SkUiCoreRadioButtons.Group` with a long-lived callback |
 | `ImagesReloaded` | Stream images: sources swapped, reloaded, aspect changed |
+| `VectorIconsSwitched` | SVG icons on both layers: a shared `SkUiVectorImageSource` in images, an image button, a button and a slider thumb, recolored and resized while shown; a view growing and shrinking so its icon is drawn again; Core icons from text; a file the reader rejects |
 | `AvatarsShown` | Avatar rows in a collection view (initials from bound names, badges) flung so rows recycle; avatars with a cached photo and a shared icon enlarged and their photos swapped and cleared; a Core avatar |
 | `LayoutsRelayout` | Grid, stacks, absolute layout, border: resized; children added, removed, reordered, hidden; definitions changed |
 | `BindableLayoutItems` | MAUI `BindableLayout` on a wrap layout bound to a long-lived collection and on a stack with a template selector and an empty view: items added, inserted, replaced, moved, removed; cleared to the empty view and refilled; items source swapped |

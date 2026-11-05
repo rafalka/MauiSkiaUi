@@ -13,7 +13,7 @@ public enum IconKind
     /// <summary>An <c>.svg</c> through the reader, recolored by its source.</summary>
     Svg,
 
-    /// <summary>The same icon as a 72 px PNG, as a <c>MauiImage</c> on a 3× screen, recolored by a tint.</summary>
+    /// <summary>The same icon as a PNG of its pixels on this screen, as a <c>MauiImage</c> is, recolored by a tint.</summary>
     Png,
 
     /// <summary>A font glyph, recolored by its source.</summary>
@@ -25,12 +25,14 @@ internal static class BenchIcons
 {
     public const int Files = 8;
     public const double Size = 24;
-    private const int PngSize = 72;
 
     private static readonly string[] Glyphs = ["★", "☆", "♥", "♦", "♣", "♠", "●", "■"];
     public static readonly Color[] Colors = [Microsoft.Maui.Graphics.Colors.Black, Microsoft.Maui.Graphics.Colors.White, Microsoft.Maui.Graphics.Colors.Teal, Microsoft.Maui.Graphics.Colors.OrangeRed];
 
     private static readonly Lazy<(string[] Svg, string[] Png)> Written = new(Write);
+
+    /// <summary>Writes the files, so no scenario times it.</summary>
+    public static void Prepare() => _ = Written.Value;
 
     public static string Svg(int index) => Written.Value.Svg[index % Files];
 
@@ -63,8 +65,22 @@ internal static class BenchIcons
         return path.ToString();
     }
 
+    // The display's pixels for the icon's size; headless, one per DIP.
+    private static int PngPixels()
+    {
+        try
+        {
+            return (int)Math.Round(Size * Math.Max(1, DeviceDisplay.Current.MainDisplayInfo.Density));
+        }
+        catch (Exception error) when (error is not OutOfMemoryException)
+        {
+            return (int)Size;
+        }
+    }
+
     private static (string[] Svg, string[] Png) Write()
     {
+        var pngSize = PngPixels();
         var folder = Path.Combine(Path.GetTempPath(), "skiaui-bench-icons");
         Directory.CreateDirectory(folder);
         var svg = new string[Files];
@@ -75,14 +91,14 @@ internal static class BenchIcons
             svg[index] = Path.Combine(folder, $"gear{index}.svg");
             File.WriteAllText(svg[index], $"""<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"><path fill="currentColor" fill-rule="evenodd" d="{data}"/></svg>""");
             png[index] = Path.Combine(folder, $"gear{index}.png");
-            using var bitmap = new SKBitmap(PngSize, PngSize);
+            using var bitmap = new SKBitmap(pngSize, pngSize);
             using (var canvas = new SKCanvas(bitmap))
             using (var paint = new SKPaint { IsAntialias = true, Color = SKColors.Black })
             using (var path = SKPath.ParseSvgPathData(data))
             {
                 path.FillType = SKPathFillType.EvenOdd;
                 canvas.Clear(SKColors.Transparent);
-                canvas.Scale(PngSize / (float)Size);
+                canvas.Scale(pngSize / (float)Size);
                 canvas.DrawPath(path, paint);
             }
             using var encoded = bitmap.Encode(SKEncodedImageFormat.Png, 100);
@@ -94,24 +110,34 @@ internal static class BenchIcons
 
 /// <summary>
 /// 1,000 icons of eight files in a list of about 50 per screen, as SVG, PNG or font glyph, on either layer. The first iteration
-/// loads them into the memory cache and later ones are cache hits, so this is what they cost once loaded: building, drawing, a
-/// theme change (update: every icon's color; the loads a new color needs are <see cref="IconLoad"/>) and scrolling (motion).
+/// loads them into the memory cache and later ones are cache hits, so this is what they cost once loaded: building, drawing,
+/// a theme change's work on the UI thread (update: every icon's color; the eight loads a color needs the first time run off it
+/// and are <see cref="IconLoad"/>) and scrolling (motion).
 /// </summary>
 public sealed class IconGrid(bool core, IconKind kind) : BenchScenario
 {
     private const int Count = 1000;
     private const int Columns = 5;
     private const double RowHeight = 72;
-    private static readonly BindableProperty? VectorColor = BenchIcons.VectorType?.GetField("ColorProperty", BindingFlags.Public | BindingFlags.Static)?.GetValue(null) as BindableProperty;
-    private static readonly MethodInfo? FromVector = typeof(SkUiImageSource).GetMethod("FromVector", BindingFlags.Public | BindingFlags.Static);
+    // Looked up once: what a baseline without them cannot name is by reflection, and an app does not pay for reflection per icon.
+    private static readonly BindableProperty? VectorColor = VectorProperty("ColorProperty");
+    private static readonly BindableProperty? VectorSource = VectorProperty("SourceProperty");
+    private static readonly Func<SkUiImageSource, Color?, double, SkUiImageSource>? FromVector =
+        typeof(SkUiImageSource).GetMethod("FromVector", [typeof(SkUiImageSource), typeof(Color), typeof(double)])
+            ?.CreateDelegate<Func<SkUiImageSource, Color?, double, SkUiImageSource>>();
     private static readonly SkUiTintTransformation[] Tints = [.. BenchIcons.Colors.Select(static color => new SkUiTintTransformation(color))];
 
     private int _round;
 
+    private static BindableProperty? VectorProperty(string name) =>
+        BenchIcons.VectorType?.GetField(name, BindingFlags.Public | BindingFlags.Static)?.GetValue(null) as BindableProperty;
+
+    public override void Prepare() => BenchIcons.Prepare();
+
     public override string Name => $"{(core ? "core" : "skui")}-icons-{kind.ToString().ToLowerInvariant()}";
 
     public override string Description =>
-        $"1,000 {(core ? "SkUiCoreImage" : "SkUiImage")} of 8 {kind} icons (24 dp, about 50 per screen); update = a new color on all (theme change, cached); motion = animated scroll";
+        $"1,000 {(core ? "SkUiCoreImage" : "SkUiImage")} of 8 {kind} icons (24 dp, about 50 per screen); update = a new color on all (a theme change's work on the UI thread); motion = animated scroll";
 
     private Color CurrentColor => BenchIcons.Colors[_round % BenchIcons.Colors.Length];
 
@@ -174,7 +200,7 @@ public sealed class IconGrid(bool core, IconKind kind) : BenchScenario
         if (BenchIcons.VectorType is not { } type)
             return ImageSource.FromFile(BenchIcons.Svg(index));
         var source = (ImageSource)Activator.CreateInstance(type)!;
-        TrySet(source, "Source", BenchIcons.Svg(index));
+        source.SetValue(VectorSource!, BenchIcons.Svg(index));
         source.SetValue(VectorColor!, CurrentColor);
         return source;
     }
@@ -185,7 +211,7 @@ public sealed class IconGrid(bool core, IconKind kind) : BenchScenario
         {
             case IconKind.Svg:
                 var file = SkUiImageSource.FromFile(BenchIcons.Svg(index));
-                node.SetSource(FromVector is null ? file : (SkUiImageSource)FromVector.Invoke(null, [file, CurrentColor, 0d])!);
+                node.SetSource(FromVector is null ? file : FromVector(file, CurrentColor, 0));
                 break;
             case IconKind.Png:
                 node.SetTransformations(Tints[_round % Tints.Length]);
@@ -251,6 +277,8 @@ public sealed class IconLoad(IconKind kind, int count, bool first) : BenchScenar
     public override string Description => first
         ? $"The first {kind} icon of the process (run with -w 0 -n 1, alone); generate = its load"
         : $"{count} {kind} icons loaded uncached off the UI thread; generate = all of them";
+
+    public override void Prepare() => BenchIcons.Prepare();
 
     public override View Build()
     {

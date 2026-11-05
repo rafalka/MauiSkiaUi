@@ -29,6 +29,8 @@
     <Compile Include="../Shared/MemoryLeaks/*.cs" Link="Shared/MemoryLeaks/%(Filename)%(Extension)" />
     <None Include="../../MauiSkiaUiDemo/Resources/Fonts/RobotoMono-Regular.ttf" Link="Assets/RobotoMono-Regular.ttf" CopyToOutputDirectory="PreserveNewest" />
     <None Include="../../MauiSkiaUiDemo/Resources/Fonts/Lobster-Regular.ttf" Link="Assets/Lobster-Regular.ttf" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../../samples/MauiSkiaUiSamples/Resources/Raw/icons/*.svg" Link="Assets/icons/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../../MauiSkiaUiDemo/Resources/Raw/vector_*.svg" Link="Assets/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
     <PackageReference Include="ColorCode.HTML" Version="2.0.15" />
     <!-- Compares the vector icon reader's pixels with the renderer MAUI's Resizetizer uses; never a dependency of the library. -->
     <PackageReference Include="Svg.Skia" Version="5.2.3" />

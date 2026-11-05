@@ -1,3 +1,4 @@
+using MauiSkiaUiDemo;
 using MauiSkiaUiSamples;
 using MauiSkiaUi.Core;
 using MauiSkiaUiSamples.Samples.Controls;
@@ -58,23 +59,26 @@ public class SamplesTests
     [Fact]
     public void EveryShippedIconIsDrawnByTheReader()
     {
-        var samples = Path.GetDirectoryName(VectorIconsSample.Info.SourcePath)!;
-        var root = Path.GetFullPath(Path.Combine(samples, "..", "..", ".."));
-        var folder = Path.Combine(root, "MauiSkiaUiSamples", "Resources", "Raw", "icons");
-        var files = Directory.GetFiles(folder, "*.svg");
-        Assert.NotEmpty(files);
-        foreach (var file in files)
+        var assets = Path.Combine(AppContext.BaseDirectory, "Assets");
+        var icons = Directory.GetFiles(Path.Combine(assets, "icons"), "*.svg");
+        Assert.NotEmpty(icons);
+        string[] demoIcons = [DemoAssets.VectorGear, DemoAssets.VectorCheck, DemoAssets.VectorFlag];
+        foreach (var file in icons.Concat(demoIcons.Select(name => Path.Combine(assets, name))))
         {
             var decoded = SkUiImageDecoder.Decode(File.ReadAllBytes(file), maxPixels: new SKSizeI(48, 48));
             Assert.True(decoded.IsVector, file);
             using var bitmap = SKBitmap.FromImage(decoded.Frames[0]);
             Assert.Contains(bitmap.Pixels, pixel => pixel.Alpha > 0);
         }
+        // The demo's example of what is not drawn.
+        var error = Assert.Throws<InvalidDataException>(() => SkUiImageDecoder.Decode(File.ReadAllBytes(Path.Combine(assets, DemoAssets.VectorGradient))));
+        Assert.Contains("linearGradient", error.Message);
+
         using var dispatcher = SkUiTestHelpers.UseTestDispatcher();
-        var names = new VectorIconsSample().Rows.Select(static row => row.Icon)
-            .Concat(System.Text.RegularExpressions.Regex.Matches(File.ReadAllText(Path.ChangeExtension(VectorIconsSample.Info.SourcePath, null)), "icons/\\w+\\.svg")
-                .Select(static match => match.Value));
-        Assert.All(names, name => Assert.True(File.Exists(Path.Combine(folder, "..", name)), name));
+        var markup = SampleSource.Load(VectorIconsSample.Info.SourceFiles[0].Key);
+        var named = System.Text.RegularExpressions.Regex.Matches(markup, "icons/\\w+\\.svg").Select(static match => match.Value).ToList();
+        Assert.NotEmpty(named);
+        Assert.All(named.Concat(new VectorIconsSample().Rows.Select(static row => row.Icon)), name => Assert.True(File.Exists(Path.Combine(assets, name)), name));
     }
 
     [Fact]

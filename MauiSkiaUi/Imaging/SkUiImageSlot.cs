@@ -119,6 +119,27 @@ internal sealed class SkUiImageSlot
     /// <summary>The frame to draw, or <c>null</c>.</summary>
     public SKImage? Image => _image?.Frames[_frame];
 
+    /// <summary>
+    /// Whether the image shown is a vector; if so, with <paramref name="idle"/> (no load or fade in progress), its intrinsic
+    /// size and its pixels. Under the gate: a load finished without a dispatcher releases the image on another thread.
+    /// </summary>
+    public bool TryGetVector(out bool idle, out Size size, out SKSizeI pixels)
+    {
+        lock (_gate)
+        {
+            idle = !IsLoading && !IsFading;
+            if (_image is not { IsVector: true } image)
+            {
+                size = default;
+                pixels = default;
+                return false;
+            }
+            size = image.Size;
+            pixels = new SKSizeI(image.Frames[0].Width, image.Frames[0].Height);
+            return true;
+        }
+    }
+
     /// <summary>The shown entry (tests: shared between views of one source).</summary>
     internal SkUiCachedImage? Entry => _image;
 
@@ -175,7 +196,8 @@ internal sealed class SkUiImageSlot
             ObjectDisposedException.ThrowIf(_disposed, this);
             IsFading = false;
             var vector = source as SkUiVectorSource;
-            keepShown |= vector is not null && _lastVector is not null && vector.SameFile(_lastVector);
+            // Another color or size of the same file: a reload of the same one reports what happens to it, as for any source.
+            keepShown |= vector is not null && _lastVector is not null && vector.SameFile(_lastVector) && !vector.Equals(_lastVector);
             _lastVector = vector;
             // The view's cache key is the source's only (ShowPlaceholder): changing it keeps the placeholder.
             var placeholderOptionsChanged = (_options with { CacheKey = null }) != (options with { CacheKey = null });
@@ -397,7 +419,7 @@ internal sealed class SkUiImageSlot
 
     // Only downloads report, and only to a slot that follows them: no listener is allocated for other loads.
     private Action<long, long?>? ProgressListener(SkUiImageSource source, int version, IDispatcher? dispatcher) =>
-        DownloadProgress is not null && source is SkUiUriImageSource
+        DownloadProgress is not null && source.BytesSource is SkUiUriImageSource
             ? (received, total) => OnProgress(source, version, dispatcher, received, total)
             : null;
 

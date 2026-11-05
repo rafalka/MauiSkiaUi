@@ -660,6 +660,7 @@ public static class LeakScenarios
         private readonly List<SkUiCoreImage> _coreImages = [];
         private SkUiButton? _button;
         private SkUiImage? _rejected;
+        private int _grownPixels;
 
         public override View Build(LeakScenarioContext context)
         {
@@ -712,6 +713,9 @@ public static class LeakScenarios
                 _images[0].WidthRequest = _images[0].HeightRequest = size;
                 await context.SettleAsync(); // laid out and drawn again at this size
                 await WaitForLoads(context);
+                await context.SettleAsync();
+                if (_images[0].CachedImage is { } shown)
+                    _grownPixels = Math.Max(_grownPixels, shown.Frames[0].Width);
             }
         }
 
@@ -731,8 +735,8 @@ public static class LeakScenarios
                 return $"An icon did not load: {image.LoadError?.Message ?? "no vector shown"}.";
             if (_coreImages.FirstOrDefault(core => core.LoadError is not null || core.CachedImage is not { IsVector: true }) is { } node)
                 return $"A Core icon did not load: {node.LoadError?.Message ?? "no vector shown"}.";
-            if (_images[0].CachedImage!.Frames[0].Width < 24)
-                return "The icon was not drawn at its view's size.";
+            if (_grownPixels <= _images[0].CachedImage!.Frames[0].Width)
+                return "The icon was not drawn again when its view grew.";
             return _rejected!.LoadError is null ? "The file with a gradient did not fail." : null;
         }
     }

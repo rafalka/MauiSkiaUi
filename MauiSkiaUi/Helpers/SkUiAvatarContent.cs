@@ -160,13 +160,6 @@ internal sealed class SkUiAvatarContent
         Load();
     }
 
-    /// <summary>Loads the current source again (its properties changed).</summary>
-    public void Reload()
-    {
-        if (_source is not null || _image is not null)
-            Load();
-    }
-
     /// <summary>
     /// The avatar was arranged with a content area of <paramref name="content"/> DIPs: a larger area than the image was
     /// decoded for reloads it (a smaller one keeps the image, drawn smaller).

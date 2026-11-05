@@ -62,6 +62,12 @@ public sealed class VectorIconTests
         Open + """<rect width="48" height="48" fill="red" clip-path="url(#c)"/><clipPath id="c"><rect x="4" y="4" width="10" height="10"/><circle cx="30" cy="30" r="10" transform="translate(4 4)"/></clipPath>""" + Close,
         Open + """<g mask="url(#m)"><rect width="48" height="48" fill="red"/></g><mask id="m" maskUnits="userSpaceOnUse" x="0" y="0" width="48" height="48"><rect width="48" height="48" fill="#fff"/><circle cx="24" cy="24" r="12" fill="#000"/></mask>""" + Close,
         Open + """<g mask="url(#m)"><rect width="48" height="48" fill="blue"/></g><mask id="m" maskUnits="userSpaceOnUse" x="0" y="0" width="48" height="48" style="mask-type:alpha"><circle cx="24" cy="24" r="12" fill="#000"/></mask>""" + Close,
+        // A clip's and a mask's content inherits from what is around them, not from what uses them
+        """<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 48 48" fill="#fff" stroke-width="4"><mask id="m" maskUnits="userSpaceOnUse" x="0" y="0" width="48" height="48"><circle cx="24" cy="24" r="16"/><circle cx="24" cy="24" r="8" stroke="#000" fill="none"/></mask><rect width="48" height="48" fill="red" mask="url(#m)"/></svg>""",
+        Open + """<defs fill="#fff"><g fill="none"><mask id="m" maskUnits="userSpaceOnUse" x="0" y="0" width="48" height="48"><circle cx="24" cy="24" r="16" stroke="#fff" stroke-width="4"/></mask></g></defs><g fill="blue" stroke="red" stroke-width="20"><rect width="48" height="48" mask="url(#m)"/></g>""" + Close,
+        Open + """<clipPath id="c" clip-rule="evenodd"><path d="M4 4h40v40H4zM14 14h20v20H14z"/></clipPath><rect width="48" height="48" fill="red" clip-path="url(#c)"/>""" + Close,
+        Open + """<clipPath id="c"><rect width="20" height="48"/><rect x="28" width="20" height="48" visibility="hidden"/></clipPath><rect width="48" height="48" fill="red" clip-path="url(#c)"/>""" + Close,
+        Open + """<a href="https://example.com/"><rect width="20" height="20" fill="teal"/></a>""" + Close,
         // The cascade: attribute, then class rule, then inline style
         Open + """<style>.a{fill:red}.b,.c{fill:blue;stroke:#000}</style><rect class="a" width="10" height="10" fill="green"/><rect class="b" x="12" width="10" height="10"/><rect class="c" x="24" width="10" height="10" style="fill:orange"/>""" + Close,
         Open + """<style><![CDATA[ /* note */ .a { fill: #2563EB !important } ]]></style><rect class="x a" width="20" height="20"/>""" + Close,
@@ -115,6 +121,8 @@ public sealed class VectorIconTests
     [InlineData("""<svg xmlns="http://www.w3.org/2000/svg" height="48" viewBox="0 0 24 12"/>""", 96, 48)]
     [InlineData("""<svg xmlns="http://www.w3.org/2000/svg" width="100%" viewBox="0 0 24 12"/>""", 24, 12)]
     [InlineData("""<svg xmlns="http://www.w3.org/2000/svg" width="12pt" height="24pt"/>""", 16, 32)]
+    [InlineData("""<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 12"/>""", 24, 12)]
+    [InlineData("""<svg xmlns="http://www.w3.org/2000/svg" width="auto" height="48" viewBox="0 0 24 12"/>""", 96, 48)]
     public void Reads_the_intrinsic_size(string svg, float width, float height)
     {
         var size = SkUiVectorDocument.Parse(Encoding.UTF8.GetBytes(svg)).Size;
@@ -200,6 +208,148 @@ public sealed class VectorIconTests
         Assert.Throws<InvalidDataException>(() => SkUiVectorPainter.Render(document, new SKSizeI(48, 48), SKColors.Black).Dispose());
     }
 
+    [Theory]
+    [InlineData("""<svg xmlns="http://www.w3.org/2000/svg" width="1e30" height="1e30"/>""")]
+    [InlineData("""<svg xmlns="http://www.w3.org/2000/svg" height="3e38" viewBox="0 0 3e38 1"/>""")]
+    [InlineData("""<svg xmlns="http://www.w3.org/2000/svg" viewBox="3e38 3e38 3e38 3e38"/>""")]
+    [InlineData("""<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em"/>""")]
+    public void A_size_out_of_range_or_missing_fails(string svg) =>
+        Assert.Throws<InvalidDataException>(() => SkUiVectorDocument.Parse(Encoding.UTF8.GetBytes(svg)));
+
+    [Theory]
+    [InlineData(""".a{fill:#f00!important}""", """fill="#00f" style="fill:#0f0" """, 0xFF, 0x00)] // beats a later inline style
+    [InlineData(""".a{fill:#f00!important}.a{fill:#0f0}""", "", 0xFF, 0x00)] // beats a later rule
+    [InlineData(""".a{fill:#f00!important}""", """style="fill:#0f0!important" """, 0x00, 0xFF)] // only !important replaces it
+    [InlineData(""".a{fill:#f00}.a{fill:#0f0}""", "", 0x00, 0xFF)] // otherwise the later rule wins
+    public void The_cascade_honors_important(string css, string attributes, byte red, byte green)
+    {
+        var document = Parse($"""{Open}<style>{css}</style><rect class="a" width="48" height="48" {attributes}/>{Close}""");
+
+        using var image = SkUiVectorPainter.Render(document, new SKSizeI(4, 4), SKColors.Black);
+        using var pixels = SKBitmap.FromImage(image);
+
+        Assert.Equal((red, green), (pixels.GetPixel(2, 2).Red, pixels.GetPixel(2, 2).Green));
+    }
+
+    [Fact]
+    public void Rules_of_several_classes_apply_in_their_order_not_the_attributes()
+    {
+        var document = Parse(Open + """<style>.b{fill:#f00}.a{fill:#0f0}</style><rect class="a b" width="48" height="48"/>""" + Close);
+
+        using var image = SkUiVectorPainter.Render(document, new SKSizeI(4, 4), SKColors.Black);
+        using var pixels = SKBitmap.FromImage(image);
+
+        Assert.Equal(SKColors.Lime, pixels.GetPixel(2, 2));
+    }
+
+    [Theory]
+    [InlineData("""<rect width="9" height="9" style="mix-blend-mode:multiply"/>""", "mix-blend-mode")]
+    [InlineData("""<rect width="9" height="9" paint-order="stroke"/>""", "paint-order")]
+    [InlineData("""<rect width="9" height="9" vector-effect="non-scaling-stroke"/>""", "vector-effect")]
+    [InlineData("""<rect width="9" height="9" transform-origin="4 4"/>""", "transform-origin")]
+    [InlineData("""<clipPath id="c" clip-path="url(#d)"/>""", "clip-path")]
+    [InlineData("""<mask id="m" mask="url(#n)"/>""", "mask")]
+    [InlineData("""<mask id="m" x="0" y="0" width="1" height="1"/>""", "region")]
+    [InlineData("<style>.a\nrect{fill:red}</style>", "selector")]
+    public void What_would_be_ignored_otherwise_fails_when_read(string element, string named)
+    {
+        var error = Assert.Throws<InvalidDataException>(() => Parse(Open + element + Close));
+
+        Assert.Contains(named, error.Message);
+    }
+
+    [Theory]
+    [InlineData("""<text x="1 2 3" y="9">a</text>""", "positions")]
+    [InlineData("""<text x="1" y="9" dx="2">a</text>""", "dx")]
+    [InlineData("""<mask id="m" maskUnits="userSpaceOnUse" width="50%" height="50%"/><rect width="9" height="9" mask="url(#m)"/>""", "width")]
+    public void What_would_be_ignored_otherwise_fails_when_drawn(string element, string named)
+    {
+        using var font = SkUiTestHelpers.UseBundledFont();
+        var document = Parse(Open + element + Close);
+
+        var error = Assert.Throws<InvalidDataException>(() => SkUiVectorPainter.Render(document, new SKSizeI(48, 48), SKColors.Black).Dispose());
+
+        Assert.Contains(named, error.Message);
+    }
+
+    [Fact]
+    public void An_error_shows_little_of_the_file()
+    {
+        var error = Assert.Throws<InvalidDataException>(() => Parse(Open + "<style>" + new string('a', 50_000) + "</style>" + Close));
+
+        Assert.True(error.Message.Length < 200, error.Message);
+    }
+
+    [Fact]
+    public void Cancelling_stops_reading_and_drawing()
+    {
+        using var cancelled = new CancellationTokenSource();
+        cancelled.Cancel();
+        var svg = Open + """<rect width="9" height="9"/>""" + Close;
+
+        Assert.ThrowsAny<OperationCanceledException>(() => SkUiVectorDocument.Parse(Encoding.UTF8.GetBytes(svg), cancelled.Token));
+        Assert.ThrowsAny<OperationCanceledException>(() => SkUiVectorPainter.Render(Parse(svg), new SKSizeI(48, 48), SKColors.Black, cancelled.Token));
+    }
+
+    public static TheoryData<string, string> HostileFiles
+    {
+        get
+        {
+            const string Rect = """<rect width="48" height="48" """;
+            static string Wavy(int points)
+            {
+                var path = new StringBuilder("M0 0");
+                for (var index = 0; index < points; index++)
+                    path.Append(index % 2 == 0 ? "L900 " : "L0 ").Append(index % 900).Append(' ');
+                return path.ToString();
+            }
+            var mask = new StringBuilder(Rect).Append("""mask="url(#m0)"/>""");
+            for (var level = 0; level < 5; level++)
+            {
+                mask.Append($"""<mask id="m{level}">""");
+                for (var copy = 0; copy < 20; copy++)
+                    mask.Append(level == 4 ? $"""<path fill="#fff" d="{Wavy(3_000)}"/>""" : $"""{Rect}mask="url(#m{level + 1})"/>""");
+                mask.Append("</mask>");
+            }
+            var classes = string.Concat(Enumerable.Range(0, 4_000).Select(static index => $".c{index},")) + ".z{fill:red}";
+            return new TheoryData<string, string>
+            {
+                { "comments", "<style>" + string.Concat(Enumerable.Repeat("/**/", 250_000)) + "</style>" },
+                { "selectors for each element", "<style>" + string.Concat(Enumerable.Repeat(".b,", 190_000)) + ".b{fill:red}</style>" + string.Concat(Enumerable.Repeat("""<g class="b"/>""", 19_000)) },
+                { "class names", "<style>" + classes + """</style><g class=" """ + string.Concat(Enumerable.Repeat("z ", 300_000)) + """ "/>""" },
+                { "declarations for each element", "<style>.a{" + string.Concat(Enumerable.Repeat("fill:red;", 60_000)) + "}</style>" + string.Concat(Enumerable.Repeat("""<g class="a"/>""", 19_000)) },
+                { "layers", string.Concat(Enumerable.Repeat(Rect + """opacity=".5"/>""", 19_000)) },
+                { "masks over a long path", mask.Append(Close[..0]).ToString() },
+                { "a long round stroke", $"""<path d="{Wavy(110_000)}" fill="none" stroke="#000" stroke-width="300" stroke-linejoin="round" stroke-linecap="round"/>""" },
+                { "a stroke just within the budget", $"""<path d="{Wavy(25_000)}" fill="none" stroke="#000" stroke-width="300" stroke-linejoin="round" stroke-linecap="round"/>""" },
+                { "many dashed lines", string.Concat(Enumerable.Repeat("""<line x2="100000" y2="100000" stroke="#000" stroke-dasharray=".1"/>""", 14_000)) },
+                { "a clip of many shapes", """<clipPath id="c">""" + string.Concat(Enumerable.Repeat("""<circle cx="9" cy="9" r="9"/>""", 15_000)) + "</clipPath>" + Rect + """clip-path="url(#c)"/>""" }
+            };
+        }
+    }
+
+    [Theory]
+    [MemberData(nameof(HostileFiles))]
+    public async Task A_small_file_cannot_hold_a_thread(string name, string content)
+    {
+        var svg = Open + content + Close;
+        Assert.True(svg.Length <= SkUiVectorDocument.MaxBytes, name); // within the limit on size, or it would prove nothing
+        var work = Task.Run(() =>
+        {
+            try
+            {
+                SkUiVectorPainter.Render(Parse(svg), new SKSizeI(2048, 2048), SKColors.Black).Dispose();
+            }
+            catch (InvalidDataException)
+            {
+                // Refusing it is fine; finishing is the point.
+            }
+        });
+
+        Assert.Same(work, await Task.WhenAny(work, Task.Delay(TimeSpan.FromSeconds(30))));
+        await work;
+    }
+
     [Fact]
     public void Deep_nesting_fails_instead_of_overflowing_the_stack()
     {
@@ -212,7 +362,7 @@ public sealed class VectorIconTests
     [Fact]
     public void Deep_nesting_of_skipped_elements_is_harmless()
     {
-        var document = Parse(Open + string.Concat(Enumerable.Repeat("<a>", 20_000)) + string.Concat(Enumerable.Repeat("</a>", 20_000)) + Close);
+        var document = Parse(Open + string.Concat(Enumerable.Repeat("<metadata>", 20_000)) + string.Concat(Enumerable.Repeat("</metadata>", 20_000)) + Close);
         SkUiVectorPainter.Render(document, new SKSizeI(48, 48), SKColors.Black).Dispose();
     }
 
@@ -324,7 +474,17 @@ public sealed class VectorIconTests
     public async Task Costly_values_finish(string element)
     {
         var document = Parse(Open + element + Close);
-        var draw = Task.Run(() => SkUiVectorPainter.Render(document, new SKSizeI(48, 48), SKColors.Black).Dispose());
+        var draw = Task.Run(() =>
+        {
+            try
+            {
+                SkUiVectorPainter.Render(document, new SKSizeI(48, 48), SKColors.Black).Dispose();
+            }
+            catch (InvalidDataException)
+            {
+                // Refusing it is fine; finishing is the point.
+            }
+        });
         Assert.Same(draw, await Task.WhenAny(draw, Task.Delay(TimeSpan.FromSeconds(10))));
         await draw;
     }

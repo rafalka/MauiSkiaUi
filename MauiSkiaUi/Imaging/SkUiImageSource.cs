@@ -18,6 +18,9 @@ public abstract record SkUiImageSource
     /// </summary>
     internal abstract string? CacheKey { get; }
 
+    /// <summary>The source that reads the bytes: this one, or the one a vector source wraps.</summary>
+    internal virtual SkUiImageSource BytesSource => this;
+
     /// <summary>
     /// Loads and decodes the image. Runs on the caller's thread until its first await; work that completes without
     /// awaiting (font glyphs) makes the whole load synchronous, so the image shows without a frame's delay.
@@ -61,8 +64,7 @@ public abstract record SkUiImageSource
         new SkUiFontImageSource(glyph, fontFamily, size, color, fontAttributes, fontAutoScalingEnabled);
 
     /// <summary>
-    /// An SVG icon from <paramref name="source"/> (a file or package name, a URI, a stream; a string converts as in
-    /// <see cref="FromString"/>). <paramref name="color"/> is the value of <c>currentColor</c> (<c>null</c>: black, as SVG
+    /// An SVG icon from <paramref name="source"/> (a file or package name, a URI, a stream). <paramref name="color"/> is the starting value of <c>currentColor</c> (<c>null</c>: black, as SVG
     /// says); colors written in the file stay. <paramref name="size"/> is the longest edge in DIPs (0: the file's size).
     /// Bytes that are not an SVG, such as a <c>MauiImage</c> of that name, show as they are.
     /// </summary>
@@ -77,7 +79,17 @@ public abstract record SkUiImageSource
         };
     }
 
-    /// <summary>An SVG icon from its text, as <see cref="FromVector"/>; views of the same text, color and size share one image.</summary>
+    /// <summary>
+    /// An SVG icon from a file name, path or HTTP(S) URI, read as <see cref="FromString"/> does; otherwise as
+    /// <see cref="FromVector(SkUiImageSource, Color?, double)"/>.
+    /// </summary>
+    public static SkUiImageSource FromVector(string source, Color? color = null, double size = 0)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(source);
+        return FromVector(FromString(source)!, color, size);
+    }
+
+    /// <summary>An SVG icon from its text, as <see cref="FromVector(SkUiImageSource, Color?, double)"/>; views of the same text, color and size share one image.</summary>
     public static SkUiImageSource FromVectorText(string svg, Color? color = null, double size = 0)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(svg);
@@ -104,7 +116,7 @@ public abstract record SkUiImageSource
                 // MAUI 10's FontImageSource has no FontAttributes: a bold or italic glyph comes from its FontFamily's face.
                 FontImageSource font => FromFont(font.Glyph, font.FontFamily, font.Size, font.Color,
                     fontAutoScalingEnabled: font.FontAutoScalingEnabled),
-                SkUiVectorImageSource vector => FromVector(FromString(vector.Source)!, vector.Color, vector.Size),
+                SkUiVectorImageSource vector => FromVector(vector.Source!, vector.Color, vector.Size),
                 _ => new SkUiFailedImageSource(new NotSupportedException(
                     $"{source.GetType().Name} is not supported: use a file, MauiImage, raw package asset, stream, font, vector or HTTP(S) source."))
             };

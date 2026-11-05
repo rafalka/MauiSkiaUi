@@ -104,7 +104,7 @@ public static class SkUiImageCache
         if (SkUiImageLoader.SourceKey(source) is not { } key)
             return Task.CompletedTask;
         SkUiImageMemoryCache.RemoveSource(key);
-        return source is SkUiUriImageSource ? SkUiImageDiskCache.RemoveAsync(key) : Task.CompletedTask;
+        return source.BytesSource is SkUiUriImageSource ? SkUiImageDiskCache.RemoveAsync(key) : Task.CompletedTask;
     }
 
     /// <summary>Forgets the image at <paramref name="uri"/> (see <see cref="RemoveAsync(SkUiImageSource)"/>).</summary>

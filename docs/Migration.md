@@ -525,6 +525,7 @@ Keep an icon as it is when it works: `FontImageSource` and `MauiImage` work on d
 | An `.svg` `MauiImage` by its `.png` name | Works as it is. To draw it at runtime, move the file out of `Resources/Images` (to `Resources/Raw`), and refer to it by its `.svg` name |
 
 - A `MauiImage` of the same name wins over the asset: remove the old item, or `Color` and `Size` do nothing.
+- A `color` written in the file (`<svg color="#000">`) wins over `Color` for what is inside it: remove it.
 - The reader takes the part of SVG that icons use. A file with a gradient, `<use>` or an embedded image shows a `LoadError` naming it: keep that one a `MauiImage`.
 - `SkUiVectorImageSource` works on drawn controls only. A native `Image` left on the page keeps its own source.
 

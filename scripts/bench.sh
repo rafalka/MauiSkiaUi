@@ -207,8 +207,8 @@ run_ios() { # label dir round
             # An Xcode without the device's developer image cannot launch on it: SKUI_MLAUNCH_SDKROOT names one that has it.
             local sdkroot=()
             [[ -n "${SKUI_MLAUNCH_SDKROOT:-}" ]] && sdkroot=(--sdkroot "$SKUI_MLAUNCH_SDKROOT")
-            "$mlaunch" "${sdkroot[@]}" --installdev "$app" --devname "$DEVICE" >/dev/null 2>&1
-            timeout "$TIMEOUT" "$mlaunch" "${sdkroot[@]}" --launchdev "$app" --devname "$DEVICE" --wait-for-exit:true \
+            "$mlaunch" ${sdkroot[@]+"${sdkroot[@]}"} --installdev "$app" --devname "$DEVICE" >/dev/null 2>&1
+            timeout "$TIMEOUT" "$mlaunch" ${sdkroot[@]+"${sdkroot[@]}"} --launchdev "$app" --devname "$DEVICE" --wait-for-exit:true \
                 "${launch_args[@]/#/--argument=}" 2>&1 | grep "SKUIBENCH" | sed 's/.*SKUIBENCH/SKUIBENCH/' >"$logfile" || true
             echo "$logfile"
             return

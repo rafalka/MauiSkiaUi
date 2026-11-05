@@ -120,5 +120,5 @@ Leave `FontImageSource` and `MauiImage` icons as they are unless the user asks t
 
 - `FontImageSource` to `<sk:SkUiVectorImageSource Source="name.svg" Color="…" Size="24" />`, in the same property; `Color` is the value of `currentColor`.
 - Community Toolkit `IconTintColorBehavior` on an icon to `SkUiVectorImageSource.Color` when the file uses `currentColor`, else `SkUiTintTransformation` in `Transformations`.
-- The `.svg` ships as a `MauiAsset` (`Resources/Raw`), and any `MauiImage` of that name is removed: it would win, and `Color` would do nothing.
+- The `.svg` ships as a `MauiAsset` (`Resources/Raw`), and any `MauiImage` of that name is removed: it would win, and `Color` would do nothing. So is a `color` written in the file, which wins over `Color` for what is inside it.
 - Gradients, `<use>`, `<pattern>`, filters and embedded images give a `LoadError` naming them: keep those files `MauiImage`.
