@@ -119,10 +119,10 @@ First frame of the 400-card list (ms):
 
 | | S9 SVG | S9 PNG | S9 font | iPhone 8 SVG | iPhone 8 PNG | iPhone 8 font |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| First icon in the process (ms, median of launches) | 259 | 160 | 263 | 26 | 19 | 49 |
+| First icon in the process (ms, median of 3 launches) | 259 | 160 | 263 | 26 | 19 | 46 |
 | Each further icon (ms, 200 loads, each kind in its own process) | 0.93 | 0.52 | 0.21 | 0.19 | 0.16 | 0.05 |
 
-The first row is three launches of each kind on the S9, and one (SVG, PNG) or two (font) on the iPhone 8. The bench writes its files before it starts timing, so this is the load alone. On the S9, a decode was about 20 µs for the codec to refuse the bytes, 120 µs to parse and 240 µs to draw at 72 px; the rest is the file read and the load's own work. In a process that had just built the 1,000-icon trees below, the S9 took 3.4 ms per SVG and 0.9 ms per PNG. The cause was not investigated: it runs off the UI thread, and memory pressure is the likely reason.
+The bench writes its files before it starts timing, so the first row is the load alone. On the S9, a decode was about 20 µs for the codec to refuse the bytes, 120 µs to parse and 240 µs to draw at 72 px; the rest is the file read and the load's own work. In a process that had just built the 1,000-icon trees below, the S9 took 3.4 ms per SVG and 0.9 ms per PNG. The cause was not investigated: it runs off the UI thread, and memory pressure is the likely reason.
 
 **1,000 icons once loaded**, about 50 per screen, in ms. *Update* is a new color on all of them (a theme change's work on the UI thread; the eight loads a color needs the first time run off it); *Scroll* is an animated scroll.
 
