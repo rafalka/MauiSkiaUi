@@ -433,6 +433,11 @@ public class SkUiImage : SkUiView
     {
         _viewSizedDecode.ForgetVector();
         var source = SkUiImageSource.FromMaui(_source);
+        if (SkUiViewSizedDecode.ForVectorSource(source, ImageArea(Frame.Size), _options, _aspect, out var sized))
+        {
+            _viewSizedDecode.Stop();
+            return Slot.Load(source, sized);
+        }
         if (source is null || !SkUiViewSizedDecode.AppliesTo(_downsampleToViewSize, _options, _aspect))
         {
             _viewSizedDecode.Stop();

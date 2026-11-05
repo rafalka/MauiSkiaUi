@@ -33,6 +33,7 @@ public static class LeakScenarios
         new("EffectsRestyled", Controls, "Gradient backgrounds, shadows (outline and content shadows, on both layers) and clips from long-lived shared brushes, geometries and Core shadows; brushes, gradient stops, shadows and clips changed while shown; shadowed cards scrolled and animated.", () => new EffectsRun()),
         new("ContentTemplated", Controls, "Buttons with images (a long-lived shared icon, edited while shown; stream images; content layouts changed) on both layers; radio buttons with text and view content, bordered, and with a long-lived shared ControlTemplate whose presenters show the content; tapped, content swapped, the template removed and applied again; Core radio buttons in their own rows grouped by `SkUiCoreRadioButtons.Group` with a long-lived callback, tapped.", () => new ContentRun()),
         new("ImagesReloaded", Controls, "Images decoded from streams, sources swapped, reloaded, aspect changed; cached sources shared by several views (both layers), transformations, placeholders and load events, an animated GIF playing at close, a slider thumb image; a long-lived icon source shared by images that are never disposed, edited while shown.", () => new ImagesRun()),
+        new("VectorIconsSwitched", Controls, "SVG icons on both layers: a long-lived SkUiVectorImageSource shared by images, an image button, a button and a slider thumb, recolored and resized while shown; views growing and shrinking so the icons are drawn again; Core images switching colors and text sources; a file the reader rejects.", () => new VectorIconsRun()),
         new("AvatarsShown", Controls, "SkUiAvatarView rows in a SkUiCollectionView over a long-lived collection (initials from bound names, colors by name, badges), avatars with a cached photo and the long-lived shared icon, a Core avatar: the list flung so rows recycle, a name replaced, an avatar enlarged (decoded again while the smaller image stays), photos swapped and cleared; closed mid-fling.", () => new AvatarsRun()),
         new("LayoutsRelayout", Layouts, "Grid, stacks, absolute, flex, wrap and shrink layouts (drawn and Core) and a border with many children; resized, children added / removed / reordered, hidden, definitions changed.", () => new LayoutsRun()),
         new("GridSplittersDragged", Layouts, "SkUiGridSplitter between star rows and between columns of a nested grid (track limits on the definitions), a 1 DIP SkUiCoreGridSplitter at the end of a Core table's header cell (line shown, touch area and grip over the cells), a SkUiDragger resizing a box through its events: dragged both ways, moved by the keyboard; closed mid-drag.", () => new GridSplittersRun()),
@@ -632,6 +633,107 @@ public static class LeakScenarios
             if (_coreImages.FirstOrDefault(image => image.LoadError is not null || image.IsLoading) is { } core)
                 return $"A Core image did not load: {core.LoadError?.Message ?? "still loading"}.";
             return failed.Count == 0 ? null : $"{failed.Count} image(s) did not load: {failed[0].LoadError?.Message ?? "still loading"}.";
+        }
+    }
+
+    private const string VectorIconText = """<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24"><circle cx="12" cy="12" r="10" fill="currentColor"/></svg>""";
+    private const string VectorIconRejected = """<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24"><linearGradient id="a"/></svg>""";
+
+    /// <summary>An app-level icon resource: it outlives every screen, and the views that use it listen to it weakly.</summary>
+    private static readonly SkUiVectorImageSource SharedVectorIcon = new()
+    {
+        Source = WriteVectorIcon(),
+        Color = LeakColors.Accent,
+        Size = 24
+    };
+
+    private static string WriteVectorIcon()
+    {
+        var path = Path.Combine(Path.GetTempPath(), "skui-leak-vector-icon.svg");
+        File.WriteAllText(path, VectorIconText);
+        return path;
+    }
+
+    private sealed class VectorIconsRun : LeakScenarioRun
+    {
+        private readonly List<SkUiImage> _images = [];
+        private readonly List<SkUiCoreImage> _coreImages = [];
+        private SkUiButton? _button;
+        private SkUiImage? _rejected;
+
+        public override View Build(LeakScenarioContext context)
+        {
+            var stack = new SkUiVerticalStackLayout { Spacing = 8, Padding = new Thickness(12) };
+            foreach (var size in new[] { 24d, 48d })
+            {
+                var image = new SkUiImage { Source = SharedVectorIcon, WidthRequest = size, HeightRequest = size, HorizontalOptions = LayoutOptions.Start };
+                _images.Add(image);
+                stack.Children.Add(image);
+            }
+            var imageButton = new SkUiImageButton { Source = SharedVectorIcon, Padding = new Thickness(8), WidthRequest = 56, HeightRequest = 56, HorizontalOptions = LayoutOptions.Start };
+            _images.Add(imageButton);
+            stack.Children.Add(imageButton);
+            _button = new SkUiButton { Text = "Icon", ImageSource = SharedVectorIcon, Command = LeakCommands.Shared };
+            stack.Children.Add(_button);
+            stack.Children.Add(new SkUiSlider { Value = 0.5, ThumbImageSource = SharedVectorIcon });
+
+            var row = new SkUiHorizontalStackLayout { Spacing = 8 };
+            for (var index = 0; index < 2; index++)
+            {
+                var core = new SkUiCoreImage().SetSource(SkUiImageSource.FromVectorText(VectorIconText, Colors.Teal, 24));
+                core.SetWidth(40).SetHeight(40);
+                _coreImages.Add(core);
+                row.Children.Add(new SkUiCoreHost().SetContent(core));
+            }
+            stack.Children.Add(row);
+
+            _rejected = new SkUiImage { Source = ImageSource.FromStream(() => new MemoryStream(System.Text.Encoding.UTF8.GetBytes(VectorIconRejected))) };
+            stack.Children.Add(_rejected);
+            return Root(stack);
+        }
+
+        public override async Task InteractAsync(LeakScenarioContext context)
+        {
+            await WaitForLoads(context);
+            foreach (var color in new[] { Colors.Coral, LeakColors.Accent })
+            {
+                SharedVectorIcon.Color = color; // a theme change, on the shared source
+                await WaitForLoads(context);
+                foreach (var core in _coreImages)
+                    core.SetSource(SkUiImageSource.FromVectorText(VectorIconText, color, 32));
+                await WaitForLoads(context);
+            }
+            SharedVectorIcon.Size = 32;
+            await WaitForLoads(context);
+            SharedVectorIcon.Size = 24;
+            await WaitForLoads(context);
+            foreach (var size in new[] { 96d, 64d, 24d })
+            {
+                _images[0].WidthRequest = _images[0].HeightRequest = size;
+                await context.SettleAsync(); // laid out and drawn again at this size
+                await WaitForLoads(context);
+            }
+        }
+
+        private async Task WaitForLoads(LeakScenarioContext context)
+        {
+            foreach (var image in _images)
+                await context.WaitForAsync(image.LoadingTask);
+            await context.WaitForAsync(_button!.ImageLoadingTask);
+            foreach (var core in _coreImages)
+                await context.WaitForAsync(core.LoadingTask);
+            await context.WaitForAsync(_rejected!.LoadingTask);
+        }
+
+        public override string? CheckInteraction()
+        {
+            if (_images.FirstOrDefault(image => image.LoadError is not null || image.CachedImage is not { IsVector: true }) is { } image)
+                return $"An icon did not load: {image.LoadError?.Message ?? "no vector shown"}.";
+            if (_coreImages.FirstOrDefault(core => core.LoadError is not null || core.CachedImage is not { IsVector: true }) is { } node)
+                return $"A Core icon did not load: {node.LoadError?.Message ?? "no vector shown"}.";
+            if (_images[0].CachedImage!.Frames[0].Width < 24)
+                return "The icon was not drawn at its view's size.";
+            return _rejected!.LoadError is null ? "The file with a gradient did not fail." : null;
         }
     }
 

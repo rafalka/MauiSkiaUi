@@ -37,17 +37,17 @@ public static class SkUiImageDecoder
     /// <paramref name="maxPixels"/> bounds the decoded size per axis (0: unbounded), on top of <see cref="MaxDecodeDimension"/>;
     /// with <paramref name="fill"/> and both bounds, the image is decoded just large enough to cover them (aspect fill).
     /// Images are never upscaled. A vector is: it is drawn at the bounds, larger ones too, or else at its intrinsic size ×
-    /// <paramref name="displayScale"/>.
+    /// <paramref name="displayScale"/>, with <paramref name="vector"/>'s color and size when it comes from such a source.
     /// </summary>
     internal static SkUiDecodedImage Decode(byte[] bytes, float sourceScale = 1, SKSizeI maxPixels = default, bool fill = false,
-        float displayScale = 1)
+        float displayScale = 1, SkUiVectorSource? vector = null)
     {
         using var data = SKData.CreateCopy(bytes);
         using var codec = SKCodec.Create(data);
         if (codec is null)
         {
             return SkUiVectorDocument.LooksLikeSvg(bytes)
-                ? DecodeVector(bytes, sourceScale, maxPixels, fill, displayScale)
+                ? DecodeVector(bytes, sourceScale, maxPixels, fill, displayScale, vector)
                 : throw new InvalidDataException("Unsupported or corrupt image.");
         }
         var origin = codec.EncodedOrigin;
@@ -68,12 +68,18 @@ public static class SkUiImageDecoder
         return new SkUiDecodedImage([ToImage(upright ?? decoded)], [], size) { IsReduced = reduced };
     }
 
-    private static SkUiDecodedImage DecodeVector(byte[] bytes, float sourceScale, SKSizeI maxPixels, bool fill, float displayScale)
+    private static SkUiDecodedImage DecodeVector(byte[] bytes, float sourceScale, SKSizeI maxPixels, bool fill, float displayScale, SkUiVectorSource? vector)
     {
         var document = SkUiVectorDocument.Parse(bytes);
         var size = new Size(document.Size.Width / (double)sourceScale, document.Size.Height / (double)sourceScale);
+        if (vector is { Size: > 0 and var longest })
+        {
+            var scale = longest / Math.Max(size.Width, size.Height);
+            size = new Size(size.Width * scale, size.Height * scale);
+        }
         var pixels = SkUiPackageImages.RenderSize(size.Width * displayScale, size.Height * displayScale, maxPixels, fill);
-        return new SkUiDecodedImage([SkUiVectorPainter.Render(document, pixels, SKColors.Black)], [], size) { IsReduced = true, IsVector = true };
+        var image = SkUiVectorPainter.Render(document, pixels, vector?.CurrentColor ?? SKColors.Black);
+        return new SkUiDecodedImage([image], [], size) { IsReduced = true, IsVector = true };
     }
 
     /// <summary>

@@ -38,12 +38,28 @@ public class ImageSourceParityTests
                 </sk:SkUiImageButton>
                 <sk:SkUiSlider ThumbImageSource="thumb.png" />
                 <sk:SkUiImage Source="photo.jpg" LoadingPlaceholder="loading.png" ErrorPlaceholder="error.png" TransformPlaceholders="False" />
+                <sk:SkUiImage>
+                  <sk:SkUiImage.Source>
+                    <sk:SkUiVectorImageSource Source="check.svg" Color="{AppThemeBinding Light=Red, Dark=Blue}" Size="24" />
+                  </sk:SkUiImage.Source>
+                </sk:SkUiImage>
+                <sk:SkUiButton Text="Add">
+                  <sk:SkUiButton.ImageSource>
+                    <sk:SkUiVectorImageSource Color="Red">add.svg</sk:SkUiVectorImageSource>
+                  </sk:SkUiButton.ImageSource>
+                </sk:SkUiButton>
               </sk:SkUiVerticalStackLayout>
             </ContentView>
             """;
         var root = new ContentView();
         Microsoft.Maui.Controls.Xaml.Extensions.LoadFromXaml(root, xaml);
         var children = ((SkUiVerticalStackLayout)root.Content).Children;
+
+        var vector = (SkUiVectorImageSource)((SkUiImage)children[7]).Source!;
+        Assert.Equal(("check.svg", 24d), (vector.Source, vector.Size));
+        Assert.Equal(Colors.Red, vector.Color);
+        var content = (SkUiVectorImageSource)((SkUiButton)children[8]).ImageSource!;
+        Assert.Equal("add.svg", content.Source);
 
         var file = (SkUiImage)children[0];
         Assert.Equal("dotnet_bot.png", ((FileImageSource)file.Source!).File);

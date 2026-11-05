@@ -8,7 +8,8 @@ internal static class SkUiMauiImageSources
         nameof(FileImageSource.File) or nameof(StreamImageSource.Stream)
         or nameof(UriImageSource.Uri) or nameof(UriImageSource.CachingEnabled) or nameof(UriImageSource.CacheValidity)
         or nameof(FontImageSource.Glyph) or nameof(FontImageSource.FontFamily) or nameof(FontImageSource.Size) or nameof(FontImageSource.Color)
-        or nameof(FontImageSource.FontAutoScalingEnabled);
+        or nameof(FontImageSource.FontAutoScalingEnabled)
+        or nameof(SkUiVectorImageSource.Source);
 }
 
 /// <summary>A source that could not be mapped: loading it reports the error.</summary>

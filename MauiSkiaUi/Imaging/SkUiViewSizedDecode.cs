@@ -70,6 +70,19 @@ internal struct SkUiViewSizedDecode
     public void ForgetVector() => _vectorPixels = default;
 
     /// <summary>
+    /// Whether <paramref name="source"/> is known to be a vector before it loads and the view has a size: then it is drawn for
+    /// that size at once, so a new color or a recycled row does not pass through the file's size.
+    /// </summary>
+    public static bool ForVectorSource(SkUiImageSource? source, Size size, in SkUiImageOptions options, Aspect aspect, out SkUiImageOptions sized)
+    {
+        sized = options;
+        if (source is not SkUiVectorSource || !AppliesTo(enabled: true, options, aspect) || !(size.Width > 0 && size.Height > 0))
+            return false;
+        sized = options with { DownsampleWidth = size.Width, DownsampleHeight = size.Height, DownsampleToFill = Fills(aspect) };
+        return true;
+    }
+
+    /// <summary>
     /// Whether <paramref name="vector"/>, shown at <paramref name="size"/>, should be drawn again, with the options for it:
     /// when its pixels differ by more than one from what that size needs. Asking again is what stops a redraw that failed
     /// from repeating at the same size. Explicit decode bounds win, and a centered image is drawn unscaled.

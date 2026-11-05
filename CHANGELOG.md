@@ -21,6 +21,12 @@ Publishing (the NuGet publish workflow, [docs/Releasing.md](docs/Releasing.md)) 
 ### New features
 
 - **Vector icons:** an `.svg` file, `MauiAsset`, download or stream now draws at runtime on both layers (`Source="check.svg"`), through a small SVG reader in `SkiaUi.Maui` with no new dependency. It is drawn again at the size its view shows it in exact pixels, larger or smaller, on `SkUiImage`, `SkUiImageButton` and their Core twins; explicit decode bounds win. A `MauiImage` of the same name still wins. A file with something the reader cannot draw (a gradient, `<use>`, an embedded image) fails with a `LoadError` naming it.
+  - `SkUiVectorImageSource`, a MAUI `ImageSource` shaped like `FontImageSource`, works in every image property of the SkUi* controls: `Source`, `Color` (the value of `currentColor`; colors written in the file stay) and `Size` (the longest edge in DIPs). `Color` takes `AppThemeBinding`, `DynamicResource` and bindings, and a new color keeps the icon shown until it is drawn.
+  - Core: `SkUiImageSource.FromVector(source, color, size)` and `FromVectorText(svg, color, size)`.
+
+### Fixes
+
+- **`SkUiAvatarView` follows edits of its image source:** changing a property of a live source (a `FontImageSource`'s `Color`, a `UriImageSource`'s `Uri`) reloaded the old values.
 
 ## 1.6.0
 

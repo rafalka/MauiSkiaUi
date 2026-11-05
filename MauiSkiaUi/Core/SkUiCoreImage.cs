@@ -345,6 +345,11 @@ public class SkUiCoreImage : SkUiCoreNode
     private Task Load(bool restart)
     {
         _viewSizedDecode.ForgetVector();
+        if (SkUiViewSizedDecode.ForVectorSource(_source, ImageArea(Frame.Size), _options, _aspect, out var sized))
+        {
+            _viewSizedDecode.Stop();
+            return _slot.Load(_source, sized);
+        }
         if (_source is null || !SkUiViewSizedDecode.AppliesTo(_downsampleToViewSize, _options, _aspect))
         {
             _viewSizedDecode.Stop();

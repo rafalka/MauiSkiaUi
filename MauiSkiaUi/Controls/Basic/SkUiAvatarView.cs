@@ -298,7 +298,7 @@ public class SkUiAvatarView : SkUiBorder, ISkUiFontElement
         (_imageSourceListener ??= new(this, static (avatar, change) =>
         {
             if (SkUiMauiImageSources.AffectsImage(change.PropertyName))
-                avatar.Avatar.Reload();
+                avatar.Avatar.SetSource(SkUiImageSource.FromMaui(avatar._imageSource), avatar.ExpectedContentSize());
         })).Listen(value);
         Avatar.SetSource(SkUiImageSource.FromMaui(value), ExpectedContentSize());
         InvalidatePaint();

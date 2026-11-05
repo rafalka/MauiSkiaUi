@@ -47,6 +47,9 @@ internal sealed class SkUiImageLoadContext(float displayScale, bool useDiskCache
     /// <summary>Whether <see cref="MaxPixels"/> is covered (aspect fill) rather than fitted.</summary>
     public bool Fill { get; } = fill;
 
+    /// <summary>The vector source this load is for, once it has started: its color and size when the bytes turn out to be an SVG.</summary>
+    public SkUiVectorSource? Vector { get; set; }
+
     /// <summary>Told the bytes received and the total (<c>null</c>: unknown) while a download runs, on its thread.</summary>
     public Action<long, long?>? Progress { get; set; }
 
@@ -56,7 +59,8 @@ internal sealed class SkUiImageLoadContext(float displayScale, bool useDiskCache
         var bounds = MaxPixels;
         var fill = Fill;
         var displayScale = DisplayScale;
-        return RenderAsync(() => SkUiImageDecoder.Decode(bytes, sourceScale, bounds, fill, displayScale), token);
+        var vector = Vector;
+        return RenderAsync(() => SkUiImageDecoder.Decode(bytes, sourceScale, bounds, fill, displayScale, vector), token);
     }
 
     /// <summary>Runs <paramref name="render"/> (a decode, a platform drawable drawn) off the UI thread, as <see cref="DecodeAsync"/>.</summary>
@@ -161,7 +165,7 @@ internal static class SkUiImageLoader
         // The key and the work use the same settings: copies taken now.
         var transformations = SkUiImageTransformation.Snapshot(options.Transformations);
         var key = options.CacheType is SkUiImageCacheType.All or SkUiImageCacheType.Memory
-            ? KeyFor(sourceKey, options with { Transformations = transformations, DownsampleToFill = fill }, maxPixels) : null;
+            ? KeyFor(sourceKey, options with { Transformations = transformations, DownsampleToFill = fill }, maxPixels, source as SkUiVectorSource) : null;
         if (key is null)
         {
             context.Progress = progress;
@@ -185,6 +189,9 @@ internal static class SkUiImageLoader
     /// </summary>
     internal static string? SourceKey(SkUiImageSource source, string? viewKey = null)
     {
+        // The bytes' identity: a download on disk is shared by every color and size, and the app's factory sees the real source.
+        if (source is SkUiVectorSource { Inner: { } inner })
+            source = inner;
         if (source is SkUiFailedImageSource)
             return null;
         if (!string.IsNullOrEmpty(viewKey))
@@ -196,8 +203,8 @@ internal static class SkUiImageLoader
     /// <summary>The cache identity of an app-chosen key (a view's or the factory's).</summary>
     internal static string CustomKey(string key) => "key:" + key;
 
-    /// <summary>The memory-cache key: the source's key, then the decode bounds and transformation keys.</summary>
-    internal static string? KeyFor(string? sourceKey, in SkUiImageOptions options, SKSizeI maxPixels)
+    /// <summary>The memory-cache key: the source's key, then the decode bounds, a vector's color and size, and transformation keys.</summary>
+    internal static string? KeyFor(string? sourceKey, in SkUiImageOptions options, SKSizeI maxPixels, SkUiVectorSource? vector = null)
     {
         if (sourceKey is null)
             return null;
@@ -206,6 +213,8 @@ internal static class SkUiImageLoader
             .Append(maxPixels.Width).Append('x').Append(maxPixels.Height).Append('/').Append(SkUiImageDecoder.MaxDecodeDimension);
         if (options.DownsampleToFill)
             key.Append("/fill");
+        if (vector is not null)
+            key.Append(SkUiImageMemoryCache.OptionsSeparator).Append(vector.DrawingKey);
         if (options.Transformations is { Count: > 0 } transformations)
         {
             foreach (var transformation in transformations)
