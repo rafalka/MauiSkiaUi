@@ -636,7 +636,7 @@ public static class LeakScenarios
         }
     }
 
-    private const string VectorIconText = """<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24"><circle cx="12" cy="12" r="10" fill="currentColor"/></svg>""";
+    private const string VectorIconText = """<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24"><style>.ring{stroke:rebeccapurple}</style><circle class="ring" cx="12" cy="12" r="10" fill="currentColor"/><rect x="9" y="9" width="6" height="6" fill="tomato"/></svg>""";
     private const string VectorIconRejected = """<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24"><linearGradient id="a"/></svg>""";
 
     /// <summary>An app-level icon resource: it outlives every screen, and the views that use it listen to it weakly.</summary>

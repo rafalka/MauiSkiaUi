@@ -34,6 +34,9 @@ scripts/bench.sh -t android -s 2299011508047ece --baseline master -S core-labels
 # from the iOS workload for a 40-hex-digit UDID (iPhone X and older, iOS 16 at most)
 scripts/bench.sh -t ios -s A7AC4C38-0DC8-471D-831B-7B3C9452BB76
 
+# An iPhone on iOS 16 when the selected Xcode no longer has its developer image: launch through an Xcode that does
+SKUI_MLAUNCH_SDKROOT=/Applications/Xcode-26.6.0.app/Contents/Developer scripts/bench.sh -t ios -s <40-hex-digit-udid>
+
 # With the platform's look current, as an app built with DefaultSkUiLook.ForCurrentPlatform() (any SkUiLook type name)
 scripts/bench.sh -t ios -s bd3d146c5a1990681dc15b4df632a85236005695 --look IosSkUiLook -S skui-stress-buttons,spinners
 

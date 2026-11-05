@@ -24,6 +24,8 @@ Publishing (the NuGet publish workflow, [docs/Releasing.md](docs/Releasing.md)) 
   - `SkUiVectorImageSource`, a MAUI `ImageSource` shaped like `FontImageSource`, works in every image property of the SkUi* controls: `Source`, `Color` (the value of `currentColor`; colors written in the file stay) and `Size` (the longest edge in DIPs). `Color` takes `AppThemeBinding`, `DynamicResource` and bindings, and a new color keeps the icon shown until it is drawn.
   - Core: `SkUiImageSource.FromVector(source, color, size)` and `FromVectorText(svg, color, size)`.
 
+  - Once loaded, an icon costs what a PNG of its size does: [Performance.md](docs/Performance.md#vector-icons).
+
 ### Fixes
 
 - **`SkUiAvatarView` follows edits of its image source:** changing a property of a live source (a `FontImageSource`'s `Color`, a `UriImageSource`'s `Uri`) reloaded the old values.

@@ -14,7 +14,7 @@
 
 ## What a prototype and the reader found
 
-Run on 4 November 2026 on macOS arm64 with CoreCLR and SkiaSharp 4.154.0, on a CPU raster surface. The coverage is from the reader itself (R1–R3, `SKUI_VECTOR_CORPUS`), the cost from a throwaway prototype of it. Each file was drawn at 3× its size and compared with Svg.Skia 5.2.3; a pixel differs when a channel is off by more than 48. Nothing has run on a phone, on a GPU or under Native AOT, which is what [M1](#phase-m--measurements-demo-and-docs) is for.
+Run on 4 November 2026 on macOS arm64 with CoreCLR and SkiaSharp 4.154.0, on a CPU raster surface. The coverage is from the reader itself (R1–R3, `SKUI_VECTOR_CORPUS`), the cost from a throwaway prototype of it. Each file was drawn at 3× its size and compared with Svg.Skia 5.2.3; a pixel differs when a channel is off by more than 48. These are Mac numbers: what the shipped reader costs on the phones is in [Performance.md](../Performance.md#vector-icons).
 
 **Coverage**, with the features in [R1](#phase-r--the-reader):
 
@@ -71,7 +71,7 @@ Internal to `MauiSkiaUi/Imaging`: bytes to a small tree of nodes, and that tree 
   - Tests: sharp pixels at larger and smaller sizes on both layers; an unchanged size loads once; a size animation does not queue a load per frame (one redraw runs at a time, then the latest size); a list of one icon shares one entry per size and color.
 - **L3 Source and color** ([D5](#decisions)). Size: S.
   - `SkUiVectorImageSource`, a MAUI `ImageSource` shaped like `FontImageSource`, so it works in every property that takes an image: `Source` (as `Image.Source`'s string), `Color` (the value of `currentColor`), `Size` (the longest edge in DIPs; 0: the file's). `FromMaui` maps it, and `AffectsImage` gains `Source`.
-  - Core: `SkUiImageSource.FromVector(source, color, size)` and `FromVectorText(svg, color, size)`. Color and size join the memory cache's key, so a theme change is a new load of about 30 µs; the disk cache and `SkUiImageCache`'s removal stay keyed by the file, so a download is shared by its colors.
+  - Core: `SkUiImageSource.FromVector(source, color, size)` and `FromVectorText(svg, color, size)`. Color and size join the memory cache's key, so a theme change is a new load per file (0.2–0.7 ms on the phones, off the UI thread); the disk cache and `SkUiImageCache`'s removal stay keyed by the file, so a download is shared by its colors.
   - The source says it is a vector before it loads, so a view that has a size draws it for that size at once, with no step through the file's size. A new color or size of the same file keeps the icon shown until it is drawn, on every slot user, so a theme change does not blank icons for a frame.
   - `Source="check.svg"` needs none of this and draws `currentColor` black, as SVG says. `SkUiTintTransformation` still recolors a file whose colors are written out.
   - Tests: pixels and keys; a changed `Color` reloads in each control that tracks a source (image, button, slider, avatar); `AppThemeBinding` and `DynamicResource` on `Color`; XAML loading (`RuntimeXamlCollection`); `ImageSourceParityTests`; leak scenario `VectorIconsSwitched` on both layers, in `tests/Shared/MemoryLeaks`.
@@ -81,7 +81,8 @@ Internal to `MauiSkiaUi/Imaging`: bytes to a small tree of nodes, and that tree 
 - **M1 Cost on devices.** Size: S, device time.
   - Bench scenarios: 1,000 vector icons against the same icons as PNGs, on both layers (first frame, per-frame composite, allocation). They set options through `TrySet`, so `--baseline v1.6.0` still builds.
   - On the Galaxy S9 and the iPhone 8: the first icon in the process, a scrolling list of 50 icons per screen, a theme change on a page of icons, against PNGs and font glyphs. Under Native AOT on Mac Catalyst: named colors and `XmlReader`. Results go in [Performance.md](../Performance.md).
-  - If the first icon is a visible hitch on the S9, warm the reader up in the background at startup.
+  - If the first icon is a visible hitch on the S9, warm the reader up in the background at startup. **Result: no warm-up.** It runs off the UI thread and shows about 115 ms later than a PNG, once per process.
+  - **Done** on the S9 and the iPhone 8. `VectorIconsSwitched` passes on the S9, an iOS simulator and under Native AOT on Mac Catalyst, with named colors, a class rule and no trim or AOT warnings. `--baseline v1.6.0` headless: 77 of 77 measures within noise, on selected scenarios (labels, buttons, avatars, images, entries, `virtual-fling`).
 - **M2 Demo and docs.** Size: S.
   - A gallery page next to the image page: sizes, colors following dark mode, an icon in a button and a slider thumb, both layers side by side, a file with a gradient showing its `LoadError`.
   - [SkUiImage.md](../controls/SkUiImage.md): a section with the project-file line, what the reader supports, what fails, and when to use a `MauiImage` instead; its "SVG at runtime" row. [SkUiCore.md](../controls/SkUiCore.md). [Migration.md](../Migration.md) and the migration skills in `plugins/skiaui-migration`: `FontImageSource` icons and tint behaviors map to `SkUiVectorImageSource`.
