@@ -60,7 +60,7 @@ Internal to `MauiSkiaUi/Imaging`: bytes to a small tree of nodes, and that tree 
 
 ## Phase L — In the image loader
 
-**Done**, except for the Windows checks in the [verification backlog](Roadmap.md#verification-backlog).
+**Done.** Costly files on the phones stay in the [verification backlog](Roadmap.md#verification-backlog).
 
 - **L1 Where bytes become an image** ([D1](#decisions)). Size: S.
   - `SkUiImageDecoder.Decode`: where `SKCodec.Create` returns `null` and the bytes start with `<` after a BOM and white space, the reader runs. Raster decoding gains nothing, and every source gets it: `Source="check.svg"`, a URI with its disk cache and progress, a file, a stream.
@@ -89,7 +89,7 @@ Internal to `MauiSkiaUi/Imaging`: bytes to a small tree of nodes, and that tree 
   - **Done** on the S9 and the iPhone 8. `VectorIconsSwitched` passes on the S9, an iOS simulator and under Native AOT on Mac Catalyst, with named colors, a class rule and no trim or AOT warnings. `--baseline v1.6.0` headless: 77 of 77 measures within noise, on selected scenarios (labels, buttons, avatars, images, entries, `virtual-fling`).
 - **M2 Demo and docs.** Size: S.
   - A gallery page next to the image page: sizes, colors following dark mode, an icon in a button and a slider thumb, both layers side by side, a file with a gradient showing its `LoadError`.
-  - **Done**, the page checked on an iOS simulator, the Galaxy S9 and Mac Catalyst; Windows is still open. The samples app also has an example, "Icons from SVG files": settings rows, buttons and sizes following the theme, in XAML.
+  - **Done**, the page checked on an iOS simulator, the Galaxy S9, Mac Catalyst and Windows. The samples app also has an example, "Icons from SVG files": settings rows, buttons and sizes following the theme, in XAML.
   - [SkUiImage.md](../controls/SkUiImage.md): a section with the project-file line, what the reader supports, what fails, and when to use a `MauiImage` instead; its "SVG at runtime" row. [SkUiCore.md](../controls/SkUiCore.md). [Migration.md](../Migration.md) and the migration skills in `plugins/skiaui-migration`: `FontImageSource` icons and tint behaviors map to `SkUiVectorImageSource`.
 
 ## Not in 1.7
