@@ -55,7 +55,8 @@ internal sealed class SkUiImageLoadContext(float displayScale, bool useDiskCache
     {
         var bounds = MaxPixels;
         var fill = Fill;
-        return RenderAsync(() => SkUiImageDecoder.Decode(bytes, sourceScale, bounds, fill), token);
+        var displayScale = DisplayScale;
+        return RenderAsync(() => SkUiImageDecoder.Decode(bytes, sourceScale, bounds, fill, displayScale), token);
     }
 
     /// <summary>Runs <paramref name="render"/> (a decode, a platform drawable drawn) off the UI thread, as <see cref="DecodeAsync"/>.</summary>

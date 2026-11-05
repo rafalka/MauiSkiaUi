@@ -28,7 +28,8 @@ public abstract record SkUiImageSource
     /// A file: an absolute path, or a name in the app package. A package name resolves like MAUI's <c>FileImageSource</c>:
     /// first the build-processed <c>MauiImage</c> for the display density (Android drawables, iOS / Mac Catalyst
     /// <c>@2x</c> / <c>@3x</c> bundle files, Windows <c>.scale-NNN</c> files; an <c>.svg</c> item is referenced by its
-    /// generated <c>.png</c> name), then a <c>MauiAsset</c> in Resources/Raw.
+    /// generated <c>.png</c> name), then a <c>MauiAsset</c> in Resources/Raw. An <c>.svg</c> file or asset is drawn at
+    /// runtime, as any source's SVG bytes are (<see cref="SkUiImageDecoder"/>); a <c>MauiImage</c> of the same name wins.
     /// </summary>
     public static SkUiImageSource FromFile(string path) => new SkUiFileImageSource(path);
 

@@ -62,7 +62,7 @@ await image.LoadingTask; // wait for success or error publication
 
 | Source | Resolves to |
 | --- | --- |
-| `FileImageSource`, relative (`"dotnet_bot.png"`) | The **`MauiImage`** Resizetizer made for the display density: an Android drawable (density bucket), iOS / Mac Catalyst `name@3x.png` / `@2x` / `name.png`, Windows `name.scale-NNN.png`. An SVG item is referenced by its generated `.png` name, as in MAUI. If there is no MauiImage of that name, a **`MauiAsset`** in Resources/Raw. |
+| `FileImageSource`, relative (`"dotnet_bot.png"`) | The **`MauiImage`** Resizetizer made for the display density: an Android drawable (density bucket), iOS / Mac Catalyst `name@3x.png` / `@2x` / `name.png`, Windows `name.scale-NNN.png`. An SVG item is referenced by its generated `.png` name, as in MAUI. If there is no MauiImage of that name, a **`MauiAsset`** in Resources/Raw; an `.svg` asset is drawn at runtime. |
 | `FileImageSource`, absolute path | The file. |
 | `UriImageSource` (HTTP(S)) | A download. With `CachingEnabled` (default) the bytes go into the disk cache for `CacheValidity` (default 1 day). Plain `http://` needs the platform's cleartext permission (Android `usesCleartextTraffic` / network security config, iOS App Transport Security). |
 | `StreamImageSource` (`ImageSource.FromStream`, `FromResource`) | The stream's bytes. Not cached: the factory may return different content each time. |
@@ -280,7 +280,7 @@ Animated GIF / WebP play on the view's UI clock while `IsAnimationPlaying` is tr
 | Screen readers | An image is read only with `SemanticProperties.Description` (or `AutomationProperties.IsInAccessibleTree="True"`); an image button is a button named by its description |
 | `IsOpaque` | Accepted for MAUI markup; a hint for platform image views, so drawn images draw the same either way |
 | `IsLoading` | As MAUI's, also as the read-only `IsLoadingProperty` for triggers and bindings. A load started without a dispatcher finishes on the thread pool: it raises `IsLoading` there, and the stored value (what triggers read) follows on the view's next change |
-| SVG at runtime | Not yet: an SVG `MauiImage` works (as the PNG generated at build time); drawing `.svg` icons at runtime is planned for 1.7 ([roadmap](../design/Roadmap.md#170-vector-icons-planned)) |
+| SVG at runtime | From any source (a `MauiAsset`, a file, a download, a stream), for the part of SVG that icons use; anything else is a `LoadError` naming it. Drawn at `DownsampleWidth` / `DownsampleHeight`, or else at its size × the display scale. An SVG `MauiImage` keeps working as the PNG generated at build time, and wins over an asset of the same name. Following the view's size and recoloring are coming in 1.7 ([roadmap](../design/Roadmap.md#170-vector-icons-planned)) |
 | Size limits | 32 MiB encoded; decoded edge ≤ `MaxDecodeDimension` (2048 px) |
 | Disposal | Not needed (images are not `IDisposable`): a collected image releases its reference on the shared cache by itself; set `Source` to `null` (Core: `Clear()`) to release it at once |
 

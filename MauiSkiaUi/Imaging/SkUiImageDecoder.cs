@@ -6,7 +6,8 @@ namespace MauiSkiaUi;
 /// Shared off-UI-thread image decoding for both layers. Large sources are decoded down to <see cref="MaxDecodeDimension"/>
 /// or a view's downsample size (using the codec's native subsampling where supported, e.g. JPEG/WebP), so a 12 MP photo
 /// does not cost ~48 MB of memory. Layout still uses the source size, so markup behaves the same. JPEG EXIF orientation is
-/// applied, and animated GIF / WebP decode to all their frames.
+/// applied, and animated GIF / WebP decode to all their frames. Bytes no codec knows that start like XML are read as a
+/// vector icon (<see cref="SkUiVectorDocument"/>), for every source that reads bytes.
 /// </summary>
 public static class SkUiImageDecoder
 {
@@ -35,12 +36,20 @@ public static class SkUiImageDecoder
     /// <paramref name="sourceScale"/> (pixels per DIP: 3 for an Android xxhdpi drawable or an iOS <c>@3x</c> file).
     /// <paramref name="maxPixels"/> bounds the decoded size per axis (0: unbounded), on top of <see cref="MaxDecodeDimension"/>;
     /// with <paramref name="fill"/> and both bounds, the image is decoded just large enough to cover them (aspect fill).
-    /// Images are never upscaled.
+    /// Images are never upscaled. A vector is: it is drawn at the bounds, larger ones too, or else at its intrinsic size ×
+    /// <paramref name="displayScale"/>.
     /// </summary>
-    internal static SkUiDecodedImage Decode(byte[] bytes, float sourceScale = 1, SKSizeI maxPixels = default, bool fill = false)
+    internal static SkUiDecodedImage Decode(byte[] bytes, float sourceScale = 1, SKSizeI maxPixels = default, bool fill = false,
+        float displayScale = 1)
     {
         using var data = SKData.CreateCopy(bytes);
-        using var codec = SKCodec.Create(data) ?? throw new InvalidDataException("Unsupported or corrupt image.");
+        using var codec = SKCodec.Create(data);
+        if (codec is null)
+        {
+            return SkUiVectorDocument.LooksLikeSvg(bytes)
+                ? DecodeVector(bytes, sourceScale, maxPixels, fill, displayScale)
+                : throw new InvalidDataException("Unsupported or corrupt image.");
+        }
         var origin = codec.EncodedOrigin;
         var swaps = SwapsAxes(origin);
         var encoded = new SKSizeI(codec.Info.Width, codec.Info.Height);
@@ -57,6 +66,14 @@ public static class SkUiImageDecoder
         using var decoded = DecodeStill(codec, encoded, targetEncoded);
         using var upright = Orient(decoded, origin);
         return new SkUiDecodedImage([ToImage(upright ?? decoded)], [], size) { IsReduced = reduced };
+    }
+
+    private static SkUiDecodedImage DecodeVector(byte[] bytes, float sourceScale, SKSizeI maxPixels, bool fill, float displayScale)
+    {
+        var document = SkUiVectorDocument.Parse(bytes);
+        var size = new Size(document.Size.Width / (double)sourceScale, document.Size.Height / (double)sourceScale);
+        var pixels = SkUiPackageImages.RenderSize(size.Width * displayScale, size.Height * displayScale, maxPixels, fill);
+        return new SkUiDecodedImage([SkUiVectorPainter.Render(document, pixels, SKColors.Black)], [], size) { IsReduced = true };
     }
 
     /// <summary>

@@ -100,10 +100,14 @@ internal static class SkUiPackageImages
     /// Pixels to draw a vector of <paramref name="intrinsic"/> pixels at: the bounds when there are any (scaled up too), the
     /// intrinsic size otherwise; at most <see cref="SkUiImageDecoder.MaxDecodeDimension"/> on the longer side.
     /// </summary>
-    internal static SkiaSharp.SKSizeI RenderSize(SkiaSharp.SKSizeI intrinsic, SkiaSharp.SKSizeI maxPixels, bool fill)
+    internal static SkiaSharp.SKSizeI RenderSize(SkiaSharp.SKSizeI intrinsic, SkiaSharp.SKSizeI maxPixels, bool fill) =>
+        RenderSize(intrinsic.Width, intrinsic.Height, maxPixels, fill);
+
+    /// <summary>As the other overload, for an intrinsic size that need not be whole pixels (an SVG's, at the display scale).</summary>
+    internal static SkiaSharp.SKSizeI RenderSize(double intrinsicWidth, double intrinsicHeight, SkiaSharp.SKSizeI maxPixels, bool fill)
     {
-        var width = maxPixels.Width / (double)intrinsic.Width;
-        var height = maxPixels.Height / (double)intrinsic.Height;
+        var width = maxPixels.Width / intrinsicWidth;
+        var height = maxPixels.Height / intrinsicHeight;
         var scale = (maxPixels.Width > 0, maxPixels.Height > 0) switch
         {
             (true, true) => fill ? Math.Max(width, height) : Math.Min(width, height),
@@ -111,8 +115,8 @@ internal static class SkUiPackageImages
             (false, true) => height,
             _ => 1
         };
-        scale = Math.Min(scale, SkUiImageDecoder.MaxDecodeDimension / (double)Math.Max(intrinsic.Width, intrinsic.Height));
-        return new SkiaSharp.SKSizeI(Math.Max(1, (int)Math.Round(intrinsic.Width * scale)), Math.Max(1, (int)Math.Round(intrinsic.Height * scale)));
+        scale = Math.Min(scale, SkUiImageDecoder.MaxDecodeDimension / Math.Max(intrinsicWidth, intrinsicHeight));
+        return new SkiaSharp.SKSizeI(Math.Max(1, (int)Math.Round(intrinsicWidth * scale)), Math.Max(1, (int)Math.Round(intrinsicHeight * scale)));
     }
 
     /// <summary>File names to try for <paramref name="name"/> with a density <paramref name="suffix"/> (before the extension).</summary>
