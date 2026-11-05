@@ -28,6 +28,7 @@ Publishing (the NuGet publish workflow, [docs/Releasing.md](docs/Releasing.md)) 
 
 ### Fixes
 
+- **No exception when a touch closes its own surface:** a release can disconnect the surface's handler while the touch is still being handled (such as the pick that closes a picker's popup); code reading the handler's view afterwards (the demo's input trace on Windows, a frame already queued) threw `InvalidOperationException: VirtualView cannot be null here`.
 - **`SkUiAvatarView` follows edits of its image source:** changing a property of a live source (a `FontImageSource`'s `Color`, a `UriImageSource`'s `Uri`) reloaded the old values.
 
 ## 1.6.0

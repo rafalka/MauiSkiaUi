@@ -523,7 +523,7 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
     }
 
     /// <summary>Whether the surface takes part in accessibility now (app-wide and for this root).</summary>
-    private bool IsAccessibilityActive => SkUiAccessibility.IsEnabled && VirtualView is { IsAccessibilityEnabled: true };
+    private bool IsAccessibilityActive => SkUiAccessibility.IsEnabled && ConnectedView is { IsAccessibilityEnabled: true };
 
     /// <summary>
     /// Attaches or removes the platform bridge and the container's keyboard participation to match
@@ -588,7 +588,7 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
 
     private void OnAccessibilitySwitched(object? sender, EventArgs args)
     {
-        if (VirtualView is not { } root)
+        if (ConnectedView is not { } root)
             return;
         if (root.Dispatcher.IsDispatchRequired)
             root.Dispatcher.Dispatch(UpdateAccessibility);
@@ -1035,7 +1035,7 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
         Microsoft.UI.Xaml.Media.CompositionTarget.Rendering -= OnCompositionRendering;
         // Out of the tree (e.g. a Shell page navigated away from), continuous frames stop here instead of painting
         // forever; OnLoaded queues a frame again. Android / iOS stop on their own: detached views do not draw.
-        if (VirtualView is not { IsLoaded: true })
+        if (ConnectedView is not { IsLoaded: true })
         {
             Interlocked.Exchange(ref _invalidateQueued, 0);
             return;
@@ -1047,7 +1047,7 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
     /// <summary>The look, color scheme or system text size changed: re-measure and redraw this surface's drawn tree with it.</summary>
     private void OnLookChanged(object? sender, EventArgs args)
     {
-        if (VirtualView is not { } root)
+        if (ConnectedView is not { } root)
             return;
         if (root.Dispatcher.IsDispatchRequired)
         {
@@ -1061,7 +1061,7 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
     /// <summary>SkiaUi's texts changed (<see cref="SkUiStrings"/>): what screen readers read is built again.</summary>
     private void OnStringsChanged(object? sender, EventArgs args)
     {
-        if (VirtualView is not { } root)
+        if (ConnectedView is not { } root)
             return;
         if (root.Dispatcher.IsDispatchRequired)
         {
@@ -1140,14 +1140,21 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
             InvalidateMauiSurface();
     }
 
+    /// <summary>
+    /// The view, or null once disconnected: <see cref="ViewHandler{TVirtualView, TPlatformView}.VirtualView"/> throws then. Code
+    /// that can run after a disconnect reads this: a touch whose dispatch closes this surface (a picker's popup, on the
+    /// release that picks), or a callback already queued.
+    /// </summary>
+    private SkUiView? ConnectedView => ((IElementHandler)this).VirtualView as SkUiView;
+
     private bool OnSurfaceTouch(SkUiTouchEvent touch) => _renderer?.TouchDips(touch) == true;
 
     private SkUiNativeGestureState GetNativeGestureState() =>
-        VirtualView is { } view ? view.Router.NativeState : SkUiNativeGestureState.None;
+        ConnectedView is { } view ? view.Router.NativeState : SkUiNativeGestureState.None;
 
 #if IOS || MACCATALYST
     private SkUiNativeTapState GetNativeTapState() =>
-        VirtualView is { } view ? view.Router.NativeTapState : SkUiNativeTapState.None;
+        ConnectedView is { } view ? view.Router.NativeTapState : SkUiNativeTapState.None;
 #endif
 
 #if ANDROID
@@ -1226,7 +1233,7 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
         _toolTipDelegate = null;
         _hoverView = null;
 #elif WINDOWS
-        if (VirtualView is { } view)
+        if (ConnectedView is { } view)
             view.Router.HoveredToolTipChanged -= OnHoveredToolTipChanged;
         HideToolTip();
         if (_toolTipTimer is not null)
@@ -1236,7 +1243,7 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
         _toolTipOwner = null;
 #endif
         // The pointer may still be over the surface: nothing stays pointer-over in a tree without a surface.
-        VirtualView?.Router.ClearHover();
+        ConnectedView?.Router.ClearHover();
     }
 
 #if ANDROID
@@ -1304,7 +1311,7 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
             return;
         }
         HideToolTip();
-        if (_toolTipOwner is not { } owner || VirtualView?.Router.HoveredToolTip is null)
+        if (_toolTipOwner is not { } owner || ConnectedView?.Router.HoveredToolTip is null)
             return;
         if (_toolTipTimer is null)
         {
@@ -1368,7 +1375,7 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
         if (action == SkUiTouchAction.Pressed)
         {
             HideToolTip();
-            VirtualView?.Router.ResetHoveredToolTip();
+            ConnectedView?.Router.ResetHoveredToolTip();
         }
 #endif
         args.Handled = _renderer?.TouchPixels(new(args.Id, action.Value,
@@ -1383,7 +1390,7 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
             }
         }) == true;
         if (SkUiDiagnostics.TraceOn)
-            SkUiDiagnostics.Write($"touch {action} id={args.Id} {args.DeviceType} px={args.Location.X:F0},{args.Location.Y:F0} handled={args.Handled} native={GetNativeGestureState()} arenas={VirtualView?.Router.ActiveArenaCount} root={VirtualView?.AutomationId ?? VirtualView?.GetType().Name}");
+            SkUiDiagnostics.Write($"touch {action} id={args.Id} {args.DeviceType} px={args.Location.X:F0},{args.Location.Y:F0} handled={args.Handled} native={GetNativeGestureState()} arenas={ConnectedView?.Router.ActiveArenaCount} root={ConnectedView?.AutomationId ?? ConnectedView?.GetType().Name}");
 #if WINDOWS
         if (action is SkUiTouchAction.Released or SkUiTouchAction.Cancelled)
         {
