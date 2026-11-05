@@ -15,6 +15,10 @@ internal static class SkUiImageButtonDrawing
     public static Size Measure(Size image, Thickness padding) =>
         new(image.Width + padding.HorizontalThickness, image.Height + padding.VerticalThickness);
 
+    /// <summary>The space the image is drawn in: <paramref name="size"/> inside the padding.</summary>
+    public static Size Inside(Size size, Thickness padding) =>
+        new(Math.Max(0, size.Width - padding.HorizontalThickness), Math.Max(0, size.Height - padding.VerticalThickness));
+
     /// <summary>The image inside the padding, clipped to the rounded bounds.</summary>
     public static void PaintContent(SKCanvas canvas, IImage image, float width, float height, Thickness padding, ref SkUiChromeState chrome)
     {

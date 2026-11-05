@@ -372,6 +372,8 @@ public class SkUiImage : SkUiView
         // Fitting and covering decode to different bounds; a centered image is not downsampled to the view.
         if (_downsampleToViewSize && (SkUiViewSizedDecode.Fills(old) != SkUiViewSizedDecode.Fills(value) || (old == Aspect.Center) != (value == Aspect.Center)))
             Reload();
+        else if (_slot?.Entry is { IsVector: true })
+            InvalidateMeasureOverride(); // the next arrange draws it for this aspect
     }
 
     private void OnDownsampleToViewSizeChanged(bool value)
@@ -429,6 +431,7 @@ public class SkUiImage : SkUiView
 
     private Task Load(bool restart)
     {
+        _viewSizedDecode.ForgetVector();
         var source = SkUiImageSource.FromMaui(_source);
         if (source is null || !SkUiViewSizedDecode.AppliesTo(_downsampleToViewSize, _options, _aspect))
         {
@@ -449,10 +452,22 @@ public class SkUiImage : SkUiView
     protected override void ArrangeContent(Size size)
     {
         base.ArrangeContent(size);
+        if (Slot.Entry is { IsVector: true } vector)
+        {
+            // One redraw at a time: the one finishing invalidates the measure, so this runs again with the latest size. A
+            // redraw would end a fade: it waits for the fade's end, which comes back here too.
+            if (!Slot.IsLoading && !Slot.IsFading
+                && _viewSizedDecode.FollowVector(ImageArea(size), vector, _options, _aspect, out var redraw))
+                Slot.Load(SkUiImageSource.FromMaui(_source), redraw, keepShown: true);
+            return;
+        }
         // A view that outgrew an image decoded at full size keeps it: larger bounds give no more pixels.
         if (_viewSizedDecode.OnArranged(size, out var grew) && !(grew && Slot.Entry is { IsReduced: false }))
             Slot.Load(SkUiImageSource.FromMaui(_source), _viewSizedDecode.Apply(_options, _aspect), keepShown: grew);
     }
+
+    /// <summary>The part of the arranged <paramref name="size"/> the image is drawn in.</summary>
+    private protected virtual Size ImageArea(Size size) => size;
 
     private void PublishState()
     {
@@ -519,6 +534,8 @@ public class SkUiImage : SkUiView
             return;
         _fade.ForgetDrawable();
         Slot.EndFade();
+        if (Slot.Entry is { IsVector: true })
+            InvalidateMeasureOverride(); // the redraw that waited for the fade
         InvalidatePaint();
         InvalidateRender(SkUiRenderDirty.Props);
     }

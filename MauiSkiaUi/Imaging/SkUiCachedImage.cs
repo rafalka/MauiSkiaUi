@@ -22,6 +22,7 @@ internal sealed class SkUiCachedImage
         Size = decoded.Size;
         Bytes = decoded.Bytes;
         IsReduced = decoded.IsReduced;
+        IsVector = decoded.IsVector;
         Key = key;
         _ownsFrames = ownsFrames;
         _references = 1;
@@ -37,6 +38,9 @@ internal sealed class SkUiCachedImage
 
     /// <summary>Whether larger decode bounds would give more pixels (<see cref="SkUiDecodedImage.IsReduced"/>).</summary>
     public bool IsReduced { get; }
+
+    /// <summary>Whether this is a drawn SVG (<see cref="SkUiDecodedImage.IsVector"/>).</summary>
+    public bool IsVector { get; }
 
     /// <summary>Frames to draw; one for a still image.</summary>
     public SKImage[] Frames { get; }

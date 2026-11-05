@@ -199,6 +199,9 @@ public class SkUiImageButton : SkUiImage, ISkUiBorderElement, SkUiImageButtonDra
         SkUiImageButtonDrawing.Measure(base.MeasureContent(widthConstraint, heightConstraint), _padding);
 
     /// <inheritdoc />
+    private protected override Size ImageArea(Size size) => SkUiImageButtonDrawing.Inside(size, _padding);
+
+    /// <inheritdoc />
     protected override void OnPaintContent(SKCanvas canvas) =>
         SkUiImageButtonDrawing.PaintContent(canvas, this, (float)Width, (float)Height, _padding, ref _chrome);
 

@@ -20,7 +20,7 @@ Publishing (the NuGet publish workflow, [docs/Releasing.md](docs/Releasing.md)) 
 
 ### New features
 
-- **Vector icons:** an `.svg` file, `MauiAsset`, download or stream now draws at runtime on both layers (`Source="check.svg"`), through a small SVG reader in `SkiaUi.Maui` with no new dependency. It is drawn at the decode bounds, larger ones too, or else at its size × the display scale. A `MauiImage` of the same name still wins. A file with something the reader cannot draw (a gradient, `<use>`, an embedded image) fails with a `LoadError` naming it.
+- **Vector icons:** an `.svg` file, `MauiAsset`, download or stream now draws at runtime on both layers (`Source="check.svg"`), through a small SVG reader in `SkiaUi.Maui` with no new dependency. It is drawn again at the size its view shows it in exact pixels, larger or smaller, on `SkUiImage`, `SkUiImageButton` and their Core twins; explicit decode bounds win. A `MauiImage` of the same name still wins. A file with something the reader cannot draw (a gradient, `<use>`, an embedded image) fails with a `LoadError` naming it.
 
 ## 1.6.0
 

@@ -73,7 +73,7 @@ public static class SkUiImageDecoder
         var document = SkUiVectorDocument.Parse(bytes);
         var size = new Size(document.Size.Width / (double)sourceScale, document.Size.Height / (double)sourceScale);
         var pixels = SkUiPackageImages.RenderSize(size.Width * displayScale, size.Height * displayScale, maxPixels, fill);
-        return new SkUiDecodedImage([SkUiVectorPainter.Render(document, pixels, SKColors.Black)], [], size) { IsReduced = true };
+        return new SkUiDecodedImage([SkUiVectorPainter.Render(document, pixels, SKColors.Black)], [], size) { IsReduced = true, IsVector = true };
     }
 
     /// <summary>
@@ -260,6 +260,9 @@ internal sealed record SkUiDecodedImage(SKImage[] Frames, int[] Durations, Size 
     /// </summary>
     public bool IsReduced { get; init; }
 
+    /// <summary>Whether this is a drawn SVG, which a view draws again at the size it shows it (<see cref="SkUiViewSizedDecode"/>).</summary>
+    public bool IsVector { get; init; }
+
     /// <summary>Decoded pixel memory of all frames.</summary>
     public long Bytes
     {
@@ -277,5 +280,5 @@ internal sealed record SkUiDecodedImage(SKImage[] Frames, int[] Durations, Size 
     /// (<paramref name="dipsPerPixel"/>, measured before the transformation replaced the originals).
     /// </summary>
     public SkUiDecodedImage WithFrames(SKImage[] frames, SKSize dipsPerPixel) =>
-        new(frames, Durations, new Size(frames[0].Width * dipsPerPixel.Width, frames[0].Height * dipsPerPixel.Height)) { IsReduced = IsReduced };
+        new(frames, Durations, new Size(frames[0].Width * dipsPerPixel.Width, frames[0].Height * dipsPerPixel.Height)) { IsReduced = IsReduced, IsVector = IsVector };
 }

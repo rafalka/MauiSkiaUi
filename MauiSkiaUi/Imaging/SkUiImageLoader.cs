@@ -175,7 +175,7 @@ internal static class SkUiImageLoader
         return LoadSharedAsync(source, transformations, context, key, progress, token);
     }
 
-    private static int Pixels(double dips, float scale) =>
+    internal static int Pixels(double dips, float scale) =>
         dips > 0 && double.IsFinite(dips) ? Math.Max(1, (int)Math.Ceiling(dips * scale)) : 0;
 
     /// <summary>

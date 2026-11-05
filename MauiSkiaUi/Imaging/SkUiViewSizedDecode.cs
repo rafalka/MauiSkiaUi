@@ -1,9 +1,12 @@
+using SkiaSharp;
+
 namespace MauiSkiaUi;
 
 /// <summary>
 /// Downsampling to the view's size (<c>DownsampleToViewSize</c>), shared by the image views of both layers: a load of a
 /// new source waits for the view's next arrange and decodes no larger than the arranged size; a larger arrange decodes
-/// again, a smaller one keeps the image.
+/// again, a smaller one keeps the image. A vector does not need the option: it follows the size the view shows it at in
+/// exact pixels, larger or smaller (<see cref="FollowVector"/>).
 /// </summary>
 /// <remarks>
 /// While a load waits, the view shows nothing and measures as empty, so the arrange that starts it is the layout's size,
@@ -16,6 +19,7 @@ internal struct SkUiViewSizedDecode
 
     private Size _bounds; // DIPs per dimension; 0: not bounded
     private bool _decided;
+    private SKSizeI _vectorPixels; // what the last redraw of a vector asked for; zero: what the entry has
 
     /// <summary>Whether a source waits for the view's next arrange to start loading.</summary>
     public bool IsWaiting { get; private set; }
@@ -59,6 +63,33 @@ internal struct SkUiViewSizedDecode
             return false;
         _bounds = bounds;
         grew = true;
+        return true;
+    }
+
+    /// <summary>A new load of the source or new settings: the next vector shown is compared with its own pixels.</summary>
+    public void ForgetVector() => _vectorPixels = default;
+
+    /// <summary>
+    /// Whether <paramref name="vector"/>, shown at <paramref name="size"/>, should be drawn again, with the options for it:
+    /// when its pixels differ by more than one from what that size needs. Asking again is what stops a redraw that failed
+    /// from repeating at the same size. Explicit decode bounds win, and a centered image is drawn unscaled.
+    /// </summary>
+    public bool FollowVector(Size size, SkUiCachedImage vector, in SkUiImageOptions options, Aspect aspect, out SkUiImageOptions redraw)
+    {
+        redraw = options;
+        if (!AppliesTo(enabled: true, options, aspect) || !(size.Width > 0 && size.Height > 0))
+            return false;
+        var scale = SkUiImageLoader.DisplayScale;
+        var fill = Fills(aspect);
+        var bounds = new SKSizeI(SkUiImageLoader.Pixels(size.Width, scale), SkUiImageLoader.Pixels(size.Height, scale));
+        if (bounds.Width <= 0 || bounds.Height <= 0)
+            return false;
+        var wanted = SkUiPackageImages.RenderSize(vector.Size.Width * scale, vector.Size.Height * scale, bounds, fill);
+        var current = _vectorPixels != default ? _vectorPixels : new SKSizeI(vector.Frames[0].Width, vector.Frames[0].Height);
+        if (Math.Abs(wanted.Width - current.Width) <= 1 && Math.Abs(wanted.Height - current.Height) <= 1)
+            return false;
+        _vectorPixels = wanted;
+        redraw = options with { DownsampleWidth = size.Width, DownsampleHeight = size.Height, DownsampleToFill = fill };
         return true;
     }
 
