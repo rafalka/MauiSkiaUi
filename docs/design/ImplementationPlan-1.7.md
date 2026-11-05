@@ -85,6 +85,7 @@ Internal to `MauiSkiaUi/Imaging`: bytes to a small tree of nodes, and that tree 
   - **Done** on the S9 and the iPhone 8. `VectorIconsSwitched` passes on the S9, an iOS simulator and under Native AOT on Mac Catalyst, with named colors, a class rule and no trim or AOT warnings. `--baseline v1.6.0` headless: 77 of 77 measures within noise, on selected scenarios (labels, buttons, avatars, images, entries, `virtual-fling`).
 - **M2 Demo and docs.** Size: S.
   - A gallery page next to the image page: sizes, colors following dark mode, an icon in a button and a slider thumb, both layers side by side, a file with a gradient showing its `LoadError`.
+  - **Done**, the page checked on an iOS simulator and the Galaxy S9; Mac Catalyst and Windows are still open.
   - [SkUiImage.md](../controls/SkUiImage.md): a section with the project-file line, what the reader supports, what fails, and when to use a `MauiImage` instead; its "SVG at runtime" row. [SkUiCore.md](../controls/SkUiCore.md). [Migration.md](../Migration.md) and the migration skills in `plugins/skiaui-migration`: `FontImageSource` icons and tint behaviors map to `SkUiVectorImageSource`.
 
 ## Not in 1.7

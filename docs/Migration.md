@@ -34,7 +34,7 @@ Checked against .NET MAUI 10.0.120 (`MauiApiParityTests` compares every drawn co
 | RadioButton | SkUi* + Core | Done: `Content` (text or a drawn view), text properties, border chrome, `ControlTemplate` with `SkUiContentPresenter` (SkUi* only: the Core radio stays a circle to compose; `TemplateBinding` → `AncestorType`); group exclusion, `Value`, `RadioButtonGroup` |
 | Label | SkUi* + Core | Done: text properties, spans and span taps, `TextType="Html"`, plus custom line breaking and tappable HTML links |
 | Button | SkUi* + Core | Done: `ImageSource` + `ContentLayout`, text properties |
-| Image, ImageButton | SkUi* + Core | Done, plus shared memory / disk cache, transformations, downsampling; runtime SVG icons: planned for 1.7 |
+| Image, ImageButton | SkUi* + Core | Done, plus shared memory / disk cache, transformations, downsampling, [SVG icons at runtime](controls/SkUiImage.md#vector-icons) |
 | BoxView | SkUi* + Core | Done, gradient `Background` |
 | Ellipse, Line, Rectangle, RoundRectangle, Path, Polygon, Polyline | SkUi* + Core | Done: brushes, stroke model, `Aspect`, geometries and path markup |
 | Border | SkUi* + Core | Done: `StrokeShape`, brush stroke, dashes, stroke inset and shape clip; gradient `Background` |
@@ -513,6 +513,20 @@ Styles now apply to everything the toolkit's constructor set (padding, stroke, s
 | A skeleton view that repeats the page's own layout (the same cards and rows, boxes where the texts go) | No skeleton: the drawn page in a shimmer without `SkeletonContent`, `Mode="Bones"`; texts become bars, cards keep their chrome; static texts `Skeleton="Keep"`; empty bound texts draw `SkeletonLines` placeholder lines; an empty collection view shows placeholder rows of its own template (no fake items in the view model). The page takes no input while loading |
 | A skeleton view swapped with the MAUI page (a state container) | The page stays; one `SkUiShimmer` with only `SkeletonContent` over it, hidden once faded (`IsVisible` bound to `IsShowingSkeleton`) |
 | Pausing on `Unloaded`, hardware layers, per-box animation names | Drop: a shimmer not drawn requests no frames; the bones are one recorded picture in one layer |
+
+## Icons (`FontImageSource`, tint behaviors, `MauiImage` SVGs)
+
+Keep an icon as it is when it works: `FontImageSource` and `MauiImage` work on drawn controls as on native ones. Move it to an [SVG drawn at runtime](controls/SkUiImage.md#vector-icons) to stop shipping a font or a set of PNGs, or to recolor it with the theme:
+
+| MAUI | SkiaUi |
+| --- | --- |
+| `<FontImageSource Glyph="&#xE8B8;" FontFamily="Icons" Color="{AppThemeBinding …}" Size="24" />` | `<sk:SkUiVectorImageSource Source="settings.svg" Color="{AppThemeBinding …}" Size="24" />`: one element changes, in the same properties |
+| An icon `Image` with the Community Toolkit's `IconTintColorBehavior` | `SkUiVectorImageSource` with `Color`, if the file uses `currentColor`; else `SkUiTintTransformation` in `Transformations`, which works for PNGs too |
+| An `.svg` `MauiImage` by its `.png` name | Works as it is. To draw it at runtime, move the file out of `Resources/Images` (to `Resources/Raw`), and refer to it by its `.svg` name |
+
+- A `MauiImage` of the same name wins over the asset: remove the old item, or `Color` and `Size` do nothing.
+- The reader takes the part of SVG that icons use. A file with a gradient, `<use>` or an embedded image shows a `LoadError` naming it: keep that one a `MauiImage`.
+- `SkUiVectorImageSource` works on drawn controls only. A native `Image` left on the page keeps its own source.
 
 ## Not available yet
 

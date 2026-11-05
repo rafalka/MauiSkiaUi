@@ -512,3 +512,27 @@ Scrolls to the row with `ScrollToPosition.Start`: it lands right below the top b
 
 Compares every native view with where the drawn tree places it, also with the soft keyboard up, and reports the views
 that are off.
+
+## VectorIconsDemoPage.File
+
+The `.svg` in `Source`, a `MauiAsset` under Resources/Raw. The gear and the check are all `currentColor`, so `Color` recolors them; the flag's pole follows `Color` and its flag keeps the color written in the file. The gradient cannot be drawn: the status shows the `LoadError` naming it.
+
+## VectorIconsDemoPage.Sizes
+
+One file in views of 16 to 96 DIPs, each drawn in exact pixels at its view's size: no scaled bitmaps and no density files.
+
+## VectorIconsDemoPage.Button and slider thumb
+
+The same source in other image properties: `SkUiButton.ImageSource` and `SkUiSlider.ThumbImageSource`. These draw at its `Size`.
+
+## VectorIconsDemoPage.Both layers
+
+`SkUiImage` with `SkUiVectorImageSource`, then `SkUiCoreImage` with `SkUiImageSource.FromVector`. Both share one cached image.
+
+## VectorIconsDemoPage.Dark mode
+
+Sets the app's theme. The icons below use `AppThemeBinding` on `Color`, so they draw again in the new color, keeping the old one shown until then.
+
+## VectorIconsDemoPage.Follows the theme
+
+`Color="{AppThemeBinding Light=Black, Dark=White}"` on a tile whose background follows the theme too.

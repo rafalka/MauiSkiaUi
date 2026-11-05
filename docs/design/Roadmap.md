@@ -70,6 +70,8 @@ Steps and decisions: [ImplementationPlan-1.6.md](ImplementationPlan-1.6.md). The
 
 ### 1.7.0: vector icons (planned)
 
+Built on the branch `1.7-implementation`, not released: [what it costs](../Performance.md#vector-icons), [how to use it](../controls/SkUiImage.md#vector-icons).
+
 One feature: an app's `.svg` icons drawn at runtime on both layers, through a small SVG reader in `SkiaUi.Maui`, with no new dependency or package. A `MauiImage` keeps working as today, and an app can use both. Steps, order and open decisions: [ImplementationPlan-1.7.md](ImplementationPlan-1.7.md).
 
 - **Reader:** the part of SVG that icons use: shapes and paths, fill and stroke, dashes, transforms, clips, masks, class rules and one-line text. Anything else is a `LoadError` naming what failed, and a file cannot make requests or take the app down.
