@@ -21,7 +21,7 @@
 | [Releasing](Releasing.md) | Versions, branches, the changelog and the publish workflow |
 | [Architecture](design/Architecture.md) | How SkiaUi works: start here |
 | [Requirements](design/Requirements.md) | Goals, scope, principles, requirement status |
-| [Roadmap](design/Roadmap.md) | What shipped in each release, the next releases (1.7, 1.8) and the backlog |
+| [Roadmap](design/Roadmap.md) | What shipped in each release, the next releases (1.7, 1.8, 1.9) and the backlog |
 
 Design docs, by mechanism:
 

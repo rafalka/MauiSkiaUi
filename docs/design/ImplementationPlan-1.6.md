@@ -4,7 +4,7 @@
 
 **Status:** shipped in 1.6.0.
 
-**Scope:** phase V and the fix for hosted native views that keep an old clip when what clips them is resized ([#81](https://github.com/rafalka/MauiSkiaUi/issues/81), fixed in [#82](https://github.com/rafalka/MauiSkiaUi/pull/82)). The other work first planned for 1.6 (performance, the tile layout, Core containers, password reveal) moved to [1.8](ImplementationPlan-1.8.md); 1.7 brings [vector icons](Roadmap.md#170-vector-icons-planned).
+**Scope:** phase V and the fix for hosted native views that keep an old clip when what clips them is resized ([#81](https://github.com/rafalka/MauiSkiaUi/issues/81), fixed in [#82](https://github.com/rafalka/MauiSkiaUi/pull/82)). The other work first planned for 1.6 (performance, the tile layout, Core containers, password reveal) moved to [1.9](ImplementationPlan-1.9.md); 1.7 brings [vector icons](Roadmap.md#170-vector-icons-planned) and 1.8 [Markdown](ImplementationPlan-1.8.md).
 
 **Baseline:** .NET MAUI 10.0.120, SkiaSharp 4.154.0, from `devel` after 1.5.1. What has shipped is in the [changelog](../../CHANGELOG.md); the rest of the 1.x backlog stays in the [roadmap](Roadmap.md#backlog-1x).
 
