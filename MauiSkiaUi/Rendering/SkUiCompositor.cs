@@ -117,7 +117,6 @@ internal sealed class SkUiCompositor : IDisposable
     private readonly Action<Action> _postToUi;
     private readonly SKPaint _layerPaint = new();
     private readonly SKPaint _shadowPaint = new();
-    private readonly SKPaint _clearPaint = new() { BlendMode = SKBlendMode.Src };
     private readonly SKPaint _drawablePaint = new();
     private readonly List<SkUiRenderNode> _removed = [];
     private readonly List<SkUiRenderAnimation> _animations = [];
@@ -305,8 +304,8 @@ internal sealed class SkUiCompositor : IDisposable
             }
             _space = _surfaceMatrix;
 
-            _clearPaint.Color = _clearColor;
-            canvas.DrawRect(SKRect.Create(pixelWidth, pixelHeight), _clearPaint);
+            // The whole canvas: it can be larger than the frame (a Windows swap chain with slack, SkUiSurfaceSlack).
+            canvas.Clear(_clearColor);
             _spinning = false;
             _rasterizePending = false;
             _rasterizedThisFrame = 0;
@@ -1005,7 +1004,6 @@ internal sealed class SkUiCompositor : IDisposable
             _root = null;
             _layerPaint.Dispose();
             _shadowPaint.Dispose();
-            _clearPaint.Dispose();
             _drawablePaint.Dispose();
         }
     }

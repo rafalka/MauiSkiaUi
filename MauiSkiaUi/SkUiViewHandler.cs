@@ -1108,7 +1108,15 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
 
     private void OnMauiGpuPaint(object? sender, SKPaintGLSurfaceEventArgs args)
     {
+#if WINDOWS
+        // The panel is longer than the surface's slot (SkUiSurfaceSlack): the frame is the slot's size, not the panel's.
+        var info = args.Info;
+        if (sender is SKGLView { Handler.PlatformView: Microsoft.UI.Xaml.Controls.SwapChainPanel slotPanel } && _container is { } slot)
+            info = info.WithSize((int)Math.Round(slot.ActualWidth * slotPanel.CompositionScaleX), (int)Math.Round(slot.ActualHeight * slotPanel.CompositionScaleY));
+        PaintMauiSurface(args.Surface.Canvas, info);
+#else
         PaintMauiSurface(args.Surface.Canvas, args.Info);
+#endif
 #if WINDOWS
         // ANGLE resizes the swap chain at the next present after a panel size change, so the frame painted right after a
         // resize still targets the old size (stretched / cropped). Paint again until the target matches the panel.
@@ -2128,6 +2136,7 @@ internal sealed class SkUiOverlayContainer : MauiView
 internal sealed partial class SkUiOverlayContainer : Microsoft.UI.Xaml.Controls.Canvas
 {
     private readonly Dictionary<Microsoft.UI.Xaml.FrameworkElement, OverlayState> _overlays = [];
+    private readonly Microsoft.UI.Xaml.Media.RectangleGeometry _surfaceClip = new();
 
     private sealed class OverlayState(Microsoft.UI.Xaml.Controls.Canvas clip)
     {
@@ -2229,6 +2238,15 @@ internal sealed partial class SkUiOverlayContainer : Microsoft.UI.Xaml.Controls.
     {
         if (Children.Count > 0 && Children[0] is Microsoft.UI.Xaml.FrameworkElement surface && !_overlays.Values.Any(o => ReferenceEquals(o.Clip, surface)))
         {
+            if (surface is Microsoft.UI.Xaml.Controls.SwapChainPanel)
+            {
+                // Clipped here: a swap chain panel ignores a clip of its own.
+                _surfaceClip.Rect = new Windows.Foundation.Rect(0, 0, args.NewSize.Width, args.NewSize.Height);
+                Clip ??= _surfaceClip;
+                surface.Width = SkUiSurfaceSlack.PanelLength(surface.Width, args.NewSize.Width);
+                surface.Height = SkUiSurfaceSlack.PanelLength(surface.Height, args.NewSize.Height);
+                return;
+            }
             surface.Width = args.NewSize.Width;
             surface.Height = args.NewSize.Height;
         }

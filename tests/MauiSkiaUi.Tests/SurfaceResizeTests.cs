@@ -14,6 +14,50 @@ public class SurfaceResizeTests
     private const int Height = 100;
     private const int Band = 10;
 
+    [Theory]
+    [InlineData(double.NaN, 100, 292)] // first layout
+    [InlineData(0, 100, 292)]
+    [InlineData(292, 150, 292)] // within the slack: the swap chain stays
+    [InlineData(292, 196, 292)]
+    [InlineData(292, 197, 581)] // running out: changed once, with more slack
+    [InlineData(1000, 232, 1000)]
+    [InlineData(1000, 231, 615)] // far too long: shorter, still longer than the slot
+    [InlineData(292, 0, 0)]
+    public void AWindowsPanelKeepsSlackAroundItsSlot(double current, double slot, double expected) =>
+        Assert.Equal(expected, SkUiSurfaceSlack.PanelLength(current, slot));
+
+    [Fact]
+    public void AWindowsPanelSettlesDuringADragBackAndForth()
+    {
+        var panel = SkUiSurfaceSlack.PanelLength(double.NaN, 150);
+        var changes = 0;
+        for (var sweep = 0; sweep < 20; sweep++)
+            for (var step = 0; step <= 44; step++)
+            {
+                // 150 to 370 and back, 5 DIPs a step.
+                var slot = 150 + 5 * (sweep % 2 == 0 ? step : 44 - step);
+                var next = SkUiSurfaceSlack.PanelLength(panel, slot);
+                if (Math.Abs(next - panel) > 0.5)
+                    changes++;
+                panel = next;
+            }
+        Assert.Equal(1, changes);
+    }
+
+    [Fact]
+    public void TheClearColorFillsACanvasLargerThanTheFrame()
+    {
+        var (root, queue) = Root();
+        root.BackgroundColor = Colors.Lime;
+        using var renderer = Present(root, queue);
+        using var surface = SKSurface.Create(new SKImageInfo(Width + 20, Height + 20, SKColorType.Rgba8888, SKAlphaType.Premul));
+        renderer.Render(surface.Canvas, new SKImageInfo(Width, Height));
+        surface.Canvas.Flush();
+        using var image = surface.Snapshot();
+        using var bitmap = SKBitmap.FromImage(image);
+        Assert.Equal(SKColors.Lime, bitmap.GetPixel(Width + 10, Height + 10));
+    }
+
     [Fact]
     public void ASurfaceResizedAheadOfTheLayoutKeepsTheRootsScaleAgainstTheTop()
     {

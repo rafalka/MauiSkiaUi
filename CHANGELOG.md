@@ -28,6 +28,7 @@ Publishing (the NuGet publish workflow, [docs/Releasing.md](docs/Releasing.md)) 
 
 ### Fixes
 
+- **No backdrop flashing through resized GPU surfaces on Windows:** a hardware-accelerated surface being resized (a splitter drag, a window resize, anything that changes its layout) showed strips of the window's backdrop at its edges and, for a frame, stretched content. WinUI does not synchronize a swap chain's presents with its own layout, so a swap chain resized with its slot could be shorter than what XAML showed. The swap chain panel is now longer than its slot and clipped to it, and changes only when the slack runs out, so most resizes do not touch the swap chain. A surface starts with 192 epx of slack per direction; one that outgrows it takes 384, and keeps up to 768. Still open: a resize of more than 96 epx in one layout pass can show a gap for a frame, and each change of the panel can flash the whole surface for a frame; a drag back and forth now changes it once instead of twice per sweep.
 - **No exception when a touch closes its own surface:** a release can disconnect the surface's handler while the touch is still being handled (such as the pick that closes a picker's popup); code reading the handler's view afterwards (the demo's input trace on Windows, a frame already queued) threw `InvalidOperationException: VirtualView cannot be null here`.
 - **`SkUiAvatarView` follows edits of its image source:** changing a property of a live source (a `FontImageSource`'s `Color`, a `UriImageSource`'s `Uri`) reloaded the old values.
 
