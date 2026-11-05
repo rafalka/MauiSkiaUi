@@ -18,7 +18,7 @@ public class ShimmerContentSkeletonTests
     private static readonly Color GrayColor = Color.FromRgb(0x80, 0x80, 0x80);
     private const string TwoWords = "Hello world";
 
-    private static SkUiShimmer Shimmer(SkUiView content, SkUiShimmerMode mode = SkUiShimmerMode.Bones) => new()
+    internal static SkUiShimmer Shimmer(SkUiView content, SkUiShimmerMode mode = SkUiShimmerMode.Bones) => new()
     {
         Content = content,
         Mode = mode,
@@ -27,12 +27,12 @@ public class ShimmerContentSkeletonTests
         Effect = SkUiShimmerEffect.None
     };
 
-    private static SkUiTestSurface Surface(SkUiView content, int width = 200, int height = 100) =>
+    internal static SkUiTestSurface Surface(SkUiView content, int width = 200, int height = 100) =>
         new(new SkUiContentView { Content = content, Background = Colors.White }, width, height);
 
-    private static SkUiLabel Label(string text = TwoWords) => new() { Text = text, FontFamily = SkUiTestHelpers.BundledFontFamily, FontSize = 20 };
+    internal static SkUiLabel Label(string text = TwoWords) => new() { Text = text, FontFamily = SkUiTestHelpers.BundledFontFamily, FontSize = 20 };
 
-    private static SkUiShimmerBoneDrawable Bones(ISkUiRenderable node) =>
+    internal static SkUiShimmerBoneDrawable Bones(ISkUiRenderable node) =>
         Assert.IsType<SkUiShimmerBoneDrawable>(node.RenderState.Node.Props.Drawable);
 
     private static void AssertNear(SKColor expected, SKColor actual, int tolerance = 3) =>
@@ -452,28 +452,6 @@ public class ShimmerContentSkeletonTests
     }
 
     [Fact]
-    public void ReducedMotionShowsStillBones()
-    {
-        using var _ = SkUiTestHelpers.UseBundledFont();
-        var reduce = SkUiMotion.ReduceMotion;
-        try
-        {
-            SkUiMotion.ReduceMotion = true;
-            var label = Label();
-            var shimmer = Shimmer(label);
-            shimmer.Effect = SkUiShimmerEffect.Wave;
-            using var surface = Surface(shimmer);
-            surface.Frame();
-            Assert.False(Bones(label).IsAnimated);
-            Assert.False(surface.NeedsFrame);
-        }
-        finally
-        {
-            SkUiMotion.ReduceMotion = reduce;
-        }
-    }
-
-    [Fact]
     public void ScreenReadersReadOneLoadingElement()
     {
         var shimmer = Shimmer(new SkUiVerticalStackLayout { Children = { new SkUiLabel { Text = "Name" }, new SkUiButton { Text = "Tap" } } });
@@ -670,5 +648,32 @@ public class ShimmerContentSkeletonTests
         look.SkeletonBones = (part, list) => list.Add(new SkUiSkeletonBone(part.Bounds));
         look.AddSkeletonBones(new SkUiSkeletonPart(SkUiSkeletonPartKind.TextLine, new SKRect(0, 0, 100, 20)), bones);
         Assert.Equal(new SKRect(0, 0, 100, 20), bones[0].Bounds);
+    }
+}
+
+/// <summary>Content skeletons with reduced motion: process-wide state, so nothing else may run meanwhile (a fade would not start).</summary>
+[Collection(GlobalStateCollection.Name)]
+public class ShimmerContentSkeletonGlobalStateTests
+{
+    [Fact]
+    public void ReducedMotionShowsStillBones()
+    {
+        using var _ = SkUiTestHelpers.UseBundledFont();
+        var reduce = SkUiMotion.ReduceMotion;
+        try
+        {
+            SkUiMotion.ReduceMotion = true;
+            var label = ShimmerContentSkeletonTests.Label();
+            var shimmer = ShimmerContentSkeletonTests.Shimmer(label);
+            shimmer.Effect = SkUiShimmerEffect.Wave;
+            using var surface = ShimmerContentSkeletonTests.Surface(shimmer);
+            surface.Frame();
+            Assert.False(ShimmerContentSkeletonTests.Bones(label).IsAnimated);
+            Assert.False(surface.NeedsFrame);
+        }
+        finally
+        {
+            SkUiMotion.ReduceMotion = reduce;
+        }
     }
 }
