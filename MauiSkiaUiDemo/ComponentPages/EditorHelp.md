@@ -515,7 +515,11 @@ that are off.
 
 ## VectorIconsDemoPage.File
 
-The `.svg` in `Source`, a `MauiAsset` under Resources/Raw. The gear and the check are all `currentColor`, so `Color` recolors them; the flag's pole follows `Color` and its flag keeps the color written in the file. The gradient cannot be drawn: the status shows the `LoadError` naming it.
+The `.svg` in `Source` of every icon on the page, a `MauiAsset` under Resources/Raw. The gear and the check are all `currentColor`, so `Color` recolors them; the flag's pole follows `Color` and its flag keeps the color written in the file. The gradient cannot be drawn: no icon shows, and the status shows the `LoadError` naming it. A debugger reports the exception behind it as first-chance; the loader catches it.
+
+## VectorIconsDemoPage.Size
+
+`SkUiVectorImageSource.Size`: the icon's longest edge in DIPs; 0 is the file's size. With `Aspect.Center` the preview draws the icon at this size. The other aspects scale it to the view, so `Size` only changes what the view measures: choose one and resize the preview to see the icon drawn again in exact pixels.
 
 ## VectorIconsDemoPage.Sizes
 

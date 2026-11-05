@@ -182,6 +182,8 @@ The reader works from any source that reads bytes (`Source="https://…/check.sv
 
 A file cannot reach outside itself: no element makes a request or reads a file, a DTD is skipped, and its entities are not expanded. Limits: 1 MiB, 20,000 elements, 64 levels of nesting. Beyond them it is a `LoadError`.
 
+Try it in the samples app ("Icons from SVG files") and the demo's gallery ("SkUiImage: SVG icons at runtime").
+
 **When to use a `MauiImage` instead:** artwork with gradients or embedded images, app icons and splash screens, and native `Image` views. An `.svg` `MauiImage` is a PNG made at build time, which the reader never sees, so anything goes. Costs compared: [Performance.md](../Performance.md#vector-icons).
 
 ## Android XML drawables

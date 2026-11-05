@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!--
+  SVG icons drawn at runtime: settings rows from a list, icons in buttons, a color written in the file, and one file in
+  several sizes, all following the app's theme. The files are MauiAssets (Resources/Raw/icons). The code-behind
+  (VectorIconsSample.xaml.cs) has the page's description, the rows and the theme switch.
+-->
+<samples:SamplePage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+                    xmlns:sk="clr-namespace:MauiSkiaUi;assembly=MauiSkiaUi"
+                    xmlns:samples="clr-namespace:MauiSkiaUiSamples"
+                    xmlns:local="clr-namespace:MauiSkiaUiSamples.Samples.Controls"
+                    x:Class="MauiSkiaUiSamples.Samples.Controls.VectorIconsSample"
+                    x:DataType="local:VectorIconsSample">
+
+    <sk:SkUiVerticalStackLayout Spacing="16" Padding="16"
+                                BackgroundColor="{AppThemeBinding Light={x:Static samples:SampleColors.Page}, Dark=#11181C}">
+
+        <sk:SkUiHorizontalStackLayout Spacing="12">
+            <sk:SkUiSwitch x:Name="DarkTheme" Toggled="OnDarkThemeToggled" VerticalOptions="Center" />
+            <sk:SkUiLabel Text="Dark theme" FontSize="16" VerticalOptions="Center"
+                          TextColor="{AppThemeBinding Light={x:Static samples:SampleColors.Ink}, Dark=White}" />
+        </sk:SkUiHorizontalStackLayout>
+
+        <!-- Rows from a list: the file comes from a binding, and the color from the theme. -->
+        <sk:SkUiBorder StrokeThickness="0" StrokeShape="RoundRectangle 12"
+                       BackgroundColor="{AppThemeBinding Light=White, Dark=#1F2933}">
+            <sk:SkUiVerticalStackLayout BindableLayout.ItemsSource="{Binding Rows}">
+                <BindableLayout.ItemTemplate>
+                    <DataTemplate x:DataType="local:IconRow">
+                        <sk:SkUiGrid ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="12" Padding="14,12">
+                            <!-- The view is the file's size (24): the icon loads once, for the screen's density. -->
+                            <sk:SkUiImage VerticalOptions="Center">
+                                <sk:SkUiImage.Source>
+                                    <sk:SkUiVectorImageSource Source="{Binding Icon}"
+                                                              Color="{AppThemeBinding Light={x:Static samples:SampleColors.Accent}, Dark=#5EEAD4}" />
+                                </sk:SkUiImage.Source>
+                            </sk:SkUiImage>
+                            <sk:SkUiLabel Grid.Column="1" Text="{Binding Title}" FontSize="16" VerticalOptions="Center"
+                                          TextColor="{AppThemeBinding Light={x:Static samples:SampleColors.Ink}, Dark=White}" />
+                            <sk:SkUiLabel Grid.Column="2" Text="{Binding Value}" FontSize="14" VerticalOptions="Center"
+                                          TextColor="{AppThemeBinding Light={x:Static samples:SampleColors.Caption}, Dark=#9CA3AF}" />
+                            <!-- Size sets the longest edge in DIPs, as FontImageSource's Size. -->
+                            <sk:SkUiImage Grid.Column="3" VerticalOptions="Center">
+                                <sk:SkUiImage.Source>
+                                    <sk:SkUiVectorImageSource Source="icons/chevron.svg" Size="16"
+                                                              Color="{AppThemeBinding Light={x:Static samples:SampleColors.Caption}, Dark=#9CA3AF}" />
+                                </sk:SkUiImage.Source>
+                            </sk:SkUiImage>
+                        </sk:SkUiGrid>
+                    </DataTemplate>
+                </BindableLayout.ItemTemplate>
+            </sk:SkUiVerticalStackLayout>
+        </sk:SkUiBorder>
+
+        <!-- In other image properties: a button's icon, and icon-only buttons drawn inside their padding. -->
+        <sk:SkUiHorizontalStackLayout Spacing="12">
+            <sk:SkUiButton Text="Save" TextColor="White" Background="{x:Static samples:SampleColors.Accent}" VerticalOptions="Center">
+                <sk:SkUiButton.ImageSource>
+                    <sk:SkUiVectorImageSource Source="icons/check.svg" Color="White" Size="20" />
+                </sk:SkUiButton.ImageSource>
+            </sk:SkUiButton>
+            <sk:SkUiImageButton WidthRequest="48" HeightRequest="48" Padding="12" VerticalOptions="Center">
+                <sk:SkUiImageButton.Source>
+                    <sk:SkUiVectorImageSource Source="icons/heart.svg" Color="#E11D48" />
+                </sk:SkUiImageButton.Source>
+            </sk:SkUiImageButton>
+            <sk:SkUiImageButton WidthRequest="48" HeightRequest="48" Padding="12" VerticalOptions="Center">
+                <sk:SkUiImageButton.Source>
+                    <sk:SkUiVectorImageSource Source="icons/share.svg"
+                                              Color="{AppThemeBinding Light={x:Static samples:SampleColors.Ink}, Dark=White}" />
+                </sk:SkUiImageButton.Source>
+            </sk:SkUiImageButton>
+            <sk:SkUiImageButton WidthRequest="48" HeightRequest="48" Padding="12" VerticalOptions="Center">
+                <sk:SkUiImageButton.Source>
+                    <sk:SkUiVectorImageSource Source="icons/trash.svg"
+                                              Color="{AppThemeBinding Light={x:Static samples:SampleColors.Ink}, Dark=White}" />
+                </sk:SkUiImageButton.Source>
+            </sk:SkUiImageButton>
+        </sk:SkUiHorizontalStackLayout>
+
+        <!-- One file in several sizes, sharp in each. Only the ring is currentColor: the green is written in the file. -->
+        <sk:SkUiHorizontalStackLayout Spacing="16">
+            <sk:SkUiImage WidthRequest="24" HeightRequest="24" VerticalOptions="Center">
+                <sk:SkUiImage.Source>
+                    <sk:SkUiVectorImageSource Source="icons/status.svg"
+                                              Color="{AppThemeBinding Light={x:Static samples:SampleColors.Ink}, Dark=White}" />
+                </sk:SkUiImage.Source>
+            </sk:SkUiImage>
+            <sk:SkUiImage WidthRequest="48" HeightRequest="48" VerticalOptions="Center">
+                <sk:SkUiImage.Source>
+                    <sk:SkUiVectorImageSource Source="icons/status.svg"
+                                              Color="{AppThemeBinding Light={x:Static samples:SampleColors.Ink}, Dark=White}" />
+                </sk:SkUiImage.Source>
+            </sk:SkUiImage>
+            <sk:SkUiImage WidthRequest="96" HeightRequest="96" VerticalOptions="Center">
+                <sk:SkUiImage.Source>
+                    <sk:SkUiVectorImageSource Source="icons/status.svg"
+                                              Color="{AppThemeBinding Light={x:Static samples:SampleColors.Ink}, Dark=White}" />
+                </sk:SkUiImage.Source>
+            </sk:SkUiImage>
+        </sk:SkUiHorizontalStackLayout>
+    </sk:SkUiVerticalStackLayout>
+</samples:SamplePage>

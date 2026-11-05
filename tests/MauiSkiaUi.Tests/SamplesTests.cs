@@ -56,6 +56,28 @@ public class SamplesTests
     }
 
     [Fact]
+    public void EveryShippedIconIsDrawnByTheReader()
+    {
+        var samples = Path.GetDirectoryName(VectorIconsSample.Info.SourcePath)!;
+        var root = Path.GetFullPath(Path.Combine(samples, "..", "..", ".."));
+        var folder = Path.Combine(root, "MauiSkiaUiSamples", "Resources", "Raw", "icons");
+        var files = Directory.GetFiles(folder, "*.svg");
+        Assert.NotEmpty(files);
+        foreach (var file in files)
+        {
+            var decoded = SkUiImageDecoder.Decode(File.ReadAllBytes(file), maxPixels: new SKSizeI(48, 48));
+            Assert.True(decoded.IsVector, file);
+            using var bitmap = SKBitmap.FromImage(decoded.Frames[0]);
+            Assert.Contains(bitmap.Pixels, pixel => pixel.Alpha > 0);
+        }
+        using var dispatcher = SkUiTestHelpers.UseTestDispatcher();
+        var names = new VectorIconsSample().Rows.Select(static row => row.Icon)
+            .Concat(System.Text.RegularExpressions.Regex.Matches(File.ReadAllText(Path.ChangeExtension(VectorIconsSample.Info.SourcePath, null)), "icons/\\w+\\.svg")
+                .Select(static match => match.Value));
+        Assert.All(names, name => Assert.True(File.Exists(Path.Combine(folder, "..", name)), name));
+    }
+
+    [Fact]
     public void TheEdgeToEdgeOrdersFollowTheInsetsThroughARotation()
     {
         using var dispatcher = SkUiTestHelpers.UseTestDispatcher();

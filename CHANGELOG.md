@@ -25,7 +25,7 @@ Publishing (the NuGet publish workflow, [docs/Releasing.md](docs/Releasing.md)) 
   - Core: `SkUiImageSource.FromVector(source, color, size)` and `FromVectorText(svg, color, size)`.
 
   - Once loaded, an icon costs what a PNG of its size does: [Performance.md](docs/Performance.md#vector-icons).
-  - The gallery's new "SVG icons at runtime" page; how to use them: [SkUiImage.md](docs/controls/SkUiImage.md#vector-icons), and moving icons over: [Migration.md](docs/Migration.md#icons-fontimagesource-tint-behaviors-mauiimage-svgs).
+  - The samples app's "Icons from SVG files" example and the gallery's "SVG icons at runtime" page; how to use them: [SkUiImage.md](docs/controls/SkUiImage.md#vector-icons), and moving icons over: [Migration.md](docs/Migration.md#icons-fontimagesource-tint-behaviors-mauiimage-svgs).
 
 ### Fixes
 
