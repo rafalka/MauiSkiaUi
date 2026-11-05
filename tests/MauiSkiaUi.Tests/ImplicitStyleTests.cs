@@ -23,6 +23,7 @@ public class ImplicitStyleTests
     {
         var data = new TheoryData<Type>();
         foreach (var type in typeof(SkUiView).Assembly.GetExportedTypes()
+                     .Concat(typeof(Markdown.SkUiMarkdownView).Assembly.GetExportedTypes())
                      .Where(type => type.IsClass && !type.IsAbstract && typeof(SkUiView).IsAssignableFrom(type))
                      .OrderBy(type => type.FullName, StringComparer.Ordinal))
         {

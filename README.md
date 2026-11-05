@@ -77,6 +77,8 @@ dotnet add package SkiaUi.Maui.CommunityToolkit
 builder.UseMauiCommunityToolkit().UseSkiaUi().UseSkiaUiCommunityToolkit();
 ```
 
+Showing Markdown? **[SkiaUi.Maui.Markdown](https://www.nuget.org/packages/SkiaUi.Maui.Markdown/)** draws a document on both layers, and **[SkiaUi.Maui.Markdown.Math](https://www.nuget.org/packages/SkiaUi.Maui.Markdown.Math/)** adds formulas. Nothing a document says happens by itself: [SkUiMarkdownView](docs/controls/SkUiMarkdownView.md).
+
 ## Quick start
 
 ```xml

@@ -125,6 +125,8 @@
 	<ItemGroup>
 		<!-- Drawn pickers show their lists in CommunityToolkit.Maui's popups. -->
 		<ProjectReference Include="..\MauiSkiaUi.CommunityToolkit\MauiSkiaUi.CommunityToolkit.csproj" />
+		<!-- The Markdown view and its formulas. -->
+		<ProjectReference Include="..\MauiSkiaUi.Markdown.Math\MauiSkiaUi.Markdown.Math.csproj" />
 	</ItemGroup>
 
 	<!-- The component pages' (?) popups: EditorHelp.md and the XML documentation of SkiaUi and MAUI's controls. -->

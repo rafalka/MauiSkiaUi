@@ -29,6 +29,7 @@ Shared pipelines: [Architecture.md](../design/Architecture.md) · [LayoutSystem.
 | `SkUiButton` | [SkUiButton.md](SkUiButton.md) | Button |
 | `SkUiImage` | [SkUiImage.md](SkUiImage.md) | Image |
 | `SkUiImageButton` | [SkUiImageButton.md](SkUiImageButton.md) | ImageButton |
+| `SkUiMarkdownView` / `SkUiCoreMarkdown` | [SkUiMarkdownView.md](SkUiMarkdownView.md) | — (package `SkiaUi.Maui.Markdown`) |
 | `SkUiAvatarView` / `SkUiCoreAvatar` | [SkUiAvatarView.md](SkUiAvatarView.md) | Community Toolkit `AvatarView` (plus initials of the text, colors by the text, a status badge) |
 | `SkUiActivityIndicator` | [SkUiActivityIndicator.md](SkUiActivityIndicator.md) | ActivityIndicator |
 | `SkUiSwitch` | [SkUiSwitch.md](SkUiSwitch.md) | Switch |
@@ -53,6 +54,7 @@ Shared pipelines: [Architecture.md](../design/Architecture.md) · [LayoutSystem.
 | Control | Doc | MAUI counterpart |
 | --- | --- | --- |
 | `SkUiContentView` | [SkUiContentView.md](SkUiContentView.md) | ContentView (`ContentTemplate`, `ControlTemplate`, content loaded when shown) |
+| `SkUiZoomView` / `SkUiCoreZoomView` | [SkUiZoomView.md](SkUiZoomView.md) | — |
 | `SkUiContentPresenter` | [SkUiContentPresenter.md](SkUiContentPresenter.md) | ContentPresenter (in drawn `ControlTemplate`s) |
 | `SkUiAlternateContentView` | [SkUiAlternateContentView.md](SkUiAlternateContentView.md) | — (content or alternate content, animated switches) |
 | `SkUiShimmer` / `SkUiCoreShimmer` | [SkUiShimmer.md](SkUiShimmer.md) | — (a skeleton of your views, or of the content itself, while loading: wave, pulse or color effects on the render thread, every shimmer in phase) |

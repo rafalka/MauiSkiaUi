@@ -540,3 +540,19 @@ Sets the app's theme. The icons below use `AppThemeBinding` on `Color`, so they 
 ## VectorIconsDemoPage.Follows the theme
 
 `Color="{AppThemeBinding Light=Black, Dark=White}"` on a tile whose background follows the theme too.
+
+## MarkdownDemoPage.Text
+
+The Markdown the view shows. Edit it to try any part: only the blocks that changed are built again, and anything the view cannot build shows as plain text with a `Warning`.
+
+## MarkdownDemoPage.AllowRemoteImages
+
+Whether `http` and `https` images load. Off by default: an image URL reaches its server as soon as it draws, which can track a reader or carry data out of a conversation. The alt text shows until it is on.
+
+## MarkdownDemoPage.AllowImageZoom
+
+Whether tapping a picture opens it, zoomable, through the app's popup presenter. `ImageTapped` is raised either way.
+
+## MarkdownDemoPage.CodeFontSize
+
+`SkUiMarkdownStyle.CodeFontSize`, set by copying the style with `with`: the document is built again.

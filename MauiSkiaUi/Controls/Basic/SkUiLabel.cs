@@ -627,11 +627,27 @@ public class SkUiLabel : SkUiView, ISkUiFontElement, ISkUiBorderElement
             var transform = span.TextTransform != TextTransform.Default ? span.TextTransform : _textTransform;
             // As MAUI: the span's own FontAutoScalingEnabled when set, else the label's.
             var autoScaling = span.IsSet(Span.FontAutoScalingEnabledProperty) ? span.FontAutoScalingEnabled : _fontAutoScalingEnabled;
-            builder.Add(SkUiTextTransform.Apply(span.Text ?? string.Empty, transform),
-                new SkUiTextSpanStyle(SkUiTypefaces.Resolve(family, attributes), SkUiFontScaling.ScaleFontSize(size, autoScaling), attributes, spacing, lineHeight),
+            var scaledSize = SkUiFontScaling.ScaleFontSize(size, autoScaling);
+            var inlineObject = SkUiSpan.GetInlineObject(span);
+            builder.Add(inlineObject is null ? SkUiTextTransform.Apply(span.Text ?? string.Empty, transform) : SkUiInlineObject.ReplacementText,
+                new SkUiTextSpanStyle(SkUiTypefaces.Resolve(family, attributes), scaledSize, attributes, spacing, lineHeight, SkUiSpan.GetBaselineShift(span) * scaledSize, inlineObject),
                 new SkUiTextSpanPaint(ToSkColor(span.TextColor ?? _textColor), span.BackgroundColor is { } background ? ToSkColor(background) : default, decorations));
         }
         return builder.Build();
+    }
+
+    /// <summary>The text screen readers read: an inline object reads as its span's text.</summary>
+    private string AccessibleRichText
+    {
+        get
+        {
+            if (_formattedText is not { } formatted)
+                return RichText.Text;
+            foreach (var span in formatted.Spans)
+                if (SkUiSpan.GetInlineObject(span) is not null)
+                    return string.Concat(formatted.Spans.Select(static part => part.Text));
+            return RichText.Text;
+        }
     }
 
     /// <summary>The <see cref="FormattedText"/> span drawn at <paramref name="point"/> (label coordinates), or <c>null</c>.</summary>
@@ -844,6 +860,6 @@ public class SkUiLabel : SkUiView, ISkUiFontElement, ISkUiBorderElement
     {
         base.OnPopulateSemantics(info);
         info.Role = SkUiSemanticsRole.Text;
-        info.Text = UsesRichText ? RichText.Text : _displayText;
+        info.Text = UsesRichText ? AccessibleRichText : _displayText;
     }
 }

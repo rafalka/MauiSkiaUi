@@ -29,6 +29,9 @@ internal readonly record struct SkUiHtmlStyle(
     /// <summary>Bold / italic the markup turns off (<c>font-weight: normal</c>), also when the label sets them.</summary>
     internal FontAttributes FontAttributesOff { get; init; }
 
+    /// <summary>How far the run sits above the baseline, as a fraction of its size (<c>sup</c>, <c>sub</c>).</summary>
+    internal double BaselineShift { get; init; }
+
     /// <summary>Decorations the markup turns off (<c>text-decoration: none</c>), also when the label sets them.</summary>
     internal TextDecorations DecorationsOff { get; init; }
 
@@ -73,7 +76,7 @@ internal readonly record struct SkUiHtmlRun(string Text, SkUiHtmlStyle Style);
 /// no dependencies, never throws (unparsable markup shows as its raw text).
 /// <para>
 /// Supported: <c>b</c> / <c>strong</c>, <c>i</c> / <c>em</c> / <c>cite</c> / <c>dfn</c>, <c>u</c> / <c>ins</c>,
-/// <c>s</c> / <c>strike</c> / <c>del</c>, <c>big</c> / <c>small</c>, <c>sub</c> / <c>sup</c> (smaller, no baseline shift),
+/// <c>s</c> / <c>strike</c> / <c>del</c>, <c>big</c> / <c>small</c>, <c>sub</c> / <c>sup</c> (smaller, below and above the baseline),
 /// <c>h1</c>–<c>h6</c>, <c>tt</c> / <c>code</c> / <c>pre</c> (monospace; <c>pre</c> keeps whitespace), <c>font</c>
 /// (<c>color</c>, <c>face</c>, <c>size</c>), <c>a href</c> (links), <c>p</c>, <c>div</c>, <c>blockquote</c>, <c>br</c>,
 /// <c>hr</c>, <c>ul</c> / <c>ol</c> / <c>li</c> (bullets and numbers), and on any element a <c>style</c> with
@@ -170,9 +173,9 @@ public static class SkUiHtml
         foreach (var (text, style) in runs)
         {
             var attributes = style.Attributes(fontAttributes);
+            var size = SkUiFontScaling.ScaleFontSize(style.Size(fontSize), fontAutoScalingEnabled);
             builder.Add(text,
-                new SkUiTextSpanStyle(SkUiTypefaces.Resolve(style.FontFamily ?? fontFamily, attributes),
-                    SkUiFontScaling.ScaleFontSize(style.Size(fontSize), fontAutoScalingEnabled), attributes, characterSpacing, lineHeight),
+                new SkUiTextSpanStyle(SkUiTypefaces.Resolve(style.FontFamily ?? fontFamily, attributes), size, attributes, characterSpacing, lineHeight, style.BaselineShift * size),
                 new SkUiTextSpanPaint(SkUiToggleDrawing.ToSkColor(style.TextColor ?? textColor),
                     style.Background is { } background ? SkUiToggleDrawing.ToSkColor(background) : default, style.DecorationsOver(decorations)));
         }
@@ -502,8 +505,14 @@ public static class SkUiHtml
                 case "big":
                     style = Scaled(style, 1.25);
                     break;
-                case "small" or "sub" or "sup":
-                    style = Scaled(style, name == "small" ? 0.8 : 0.7);
+                case "small":
+                    style = Scaled(style, 0.8);
+                    break;
+                case "sub":
+                    style = Scaled(style, 0.7) with { BaselineShift = SkUiSpan.SubscriptShift };
+                    break;
+                case "sup":
+                    style = Scaled(style, 0.7) with { BaselineShift = SkUiSpan.SuperscriptShift };
                     break;
                 case "tt" or "code" or "kbd" or "samp" or "pre":
                     style = style with { FontFamily = MonospaceFamily };

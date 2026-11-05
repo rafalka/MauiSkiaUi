@@ -477,13 +477,26 @@ public class SkUiCoreLabel : SkUiCoreNode, ISkUiFontElement, ISkUiBorderElement
         {
             var attributes = span.FontAttributes ?? _fontAttributes;
             var transform = span.TextTransform != TextTransform.Default ? span.TextTransform : _textTransform;
-            builder.Add(SkUiTextTransform.Apply(span.Text, transform),
-                new SkUiTextSpanStyle(SkUiTypefaces.Resolve(span.FontFamily ?? _fontFamily, attributes), SkUiFontScaling.ScaleFontSize(span.FontSize ?? EffectiveFontSize, span.FontAutoScalingEnabled ?? _fontAutoScalingEnabled), attributes,
-                    span.CharacterSpacing ?? _characterSpacing, span.LineHeight ?? _lineHeight),
+            var size = SkUiFontScaling.ScaleFontSize(span.FontSize ?? EffectiveFontSize, span.FontAutoScalingEnabled ?? _fontAutoScalingEnabled);
+            builder.Add(span.InlineObject is null ? SkUiTextTransform.Apply(span.Text, transform) : SkUiInlineObject.ReplacementText,
+                new SkUiTextSpanStyle(SkUiTypefaces.Resolve(span.FontFamily ?? _fontFamily, attributes), size, attributes,
+                    span.CharacterSpacing ?? _characterSpacing, span.LineHeight ?? _lineHeight, span.BaselineShift * size, span.InlineObject),
                 new SkUiTextSpanPaint(ToSkColor(span.TextColor ?? _textColor), span.BackgroundColor is { } background ? ToSkColor(background) : default,
                     span.TextDecorations ?? _textDecorations));
         }
         return builder.Build();
+    }
+
+    /// <summary>The text screen readers read: an inline object reads as its span's text.</summary>
+    private string AccessibleRichText
+    {
+        get
+        {
+            foreach (var span in _spans)
+                if (span.InlineObject is not null)
+                    return string.Concat(_spans.Select(static part => part.Text));
+            return RichText.Text;
+        }
     }
 
     /// <summary>The span drawn at <paramref name="point"/> (label coordinates), or <c>null</c> (beside the text, or no spans).</summary>
@@ -936,6 +949,6 @@ public class SkUiCoreLabel : SkUiCoreNode, ISkUiFontElement, ISkUiBorderElement
     {
         base.OnPopulateSemantics(info);
         info.Role = SkUiSemanticsRole.Text;
-        info.Text = UsesRichText ? RichText.Text : _displayText;
+        info.Text = UsesRichText ? AccessibleRichText : _displayText;
     }
 }

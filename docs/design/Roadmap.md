@@ -82,10 +82,12 @@ One feature: an app's `.svg` icons drawn at runtime on both layers, through a sm
 
 ### 1.8.0: Markdown (planned)
 
+Built on the branch `1.8-implementation`, not released: [how to use it](../controls/SkUiMarkdownView.md), [what it costs](../Performance.md#markdown).
+
 One feature: a drawn Markdown view on both layers, in new optional packages, with no new dependency in `SkiaUi.Maui`. Steps, order, a spike's findings and open decisions: [ImplementationPlan-1.8.md](ImplementationPlan-1.8.md).
 
 - **View:** `SkUiMarkdownView` + `SkUiCoreMarkdown` in `SkiaUi.Maui.Markdown` on Markdig: text, quotes, alerts, code, lists, tables, images and links, styled by one style object over the color scheme; a growing text only rebuilds its tail.
-- **Untrusted documents:** nothing opens or loads by itself beyond what an image resolver allows, and hostile input cannot take the app down.
+- **Untrusted documents:** nothing opens by itself, remote images stay off until an app allows them, a document cannot read a local file, and hostile input cannot take the app down.
 - **Math:** block and inline LaTeX in `SkiaUi.Maui.Markdown.Math` on CSharpMath.
 - **In `SkiaUi.Maui`:** inline objects in text, a baseline shift on spans (real superscript and subscript) and a zoom view.
 

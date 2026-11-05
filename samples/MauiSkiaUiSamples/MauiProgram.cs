@@ -1,3 +1,4 @@
+using MauiSkiaUi.Markdown.Math;
 using CommunityToolkit.Maui;
 using MauiSkiaUi;
 using MauiSkiaUi.CommunityToolkit;
@@ -17,6 +18,8 @@ public static class MauiProgram
             .UseMauiCommunityToolkit()
             .UseSkiaUi()
             .UseSkiaUiCommunityToolkit()
+            // Formulas in Markdown views (the SkiaUi.Maui.Markdown.Math package), app-wide.
+            .UseSkiaUiMarkdownMath()
             .ConfigureFonts(fonts =>
             {
                 fonts.AddFont("OpenSans-Regular.ttf", SampleFonts.Regular);

@@ -12,5 +12,7 @@
   </Folder>
   <Project Path="MauiSkiaUi/MauiSkiaUi.csproj" />
   <Project Path="MauiSkiaUi.CommunityToolkit/MauiSkiaUi.CommunityToolkit.csproj" />
+  <Project Path="MauiSkiaUi.Markdown/MauiSkiaUi.Markdown.csproj" />
+  <Project Path="MauiSkiaUi.Markdown.Math/MauiSkiaUi.Markdown.Math.csproj" />
   <Project Path="MauiSkiaUiDemo/MauiSkiaUiDemo.csproj" />
 </Solution>

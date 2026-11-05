@@ -1,6 +1,6 @@
 # Releasing SkiaUi.Maui
 
-Every release publishes all of the repository's packages with one version: **SkiaUi.Maui** and **SkiaUi.Maui.CommunityToolkit** (which depends on SkiaUi.Maui of the same version). One changelog covers both. A new package added to the release loop of the pack and publish workflows needs, the first time, a nuget.org Trusted Publishing policy that covers it (or the push of its first version fails).
+Every release publishes all of the repository's packages with one version: **SkiaUi.Maui**, **SkiaUi.Maui.CommunityToolkit** and **SkiaUi.Maui.Markdown** (which depend on SkiaUi.Maui of the same version), and **SkiaUi.Maui.Markdown.Math** (which depends on SkiaUi.Maui.Markdown of the same version). One changelog covers them all. A new package added to the release loop of the pack and publish workflows needs, the first time, a nuget.org Trusted Publishing policy that covers it (or the push of its first version fails).
 
 ## Branches and versions
 

@@ -32,6 +32,9 @@ internal static class SkUiTestHelpers
     /// </summary>
     public static IDisposable UseTestDispatcher() => TestDispatcherProvider.Enable();
 
+    /// <summary>As <see cref="UseTestDispatcher()"/>, with <paramref name="dispatcher"/> answering.</summary>
+    public static IDisposable UseTestDispatcher(IDispatcher dispatcher) => TestDispatcherProvider.Enable(dispatcher);
+
     /// <summary>The lines the text engine breaks <paramref name="text"/> into for a stock <paramref name="mode"/>, as strings.</summary>
     public static IReadOnlyList<string> BreakLines(string text, double width, LineBreakMode mode, SKTypeface typeface, double fontSize = 16, int maxLines = -1, double characterSpacing = 0)
     {
@@ -187,13 +190,13 @@ internal sealed class SkUiTestSurface : IDisposable
 /// </summary>
 internal sealed class TestDispatcherProvider : IDispatcherProvider
 {
-    private static readonly AsyncLocal<TestDispatcher?> _dispatcher = new();
+    private static readonly AsyncLocal<IDispatcher?> _dispatcher = new();
     private static readonly object Gate = new();
     private static bool _installed;
 
     public IDispatcher? GetForCurrentThread() => _dispatcher.Value;
 
-    public static IDisposable Enable()
+    public static IDisposable Enable(IDispatcher? dispatcher = null)
     {
         lock (Gate)
         {
@@ -203,7 +206,7 @@ internal sealed class TestDispatcherProvider : IDispatcherProvider
                 _installed = true;
             }
         }
-        _dispatcher.Value = new TestDispatcher();
+        _dispatcher.Value = dispatcher ?? new TestDispatcher();
         return new Scope();
     }
 
@@ -215,7 +218,7 @@ internal sealed class TestDispatcherProvider : IDispatcherProvider
     /// <summary>Runs the delayed work queued on this flow's test dispatcher so far (it never runs by itself).</summary>
     public static void RunDelayed()
     {
-        if (_dispatcher.Value is not { } dispatcher)
+        if (_dispatcher.Value is not TestDispatcher dispatcher)
             return;
         var pending = dispatcher.Delayed.ToArray();
         dispatcher.Delayed.Clear();

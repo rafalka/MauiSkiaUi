@@ -100,6 +100,8 @@ Status: **Shipped** (in the current release line), **Partly** (shipped, with ope
 | FR-31 | Shimmer (skeleton loading) | Shipped | [SkUiShimmer](../controls/SkUiShimmer.md) |
 | FR-32 | Carousel and indicator view | Shipped | [SkUiCarouselView](../controls/SkUiCarouselView.md) |
 | FR-33 | Calendar | Open | [Roadmap](Roadmap.md#new-controls-and-packages) |
+| FR-34 | Markdown view, safe with untrusted documents (optional packages) | Built for 1.8 | [SkUiMarkdownView](../controls/SkUiMarkdownView.md) |
+| FR-35 | Zoom view | Built for 1.8 | [SkUiZoomView](../controls/SkUiZoomView.md) |
 
 ### Core layer (FR-C)
 

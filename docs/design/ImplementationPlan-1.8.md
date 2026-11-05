@@ -2,7 +2,7 @@
 
 **Goal:** a drawn Markdown view on both layers, in a new optional package, `SkiaUi.Maui.Markdown`, that shows a document the same way on every platform without a platform view per paragraph. A document from the network can neither reach anything it should not nor take the app down. `SkiaUi.Maui` gets no new dependency, and an app that does not use the package pays nothing.
 
-**Scope:** headings, paragraphs, bold, italic, strikethrough, highlight, inserted text, superscript and subscript, inline code, quotes, alerts, containers, fenced and indented code with a copy button, rules, nested and task lists, pipe and grid tables, links, email links and autolinks, emoji shortcodes, footnotes, definition lists, images (local, remote, base64, SVG, with size attributes), block and inline math, a tap-to-zoom image popup, and light and dark colors. Nothing here is started. What stays out is under [Not included](#not-included).
+**Scope:** headings, paragraphs, bold, italic, strikethrough, highlight, inserted text, superscript and subscript, inline code, quotes, alerts, containers, fenced and indented code with a copy button, rules, nested and task lists, pipe and grid tables, links, email links and autolinks, emoji shortcodes, footnotes, definition lists, images (local, remote, base64, SVG, with size attributes), block and inline math, a tap-to-zoom image popup, and light and dark colors. What stays out is under [Not included](#not-included).
 
 **Baseline:** .NET MAUI 10.0.120 (or the latest 10.0.x when 1.8 ships), SkiaSharp 4.154.0, Markdig 1.6.0, CSharpMath.Rendering 0.5.1, branch `1.8-implementation` from `devel` after 1.7.0. What was planned for 1.8 before (performance, tiles, Core containers, password reveal) moved to [1.9](ImplementationPlan-1.9.md). What has shipped is in the [changelog](../../CHANGELOG.md).
 
@@ -13,6 +13,14 @@
 - A feature a view does not use costs nothing per frame (`scripts/bench.sh --baseline v1.7.0`).
 - Like `SkiaUi.Maui.CommunityToolkit`, the package uses only public API, with no `InternalsVisibleTo` to it. What it needs from the engine becomes public API in [Phase X](#phase-x--engine-additions-in-skiauimaui).
 - Content is never dropped: a block the builder does not know shows its source text. Bad input never throws into the app.
+
+## Status
+
+Built on `1.8-implementation`: phases P, B, I, U, M, X1, X2 and Z. Not built: V2 and X3 (step 12), which nothing has asked for. Images among text still cut the paragraph; X1 could place them in the line later.
+
+G1 and V1 so far: the Markdown scenario with formulas passes under Native AOT on Mac Catalyst, and fully trimmed on the Galaxy S9, with no trim or AOT warnings from SkiaUi. Numbers: [Performance.md](../Performance.md#markdown). Assemblies before trimming: Markdig 0.5 MB, CSharpMath 1.8 MB with its fonts.
+
+Still open before release: the iPhone 8 and Windows; app size with and without each package on each platform; the LaTeX depth that overflows on those devices' UI thread (the guard's limits come from the 512 KB stack test, not from them; formulas are typeset on a background thread and drawn on the UI thread); the licenses of CSharpMath's bundled fonts, which the package does not state; a screen reader pass.
 
 ## What a spike found
 
@@ -57,16 +65,17 @@ Found in this repository:
 ```csharp
 var view = new SkUiCoreMarkdown()
     .SetText(body)
-    .SetStyle(SkUiMarkdownStyle.Default with { CodeFontSize = 13 });
+    .SetMarkdownStyle(SkUiMarkdownStyle.Default with { CodeFontSize = 13 });
 view.LinkTapped += OnLink;
 ```
 
 | Member | Meaning |
 | --- | --- |
 | `Text` | The Markdown |
-| `Style` | A `SkUiMarkdownStyle`: an immutable record whose `null` values come from `SkUiColorScheme` and the look |
+| `MarkdownStyle` | A `SkUiMarkdownStyle`: an immutable record whose `null` values come from `SkUiColorScheme` and the look. Not `Style`, which is MAUI's on the SkUi layer |
 | `LinkTapped`, `LinkTappedCommand` | A link's target, `mailto:` included, as on HTML labels. Nothing opens by itself |
 | `ImageTapped`, `ImageTappedCommand` | An image's source and alt text; the app decides what happens until Phase Z |
+| `AllowRemoteImages` | Whether `http` and `https` images load; off by default ([D8](#decisions)) |
 | `ImageResolver` | `Func<string, SkUiImageSource?>`: replaces the default rule of I1; `null` shows the alt text |
 | `CodeHighlighter` | Optional: code and language in, `SkUiCoreSpan`s out. No tokenizer ships |
 | `MathRenderer` | Set by the math package's `UseMath()`; without it a formula shows its source in the code style |
@@ -105,7 +114,7 @@ view.LinkTapped += OnLink;
 ## Phase I — Images
 
 - **I1 What a URL may load** (before any remote document is tried in the demo). Size: S.
-  - Default rule: `http` and `https` load through `FromUri`. `data:` image URLs decode through `FromStream`, up to a size limit. A bare relative name (no scheme, no leading `/`, no `..`) goes through `FromFile`, so an app's `MauiImage` or `MauiAsset` works. Everything else, absolute paths and `file:` included, shows the alt text.
+  - Default rule: `http` and `https` load through `FromUri` only with `AllowRemoteImages` ([D8](#decisions)). `data:` image URLs decode through `FromStream`, up to a size limit. A bare relative name (no scheme, no leading `/`, no `..`) goes through `FromFile`, so an app's `MauiImage` or `MauiAsset` works. Everything else, absolute paths and `file:` included, shows the alt text.
   - `ImageResolver` replaces the rule. Tests for each scheme and for traversal.
 - **I2 Images in the flow.** Size: M.
   - Alone in a paragraph: a block image, fitted to the width, honoring the `width`, `height`, `aspect`, `horizontal` and `vertical` attributes (`{width=200 aspect=AspectFit}`). Only images in a paragraph (a row of badges): `SkUiCoreWrapLayout`. Images among text: the paragraph splits into text and image blocks, until X1.
@@ -116,7 +125,7 @@ view.LinkTapped += OnLink;
 ## Phase U — Updates and hostile input
 
 - **U1 Reusing blocks.** A new text is parsed whole, and top-level blocks with the same source and style keep their nodes, so a streamed answer (a growing text, as from an LLM) only rebuilds its tail. Tests count recorded pictures per append. Size: M.
-- **U2 Large input off the UI thread.** Up to a threshold, parsed in place so the first frame has content; above it, parsed on a background thread with the latest text winning. The threshold comes from G1's numbers. Size: S.
+- **U2 Nothing is parsed or built on the UI thread.** Parsing and creating Core nodes run on a background thread with the latest text winning; only putting them in the tree, measuring and recording run on the UI thread. An app can opt in to building in place for text it trusts. Size: S.
 - **U3 Hostile documents** (a release blocker). Size: S.
   - Any parse exception or a nesting past the builder's cap: the text shows as a plain label, with a `SkUiDiagnostics` warning. Limits on input length, cells per table and images per document, all in the style or as constants documented on the control page.
   - Tests with the spike's documents, on a 512 KB stack as well, including inlines nested close to Markdig's limit of 10,240: they parse, so they reach the builder.
@@ -185,7 +194,7 @@ Text selection (labels have none; a separate engine feature); a bundled syntax h
 
 ## Decisions
 
-Proposed unless marked **open**.
+Proposed unless marked **agreed**.
 
 - **D1 A separate package.** `SkiaUi.Maui` has no parser dependency and an app without Markdown should not get one. It follows the one-version rule ([Releasing.md](../Releasing.md)).
 - **D2 Built on Core nodes.** A document creates hundreds of nodes and Core trees build about three times faster, and the SkUi view is a host around the same engine, so both layers stay at parity by construction. Core's first frame is not faster on devices today ([roadmap](Roadmap.md#architecture-and-performance)), so V1 measures rather than assumes the gain.
@@ -193,8 +202,8 @@ Proposed unless marked **open**.
 - **D4 One link event.** `mailto:` is a link with a target; no second event for email. Nothing opens by itself, as on HTML labels.
 - **D5 Raw HTML shows as text.** `DisableHtml` in the pipeline. Rendering it through `SkUiHtml` does not work for tags split across inlines, and untrusted documents should not gain markup. Can be revisited if a real app needs it.
 - **D6 Math in its own package.** CSharpMath brings fonts and code most apps never use, and its AOT status is the only one not declared. Markdown exposes the `MathRenderer` hook, so the two stay separate.
-- **D7 Open: inline math before X1.** Proposed: the source in the code style until X1 exists, since a paragraph split around a formula breaks wrapping, bidi and justification. The alternative, a wrap layout of segments, ships sooner and looks worse.
-- **D8 Open: remote images by default.** Proposed: load them, as Markdown readers do, with `ImageResolver` to block or rewrite them, and a clear warning on the control page. The risk is real: an image URL in a chat message or an LLM's answer reaches its server as soon as it draws, which can track a reader or carry data out of a conversation. The alternative is off by default, which is safer and surprises everyone once.
+- **D7 Inline math before X1.** Agreed: the source in the code style until X1 exists, since a paragraph split around a formula breaks wrapping, bidi and justification. X1 is in 1.8, so with the math package a formula is drawn in its line; without it, it shows its source.
+- **D8 Remote images by default.** Agreed: off, with `AllowRemoteImages` to turn them on and `ImageResolver` to block or rewrite them. An image URL in a chat message or an LLM's answer reaches its server as soon as it draws, which can track a reader or carry data out of a conversation. It surprises everyone once, so the control page says it first and the alt text shows meanwhile.
 - **D9 Zoom last.** `ImageTapped` covers apps until then, and Z1 is worth designing as a general control rather than as part of this view.
 - **D10 Markdown is 1.8.** Agreed. It takes the place of what was planned for 1.8, which moved to [1.9](ImplementationPlan-1.9.md).
 
@@ -203,5 +212,5 @@ Proposed unless marked **open**.
 - Headless suite and memory-leak scenarios pass; 0 build warnings with the trim and AOT analyzers in every package.
 - `SkiaUi.Maui`'s dependencies are unchanged, and an app without the package restores and draws as before. `scripts/bench.sh --baseline v1.7.0` shows no regression in the existing scenarios.
 - None of the hostile documents, Markdown or LaTeX, ends the process or throws into the app, on the S9 and the iPhone 8 as well as headless, on small stacks as well as the UI thread.
-- No document can open a link or read a local file by itself, and with `ImageResolver` blocking, no document makes a network request.
+- No document can open a link or read a local file by itself, and unless an app sets `AllowRemoteImages` or an `ImageResolver`, no document makes a network request.
 - The gallery page checked on iOS, Android, Mac Catalyst and Windows, in light and dark and right to left, with a screen reader on one platform per family; under Native AOT on Mac Catalyst (CI). V1's numbers in [Performance.md](../Performance.md).

@@ -29,6 +29,7 @@ public static class LeakScenarios
         new("TogglesTapped", Controls, "Switch, check boxes (one three-state) and a radio group, each tapped several times.", () => new TogglesRun()),
         new("SlidersAndProgress", Controls, "Horizontal, vertical and Core sliders dragged and tapped; progress bars animating and indeterminate at close.", () => new SlidersRun()),
         new("LabelsReshaped", Controls, "Wrapped, truncated, RTL, Arabic, emoji and Simple / Shaped labels; text and width changed repeatedly; formatted text (drawn and Core) with tappable spans bound to a long-lived command, tapped, restyled and replaced; HTML text with links (both layers), tapped and changed.", () => new LabelsRun()),
+        new("MarkdownRebuilt", Controls, "Markdown views (drawn and Core) with tappable links, images and code buttons bound to a long-lived command, a link tapped, the text streamed and the style changed; they listen to the app-wide color scheme.", () => new MarkdownRun()),
         new("ShapesRestyled", Controls, "Every shape (drawn and Core) and borders shaped by them, painted with long-lived shared brushes, dash arrays and a stroke shape; brushes, gradient stops, points, path data and stroke shapes changed; a border tapped.", () => new ShapesRun()),
         new("EffectsRestyled", Controls, "Gradient backgrounds, shadows (outline and content shadows, on both layers) and clips from long-lived shared brushes, geometries and Core shadows; brushes, gradient stops, shadows and clips changed while shown; shadowed cards scrolled and animated.", () => new EffectsRun()),
         new("ContentTemplated", Controls, "Buttons with images (a long-lived shared icon, edited while shown; stream images; content layouts changed) on both layers; radio buttons with text and view content, bordered, and with a long-lived shared ControlTemplate whose presenters show the content; tapped, content swapped, the template removed and applied again; Core radio buttons in their own rows grouped by `SkUiCoreRadioButtons.Group` with a long-lived callback, tapped.", () => new ContentRun()),
@@ -280,6 +281,61 @@ public static class LeakScenarios
             [new GradientStop(LeakColors.SampleA, 0), new GradientStop(LeakColors.SampleB, 1)], new Point(0, 0), new Point(1, 1));
         public static readonly Microsoft.Maui.Controls.Shapes.RoundRectangle StrokeShape = new() { CornerRadius = 12 };
         public static readonly DoubleCollection Dashes = [4, 2];
+    }
+
+    private sealed class MarkdownRun : LeakScenarioRun
+    {
+        private const string Document = "# Title\n\nA [link](https://example.com) and `code`.\n\n- [x] task\n- item\n\n```\ncode\n```\n\n| a | b |\n|---|---|\n| 1 | 2 |\n\n![alt](/blocked.png)\n\n> quote\n\nArea: $\\pi r^2$\n\n$$\n\\frac{a}{\\sqrt{b}}\n$$";
+        private Markdown.SkUiMarkdownView? _link;
+        private Markdown.SkUiMarkdownView? _view;
+        private Markdown.SkUiCoreMarkdown? _core;
+        private Markdown.SkUiMarkdownStyle? _style;
+        private int _taps;
+
+        public override View Build(LeakScenarioContext context)
+        {
+            // Headless there is no UI thread to come back to, so a background build would finish on a pool thread, across the test's frames: there it builds in place.
+            var style = context.IsDevice ? Markdown.SkUiMarkdownStyle.Default : Markdown.SkUiMarkdownStyle.Default with { MaximumInPlaceParseLength = int.MaxValue };
+            // All link, so a tap in its middle lands on the link.
+            _link = new Markdown.SkUiMarkdownView { MarkdownStyle = style, Text = "[" + string.Concat(Enumerable.Repeat("a long link ", 40)) + "](x:y)", LinkTappedCommand = LeakCommands.Shared };
+            _link.LinkTapped += (_, _) => _taps++;
+            _view = new Markdown.SkUiMarkdownView { MarkdownStyle = style, Text = Document, LinkTappedCommand = LeakCommands.Shared, ImageTappedCommand = LeakCommands.Shared };
+            _core = new Markdown.SkUiCoreMarkdown().SetMarkdownStyle(style).SetMathRenderer(Markdown.Math.SkUiMarkdownMath.Renderer).SetText(Document).SetLinkTappedCommand(LeakCommands.Shared);
+            _style = style;
+            return new SkUiVerticalStackLayout { Children = { _link, _view, new SkUiCoreHost().SetContent(_core) } };
+        }
+
+        public override async Task InteractAsync(LeakScenarioContext context)
+        {
+            await context.WaitForAsync(_link!.WhenUpdated);
+            await context.WaitForAsync(_view!.WhenUpdated);
+            await context.SettleAsync();
+            await context.TapAsync(_link);
+            for (var length = Document.Length / 2; length <= Document.Length; length += 20)
+            {
+                _view.Text = Document[..length];
+                _core!.SetText(Document[..length]);
+                await context.SettleAsync();
+            }
+            _view.MarkdownStyle = _style! with { BlockSpacing = 20 };
+            await context.WaitForAsync(_view.WhenUpdated);
+            await context.SettleAsync();
+        }
+
+        public override string? CheckInteraction()
+        {
+            if (_taps == 0)
+                return "The tap did not reach the link.";
+            // A formula the engine could not typeset (its fonts trimmed away, say) would quietly show its source.
+            return HasInlineFormula(_core!) ? null : "The inline formula was not typeset.";
+        }
+
+        private static bool HasInlineFormula(ISkUiCoreNode node)
+        {
+            if (node is SkUiCoreLabel label && label.Spans.Any(span => span.InlineObject is not null))
+                return true;
+            return ((IVisualTreeElement)node).GetVisualChildren().OfType<ISkUiCoreNode>().Any(HasInlineFormula);
+        }
     }
 
     private sealed class ShapesRun : LeakScenarioRun

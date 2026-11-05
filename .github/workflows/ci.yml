@@ -131,6 +131,16 @@ jobs:
           dotnet build MauiSkiaUi.CommunityToolkit/MauiSkiaUi.CommunityToolkit.csproj -c Release -f net10.0-ios --no-restore -p:ContinuousIntegrationBuild=true
           dotnet build MauiSkiaUi.CommunityToolkit/MauiSkiaUi.CommunityToolkit.csproj -c Release -f net10.0-maccatalyst --no-restore -p:ContinuousIntegrationBuild=true
 
+      - name: Restore SkiaUi.Maui.Markdown and its math package (Apple TFMs)
+        run: >
+          dotnet restore MauiSkiaUi.Markdown.Math/MauiSkiaUi.Markdown.Math.csproj
+          -p:TargetFrameworks=net10.0-ios%3Bnet10.0-maccatalyst
+
+      - name: Build SkiaUi.Maui.Markdown and its math package (iOS, Mac Catalyst)
+        run: |
+          dotnet build MauiSkiaUi.Markdown.Math/MauiSkiaUi.Markdown.Math.csproj -c Release -f net10.0-ios --no-restore -p:ContinuousIntegrationBuild=true
+          dotnet build MauiSkiaUi.Markdown.Math/MauiSkiaUi.Markdown.Math.csproj -c Release -f net10.0-maccatalyst --no-restore -p:ContinuousIntegrationBuild=true
+
       # An app build runs the Xcode toolchain (actool, ibtool, linking) that a library build does not. Simulator, so
       # no signing; the TFM list is scoped so restore does not need the android workload (NETSDK1147).
       - name: Build demo app (iOS simulator)
@@ -242,6 +252,19 @@ jobs:
       - name: Build SkiaUi.Maui.CommunityToolkit (Windows TFM)
         run: >
           dotnet build MauiSkiaUi.CommunityToolkit/MauiSkiaUi.CommunityToolkit.csproj
+          -c Release
+          -f net10.0-windows10.0.19041.0
+          --no-restore
+          -p:ContinuousIntegrationBuild=true
+
+      - name: Restore SkiaUi.Maui.Markdown and its math package (Windows TFM)
+        run: >
+          dotnet restore MauiSkiaUi.Markdown.Math/MauiSkiaUi.Markdown.Math.csproj
+          -p:TargetFrameworks=net10.0-windows10.0.19041.0
+
+      - name: Build SkiaUi.Maui.Markdown and its math package (Windows TFM)
+        run: >
+          dotnet build MauiSkiaUi.Markdown.Math/MauiSkiaUi.Markdown.Math.csproj
           -c Release
           -f net10.0-windows10.0.19041.0
           --no-restore

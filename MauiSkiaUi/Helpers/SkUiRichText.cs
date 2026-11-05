@@ -9,12 +9,16 @@ namespace MauiSkiaUi;
 /// <param name="FontAttributes">Requested bold / italic: drawn synthetically when <paramref name="Typeface"/> lacks them.</param>
 /// <param name="CharacterSpacing">DIPs added after each character.</param>
 /// <param name="LineHeight">Multiplier of the font's line spacing; 0 / negative: the font's.</param>
+/// <param name="BaselineShift">DIPs the span sits above the line's baseline (negative: below).</param>
+/// <param name="InlineObject">What the span draws instead of glyphs: its text is one <see cref="SkUiInlineObject.ReplacementCharacter"/>.</param>
 internal readonly record struct SkUiTextSpanStyle(
     SKTypeface Typeface,
     double FontSize,
     FontAttributes FontAttributes = FontAttributes.None,
     double CharacterSpacing = 0,
-    double LineHeight = -1);
+    double LineHeight = -1,
+    double BaselineShift = 0,
+    SkUiInlineObject? InlineObject = null);
 
 /// <summary>How one span paints: colors and decorations (no re-layout when they change).</summary>
 /// <param name="TextColor">Glyph and decoration color.</param>
@@ -202,6 +206,10 @@ internal sealed class SkUiRichTextLayout : ISkUiTextSpanFonts, ISkUiTextFitLayou
     }
 
     float ISkUiTextSpanFonts.LineHeight(int span) => (float)_text.Styles[span].LineHeight;
+
+    float ISkUiTextSpanFonts.BaselineShift(int span) => (float)_text.Styles[span].BaselineShift;
+
+    SkUiInlineObject? ISkUiTextSpanFonts.InlineObject(int span) => _text.Styles[span].InlineObject;
 
     private void EnsureLines(SkUiRichText text, double width, SkUiTextStyle style)
     {
@@ -551,7 +559,7 @@ internal sealed class SkUiRichTextLayout : ISkUiTextSpanFonts, ISkUiTextFitLayou
                     if (paints[piece.Span].Background is var background && background.Alpha == 0)
                         continue;
                     paint.Color = background;
-                    canvas.DrawRect(left + piece.X, baseline - piece.Ascent, piece.Width, piece.Ascent + piece.Descent, paint);
+                    canvas.DrawRect(left + piece.X, baseline - piece.BaselineShift - piece.Ascent, piece.Width, piece.Ascent + piece.Descent, paint);
                 }
             }
         }
@@ -562,10 +570,18 @@ internal sealed class SkUiRichTextLayout : ISkUiTextSpanFonts, ISkUiTextFitLayou
             {
                 var span = paints[piece.Span];
                 paint.Color = span.TextColor;
+                var pieceBaseline = baseline - piece.BaselineShift;
                 if (piece.Blob is { } blob)
-                    canvas.DrawText(blob, left + piece.X, baseline, paint);
+                    canvas.DrawText(blob, left + piece.X, pieceBaseline, paint);
+                else if (piece.InlineObject is { } inlineObject)
+                {
+                    var saved = canvas.Save();
+                    canvas.Translate(left + piece.X, pieceBaseline - (float)inlineObject.Baseline);
+                    inlineObject.Paint(canvas);
+                    canvas.RestoreToCount(saved);
+                }
                 if (span.Decorations != TextDecorations.None)
-                    SkUiTextLayout.DrawDecorations(canvas, span.Decorations, left + piece.X, baseline, piece.Width, piece.Size, piece.Metrics, paint);
+                    SkUiTextLayout.DrawDecorations(canvas, span.Decorations, left + piece.X, pieceBaseline, piece.Width, piece.Size, piece.Metrics, paint);
             }
         }
         if (restore >= 0)

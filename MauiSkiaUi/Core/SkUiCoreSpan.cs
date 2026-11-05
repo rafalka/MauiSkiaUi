@@ -22,6 +22,8 @@ public sealed class SkUiCoreSpan : INotifyPropertyChanged
     private double? _lineHeight;
     private TextDecorations? _textDecorations;
     private TextTransform _textTransform = TextTransform.Default;
+    private double _baselineShift;
+    private SkUiInlineObject? _inlineObject;
     private EventHandler<SkUiTappedEventArgs>? _tapped;
 
     /// <summary>Creates a span with <paramref name="text"/>.</summary>
@@ -68,6 +70,18 @@ public sealed class SkUiCoreSpan : INotifyPropertyChanged
 
     /// <summary>Case transform of the span's text; <see cref="TextTransform.Default"/>: the label's.</summary>
     public TextTransform TextTransform { get => _textTransform; set => SetTextTransform(value); }
+
+    /// <summary>
+    /// How far the span sits above the line's baseline, as a fraction of its font size (a superscript: about 0.4; negative: below, a
+    /// subscript: about -0.2). The line grows to hold it. Default 0.
+    /// </summary>
+    public double BaselineShift { get => _baselineShift; set => SetBaselineShift(value); }
+
+    /// <summary>
+    /// What the span draws in the line instead of its text: it wraps, aligns and takes taps as a word of its size.
+    /// <see cref="Text"/> stays what screen readers read. <c>null</c>: the text.
+    /// </summary>
+    public SkUiInlineObject? InlineObject { get => _inlineObject; set => SetInlineObject(value); }
 
     /// <summary>
     /// Tap on the span's glyphs (the sender is the span; the position is in the label's coordinates). Handlers make
@@ -124,6 +138,16 @@ public sealed class SkUiCoreSpan : INotifyPropertyChanged
 
     /// <summary>Sets <see cref="TextTransform"/>.</summary>
     public SkUiCoreSpan SetTextTransform(TextTransform value) => Set(ref _textTransform, value, layout: true);
+
+    /// <summary>Sets <see cref="BaselineShift"/> (finite).</summary>
+    public SkUiCoreSpan SetBaselineShift(double value)
+    {
+        SkUiValidate.ThrowIfNotFinite(value, nameof(value));
+        return Set(ref _baselineShift, value, layout: true);
+    }
+
+    /// <summary>Sets <see cref="InlineObject"/>.</summary>
+    public SkUiCoreSpan SetInlineObject(SkUiInlineObject? value) => Set(ref _inlineObject, value, layout: true);
 
     /// <inheritdoc />
     public event PropertyChangedEventHandler? PropertyChanged;

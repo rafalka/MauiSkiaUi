@@ -26,5 +26,7 @@
     <Compile Include="../Scenarios/**/*.cs" Link="Scenarios/%(RecursiveDir)%(Filename)%(Extension)" />
     <PackageReference Include="Microsoft.Maui.Controls" Version="$(MauiVersion)" />
     <ProjectReference Include="../../MauiSkiaUi/MauiSkiaUi.csproj" />
+    <!-- By name in the scenarios, and only where it exists: a baseline commit may be older than the package. -->
+    <ProjectReference Include="../../MauiSkiaUi.Markdown/MauiSkiaUi.Markdown.csproj" Condition="Exists('../../MauiSkiaUi.Markdown/MauiSkiaUi.Markdown.csproj')" />
   </ItemGroup>
 </Project>

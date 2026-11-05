@@ -8,6 +8,8 @@ Internal guide for working **on** SkiaUi (library + demo + tests). Library **use
 | --- | --- | --- |
 | `MauiSkiaUi` | .NET MAUI class library (`net10.0-*`, plus `net10.0` for tests) | SkiaSharp-based UI controls (`SkUi*` types); NuGet package id **`SkiaUi.Maui`**. Depends on MAUI and SkiaSharp only |
 | `MauiSkiaUi.CommunityToolkit` | .NET MAUI class library (same TFMs) | CommunityToolkit.Maui integration on SkiaUi's public API: the popup presenter (`SkUiToolkitPopupPresenter`, `UseSkiaUiCommunityToolkit()`); later drawn layouts on the toolkit's layout managers. NuGet package id **`SkiaUi.Maui.CommunityToolkit`**, released with `SkiaUi.Maui` (same version) |
+| `MauiSkiaUi.Markdown` | .NET MAUI class library (same TFMs) | The drawn Markdown view on SkiaUi's public API and [Markdig](https://github.com/xoofx/markdig): `SkUiMarkdownView`, `SkUiCoreMarkdown`. NuGet package id **`SkiaUi.Maui.Markdown`**, released with `SkiaUi.Maui` (same version) |
+| `MauiSkiaUi.Markdown.Math` | .NET MAUI class library (same TFMs) | Formulas for the Markdown view on CSharpMath, with the guard that keeps hostile LaTeX from it. NuGet package id **`SkiaUi.Maui.Markdown.Math`**, released with `SkiaUi.Maui` (same version) |
 | `MauiSkiaUiDemo` | .NET MAUI application (`net10.0-*`) | Sample host used to develop and verify controls; **in-repo only** (not published). Its own UI (editors, galleries, flyout, page chrome) is drawn with SkiaUi; only pages, Shell, toolbars and the native comparison controls are MAUI |
 | `samples/MauiSkiaUiSamples` | .NET MAUI application (`net10.0-*`) | Usage examples, one page per example in sections, each with its in-app description and source ([samples/README.md](samples/README.md)); built headlessly by `SamplesTests` |
 | `tests/MauiSkiaUi.Tests` | Headless xUnit tests (`net10.0`) | Real MAUI nodes and offscreen Skia painting; no device required |
@@ -24,6 +26,7 @@ Solution file: `SkiaUi.slnx`
 - [.NET 10 SDK](https://dotnet.microsoft.com/download) **10.0.402** (see [global.json](global.json); `rollForward: latestPatch`)
 - MAUI Controls packages pinned to **10.0.120** via [Directory.Build.props](Directory.Build.props) (`MauiVersion`)
 - CommunityToolkit.Maui (`SkiaUi.Maui.CommunityToolkit`, demo, samples, tests) pinned via the same file (`CommunityToolkitMauiVersion`)
+- Markdig (`SkiaUi.Maui.Markdown`) and CSharpMath.Rendering (`SkiaUi.Maui.Markdown.Math`) pinned via the same file (`MarkdigVersion`, `CSharpMathVersion`)
 - SkiaSharp packages (SkiaSharp, SkiaSharp.HarfBuzz, SkiaSharp.Views.Maui.Controls, native assets) pinned to **4.154.0** via the same file (`SkiaSharpVersion`). After a bump, [Directory.Build.targets](Directory.Build.targets) clears each iOS / Mac Catalyst app's extracted native frameworks and app bundle once: the Apple SDK re-extracts and copies them by file date, and NuGet keeps the package's (older) dates, so the previous `libSkiaSharp` would stay and fail with "The version of the native libSkiaSharp library … is incompatible"
 - Product version (and demo `ApplicationDisplayVersion`) via the same file (`Version` / `ApplicationVersion`). Per-version notes: [CHANGELOG.md](CHANGELOG.md)
 - .NET MAUI workload (`dotnet workload install maui`)

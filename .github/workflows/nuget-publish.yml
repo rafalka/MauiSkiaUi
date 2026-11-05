@@ -1,6 +1,6 @@
 name: NuGet publish
 
-# Packs SkiaUi.Maui and SkiaUi.Maui.CommunityToolkit (macOS + Windows TFMs merged, one version) and pushes to https://www.nuget.org/
+# Packs SkiaUi.Maui, SkiaUi.Maui.CommunityToolkit, SkiaUi.Maui.Markdown and SkiaUi.Maui.Markdown.Math (macOS + Windows TFMs merged, one version) and pushes to https://www.nuget.org/
 # via Trusted Publishing (OIDC):
 #   https://learn.microsoft.com/en-us/nuget/nuget-org/trusted-publishing
 # Uses GitHub Environment "nuget.org" (match this name in the nuget.org trusted policy).
@@ -206,7 +206,7 @@ jobs:
           # singular TargetFramework (NETSDK1046). On macOS the csproj already selects
           # net10.0 + android + ios + maccatalyst via OS conditions.
           # Every package (SkiaUi.Maui and its integrations), released together with one version.
-          for project in MauiSkiaUi/MauiSkiaUi.csproj MauiSkiaUi.CommunityToolkit/MauiSkiaUi.CommunityToolkit.csproj; do
+          for project in MauiSkiaUi/MauiSkiaUi.csproj MauiSkiaUi.CommunityToolkit/MauiSkiaUi.CommunityToolkit.csproj MauiSkiaUi.Markdown/MauiSkiaUi.Markdown.csproj MauiSkiaUi.Markdown.Math/MauiSkiaUi.Markdown.Math.csproj; do
             dotnet pack "$project" \
               -c Release \
               -o artifacts/nuget \
@@ -262,7 +262,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p artifacts/nuget-win
-          for project in MauiSkiaUi/MauiSkiaUi.csproj MauiSkiaUi.CommunityToolkit/MauiSkiaUi.CommunityToolkit.csproj; do
+          for project in MauiSkiaUi/MauiSkiaUi.csproj MauiSkiaUi.CommunityToolkit/MauiSkiaUi.CommunityToolkit.csproj MauiSkiaUi.Markdown/MauiSkiaUi.Markdown.csproj MauiSkiaUi.Markdown.Math/MauiSkiaUi.Markdown.Math.csproj; do
             dotnet pack "$project" \
               -c Release \
               -o artifacts/nuget-win \

@@ -17,6 +17,12 @@ internal interface ISkUiTextSpanFonts
 
     /// <summary>Line height multiplier of the span; 0 or less: the font's.</summary>
     float LineHeight(int span);
+
+    /// <summary>DIPs the span sits above the baseline (negative: below).</summary>
+    float BaselineShift(int span);
+
+    /// <summary>What the span draws instead of glyphs, or <c>null</c>.</summary>
+    SkUiInlineObject? InlineObject(int span);
 }
 
 /// <summary>
@@ -35,7 +41,10 @@ internal static partial class SkUiShaping
     /// <param name="Descent">The font's descent (positive, below the baseline).</param>
     /// <param name="Size">The font size (decoration fallbacks).</param>
     /// <param name="Metrics">The font's metrics (decoration positions).</param>
-    internal readonly record struct StyledPiece(SKTextBlob? Blob, float X, float Width, int Span, float Ascent, float Descent, float Size, SKFontMetrics Metrics);
+    /// <param name="BaselineShift">DIPs the piece sits above the line's baseline.</param>
+    /// <param name="InlineObject">What the piece draws instead of glyphs.</param>
+    internal readonly record struct StyledPiece(SKTextBlob? Blob, float X, float Width, int Span, float Ascent, float Descent, float Size, SKFontMetrics Metrics,
+        float BaselineShift = 0, SkUiInlineObject? InlineObject = null);
 
     /// <summary>A laid-out visual line of styled text: one piece per run, in visual order.</summary>
     internal sealed class StyledLine
@@ -61,6 +70,14 @@ internal static partial class SkUiShaping
         ItemizeStyled(paragraph, fonts);
         foreach (var run in paragraph.Runs)
         {
+            // An inline object has no glyphs: its one code unit advances by the object's width.
+            if (fonts.InlineObject(run.Span) is { } inlineObject)
+            {
+                run.Width = (float)inlineObject.Width;
+                paragraph.Width += run.Width;
+                paragraph.Advances[run.Start] += run.Width;
+                continue;
+            }
             ShapeRun(text, run.Start, run.Length, run, run.Font!, fonts.Spacing(run.Span));
             paragraph.Width += run.Width;
             AddAdvances(paragraph, run);
@@ -86,7 +103,8 @@ internal static partial class SkUiShaping
                 : unicode.GetScript(cp);
             var neutralScript = script == Script.Common || script == Script.Inherited || script == Script.Unknown;
             var sameSpan = current is not null && current.Span == span;
-            var face = FaceFor(cp, fonts.Typeface(span), sameSpan ? current!.Typeface : null);
+            // An inline object draws no glyph: no fallback font for its replacement character.
+            var face = fonts.InlineObject(span) is not null ? fonts.Typeface(span) : FaceFor(cp, fonts.Typeface(span), sameSpan ? current!.Typeface : null);
             var sameScript = current is not null && (neutralScript || current.Script == script || current.Script == Script.Common);
             if (!sameSpan || current!.Level != level || !ReferenceEquals(current.Typeface, face) || !sameScript)
             {
@@ -180,14 +198,26 @@ internal static partial class SkUiShaping
                 blob = builder.Build();
             }
             var metrics = font.Metrics;
+            var baselineShift = fonts.BaselineShift(piece.Span);
+            if (fonts.InlineObject(piece.Span) is { } inlineObject)
+            {
+                // The object's own box decides the line: above and below the baseline it is placed on.
+                var above = (float)inlineObject.Baseline;
+                var below = (float)(inlineObject.Height - inlineObject.Baseline);
+                lineAscent = Math.Max(lineAscent, above + baselineShift);
+                lineDescent = Math.Max(lineDescent, below - baselineShift);
+                result[slot] = new StyledPiece(null, pen, piece.Width, piece.Span, above, below, font.Size, metrics, baselineShift, inlineObject);
+                pen += piece.Width;
+                continue;
+            }
             var ascent = -metrics.Ascent;
             var primary = ReferenceEquals(piece.Typeface, fonts.Typeface(piece.Span));
             var spacing = primary ? font.Spacing : FallbackSpacing(font);
             var extra = LineBoxExtra(spacing, fonts.LineHeight(piece.Span));
             var gap = primary ? HalfLineGap(font) : 0; // the line gap's upper half: the spacing holds both halves
-            lineAscent = Math.Max(lineAscent, ascent + gap + extra);
-            lineDescent = Math.Max(lineDescent, spacing - ascent - gap + extra);
-            result[slot] = new StyledPiece(blob, pen, piece.Width + shift, piece.Span, ascent, metrics.Descent, font.Size, metrics);
+            lineAscent = Math.Max(lineAscent, ascent + gap + extra + baselineShift);
+            lineDescent = Math.Max(lineDescent, spacing - ascent - gap + extra - baselineShift);
+            result[slot] = new StyledPiece(blob, pen, piece.Width + shift, piece.Span, ascent, metrics.Descent, font.Size, metrics, baselineShift);
             pen += piece.Width + shift;
         }
         line.Pieces = result;

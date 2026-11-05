@@ -33,5 +33,7 @@
     <Compile Include="../Shared/MemoryLeaks/*.cs" Link="Shared/MemoryLeaks/%(Filename)%(Extension)" />
     <PackageReference Include="Microsoft.Maui.Controls" Version="$(MauiVersion)" />
     <ProjectReference Include="../../MauiSkiaUi/MauiSkiaUi.csproj" />
+    <!-- The Markdown scenario, formulas included: the math engine's only check under trimming and Native AOT. -->
+    <ProjectReference Include="../../MauiSkiaUi.Markdown.Math/MauiSkiaUi.Markdown.Math.csproj" />
   </ItemGroup>
 </Project>

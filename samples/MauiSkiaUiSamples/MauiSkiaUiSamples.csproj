@@ -76,6 +76,8 @@
     <ProjectReference Include="../../MauiSkiaUi/MauiSkiaUi.csproj" />
     <!-- SkiaUi.Maui.CommunityToolkit: the picker example's popups (CommunityToolkit.Maui comes with it). -->
     <ProjectReference Include="../../MauiSkiaUi.CommunityToolkit/MauiSkiaUi.CommunityToolkit.csproj" />
+    <!-- SkiaUi.Maui.Markdown and its formulas: the Markdown example. -->
+    <ProjectReference Include="../../MauiSkiaUi.Markdown.Math/MauiSkiaUi.Markdown.Math.csproj" />
   </ItemGroup>
   <!-- SKUI_TOUR=1: opens every page and logs exceptions (scripts/page_tour.sh). -->
   <ItemGroup>

@@ -23,5 +23,7 @@
     <PackageReference Include="SkiaSharp.NativeAssets.Linux.NoDependencies" Version="$(SkiaSharpVersion)" />
     <PackageReference Include="HarfBuzzSharp.NativeAssets.Linux" Version="$(HarfBuzzSharpVersion)" />
     <ProjectReference Include="../../MauiSkiaUi/MauiSkiaUi.csproj" />
+    <!-- By name in the scenarios, and only where it exists: a baseline commit may be older than the package. -->
+    <ProjectReference Include="../../MauiSkiaUi.Markdown/MauiSkiaUi.Markdown.csproj" Condition="Exists('../../MauiSkiaUi.Markdown/MauiSkiaUi.Markdown.csproj')" />
   </ItemGroup>
 </Project>

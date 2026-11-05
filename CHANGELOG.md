@@ -18,6 +18,25 @@ Publishing (the NuGet publish workflow, [docs/Releasing.md](docs/Releasing.md)) 
 
 ## Unreleased
 
+### New features
+
+- **Markdown:** a drawn Markdown view on both layers (`SkUiMarkdownView`, `SkUiCoreMarkdown`), in a new package, **SkiaUi.Maui.Markdown**, on Markdig. `SkiaUi.Maui` gets no new dependency.
+  - Headings, emphasis of every kind, inline code, quotes, alerts, containers, code blocks with a copy button, rules, nested and task lists, pipe and grid tables, links, emoji, footnotes, definition lists and images.
+  - Nothing a document says happens by itself: links and images raise events, remote images load only with `AllowRemoteImages`, and a document cannot read a local file (`ImageResolver` replaces the rule).
+  - Bad input never throws: a document past a limit, or one that cannot be built, shows as plain text with a `Warning`.
+  - Parsing and creating nodes run on a background thread, with the latest text winning; only putting them on screen runs on the UI thread.
+  - A growing text only builds its tail, so a streamed answer stays cheap.
+  - The gallery's Markdown page, the samples app's "A Markdown document", and [SkUiMarkdownView.md](docs/controls/SkUiMarkdownView.md).
+- **Formulas in Markdown:** block and inline math in a second package, **SkiaUi.Maui.Markdown.Math**, on CSharpMath (`UseSkiaUiMarkdownMath()`, `UseMath()`). A deep formula could end the process with a stack overflow, so every formula is checked before the engine sees it; one past the limits shows its source.
+- **Zoom:** `SkUiZoomView` and `SkUiCoreZoomView`, with pinch, pan, double tap and wheel at composite time, so nothing re-records: [SkUiZoomView.md](docs/controls/SkUiZoomView.md). `AllowImageZoom` on the Markdown view opens a picture in one through the app's popup presenter.
+- **Inline objects in text:** a span can draw something in the line instead of its text, on both layers (`SkUiCoreSpan.InlineObject`, `SkUiSpan.InlineObject` on MAUI's `Span`, `SkUiInlineObject`). It wraps, aligns and takes taps as a word, and follows the bidi order: [SkUiLabel.md](docs/controls/SkUiLabel.md#inline-objects).
+- **Baseline shift on spans:** `SkUiCoreSpan.BaselineShift` and `SkUiSpan.BaselineShift`, for real superscripts and subscripts.
+- **`SkUiPopups.ShowContentAsync`:** a popup of any drawn view through the app's presenter, on the same contract as a picker's list.
+
+### Fixes
+
+- **`<sub>` and `<sup>` in HTML text** sit below and above the baseline; before, they were only smaller.
+
 ## 1.7.0
 
 ### New features

@@ -24,3 +24,8 @@ SkiaUi does not replace navigation, so it ships no pages and no popup windows of
 
 - **SkiaUi.Maui.CommunityToolkit** (`MauiSkiaUi.CommunityToolkit/`): the popup presenter on the toolkit's `Popup`. Planned ([roadmap](Roadmap.md)): drawn counterparts of the toolkit's `UniformItemsLayout` and `DockLayout` on its public layout managers (`UniformItemsLayoutManager`, `DockLayoutManager`), as `SkUiFlexLayout` runs MAUI's `FlexLayoutManager`. Needs one extension point made public first: `SkUiLayout.AffectsChildLayout` (a child's attached property, e.g. `DockLayout.DockPosition`, re-measures the layout) and `OnChildrenChanged` are `private protected` today.
 - A package per further popup library only if asked for; until then, a docs sketch.
+
+## A popup of your own view
+
+`SkUiPopups.ShowContentAsync(anchor, content, preferredSize)` shows any drawn view in the window through the same presenter, under the same contract: placed by the look's popup margin inside the safe area, closed by its request's `Cancel`, and it returns `false` when no presenter is registered. The Markdown view's `AllowImageZoom` uses it.
+

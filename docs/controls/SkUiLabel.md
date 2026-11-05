@@ -250,3 +250,36 @@ Fonts registered with MAUI's `ConfigureFonts` (`fonts.AddFont("file.ttf", "Alias
 ## Related
 
 Gallery: `LabelDemoPage`
+
+## Baseline shift
+
+A span can sit above or below the line's baseline: a fraction of its font size, positive up, and the line grows to hold it. `<sup>` and `<sub>` in HTML text use it (`SkUiSpan.SuperscriptShift`, `SkUiSpan.SubscriptShift`).
+
+```csharp
+var core = new SkUiCoreSpan("2").SetFontSize(11).SetBaselineShift(SkUiSpan.SuperscriptShift);
+
+var span = new Span { Text = "2", FontSize = 11 };
+SkUiSpan.SetBaselineShift(span, SkUiSpan.SuperscriptShift);
+```
+
+```xml
+<Span Text="2" FontSize="11" sk:SkUiSpan.BaselineShift="0.45" />
+```
+
+## Inline objects
+
+A span can draw something in the line instead of its text: `SkUiInlineObject` has a fixed width and height, a baseline, and a callback that draws it. It wraps, aligns and takes taps as a word of its size, and follows the line's bidi order. The span's `Text` stays what screen readers read.
+
+```csharp
+var formula = new SkUiInlineObject(width: 40, height: 18, baseline: 14, canvas => DrawFormula(canvas));
+label.SetSpans(new SkUiCoreSpan("Area: "), new SkUiCoreSpan("pi r squared").SetInlineObject(formula));
+
+// A node, drawn at the size it measures to now. It has no parent and takes no input of its own: use the span's Tapped.
+var box = new SkUiCoreBox().SetColor(Colors.Red);
+box.SetWidth(12);
+box.SetHeight(12);
+var inline = SkUiInlineObject.FromNode(box);
+```
+
+On MAUI's spans it is the attached `SkUiSpan.InlineObject`. The callback runs while the label records, on the UI thread, so what it draws is part of the label's picture. Its size is fixed: to change it, set a new object. To redraw it, call `InvalidatePaint` on the label. Text without an inline object pays one null check per run.
+

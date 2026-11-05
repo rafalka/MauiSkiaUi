@@ -1,3 +1,4 @@
+using MauiSkiaUi.Markdown.Math;
 ﻿using Microsoft.Extensions.Logging;
 using CommunityToolkit.Maui;
 using MauiSkiaUi;
@@ -23,6 +24,8 @@ public static class MauiProgram
 			.UseSkiaUi(options => options.Look = DefaultSkUiLook.ForCurrentPlatform())
 			// Drawn pickers show their lists in the toolkit's popups.
 			.UseSkiaUiCommunityToolkit()
+			// Formulas in Markdown views.
+			.UseSkiaUiMarkdownMath()
 			.ConfigureFonts(fonts =>
 			{
 				fonts.AddFont("OpenSans-Regular.ttf", DemoFonts.OpenSansRegular);

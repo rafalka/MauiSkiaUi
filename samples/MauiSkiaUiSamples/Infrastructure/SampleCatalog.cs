@@ -15,6 +15,7 @@ public static class SampleCatalog
         SampleEntry.For<AppFontsSample>(),
         SampleEntry.For<TextThatFitsSample>(),
         SampleEntry.For<TextWithLinksSample>(),
+        SampleEntry.For<MarkdownDocumentSample>(),
         SampleEntry.For<CachedAvatarsSample>(),
         SampleEntry.For<VectorIconsSample>(),
         SampleEntry.For<ShapesAndBordersSample>(),

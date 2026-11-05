@@ -155,6 +155,21 @@ The scenarios create the SkUi\* layer's SVG sources by name, so a baseline witho
 - **The first icon needs no warm-up.** The S9 shows it about 100 ms later than a PNG, once per process and without blocking the UI thread, about what a font glyph takes; the iPhone 8 shows it a few ms later.
 - **A theme change** on a screen of 50 icons from 20 files should take under 10 ms on the S9's UI thread and 20 loads off it (about 19 ms of work). This is worked out from the numbers above, not measured on such a screen.
 
+## Markdown
+
+**A 100 KB document** (`markdown-document`, `markdown-append` in `scripts/bench.sh`): about 200 sections of a heading, a paragraph with links and code, a quote, a nested list with a task, a code block and a table. Galaxy S9, Release, medians of 6 runs after a warm-up, measured on 5 November 2026. The iPhone 8 was not measured. For scale, `core-labels` (1,000 labels) on the same run: generate 14 ms, add 3.6 ms, first frame 145 ms.
+
+| | S9 (ms) | Thread |
+| --- | ---: | --- |
+| Parse and create the nodes | 155 | Background |
+| Add to the page | 16 | UI |
+| First frame: measure, record every block, composite | 750 | UI |
+| An append to the last paragraph (the whole document parsed again, its last block built) | 116 | Mostly background |
+
+The bench builds in place (`MaximumInPlaceParseLength = int.MaxValue`), so a frame has content to wait for; an app's default runs the first row on a background thread.
+
+Scrolling across it: 44.5 fps, 6.3 ms per composited frame on average, 17.7 ms at most. Nothing is recorded while it scrolls, but the first frame records every block whether it shows or not, as in any long tree. Virtualizing top-level blocks ([plan, V2](design/ImplementationPlan-1.8.md#phase-v--long-documents)) is not done: only documents much longer than a typical page would gain from it.
+
 ## Reproducing
 
 Both stress pages are in the demo app (`MauiSkiaUiDemo`): **Stress** (the 1,000-button grid) and **Effects stress** (the card list, with **Matrix** in the toolbar for every effect). Run a Release build. Scripted runs start a page and print one `data` line per round (key=value, ms) to the console:

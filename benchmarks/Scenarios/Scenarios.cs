@@ -14,6 +14,8 @@ public static class Scenarios
     public static IReadOnlyList<BenchScenario> All { get; } =
     [
         new CoreLabels(),
+        new MarkdownDocument(),
+        new MarkdownAppend(),
         new SkUiLabels(),
         new CoreButtons(),
         new SkUiButtons(),

@@ -7,6 +7,9 @@
     <SkiaSharpVersion>4.154.0</SkiaSharpVersion>
     <!-- CommunityToolkit.Maui for SkiaUi.Maui.CommunityToolkit, the demo, the samples and the tests (needs MAUI $(MauiVersion) or newer). -->
     <CommunityToolkitMauiVersion>15.0.1</CommunityToolkitMauiVersion>
+    <!-- Markdig for SkiaUi.Maui.Markdown; CSharpMath.Rendering for SkiaUi.Maui.Markdown.Math. -->
+    <MarkdigVersion>1.6.0</MarkdigVersion>
+    <CSharpMathVersion>0.5.1</CSharpMathVersion>
     <!-- HarfBuzzSharp version SkiaSharp.HarfBuzz $(SkiaSharpVersion) depends on (for the Linux native assets of headless projects). -->
     <HarfBuzzSharpVersion>14.2.1.400</HarfBuzzSharpVersion>
 

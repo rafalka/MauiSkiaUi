@@ -17,6 +17,59 @@ public static class SkUiPopups
     /// </summary>
     public static ISkUiPopupPresenter? Presenter { get; set; }
 
+    /// <summary>
+    /// Shows <paramref name="content"/> in the window, through <paramref name="presenter"/> or the app's <see cref="Presenter"/>, and completes once it is gone; a view of
+    /// the app's or a package's on the same contract as a picker's list (<see cref="ISkUiPopupPresenter"/>).
+    /// </summary>
+    /// <param name="anchor">The drawn view that opens it: its window and surface place the popup.</param>
+    /// <param name="content">What to show (a drawn view).</param>
+    /// <param name="preferredSize">The size wanted: kept inside the window's safe area.</param>
+    /// <param name="presenter">The presenter; <c>null</c>: <see cref="Presenter"/>.</param>
+    /// <param name="opened">Gets the request, whose <see cref="SkUiPopupRequest.Cancel"/> closes the popup.</param>
+    /// <param name="cancellationToken">Closes the popup.</param>
+    /// <returns><c>false</c> when there is no presenter or no surface: nothing was shown.</returns>
+    public static async Task<bool> ShowContentAsync(SkUiView anchor, View content, Size preferredSize, ISkUiPopupPresenter? presenter = null,
+        Action<SkUiPopupRequest>? opened = null, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(anchor);
+        ArgumentNullException.ThrowIfNull(content);
+        if ((presenter ?? Presenter) is not { } shownBy || SkUiDiagnostics.GetSurfaceRoot(anchor) is not { } surfaceRoot)
+            return false;
+        var look = SkUiLook.Current;
+        var rootBounds = SkUiDiagnostics.GetRootBounds(anchor) ?? Rect.Zero;
+        var origin = SkUiWindowMetrics.SurfaceOrigin(surfaceRoot);
+        var layout = SkUiPopupGeometry.Layout(new SkUiPopupPlacementInput(rootBounds.Offset(origin.X, origin.Y), rootBounds, SkUiWindowMetrics.WindowSize(surfaceRoot),
+            SkUiWindowMetrics.SafeAreaInsets(surfaceRoot), look.PopupMargin, look.PopupAnchorGap, SkUiPopupPlacement.Window, LayoutOptions.Center, LayoutOptions.Center,
+            preferredSize, double.PositiveInfinity, default, anchor.IsRightToLeft));
+        var request = new SkUiPopupRequest(anchor, surfaceRoot, content, layout)
+        {
+            OverlayColor = look.GetPopupOverlayColor(layout.Placement),
+            IsAnimated = !SkUiMotion.IsMotionReduced
+        };
+        request.CornerRadius = look.GetPopupCornerRadius(layout.Placement);
+        request.Shadow = look.GetPopupShadow(layout.Placement);
+        SkUiPopupParts.Fit(content, layout.Bounds, request.CornerRadius);
+        opened?.Invoke(request);
+        await using var cancel = cancellationToken.Register(request.Cancel);
+        try
+        {
+            await shownBy.ShowAsync(request, request.CloseRequested);
+        }
+        catch (OperationCanceledException)
+        {
+            // Closed: the same as returning.
+        }
+        catch (Exception exception)
+        {
+            Trace.WriteLine($"SkiaUi: showing a popup failed: {exception.Message}");
+        }
+        finally
+        {
+            request.MarkCompleted();
+        }
+        return true;
+    }
+
     /// <summary>The presenter a control without its own uses: <see cref="Presenter"/>, else the action sheet fallback.</summary>
     internal static ISkUiPopupPresenter Resolve(ISkUiPopupPresenter? own)
     {
