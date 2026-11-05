@@ -299,9 +299,41 @@ public sealed class VectorIconSizingTests : IDisposable
 
         gate = new TaskCompletionSource();
         image.Aspect = Aspect.AspectFill;
+        SkUiTestHelpers.Arrange(image, 100, 100);
         Assert.Same(shown, image.CachedImage); // the load waits at the gate, and the icon stays until it is done
         gate.SetResult();
         await image.LoadingTask;
+        Assert.Equal((200, 100), (image.CachedImage!.Frames[0].Width, image.CachedImage.Frames[0].Height));
+    }
+
+    [Fact]
+    public async Task Leaving_center_with_DownsampleToViewSize_keeps_the_icon_shown_on_both_layers()
+    {
+        var path = File(Icon);
+        var image = new SkUiImage { DownsampleToViewSize = true, Aspect = Aspect.Center, Source = path };
+        var node = new SkUiCoreImage().SetDownsampleToViewSize(true).SetAspect(Aspect.Center).SetSourceFile(path);
+        await Task.WhenAll(image.LoadingTask, node.LoadingTask);
+        SkUiTestHelpers.Arrange(image, 96, 96);
+        node.Measure(96, 96);
+        node.Arrange(new Rect(0, 0, 96, 96));
+        await Task.WhenAll(image.LoadingTask, node.LoadingTask);
+        Assert.True(image.CachedImage!.IsVector);
+        Assert.True(node.CachedImage!.IsVector);
+
+        image.Aspect = Aspect.AspectFit;
+        node.SetAspect(Aspect.AspectFit);
+        Assert.NotNull(image.CachedImage);
+        Assert.NotNull(node.CachedImage);
+
+        for (var pass = 0; pass < 3; pass++)
+        {
+            SkUiTestHelpers.Arrange(image, 96, 96);
+            node.Measure(96, 96);
+            node.Arrange(new Rect(0, 0, 96, 96));
+            await Task.WhenAll(image.LoadingTask, node.LoadingTask);
+        }
+        Assert.Equal(96, image.CachedImage!.Frames[0].Width);
+        Assert.Equal(96, node.CachedImage!.Frames[0].Width);
     }
 
     [Fact]

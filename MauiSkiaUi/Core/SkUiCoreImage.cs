@@ -215,14 +215,11 @@ public class SkUiCoreImage : SkUiCoreNode
         var old = _aspect;
         if (!SetProperty(ref _aspect, value, nameof(Aspect))) return this;
         InvalidatePaint();
-        // Fitting and covering decode to different bounds; a centered image is not downsampled to the node.
-        if (_downsampleToViewSize && _source is not null
-            && (SkUiViewSizedDecode.Fills(old) != SkUiViewSizedDecode.Fills(value) || (old == Aspect.Center) != (value == Aspect.Center)))
-            Load(restart: false, keepShown: _slot.Entry is { IsVector: true });
-        else if (_slot.Entry is { IsVector: true })
+        if (_slot.Entry is { IsVector: true })
         {
             if (value == Aspect.Center && old != Aspect.Center)
             {
+                _viewSizedDecode.Stop();
                 _viewSizedDecode.ForgetVector();
                 _slot.Load(_source, _options, keepShown: true); // drawn unscaled: at its own size, not the view's
             }
@@ -230,6 +227,12 @@ public class SkUiCoreImage : SkUiCoreNode
             {
                 InvalidateMeasure(); // the next arrange draws it for this aspect
             }
+        }
+        // Fitting and covering decode to different bounds; a centered image is not downsampled to the node.
+        else if (_downsampleToViewSize && _source is not null
+            && (SkUiViewSizedDecode.Fills(old) != SkUiViewSizedDecode.Fills(value) || (old == Aspect.Center) != (value == Aspect.Center)))
+        {
+            Load(restart: false);
         }
         return this;
     }
@@ -352,19 +355,19 @@ public class SkUiCoreImage : SkUiCoreNode
     }
 
     // A new source (restart) waits for the next arrange with DownsampleToViewSize; new settings reuse the bounds decided.
-    private Task Load(bool restart, bool keepShown = false)
+    private Task Load(bool restart)
     {
         _viewSizedDecode.ForgetVector();
         if (SkUiViewSizedDecode.ForVectorSource(_source, ImageArea(Frame.Size), _options, _aspect, out var sized))
         {
             _viewSizedDecode.Stop();
             _viewSizedDecode.MarkSizedAsVector();
-            return _slot.Load(_source, sized, keepShown);
+            return _slot.Load(_source, sized);
         }
         if (_source is null || !SkUiViewSizedDecode.AppliesTo(_downsampleToViewSize, _options, _aspect))
         {
             _viewSizedDecode.Stop();
-            return _slot.Load(_source, _options, keepShown);
+            return _slot.Load(_source, _options);
         }
         if (restart || !_viewSizedDecode.HasBounds)
         {
@@ -373,7 +376,7 @@ public class SkUiCoreImage : SkUiCoreNode
             _slot.Load(null, _options);
             return Task.CompletedTask;
         }
-        return _slot.Load(_source, _viewSizedDecode.Apply(_options, _aspect), keepShown);
+        return _slot.Load(_source, _viewSizedDecode.Apply(_options, _aspect));
     }
 
     /// <inheritdoc />

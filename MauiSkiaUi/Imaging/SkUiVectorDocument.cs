@@ -97,6 +97,8 @@ internal sealed class SkUiVectorDocument
     private const string ObjectBoundingBox = "objectBoundingBox";
     private const string UserSpaceOnUse = "userSpaceOnUse";
     private const string ImportantSuffix = "!important";
+    private const double DefaultRegionStart = -0.1;
+    private const double DefaultRegionLength = 1.2;
 
     private static readonly HashSet<string> Drawn = new(StringComparer.Ordinal)
     {
@@ -309,9 +311,13 @@ internal sealed class SkUiVectorDocument
             throw SkUiVectorValues.Unsupported($"a {property}");
     }
 
+    // Both coordinates: a single value leaves the other at its center.
     private static bool IsZeroOrigin(string value)
     {
-        foreach (var part in value.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries))
+        var parts = value.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length < 2)
+            return false;
+        foreach (var part in parts)
         {
             if (!(SkUiVectorValues.TryLength(part.TrimEnd('%'), out var length) && length == 0)) // exact: zero is the point
                 return false;
@@ -347,13 +353,14 @@ internal sealed class SkUiVectorDocument
         return percent ? number / 100d : number;
     }
 
-    // At least the element's bounds, as SVG's own default region (-10%, 120%): the content is not cut, so no region applies.
+    // A region covering at least the element's geometry, as SVG's own default (-10%, 120%), is not applied. What is left out takes
+    // that default, whatever else is set. An exact region does cut a stroke past the geometry, which this reader does not do.
     private static bool RegionCoversBounds(SkUiVectorNode node)
     {
-        var x = node["x"] is { } xText ? BoundsFraction(xText) : 0;
-        var y = node["y"] is { } yText ? BoundsFraction(yText) : 0;
-        var width = node["width"] is { } widthText ? BoundsFraction(widthText) : 1;
-        var height = node["height"] is { } heightText ? BoundsFraction(heightText) : 1;
+        var x = node["x"] is { } xText ? BoundsFraction(xText) : DefaultRegionStart;
+        var y = node["y"] is { } yText ? BoundsFraction(yText) : DefaultRegionStart;
+        var width = node["width"] is { } widthText ? BoundsFraction(widthText) : DefaultRegionLength;
+        var height = node["height"] is { } heightText ? BoundsFraction(heightText) : DefaultRegionLength;
         return x <= 0 && y <= 0 && x + width >= 1 && y + height >= 1;
     }
 

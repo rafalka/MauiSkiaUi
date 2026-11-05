@@ -159,7 +159,7 @@ An `.svg` draws at runtime through a small reader in `SkiaUi.Maui`, with no extr
 <!-- A MauiAsset: currentColor is black, as SVG says -->
 <sk:SkUiImage Source="check.svg" WidthRequest="32" HeightRequest="32" />
 
-<!-- Color is the value of currentColor; Size is the longest edge in DIPs (default: the file's size) -->
+<!-- Color is the starting value of currentColor; Size is the longest edge in DIPs (default: the file's size) -->
 <sk:SkUiImage>
     <sk:SkUiImage.Source>
         <sk:SkUiVectorImageSource Source="check.svg" Color="{AppThemeBinding Light=Black, Dark=White}" Size="24" />

@@ -248,6 +248,8 @@ public sealed class VectorIconTests
     [InlineData("""<rect width="9" height="9" paint-order="stroke fill"/>""", "paint-order")]
     [InlineData("""<rect width="9" height="9" vector-effect="non-scaling-stroke"/>""", "vector-effect")]
     [InlineData("""<rect width="9" height="9" transform-origin="4 4"/>""", "transform-origin")]
+    [InlineData("""<rect width="9" height="9" transform-origin="0"/>""", "transform-origin")]
+    [InlineData("""<mask id="m" width="100%" height="100%"/>""", "region")]
     [InlineData("""<clipPath id="c" clip-path="url(#d)"/>""", "clip-path")]
     [InlineData("""<mask id="m" mask="url(#n)"/>""", "mask")]
     [InlineData("""<mask id="m" x="10%" y="0" width="50%" height="100%"/>""", "region")]
@@ -266,7 +268,8 @@ public sealed class VectorIconTests
     [InlineData("""<rect width="48" height="48" fill="#f00" style="paint-order:markers fill stroke"/>""")]
     [InlineData("""<rect width="48" height="48" fill="#f00" paint-order="markers"/>""")]
     [InlineData("""<rect width="48" height="48" fill="#f00" style="transform-origin:0px 0px"/>""")]
-    [InlineData("""<rect width="48" height="48" fill="#f00" transform-origin="0"/>""")]
+    [InlineData("""<rect width="48" height="48" fill="#f00" transform-origin="0 0"/>""")]
+    [InlineData("""<rect width="48" height="48" fill="#f00" mask="url(#m)"/><mask id="m" x="-5%"><rect width="48" height="48" fill="#fff"/></mask>""")]
     [InlineData("""<rect width="48" height="48" fill="#f00" mask="url(#m)"/><mask id="m" x="0" y="0" width="100%" height="100%"><rect width="48" height="48" fill="#fff"/></mask>""")]
     [InlineData("""<rect width="48" height="48" fill="#f00" mask="url(#m)"/><mask id="m" x="-10%" y="-10%" width="120%" height="120%"><rect width="48" height="48" fill="#fff"/></mask>""")]
     [InlineData("""<rect width="48" height="48" fill="#f00" mask="url(#m)"/><mask id="m" x="0" y="0" width="1" height="1"><rect width="48" height="48" fill="#fff"/></mask>""")]
@@ -369,6 +372,16 @@ public sealed class VectorIconTests
         for (var copy = 0; copy < 200; copy++)
             svg.Append(copy == 0 ? $"""<path id="p" d="M0 0h9v9z" {attributes}/>""" : """<g/>""");
         return svg.Append("</mask>").ToString();
+    }
+
+    [Fact]
+    public void Attribute_names_count_as_work()
+    {
+        var document = Parse(Open + ManyAttributes() + Close);
+
+        var error = Assert.Throws<InvalidDataException>(() => SkUiVectorPainter.Render(document, new SKSizeI(48, 48), SKColors.Black).Dispose());
+
+        Assert.Contains("work", error.Message);
     }
 
     [Theory]

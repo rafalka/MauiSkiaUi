@@ -369,13 +369,11 @@ public class SkUiImage : SkUiView
         var old = _aspect;
         _aspect = value;
         InvalidatePaint();
-        // Fitting and covering decode to different bounds; a centered image is not downsampled to the view.
-        if (_downsampleToViewSize && (SkUiViewSizedDecode.Fills(old) != SkUiViewSizedDecode.Fills(value) || (old == Aspect.Center) != (value == Aspect.Center)))
-            Load(restart: false, keepShown: _slot?.Entry is { IsVector: true });
-        else if (_slot?.Entry is { IsVector: true })
+        if (_slot?.Entry is { IsVector: true })
         {
             if (value == Aspect.Center && old != Aspect.Center)
             {
+                _viewSizedDecode.Stop();
                 _viewSizedDecode.ForgetVector();
                 Slot.Load(SkUiImageSource.FromMaui(_source), _options, keepShown: true); // drawn unscaled: at its own size, not the view's
             }
@@ -383,6 +381,11 @@ public class SkUiImage : SkUiView
             {
                 InvalidateMeasureOverride(); // the next arrange draws it for this aspect
             }
+        }
+        // Fitting and covering decode to different bounds; a centered image is not downsampled to the view.
+        else if (_downsampleToViewSize && (SkUiViewSizedDecode.Fills(old) != SkUiViewSizedDecode.Fills(value) || (old == Aspect.Center) != (value == Aspect.Center)))
+        {
+            Reload();
         }
     }
 
@@ -439,7 +442,7 @@ public class SkUiImage : SkUiView
     /// </summary>
     public Task ReloadAsync() => Load(restart: false);
 
-    private Task Load(bool restart, bool keepShown = false)
+    private Task Load(bool restart)
     {
         _viewSizedDecode.ForgetVector();
         var source = SkUiImageSource.FromMaui(_source);
@@ -447,12 +450,12 @@ public class SkUiImage : SkUiView
         {
             _viewSizedDecode.Stop();
             _viewSizedDecode.MarkSizedAsVector();
-            return Slot.Load(source, sized, keepShown);
+            return Slot.Load(source, sized);
         }
         if (source is null || !SkUiViewSizedDecode.AppliesTo(_downsampleToViewSize, _options, _aspect))
         {
             _viewSizedDecode.Stop();
-            return Slot.Load(source, _options, keepShown);
+            return Slot.Load(source, _options);
         }
         if (restart || !_viewSizedDecode.HasBounds)
         {
@@ -461,7 +464,7 @@ public class SkUiImage : SkUiView
             Slot.Load(null, _options);
             return Task.CompletedTask;
         }
-        return Slot.Load(source, _viewSizedDecode.Apply(_options, _aspect), keepShown);
+        return Slot.Load(source, _viewSizedDecode.Apply(_options, _aspect));
     }
 
     /// <inheritdoc />
