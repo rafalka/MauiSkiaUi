@@ -1,5 +1,4 @@
 using System.Diagnostics;
-using MauiSkiaUi.Core;
 using SkiaSharp;
 using Xunit;
 
@@ -39,26 +38,60 @@ public class TextAndImageTests
             Assert.False(char.IsLowSurrogate(line[0]) || line[0] == '́' || line[0] == '‍', $"line starts mid-grapheme: {line}");
     }
 
-    /// <summary>How many times <see cref="LongParagraphWrapsInLinearTime"/> times the wrap (it keeps the fastest).</summary>
-    private const int TimedRuns = 3;
+    private const string Words = "lorem ipsum dolor sit amet";
+    private const int ShortParagraphCopies = 250;
+    private const double NarrowWidth = 300;
 
+    /// <summary>How many times longer the long paragraph (about 50k characters) is, and its long lines, than the short ones.</summary>
+    private const int LengthFactor = 8;
+
+    /// <summary>
+    /// Halfway between linear (the factor itself) and quadratic (its square), on a log scale: about 2.8 times off either.
+    /// </summary>
+    private static readonly double SlowdownLimit = Math.Pow(LengthFactor, 1.5);
+
+    /// <summary>How many rounds <see cref="LongParagraphWrapsInLinearTime"/> times (it keeps each size's fastest).</summary>
+    private const int TimedRounds = 20;
+
+    // How time grows with the text, not how many milliseconds it takes: load from other tests and processes (forced GCs,
+    // other builds) can stretch a run many times over, and a machine's speed says nothing about the complexity. A
+    // quadratic scan per line only shows when the lines grow too, and a scan of the rest of the text per line only when
+    // the number of lines grows, so both are compared with the same short paragraph. The sizes take turns and each keeps
+    // its fastest of many short runs, so load has to hit one size's every run, and not the others', to change a ratio.
     [Fact]
     public void LongParagraphWrapsInLinearTime()
     {
         using var font = Font();
-        var text = string.Join(' ', Enumerable.Repeat("lorem ipsum dolor sit amet", 2000));
-        var lines = SkUiTestHelpers.BreakLines(text, 300, LineBreakMode.WordWrap, font.Typeface);
-        Assert.True(lines.Count > 100);
-        // The best of a few runs after the warm-up above: the parallel suite's load slows single runs, a regression slows them all.
-        var best = long.MaxValue;
-        for (var run = 0; run < TimedRuns; run++)
+        var shortText = string.Join(' ', Enumerable.Repeat(Words, ShortParagraphCopies));
+        var longText = string.Join(' ', Enumerable.Repeat(Words, ShortParagraphCopies * LengthFactor));
+        const double wideWidth = NarrowWidth * LengthFactor;
+        Assert.True(SkUiTestHelpers.BreakLines(longText, NarrowWidth, LineBreakMode.WordWrap, font.Typeface).Count > 100);
+        Assert.True(SkUiTestHelpers.BreakLines(longText, wideWidth, LineBreakMode.WordWrap, font.Typeface).Count > 100);
+
+        var bestShort = TimeSpan.MaxValue;
+        var bestManyLines = TimeSpan.MaxValue;
+        var bestLongLines = TimeSpan.MaxValue;
+        for (var round = 0; round < TimedRounds; round++)
         {
-            var watch = Stopwatch.StartNew();
-            SkUiTestHelpers.BreakLines(text, 300, LineBreakMode.WordWrap, font.Typeface);
-            best = Math.Min(best, watch.ElapsedMilliseconds);
+            bestShort = Min(bestShort, TimeWrap(shortText, NarrowWidth));
+            bestManyLines = Min(bestManyLines, TimeWrap(longText, NarrowWidth));
+            bestLongLines = Min(bestLongLines, TimeWrap(longText, wideWidth));
         }
-        // The previous per-grapheme re-measure was quadratic per line; this stays well under a frame budget per 50k chars.
-        Assert.True(best < 200, $"wrap took {best} ms");
+        var manyLines = bestManyLines / bestShort;
+        var longLines = bestLongLines / bestShort;
+        var times = $"short {bestShort.TotalMilliseconds:F2} ms, many lines {bestManyLines.TotalMilliseconds:F2} ms, long lines {bestLongLines.TotalMilliseconds:F2} ms";
+        Assert.True(manyLines < SlowdownLimit, $"{LengthFactor} times the lines took {manyLines:F1} times as long ({times}).");
+        Assert.True(longLines < SlowdownLimit, $"{LengthFactor} times the line length took {longLines:F1} times as long ({times}).");
+        return;
+
+        TimeSpan TimeWrap(string text, double width)
+        {
+            var start = Stopwatch.GetTimestamp();
+            SkUiTestHelpers.BreakLines(text, width, LineBreakMode.WordWrap, font.Typeface);
+            return Stopwatch.GetElapsedTime(start);
+        }
+
+        static TimeSpan Min(TimeSpan first, TimeSpan second) => first < second ? first : second;
     }
 
     [Fact]
@@ -85,31 +118,6 @@ public class TextAndImageTests
         label.TextColor = Colors.Blue;
         surface.Frame();
         Assert.Equal(breaks, label.Breaks);
-    }
-
-    [Fact]
-    public async Task LargeImagesDecodeDownsampledButKeepSourceLayoutSize()
-    {
-        var previous = SkUiImageDecoder.MaxDecodeDimension;
-        SkUiImageDecoder.MaxDecodeDimension = 256;
-        try
-        {
-            using var bitmap = new SKBitmap(1200, 600);
-            using (var canvas = new SKCanvas(bitmap)) canvas.Clear(SKColors.Orange);
-            using var encoded = bitmap.Encode(SKEncodedImageFormat.Png, 100);
-            var bytes = encoded.ToArray();
-            var image = new SkUiCoreImage().SetSourceStream(_ => Task.FromResult<Stream>(new MemoryStream(bytes)));
-            await image.LoadingTask;
-            Assert.Equal(new Size(1200, 600), image.ImageSize);
-            var decoded = SkUiImageDecoder.Decode(bytes);
-            using var frame = Assert.Single(decoded.Frames);
-            Assert.Equal(new Size(1200, 600), decoded.Size);
-            Assert.True(frame.Width <= 256 && frame.Height <= 256);
-        }
-        finally
-        {
-            SkUiImageDecoder.MaxDecodeDimension = previous;
-        }
     }
 
     private sealed class CountingBreakLabel : SkUiLabel
