@@ -306,6 +306,9 @@ public class SkUiPanGestureRecognizer : SkUiGestureRecognizer
 
     internal Action<SkUiPanUpdatedEventArgs>? Handler { get; init; }
 
+    /// <summary>Whether a drag not started yet waits: a pinch on the same element with two fingers down, which one finger moving first must not lose to.</summary>
+    internal Func<bool>? WaitsForPinch { get; init; }
+
     /// <inheritdoc />
     protected internal override bool IsExclusive => true;
 
@@ -331,7 +334,7 @@ public class SkUiPanGestureRecognizer : SkUiGestureRecognizer
         var dy = pointer.Position.Y - _start.Y;
         if (!_active)
         {
-            if (!ExceedsSlop(dx, dy, Axis))
+            if (!ExceedsSlop(dx, dy, Axis) || WaitsForPinch?.Invoke() == true)
                 return;
             Claim();
             if (_pointer != pointer.Id)
@@ -504,6 +507,9 @@ public class SkUiPinchGestureRecognizer : SkUiGestureRecognizer
     public event EventHandler<SkUiPinchUpdatedEventArgs>? PinchUpdated;
 
     internal Action<SkUiPinchUpdatedEventArgs>? Handler { get; init; }
+
+    /// <summary>Whether two fingers are down on the owner, pinching or about to.</summary>
+    internal bool HasTwoPointers => _pointers.Count == 2;
 
     /// <inheritdoc />
     protected internal override bool IsExclusive => true;

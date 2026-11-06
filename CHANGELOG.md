@@ -35,6 +35,7 @@ Publishing (the NuGet publish workflow, [docs/Releasing.md](docs/Releasing.md)) 
 
 ### Fixes
 
+- **A pinch beats a pan on the same element:** with two fingers down, one finger moving first no longer starts the element's `PanUpdated` and ends the pinch.
 - **`<sub>` and `<sup>` in HTML text** sit below and above the baseline; before, they were only smaller.
 - **A scroll that waits for the layout** (a keyboard inset, say) ends in the frame that ends it; before, its task ended through a pool thread, which a busy pool could delay past the frames that needed it.
 

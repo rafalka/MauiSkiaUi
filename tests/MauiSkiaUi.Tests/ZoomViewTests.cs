@@ -182,6 +182,38 @@ public class ZoomViewTests
         Assert.Equal(0, content.TranslationY, 0);
     }
 
+    private static void PinchWithOneFinger(Action<SkUiTouchEvent> touch)
+    {
+        var time = TimeSpan.Zero;
+        touch(new(1, SkUiTouchAction.Pressed, new Point(100, 50), time));
+        touch(new(2, SkUiTouchAction.Pressed, new Point(150, 50), time));
+        for (var step = 1; step <= 10; step++)
+        {
+            time += TimeSpan.FromMilliseconds(16);
+            touch(new(1, SkUiTouchAction.Moved, new Point(100 - 4 * step, 50), time));
+        }
+        touch(new(1, SkUiTouchAction.Released, new Point(60, 50), time));
+        touch(new(2, SkUiTouchAction.Released, new Point(150, 50), time));
+    }
+
+    [Fact]
+    public void ZoomedInAPinchWithOneFingerStillBeatsThePan()
+    {
+        var (core, _) = Core();
+        Pinch(touch => core.Touch(touch), new Point(100, 50), 20, 30);
+        var before = core.ZoomScale;
+        Assert.True(before > 1.2);
+        PinchWithOneFinger(touch => core.Touch(touch));
+        Assert.True(core.ZoomScale > before * 1.5, core.ZoomScale.ToString(System.Globalization.CultureInfo.InvariantCulture));
+
+        var drawn = new SkUiZoomView { Content = new SkUiBox() };
+        SkUiTestHelpers.Arrange(drawn, 200, 100);
+        Pinch(touch => drawn.Touch(touch), new Point(100, 50), 20, 30);
+        before = drawn.ZoomScale;
+        PinchWithOneFinger(touch => drawn.Touch(touch));
+        Assert.True(drawn.ZoomScale > before * 1.5, drawn.ZoomScale.ToString(System.Globalization.CultureInfo.InvariantCulture));
+    }
+
     [Fact]
     public void ThePinchOfTheDrawnViewKeepsThePointToo()
     {
