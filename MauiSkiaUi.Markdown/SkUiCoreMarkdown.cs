@@ -355,7 +355,13 @@ public class SkUiCoreMarkdown : SkUiCoreContentView
                             finished.SetResult();
                         }
                     }))
+                {
+                    // The dispatcher is closed, as when the app is closing: the result cannot go on screen, and the tree is not this thread's. Whoever waits stops
+                    // waiting, and the next text builds again.
+                    _isBuilding = false;
+                    Interlocked.Exchange(ref _updated, null)?.TrySetResult();
                     finished.SetResult();
+                }
                 await finished.Task.ConfigureAwait(false);
             }
             if (next is null)

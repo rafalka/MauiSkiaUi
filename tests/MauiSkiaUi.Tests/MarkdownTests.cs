@@ -805,14 +805,36 @@ public class MarkdownTests
         await view.WhenUpdated.WaitAsync(TimeSpan.FromSeconds(30));
     }
 
+    [Fact]
+    public async Task AClosedDispatcherEndsTheWaitAndTheNextTextStillBuilds()
+    {
+        using var _ = SkUiTestHelpers.UseBundledFont();
+        var ui = new QueueDispatcher { IsClosed = true };
+        using var dispatcher = SkUiTestHelpers.UseTestDispatcher(ui);
+        var view = new SkUiCoreMarkdown().SetMarkdownStyle(Background);
+        view.SetText("first");
+        await view.WhenUpdated.WaitAsync(TimeSpan.FromSeconds(30));
+        Assert.Empty(Nodes<SkUiCoreLabel>(view));
+        ui.IsClosed = false;
+        view.SetText("second");
+        await ui.WaitForWorkAsync();
+        ui.RunAll();
+        await view.WhenUpdated.WaitAsync(TimeSpan.FromSeconds(30));
+        Assert.Single(Nodes<SkUiCoreLabel>(view));
+    }
+
     internal sealed class QueueDispatcher : IDispatcher
     {
         private readonly Queue<Action> _work = new();
 
         public bool IsDispatchRequired => true;
 
+        internal bool IsClosed { get; set; }
+
         public bool Dispatch(Action action)
         {
+            if (IsClosed)
+                return false;
             lock (_work)
                 _work.Enqueue(action);
             return true;
