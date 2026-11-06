@@ -39,9 +39,11 @@ public sealed class MarkdownDemoPage : ComponentDemoPage
         {
             var text = MarkdownDemoDocument.Text;
             // Stops when the page is left.
-            for (var length = 0; length <= text.Length && (length == 0 || _markdown.Window is not null); length = Math.Min(length + 40, text.Length + 1))
+            for (var length = 0; length == 0 || _markdown.Window is not null; length += 40)
             {
                 _markdown.Text = text[..Math.Min(length, text.Length)];
+                if (length >= text.Length)
+                    break;
                 await Task.Delay(16);
             }
         }
