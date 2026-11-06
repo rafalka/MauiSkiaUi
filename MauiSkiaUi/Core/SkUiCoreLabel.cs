@@ -37,6 +37,7 @@ public class SkUiCoreLabel : SkUiCoreNode, ISkUiFontElement, ISkUiBorderElement
     private double _characterSpacing;
     private TextDecorations _textDecorations;
     private TextTransform _textTransform = TextTransform.Default;
+    private List<SkUiInlineObject>? _inlineObjects; // what the spans last resolved show: they let go of what they drew when they leave, or when this label does
     private bool _shrinkToFit;
     private double _minimumFontScale = SkUiTextFit.DefaultMinimumScale;
     private bool _growToFill;
@@ -468,6 +469,11 @@ public class SkUiCoreLabel : SkUiCoreNode, ISkUiFontElement, ISkUiBorderElement
 
     private SkUiRichText BuildRichText()
     {
+        List<SkUiInlineObject>? inlineObjects = null;
+        foreach (var span in _spans)
+            if (!IsHtml && span.InlineObject is { } inlineObject)
+                (inlineObjects ??= []).Add(inlineObject);
+        SkUiInlineObject.Replace(ref _inlineObjects, inlineObjects);
         if (IsHtml)
             return SkUiHtml.ToRichText(HtmlRuns, _fontFamily, EffectiveFontSize, _fontAttributes, _characterSpacing, _lineHeight, _textColor, _textDecorations,
                 _fontAutoScalingEnabled);
@@ -928,8 +934,7 @@ public class SkUiCoreLabel : SkUiCoreNode, ISkUiFontElement, ISkUiBorderElement
         _chrome.ReleaseClip();
         _layout.Release();
         _richLayout?.Release();
-        foreach (var span in _spans)
-            span.InlineObject?.ReleaseDrawingResources?.Invoke();
+        SkUiInlineObject.Release(_inlineObjects);
     }
 
     private void UpdateDisplayText()

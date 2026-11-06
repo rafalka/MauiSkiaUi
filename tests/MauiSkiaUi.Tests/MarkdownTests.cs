@@ -1143,6 +1143,18 @@ public class MarkdownDelimiterCountTests
         "![a](data:x;base64," + R("++a ", 3_000),
         "![a](data:x;base64," + R("[a](", 2_001) + ")",
         "x](data:;base64,++)" + R("[a](", 4_001),
+        R("![a](data:(,+a=b)", 2_000),
+        // The alt text of an image is parsed, whatever its destination.
+        R("![*a*a](data:,AA)", 2_000),
+        // Fences that end with what holds them, where this does not follow them.
+        "- a\n  ```\n" + R("[a](", 4_001),
+        "::: x\n```\n:::\n" + R("[a](", 4_001),
+        // A line ends at \r too, and what only looks blank does not end a paragraph.
+        "~~~\r~~~\r" + R("[a](", 4_001),
+        R(R("[a](", 1_000) + "\n\u00A0\n", 3),
+        R(R("[a](", 1_000) + "\n\f\n", 3),
+        // An item with nothing on its first line: what follows is in it, not code.
+        "-\n    x\n\n" + R("    [a](\n", 2_001),
     };
 
     [Theory]

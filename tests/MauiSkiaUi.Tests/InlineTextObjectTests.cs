@@ -289,8 +289,47 @@ public class InlineTextObjectTests
         var span = new Span { Text = "x" };
         SkUiSpan.SetInlineObject(span, SkUiInlineObject.FromNode(drawn));
         var view = new SkUiLabel { FormattedText = new FormattedString { Spans = { span } } };
+        view.Measure(100, 40);
         Rendering.SkUiRenderInvalidation.ResetSubtree(view);
         Assert.Equal(1, drawn.Releases);
+    }
+
+    [Fact]
+    public void ANodeLeavingItsLabelLetsGo()
+    {
+        using var _ = SkUiTestHelpers.UseBundledFont();
+        var replaced = new ReleaseCountingNode();
+        var changed = new ReleaseCountingNode();
+        var kept = new ReleaseCountingNode();
+        var changing = new SkUiCoreSpan("x").SetInlineObject(SkUiInlineObject.FromNode(changed));
+        var keeping = new SkUiCoreSpan("x").SetInlineObject(SkUiInlineObject.FromNode(kept));
+        var label = Label(new SkUiCoreSpan("x").SetInlineObject(SkUiInlineObject.FromNode(replaced)), changing, keeping);
+        label.Measure(100, 40);
+        label.SetSpans(changing, keeping);
+        label.Measure(100, 40);
+        Assert.Equal(1, replaced.Releases);
+        Assert.Equal(0, changed.Releases);
+        changing.SetInlineObject(null);
+        label.Measure(100, 40);
+        Assert.Equal(1, changed.Releases);
+        Assert.Equal(0, kept.Releases);
+
+        var removed = new ReleaseCountingNode();
+        var other = new ReleaseCountingNode();
+        var removing = new Span { Text = "x" };
+        SkUiSpan.SetInlineObject(removing, SkUiInlineObject.FromNode(removed));
+        var staying = new Span { Text = "x" };
+        SkUiSpan.SetInlineObject(staying, SkUiInlineObject.FromNode(other));
+        var formatted = new FormattedString { Spans = { removing, staying } };
+        var view = new SkUiLabel { FormattedText = formatted };
+        view.Measure(100, 40);
+        formatted.Spans.Remove(removing);
+        view.Measure(100, 40);
+        Assert.Equal(1, removed.Releases);
+        Assert.Equal(0, other.Releases);
+        view.FormattedText = new FormattedString();
+        view.Measure(100, 40);
+        Assert.Equal(1, other.Releases);
     }
 
     [Fact]

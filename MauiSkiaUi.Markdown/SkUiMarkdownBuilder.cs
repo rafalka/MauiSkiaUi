@@ -51,6 +51,9 @@ internal sealed class SkUiMarkdownBuilder
 
     private const double SizeScaleTolerance = 0.001;
 
+    /// <summary>Footnotes, as a multiple of the body size.</summary>
+    internal const double FootnoteScale = 0.9;
+
     internal SkUiMarkdownBuilder(SkUiCoreMarkdown owner, SkUiMarkdownBuildSettings settings, string source, int blockCount, int imageCount)
     {
         _owner = owner;
@@ -800,7 +803,7 @@ internal sealed class SkUiMarkdownBuilder
         grid.SetColumnSpacing(_style.ListMarkerSpacing);
         grid.SetRowSpacing(_style.ListItemSpacing);
         var row = 0;
-        var inner = context with { SizeScale = 0.9 };
+        var inner = context with { SizeScale = FootnoteScale };
         foreach (var block in group)
         {
             if (block is not Footnote footnote)
@@ -990,7 +993,7 @@ internal sealed class SkUiMarkdownBuilder
     {
         var latex = math.Lines.ToString().Trim();
         var size = _bodySize * context.SizeScale;
-        var node = CreateMathBlock(latex, new SkUiMarkdownMathContext(size, context.TextColor, size * _settings.TextScale));
+        var node = CreateMathBlock(latex, new SkUiMarkdownMathContext(size, context.TextColor, _settings.ScaledSize(size)));
         if (node is null)
         {
             var source = HorizontalScroll(BuildCodeLabel(latex, null, context));
@@ -1008,7 +1011,7 @@ internal sealed class SkUiMarkdownBuilder
     {
         var latex = math.Content.ToString();
         var size = LookSize(look, run.Context);
-        var inlineObject = CreateMathInline(latex, new SkUiMarkdownMathContext(size, look.TextColor ?? run.Context.TextColor, size * _settings.TextScale));
+        var inlineObject = CreateMathInline(latex, new SkUiMarkdownMathContext(size, look.TextColor ?? run.Context.TextColor, _settings.ScaledSize(size)));
         if (inlineObject is null)
         {
             run.Append(latex, CodeLook(look, run.Context)); // D7 in the plan: the source, until the renderer can place it
@@ -1026,6 +1029,11 @@ internal sealed class SkUiMarkdownBuilder
 /// <param name="ImageResolver">The rule of what a URL may load.</param>
 /// <param name="CodeHighlighter">Colors code blocks.</param>
 /// <param name="MathRenderer">Draws formulas.</param>
-/// <param name="TextScale">What the system text size and the look's scale make of the body size, read on the UI thread: on Apple platforms a build's thread cannot.</param>
+/// <param name="ScaledSizes">What the system text size and the look's scale make of the document's sizes, read on the UI thread: on Apple platforms a build's thread cannot, and the scale is not the same for every size.</param>
+/// <param name="TextScale">The same at the body size, for a size not among them.</param>
 internal sealed record SkUiMarkdownBuildSettings(SkUiMarkdownStyle Style, bool AllowRemoteImages, Func<string, SkUiImageSource?>? ImageResolver, SkUiMarkdownCodeHighlighter? CodeHighlighter,
-    ISkUiMarkdownMathRenderer? MathRenderer, double TextScale);
+    ISkUiMarkdownMathRenderer? MathRenderer, IReadOnlyDictionary<double, double> ScaledSizes, double TextScale)
+{
+    /// <summary>The size <paramref name="size"/> draws at.</summary>
+    internal double ScaledSize(double size) => ScaledSizes.TryGetValue(size, out var scaled) ? scaled : size * TextScale;
+}

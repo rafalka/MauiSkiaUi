@@ -33,6 +33,7 @@ public class SkUiLabel : SkUiView, ISkUiFontElement, ISkUiBorderElement
     private double _characterSpacing;
     private TextDecorations _textDecorations;
     private TextTransform _textTransform = TextTransform.Default;
+    private List<SkUiInlineObject>? _inlineObjects; // what the spans last resolved show: they let go of what they drew when they leave, or when this label does
     private bool _shrinkToFit;
     private double _minimumFontScale = SkUiTextFit.DefaultMinimumScale;
     private bool _growToFill;
@@ -552,9 +553,7 @@ public class SkUiLabel : SkUiView, ISkUiFontElement, ISkUiBorderElement
         _chrome.ReleaseClip();
         _layout.Release();
         _richLayout?.Release();
-        if (_formattedText is { } formatted)
-            foreach (var span in formatted.Spans)
-                SkUiSpan.GetInlineObject(span)?.ReleaseDrawingResources?.Invoke();
+        SkUiInlineObject.Release(_inlineObjects);
     }
 
     private void UpdateDisplayText()
@@ -617,6 +616,12 @@ public class SkUiLabel : SkUiView, ISkUiFontElement, ISkUiBorderElement
         if (IsHtml)
             return SkUiHtml.ToRichText(HtmlRuns, _fontFamily, EffectiveFontSize, _fontAttributes, _characterSpacing, _lineHeight, _textColor, _textDecorations,
                 _fontAutoScalingEnabled);
+        List<SkUiInlineObject>? inlineObjects = null;
+        if (_formattedText is { } shown)
+            foreach (var span in shown.Spans)
+                if (SkUiSpan.GetInlineObject(span) is { } shownObject)
+                    (inlineObjects ??= []).Add(shownObject);
+        SkUiInlineObject.Replace(ref _inlineObjects, inlineObjects);
         if (_formattedText is not { Spans.Count: > 0 } formatted) return SkUiRichText.Empty;
         var builder = new SkUiRichText.Builder();
         foreach (var span in formatted.Spans)

@@ -51,6 +51,24 @@ public sealed class SkUiInlineObject
     /// <summary>Lets go of what drawing made (a node's text blobs and clips), when the label holding the object does.</summary>
     internal Action? ReleaseDrawingResources { get; private init; }
 
+    /// <summary>A label's spans were resolved again: <paramref name="current"/> holds the objects it shows now, and those it no longer shows let go.</summary>
+    internal static void Replace(ref List<SkUiInlineObject>? held, List<SkUiInlineObject>? current)
+    {
+        if (held is not null)
+            foreach (var inlineObject in held)
+                if (current?.Contains(inlineObject) != true)
+                    inlineObject.ReleaseDrawingResources?.Invoke();
+        held = current;
+    }
+
+    /// <summary>The label lets go of what its objects drew; it may show them again.</summary>
+    internal static void Release(List<SkUiInlineObject>? held)
+    {
+        if (held is not null)
+            foreach (var inlineObject in held)
+                inlineObject.ReleaseDrawingResources?.Invoke();
+    }
+
     /// <summary>
     /// An object that draws <paramref name="node"/>, at the size it measures to now, standing on the baseline unless <paramref name="baseline"/>
     /// says otherwise. The node takes no input of its own and has no parent (use the span's <see cref="SkUiCoreSpan.Tapped"/>); its content is

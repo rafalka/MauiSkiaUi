@@ -20,7 +20,7 @@ internal static class SkUiMarkdownParser
     private const int MaximumHeadingLevel = 6;
 
     // Longer than any alt text or data URL header a real image has, and short enough that a scan cannot add up.
-    private const int MaximumSkippedAltLength = 1_024;
+    private const int MaximumSkippedHeaderLength = 1_024;
 
     /// <summary>
     /// Only what the view draws, not <c>UseAdvancedExtensions</c> (diagrams, media links, figures, citations and more the builder would
@@ -48,8 +48,8 @@ internal static class SkUiMarkdownParser
 
     /// <summary>
     /// Whether a run of text the inline parser takes as one holds too many delimiters to parse in reasonable time. A run ends at a blank line, a list item or a heading.
-    /// Fenced and indented code and the data of a <c>data:</c> image are never parsed for delimiters, so they do not count. This only reads the lines, so it can count
-    /// too much (a document then shows as plain text); what it skips must really be left alone by the parser, or a hostile document gets past it.
+    /// Code at the start of a line (a fence, indented) and the data of a <c>data:</c> image are never parsed for delimiters, so they do not count. This only reads the lines,
+    /// so it can count too much (a document then shows as plain text), which is the safe side: what it skips must really be left alone by the parser, or a hostile document gets past it.
     /// </summary>
     internal static bool HasPathologicalBlock(string text)
     {
@@ -58,18 +58,20 @@ internal static class SkUiMarkdownParser
         var previousItem = false;
         var inIndentedCode = false;
         var hasContainer = false; // inside a list or a footnote, an indented line is a paragraph, not code
+        var hasCustomContainer = false; // the end of one ends a fence in it too, which this does not follow
         var fenceLength = 0;
         var fenceCharacter = '\0';
         var lineStart = 0;
         while (lineStart < text.Length)
         {
-            var lineEnd = text.IndexOf('\n', lineStart);
-            if (lineEnd < 0)
-                lineEnd = text.Length;
+            // As the parser: \r alone ends a line too.
+            var lineEnd = text.AsSpan(lineStart).IndexOfAny('\n', '\r');
+            lineEnd = lineEnd < 0 ? text.Length : lineStart + lineEnd;
+            var next = lineEnd + (lineEnd + 1 < text.Length && text[lineEnd] == '\r' && text[lineEnd + 1] == '\n' ? 2 : 1);
             var line = text.AsSpan(lineStart, lineEnd - lineStart);
             var trimmed = line.TrimStart(' ');
             var indent = line.Length - trimmed.Length;
-            var isBlank = line.IsWhiteSpace();
+            var isBlank = line.Trim(" \t").IsEmpty; // only these: a line of other white space is text, and does not end a paragraph
             var isItem = false;
 
             if (fenceLength > 0)
@@ -80,26 +82,31 @@ internal static class SkUiMarkdownParser
                     delimiters = 0;
                 }
             }
-            else if (indent < CodeIndent && OpensFence(trimmed, out fenceCharacter, out fenceLength))
+            // Only at the start of a line and outside a custom container: a fence in a list or a container ends with it, however it was opened.
+            else if (indent == 0 && !hasCustomContainer && OpensFence(trimmed, out fenceCharacter, out fenceLength))
                 delimiters = 0;
             else if (isBlank)
                 delimiters = 0;
             else
             {
+                hasContainer |= StartsListMarker(trimmed) || trimmed.StartsWith("[^") || trimmed.StartsWith(":");
+                hasCustomContainer |= trimmed.StartsWith(":::");
                 inIndentedCode = !hasContainer && indent + (line.Length > indent && line[indent] == '\t' ? CodeIndent : 0) >= CodeIndent && (previousBlank || inIndentedCode);
                 if (!inIndentedCode)
                 {
                     isItem = indent < CodeIndent && StartsListItem(trimmed, afterParagraph: !previousBlank && !previousItem);
                     if (isItem || (indent < CodeIndent && IsHeading(trimmed)))
                         delimiters = 0;
-                    hasContainer |= StartsListItem(trimmed, afterParagraph: false) || trimmed.StartsWith("[^") || trimmed.StartsWith(":");
+                    var (dataStart, dataEnd) = (-1, -1);
                     for (var index = lineStart; index < lineEnd; index++)
                     {
-                        if (text[index] == '!' && SkipDataImage(text, index, lineEnd) is var end && end > index)
+                        if (index == dataStart)
                         {
-                            index = end;
+                            index = dataEnd;
                             continue;
                         }
+                        if (text[index] == '!')
+                            (dataStart, dataEnd) = FindImageData(text, index, lineEnd);
                         if (text[index] is '*' or '_' or '[' or ']' or '`' or '~' or '^' or '=' or '+' or '$' or '<' or '!' or ':' && ++delimiters > MaximumDelimitersPerBlock)
                             return true;
                     }
@@ -107,7 +114,7 @@ internal static class SkUiMarkdownParser
             }
             previousBlank = isBlank;
             previousItem = isItem;
-            lineStart = lineEnd + 1;
+            lineStart = next;
         }
         return false;
     }
@@ -145,37 +152,55 @@ internal static class SkUiMarkdownParser
     /// </summary>
     private static bool StartsListItem(ReadOnlySpan<char> line, bool afterParagraph)
     {
-        if (line.Length > 2 && line[0] is '-' or '*' or '+' && line[1] is ' ' or '\t')
-            return !line[2..].IsWhiteSpace();
+        var marker = ListMarkerLength(line);
+        if (marker == 0 || marker >= line.Length || line[marker] is not (' ' or '\t') || line[marker..].Trim(" \t").IsEmpty)
+            return false;
+        return !afterParagraph || line[0] is '-' or '*' or '+' || (marker == 2 && line[0] == '1');
+    }
+
+    /// <summary>Whether a line can open a list, an empty item too: what follows may be inside it.</summary>
+    private static bool StartsListMarker(ReadOnlySpan<char> line)
+    {
+        var marker = ListMarkerLength(line);
+        return marker > 0 && (marker == line.Length || line[marker] is ' ' or '\t');
+    }
+
+    private static int ListMarkerLength(ReadOnlySpan<char> line)
+    {
+        if (line.Length > 0 && line[0] is '-' or '*' or '+')
+            return 1;
         var digits = 0;
         while (digits < line.Length && digits < MaximumListNumberLength && char.IsAsciiDigit(line[digits]))
             digits++;
-        if (digits == 0 || digits + 2 >= line.Length || line[digits] is not ('.' or ')') || line[digits + 1] is not (' ' or '\t') || line[(digits + 2)..].IsWhiteSpace())
-            return false;
-        return !afterParagraph || (digits == 1 && line[0] == '1');
+        return digits > 0 && digits < line.Length && line[digits] is '.' or ')' ? digits + 1 : 0;
     }
 
-    /// <summary>The index of the <c>)</c> that ends an image written <c>![alt](data:…;base64,…)</c> starting at <paramref name="index"/>, or <paramref name="index"/>. Only a whole image counts: its data is then a destination, not text.</summary>
-    private static int SkipDataImage(string text, int index, int lineEnd)
+    /// <summary>
+    /// The start of the destination and its <c>)</c>, when an image written <c>![alt](data:type;base64,data)</c> starts at <paramref name="index"/>; otherwise -1. Only a whole,
+    /// plain image counts, with nothing in its header or data that could keep it from being one: then its data is a destination, not text. Its alt text is parsed, and counts.
+    /// </summary>
+    private static (int Start, int End) FindImageData(string text, int index, int lineEnd)
     {
+        const string Destination = "](data:";
         if (index + 1 >= lineEnd || text[index + 1] != '[')
-            return index;
+            return (-1, -1);
         var position = index + 2;
-        var altEnd = Math.Min(lineEnd, position + MaximumSkippedAltLength);
+        var altEnd = Math.Min(lineEnd, position + MaximumSkippedHeaderLength);
         while (position < altEnd && text[position] is not ('[' or ']' or '`' or '\\'))
             position++;
-        if (!text.AsSpan(position, lineEnd - position).StartsWith("](data:", StringComparison.Ordinal))
-            return index;
-        position += "](data:".Length;
-        var commaEnd = Math.Min(lineEnd, position + MaximumSkippedAltLength);
-        while (position < commaEnd && text[position] is not (',' or ')' or ' '))
+        if (!text.AsSpan(position, lineEnd - position).StartsWith(Destination, StringComparison.Ordinal))
+            return (-1, -1);
+        var start = position + 1;
+        position += Destination.Length;
+        var headerEnd = Math.Min(lineEnd, position + MaximumSkippedHeaderLength);
+        while (position < headerEnd && (char.IsAsciiLetterOrDigit(text[position]) || text[position] is '/' or '+' or '-' or '.' or ';' or '='))
             position++;
-        if (position >= commaEnd || text[position] != ',')
-            return index;
+        if (position >= headerEnd || text[position] != ',')
+            return (-1, -1);
         position++;
         while (position < lineEnd && (char.IsAsciiLetterOrDigit(text[position]) || text[position] is '+' or '/' or '='))
             position++;
-        return position < lineEnd && text[position] == ')' ? position : index;
+        return position < lineEnd && text[position] == ')' ? (start, position) : (-1, -1);
     }
 
     /// <summary>Whether <paramref name="text"/> is parsed in place: short, and without enough delimiters to take long. A limit of <see cref="int.MaxValue"/> means always.</summary>

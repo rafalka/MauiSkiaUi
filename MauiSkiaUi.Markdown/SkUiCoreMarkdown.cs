@@ -308,8 +308,11 @@ public class SkUiCoreMarkdown : SkUiCoreContentView
     private BuildRequest CreateRequest()
     {
         var bodySize = _style.FontSize ?? SkUiLook.Current.DefaultFontSize;
+        var scaled = new Dictionary<double, double>(8);
+        foreach (var scale in (ReadOnlySpan<double>)[1, _style.Heading1Scale, _style.Heading2Scale, _style.Heading3Scale, _style.Heading4Scale, _style.Heading5Scale, _style.Heading6Scale, SkUiMarkdownBuilder.FootnoteScale])
+            scaled[bodySize * scale] = SkUiFontScaling.ScaleFontSize(bodySize * scale);
         return new BuildRequest(this, _text,
-            new SkUiMarkdownBuildSettings(_style, _allowRemoteImages, _imageResolver, _codeHighlighter, _mathRenderer ?? DefaultMathRenderer, SkUiFontScaling.ScaleFontSize(bodySize) / bodySize),
+            new SkUiMarkdownBuildSettings(_style, _allowRemoteImages, _imageResolver, _codeHighlighter, _mathRenderer ?? DefaultMathRenderer, scaled, scaled[bodySize] / bodySize),
             [.. _entries], _builtText, _builtReferences, _builtFootnotes, !_isStale && !_isPlainText);
     }
 
