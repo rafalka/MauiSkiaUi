@@ -985,6 +985,17 @@ public class MarkdownTests
     }
 
     [Fact]
+    public void ListItemsWithNothingInThemCountAsBlocks()
+    {
+        using var _ = SkUiTestHelpers.UseBundledFont();
+        var empty = string.Join("\n", Enumerable.Repeat("-", 10));
+        var view = new SkUiCoreMarkdown().SetMarkdownStyle(Style with { MaximumBlocks = 5 }).SetText(empty);
+        Assert.True(view.IsPlainText);
+        view.SetMarkdownStyle(Style with { MaximumBlocks = 11 });
+        Assert.False(view.IsPlainText);
+    }
+
+    [Fact]
     public void TooManyBlocksShowAsPlainText()
     {
         using var _ = SkUiTestHelpers.UseBundledFont();

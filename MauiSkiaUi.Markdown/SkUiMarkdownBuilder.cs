@@ -113,10 +113,15 @@ internal sealed class SkUiMarkdownBuilder
         return label;
     }
 
-    private void AddBlock(Block block, in BlockContext context, List<SkUiCoreNode> output, bool isFirst)
+    private void CountBlock()
     {
         if (++BlockCount > _style.MaximumBlocks)
             throw new SkUiMarkdownLimitException("The document has more blocks than MaximumBlocks.");
+    }
+
+    private void AddBlock(Block block, in BlockContext context, List<SkUiCoreNode> output, bool isFirst)
+    {
+        CountBlock();
         if (context.Depth > _style.MaximumBlockDepth)
             throw new SkUiMarkdownLimitException("Blocks nest deeper than MaximumBlockDepth.");
         switch (block)
@@ -590,7 +595,7 @@ internal sealed class SkUiMarkdownBuilder
         {
             if (block is not ListItemBlock item)
                 continue;
-            BlockCount++;
+            CountBlock();
             grid.AddRowDefinition(new SkUiCoreRowDefinition(SkUiCoreGridLength.Auto));
             var marker = TaskStateOf(item) is { } isChecked
                 ? BuildTaskMarker(isChecked, item)
@@ -825,7 +830,7 @@ internal sealed class SkUiMarkdownBuilder
         {
             if (block is not DefinitionItem item)
                 continue;
-            BlockCount++;
+            CountBlock();
             foreach (var part in item)
             {
                 if (part is DefinitionTerm term)
