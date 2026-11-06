@@ -214,6 +214,60 @@ public class ZoomViewTests
         Assert.True(drawn.ZoomScale > before * 1.5, drawn.ZoomScale.ToString(System.Globalization.CultureInfo.InvariantCulture));
     }
 
+    private static void MovingPinch(Action<SkUiTouchEvent> touch, double fromMiddle, double toMiddle, double from, double to)
+    {
+        var time = TimeSpan.Zero;
+        const double Y = 50;
+        touch(new(1, SkUiTouchAction.Pressed, new Point(fromMiddle - from, Y), time));
+        touch(new(2, SkUiTouchAction.Pressed, new Point(fromMiddle + from, Y), time));
+        const int Steps = 10;
+        for (var step = 1; step <= Steps; step++)
+        {
+            time += TimeSpan.FromMilliseconds(16);
+            var middle = fromMiddle + (toMiddle - fromMiddle) * step / Steps;
+            var half = from + (to - from) * step / Steps;
+            touch(new(1, SkUiTouchAction.Moved, new Point(middle - half, Y), time));
+            touch(new(2, SkUiTouchAction.Moved, new Point(middle + half, Y), time));
+        }
+        touch(new(1, SkUiTouchAction.Released, new Point(toMiddle - to, Y), time));
+        touch(new(2, SkUiTouchAction.Released, new Point(toMiddle + to, Y), time));
+    }
+
+    [Fact]
+    public void WhatIsBetweenThePinchingFingersFollowsThem()
+    {
+        var (core, coreContent) = Core();
+        MovingPinch(touch => core.Touch(touch), 100, 130, 20, 40);
+        // The pinch starts once the fingers are 12 further apart, around 109: the point there is 9 from the center at scale 1, and ends under the fingers at 130.
+        var expected = 30 - core.ZoomScale * 9;
+        Assert.Equal(expected, coreContent.TranslationX, 0);
+
+        var drawnContent = new SkUiBox();
+        var drawn = new SkUiZoomView { Content = drawnContent };
+        SkUiTestHelpers.Arrange(drawn, 200, 100);
+        MovingPinch(touch => drawn.Touch(touch), 100, 130, 20, 40);
+        Assert.Equal(expected, drawnContent.TranslationX, 0);
+    }
+
+    [Fact]
+    public void ZoomedInTwoFingersDraggingTogetherMoveTheContent()
+    {
+        var (core, coreContent) = Core();
+        Pinch(touch => core.Touch(touch), new Point(100, 50), 20, 40);
+        var scale = core.ZoomScale;
+        MovingPinch(touch => core.Touch(touch), 100, 40, 20, 20);
+        Assert.Equal(scale, core.ZoomScale, 3);
+        // The first 12 only start the gesture.
+        Assert.Equal(-48, coreContent.TranslationX, 0);
+
+        var drawnContent = new SkUiBox();
+        var drawn = new SkUiZoomView { Content = drawnContent };
+        SkUiTestHelpers.Arrange(drawn, 200, 100);
+        Pinch(touch => drawn.Touch(touch), new Point(100, 50), 20, 40);
+        MovingPinch(touch => drawn.Touch(touch), 100, 40, 20, 20);
+        Assert.Equal(-48, drawnContent.TranslationX, 0);
+    }
+
     [Fact]
     public void ThePinchOfTheDrawnViewKeepsThePointToo()
     {

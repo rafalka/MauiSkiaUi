@@ -502,6 +502,7 @@ public class SkUiPinchGestureRecognizer : SkUiGestureRecognizer
     private readonly List<(long Id, Point Position)> _pointers = new(2);
     private bool _active;
     private double _startDistance, _startAngle, _lastDistance, _lastAngle;
+    private Point _startMiddle;
 
     /// <summary>Raised with Started, Running, Completed or Canceled.</summary>
     public event EventHandler<SkUiPinchUpdatedEventArgs>? PinchUpdated;
@@ -510,6 +511,9 @@ public class SkUiPinchGestureRecognizer : SkUiGestureRecognizer
 
     /// <summary>Whether two fingers are down on the owner, pinching or about to.</summary>
     internal bool HasTwoPointers => _pointers.Count == 2;
+
+    /// <summary>Whether two fingers dragging together start the pinch too: the element's own pan waits for them, so nothing else would take the drag.</summary>
+    internal Func<bool>? ClaimsDrags { get; init; }
 
     /// <inheritdoc />
     protected internal override bool IsExclusive => true;
@@ -524,6 +528,7 @@ public class SkUiPinchGestureRecognizer : SkUiGestureRecognizer
         {
             _startDistance = _lastDistance = Distance();
             _startAngle = _lastAngle = Angle();
+            _startMiddle = Middle();
         }
         return true;
     }
@@ -541,7 +546,7 @@ public class SkUiPinchGestureRecognizer : SkUiGestureRecognizer
         var angle = Angle();
         if (!_active)
         {
-            if (Math.Abs(distance - _startDistance) <= SkUiGestureSettings.TouchSlop && Math.Abs(NormalizeAngle(angle - _startAngle)) < 5)
+            if (Math.Abs(distance - _startDistance) <= SkUiGestureSettings.TouchSlop && Math.Abs(NormalizeAngle(angle - _startAngle)) < 5 && !IsDragging())
                 return;
             Claim();
             if (_pointers.Count < 2)
@@ -584,13 +589,24 @@ public class SkUiPinchGestureRecognizer : SkUiGestureRecognizer
         var origin = Point.Zero;
         if (_pointers.Count == 2)
         {
-            var mid = new Point((_pointers[0].Position.X + _pointers[1].Position.X) / 2, (_pointers[0].Position.Y + _pointers[1].Position.Y) / 2);
+            var mid = Middle();
             origin = pointer is { } sample && Owner is { } owner ? sample.MapToElement(owner, mid) : mid;
         }
         var args = new SkUiPinchUpdatedEventArgs(status, scale, _startDistance > 0 ? _lastDistance * scale / _startDistance : 1,
             rotation, NormalizeAngle(_lastAngle + rotation - _startAngle), origin);
         PinchUpdated?.Invoke(Owner, args);
         Handler?.Invoke(args);
+    }
+
+    private Point Middle() => new((_pointers[0].Position.X + _pointers[1].Position.X) / 2, (_pointers[0].Position.Y + _pointers[1].Position.Y) / 2);
+
+    private bool IsDragging()
+    {
+        if (ClaimsDrags?.Invoke() != true)
+            return false;
+        var middle = Middle();
+        var (dx, dy) = (middle.X - _startMiddle.X, middle.Y - _startMiddle.Y);
+        return dx * dx + dy * dy > SkUiGestureSettings.TouchSlop * SkUiGestureSettings.TouchSlop;
     }
 
     private double Distance()

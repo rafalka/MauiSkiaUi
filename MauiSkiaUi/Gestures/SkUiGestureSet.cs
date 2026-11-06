@@ -50,7 +50,7 @@ internal sealed class SkUiGestureSet(object owner)
             recognizers.Add(_pan);
         }
         if (PinchUpdated is not null)
-            recognizers.Add(_pinch ??= new SkUiPinchGestureRecognizer { Handler = args => PinchUpdated?.Invoke(owner, args) });
+            recognizers.Add(_pinch ??= new SkUiPinchGestureRecognizer { Handler = args => PinchUpdated?.Invoke(owner, args), ClaimsDrags = () => PanUpdated is not null });
         if (Custom is { Count: > 0 } custom)
             recognizers.AddRange(custom);
     }

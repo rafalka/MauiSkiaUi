@@ -15,7 +15,7 @@ var zoom = new SkUiCoreZoomView().SetMaximumZoomScale(4);
 zoom.SetContent(new SkUiCoreImage().SetSourceFile("plan.png"));
 ```
 
-The view clips to its bounds. A pinch keeps the point under the fingers where it is; zoomed in, the content's edges never come inside where they are at scale 1. A double tap zooms in at the tap, to `DoubleTapZoomScale`, and back out; these changes are not animated. Turning the wheel away from you zooms in about the content's center, and what is left at the limits passes on.
+The view clips to its bounds. What is between a pinch's fingers follows them, also when both move the same way; zoomed in, the content's edges never come inside where they are at scale 1. A double tap zooms in at the tap, to `DoubleTapZoomScale`, and back out; these changes are not animated. Turning the wheel away from you zooms in about the content's center, and what is left at the limits passes on.
 
 At scale 1 the view takes no drag, so it can sit in a scroll view. Set `IsWheelZoomEnabled` to `false` there, or a wheel over the view zooms before the page scrolls.
 

@@ -17,7 +17,7 @@ internal interface ISkUiZoomTarget
 }
 
 /// <summary>
-/// Pinch, pan, double tap and wheel for the zoom views of both layers: a pinch keeps the point under the fingers where it is, and zoomed in, the content's
+/// Pinch, pan, double tap and wheel for the zoom views of both layers: what is between a pinch's fingers follows them, and zoomed in, the content's
 /// edges never come inside where it was at scale 1.
 /// </summary>
 internal sealed class SkUiZoomState(ISkUiZoomTarget target)
@@ -28,6 +28,7 @@ internal sealed class SkUiZoomState(ISkUiZoomTarget target)
 
     private double _panStartX;
     private double _panStartY;
+    private Point _pinchOrigin;
 
     /// <summary>The scale a reset goes to: 1, or as close as the limits allow.</summary>
     private double RestingScale => Math.Clamp(1, MinimumScale, Math.Max(MinimumScale, MaximumScale));
@@ -73,20 +74,32 @@ internal sealed class SkUiZoomState(ISkUiZoomTarget target)
     internal void Reset() => Set(RestingScale, 0, 0);
 
     /// <summary>Zooms to <paramref name="scale"/>, keeping the point at <paramref name="focus"/> (the view's coordinates) where it is.</summary>
-    internal void ZoomAbout(double scale, Point focus)
+    internal void ZoomAbout(double scale, Point focus) => ZoomAbout(scale, focus, focus);
+
+    /// <summary>Zooms to <paramref name="scale"/>, bringing the point at <paramref name="from"/> (the view's coordinates) to <paramref name="to"/>.</summary>
+    private void ZoomAbout(double scale, Point from, Point to)
     {
         scale = Math.Clamp(scale, MinimumScale, Math.Max(MinimumScale, MaximumScale));
         var center = target.ZoomContentFrame.Center;
         var ratio = scale / Scale;
         Set(scale,
-            X + (1 - ratio) * (focus.X - center.X - X),
-            Y + (1 - ratio) * (focus.Y - center.Y - Y));
+            to.X - center.X - ratio * (from.X - center.X - X),
+            to.Y - center.Y - ratio * (from.Y - center.Y - Y));
     }
 
     internal void OnPinch(SkUiPinchUpdatedEventArgs args)
     {
-        if (args.Status == GestureStatus.Running)
-            ZoomAbout(Scale * args.Scale, args.Origin); // the recognizer's origin is in the view's DIPs
+        // The recognizer's origin is in the view's DIPs, and it moves with the fingers: what was between them stays between them.
+        switch (args.Status)
+        {
+            case GestureStatus.Started:
+                _pinchOrigin = args.Origin;
+                break;
+            case GestureStatus.Running:
+                ZoomAbout(Scale * args.Scale, _pinchOrigin, args.Origin);
+                _pinchOrigin = args.Origin;
+                break;
+        }
     }
 
     internal void OnPan(SkUiPanUpdatedEventArgs args)
