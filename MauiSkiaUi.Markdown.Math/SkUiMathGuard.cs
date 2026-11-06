@@ -75,6 +75,8 @@ internal static class SkUiMathGuard
                     if (!LeafCommands.Contains(command))
                         permanent++;
                     break;
+                case '%':
+                    return false; // a comment: the engine skips the rest of the line, so a closing brace in it would close nothing there and still count here
                 case '^' or '_':
                     if (!HoldsOneSymbol(latex, index + 1))
                         permanent++;

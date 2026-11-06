@@ -122,6 +122,11 @@ public class MarkdownMathTests
             // An escaped brace is a symbol to the engine, so it must not close what the count has open.
             R("{\\}", 1365),
             R("{x\\}", 1000),
+            // A comment hides its closing brace from the engine, up to a line end of any kind.
+            R("{%}\n", 800) + "x" + R("}", 800),
+            R("{%}\r", 800) + "x" + R("}", 800),
+            R("{%}\u2028", 800) + "x" + R("}", 800),
+            R("\\\\{%}\n", 500) + "x" + R("}", 500),
             // Limits that add up: scripts, braces and commands nest in one another.
             R("^^^^^^^^\\frac1", 24) + "2",
             R("^^^^^^^^{", 32) + R("^^^^^^^^\\sqrt", 48) + "x" + R("}", 32),
@@ -145,6 +150,7 @@ public class MarkdownMathTests
     public static TheoryData<string> Ordinary() => new()
     {
         "E = mc^2",
+        "50\\% + 25\\%",
         "\\frac{-b \\pm \\sqrt{b^2 - 4ac}}{2a}",
         "\\sum_{i=0}^{n} i = \\frac{n(n+1)}{2}",
         "\\int_0^\\infty e^{-x^2} dx = \\frac{\\sqrt{\\pi}}{2}",
