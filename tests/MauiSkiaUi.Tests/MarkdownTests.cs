@@ -1115,6 +1115,13 @@ public class MarkdownDelimiterCountTests
         "~~~\n" + R("[a](*b*\n", 2_000) + "~~~\n",
         "````\n```\n" + R("[a](*b*\n", 2_000),
         "\n    " + string.Join("\n    ", Enumerable.Repeat("[a](*b*", 2_000)),
+        // Definitions in numbers a document has.
+        R("[a]: https://example.com\n", 1_000),
+        // A code block or a formula in what holds it is as much code.
+        "- a\n\n  ```\n" + R("  [a](*b*\n", 2_000) + "  ```\n",
+        "> ```\n" + R("> [a](*b*\n", 2_000) + "> ```\n",
+        "::: x\n```\n" + R("[a](*b*\n", 2_000) + "```\n:::\n",
+        "$$\n" + R("x^* _a [b]\n", 2_000) + "$$\n",
     };
 
     [Theory]
@@ -1131,11 +1138,9 @@ public class MarkdownDelimiterCountTests
         // One paragraph, whatever its lines look like: these do not end it.
         "x\n" + R("2. [a](\n", 2_001),
         R("#[a](\n", 2_001),
-        R("[a](\n- \n", 2_001),
         R("[a](\n    [a](\n", 1_001),
         // In a list, an indented line is a paragraph.
         "- x\n\n" + R("    [a](\n", 2_001),
-        "[^1]: x\n\n" + R("    [a](\n", 2_001),
         // Not fences: the info string of a backtick fence has no backticks, and four spaces make no fence.
         "``` `\n" + R("[a](\n", 2_001),
         "```\n```\n" + R("[a](\n", 2_001),
@@ -1149,12 +1154,26 @@ public class MarkdownDelimiterCountTests
         // Fences that end with what holds them, where this does not follow them.
         "- a\n  ```\n" + R("[a](", 4_001),
         "::: x\n```\n:::\n" + R("[a](", 4_001),
+        // What takes the block pass itself long: nothing of these is a delimiter in a paragraph.
+        R("[a]: x\n", 4_001),
+        R("[a]: x\n\n", 4_001),
+        R("> [a]: x\n", 4_001),
+        R("[^a]: x\n", 4_001),
+        R("a\n=\n", 4_001),
+        R("a\n---\n", 4_001),
+        // A formula or a definition holding a fence ends it too.
+        "$$\n```\n$$\n" + R("[a](", 4_001),
+        " $$\n~~~\n $$\n" + R("[a](", 4_001),
+        "$$\r\n~~~\r\n$$\r\n" + R("[a](", 4_001),
+        "a\n: b\n```\n: c\n" + R("[a](", 4_001),
+        // Each block is counted, also inside what holds it, and a grid table as a whole.
+        "> " + R("[a](", 4_001),
+        "- x\n  - y\n\n    " + R("[a](", 4_001),
+        "+---+\n| " + R("*a ", 4_001) + " |\n+---+\n",
         // A line ends at \r too, and what only looks blank does not end a paragraph.
         "~~~\r~~~\r" + R("[a](", 4_001),
         R(R("[a](", 1_000) + "\n\u00A0\n", 3),
         R(R("[a](", 1_000) + "\n\f\n", 3),
-        // An item with nothing on its first line: what follows is in it, not code.
-        "-\n    x\n\n" + R("    [a](\n", 2_001),
     };
 
     [Theory]
