@@ -234,6 +234,26 @@ public class ScrollViewTests
     }
 
     [Fact]
+    public void AScrollThatWaitedForTheLayoutFinishesInTheFrameThatEndsIt()
+    {
+        var target = new SkUiBox { HeightRequest = 100 };
+        var scroller = new SkUiScrollView { Content = new SkUiVerticalStackLayout { Children = { new SkUiBox { HeightRequest = 2000 }, target } } };
+        using var surface = new SkUiTestSurface(new SkUiContentView { Content = scroller }, 300, 400);
+        surface.Frame();
+        // A cover not arranged yet: the request waits for the next arrange.
+        scroller.KeyboardInset = 100;
+        var scroll = scroller.ScrollToAsync(target, ScrollToPosition.MakeVisible, animated: true);
+        Assert.False(scroll.IsCompleted);
+        surface.Frame(0);
+        Assert.True(scroller.IsMotionRunning);
+        for (var time = 50; time <= 1000 && scroller.IsMotionRunning; time += 50)
+            surface.Frame(time);
+        Assert.False(scroller.IsMotionRunning);
+        // Not left to a thread pool: what awaits it (the next scroller of a keyboard reveal) goes on with the next frames.
+        Assert.True(scroll.IsCompletedSuccessfully);
+    }
+
+    [Fact]
     public void PanDoesNotPressChildOrReRecordContent()
     {
         var button = new SkUiButton { Text = "Go", WidthRequest = 80, HeightRequest = 200 };

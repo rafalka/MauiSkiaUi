@@ -604,7 +604,11 @@ internal sealed class SkUiScrollController(ISkUiRenderable owner, Action<SkUiRen
     /// Where the target is once an animation completes: the layout may have moved it on the way (items measured, a virtual
     /// list's anchoring), so the scroll ends exactly there.
     /// </param>
-    private Task ScrollToAsync(double x, double y, bool animated, Func<Point>? retarget)
+    /// <param name="waiting">
+    /// The task of a request that waited for the layout, finished by this scroll itself: forwarding another task's end goes
+    /// through a pool thread, which can make what awaits it miss the frames that follow.
+    /// </param>
+    private Task ScrollToAsync(double x, double y, bool animated, Func<Point>? retarget, TaskCompletionSource? waiting = null)
     {
         StopMotion();
         DropPendingTarget();
@@ -612,10 +616,11 @@ internal sealed class SkUiScrollController(ISkUiRenderable owner, Action<SkUiRen
         if (!animated)
         {
             SetOffset(x, y);
-            return Task.CompletedTask;
+            waiting?.TrySetResult();
+            return waiting?.Task ?? Task.CompletedTask;
         }
         EnsureFinite(x, y);
-        var completion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var completion = waiting ?? new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         _scrollCompletion = completion;
         StartTween(x, y, TimeSpan.FromMilliseconds(300), completion, retarget);
         return completion.Task;
@@ -655,15 +660,7 @@ internal sealed class SkUiScrollController(ISkUiRenderable owner, Action<SkUiRen
             return;
         _pendingTarget = null;
         var target = pending.Resolve();
-        var task = ScrollToAsync(target.X, target.Y, pending.Animated, pending.Resolve);
-        if (task.IsCompleted)
-            pending.Completion.TrySetResult();
-        else
-            task.ContinueWith(static (done, state) =>
-            {
-                var completion = (TaskCompletionSource)state!;
-                if (done.IsCanceled) completion.TrySetCanceled(); else completion.TrySetResult();
-            }, pending.Completion, TaskScheduler.Default);
+        _ = ScrollToAsync(target.X, target.Y, pending.Animated, pending.Resolve, pending.Completion);
     }
 
     private void DropPendingTarget()
