@@ -3,8 +3,8 @@ namespace MauiSkiaUi;
 /// <summary>What <see cref="SkUiZoomState"/> moves: the content's composite-time scale and offset, so zooming re-records nothing.</summary>
 internal interface ISkUiZoomTarget
 {
-    /// <summary>The viewport, as the content fills it.</summary>
-    Size ZoomViewport { get; }
+    /// <summary>Where the content is at scale 1, in the view's coordinates: what it scales about (its center) and whose edges it keeps covering.</summary>
+    Rect ZoomContentFrame { get; }
 
     /// <summary>Applies the content's scale (about its center) and offset.</summary>
     void ApplyZoom(double scale, double x, double y);
@@ -17,8 +17,8 @@ internal interface ISkUiZoomTarget
 }
 
 /// <summary>
-/// Pinch, pan, double tap and wheel for the zoom views of both layers: the content fills the viewport at scale 1, a pinch keeps the point under the
-/// fingers where it is, and the content's edges never come inside the viewport's.
+/// Pinch, pan, double tap and wheel for the zoom views of both layers: a pinch keeps the point under the fingers where it is, and zoomed in, the content's
+/// edges never come inside where it was at scale 1.
 /// </summary>
 internal sealed class SkUiZoomState(ISkUiZoomTarget target)
 {
@@ -29,11 +29,16 @@ internal sealed class SkUiZoomState(ISkUiZoomTarget target)
     private double _panStartX;
     private double _panStartY;
 
+    /// <summary>The scale a reset goes to: 1, or as close as the limits allow.</summary>
+    private double RestingScale => Math.Clamp(1, MinimumScale, Math.Max(MinimumScale, MaximumScale));
+
     internal double MinimumScale { get; set; } = 1;
 
     internal double MaximumScale { get; set; } = 5;
 
     internal double DoubleTapScale { get; set; } = 2.5;
+
+    internal bool IsWheelEnabled { get; set; } = true;
 
     internal double Scale { get; private set; } = 1;
 
@@ -46,10 +51,10 @@ internal sealed class SkUiZoomState(ISkUiZoomTarget target)
     internal void Set(double scale, double x, double y)
     {
         scale = Math.Clamp(scale, MinimumScale, Math.Max(MinimumScale, MaximumScale));
-        var viewport = target.ZoomViewport;
+        var frame = target.ZoomContentFrame;
         // At a scale under 1 the content stays centered: the range is empty.
-        var rangeX = Math.Max(0, viewport.Width * (scale - 1) / 2);
-        var rangeY = Math.Max(0, viewport.Height * (scale - 1) / 2);
+        var rangeX = Math.Max(0, frame.Width * (scale - 1) / 2);
+        var rangeY = Math.Max(0, frame.Height * (scale - 1) / 2);
         x = Math.Clamp(x, -rangeX, rangeX);
         y = Math.Clamp(y, -rangeY, rangeY);
         var scaleChanged = Math.Abs(scale - Scale) > double.Epsilon;
@@ -65,25 +70,23 @@ internal sealed class SkUiZoomState(ISkUiZoomTarget target)
     /// <summary>The viewport changed: the offset may no longer hold.</summary>
     internal void Reclamp() => Set(Scale, X, Y);
 
-    internal void Reset() => Set(1, 0, 0);
+    internal void Reset() => Set(RestingScale, 0, 0);
 
-    /// <summary>Zooms to <paramref name="scale"/>, keeping the point at <paramref name="focus"/> (viewport coordinates) where it is.</summary>
+    /// <summary>Zooms to <paramref name="scale"/>, keeping the point at <paramref name="focus"/> (the view's coordinates) where it is.</summary>
     internal void ZoomAbout(double scale, Point focus)
     {
         scale = Math.Clamp(scale, MinimumScale, Math.Max(MinimumScale, MaximumScale));
-        var viewport = target.ZoomViewport;
+        var center = target.ZoomContentFrame.Center;
         var ratio = scale / Scale;
         Set(scale,
-            X + (1 - ratio) * (focus.X - viewport.Width / 2 - X),
-            Y + (1 - ratio) * (focus.Y - viewport.Height / 2 - Y));
+            X + (1 - ratio) * (focus.X - center.X - X),
+            Y + (1 - ratio) * (focus.Y - center.Y - Y));
     }
 
     internal void OnPinch(SkUiPinchUpdatedEventArgs args)
     {
-        if (args.Status != GestureStatus.Running)
-            return;
-        var viewport = target.ZoomViewport;
-        ZoomAbout(Scale * args.Scale, new Point(args.Origin.X * viewport.Width, args.Origin.Y * viewport.Height));
+        if (args.Status == GestureStatus.Running)
+            ZoomAbout(Scale * args.Scale, args.Origin); // the recognizer's origin is in the view's DIPs
     }
 
     internal void OnPan(SkUiPanUpdatedEventArgs args)
@@ -101,20 +104,21 @@ internal sealed class SkUiZoomState(ISkUiZoomTarget target)
 
     internal void OnDoubleTap(Point position)
     {
-        if (CanPan)
+        if (Scale > RestingScale + Tolerance)
             Reset();
         else
             ZoomAbout(DoubleTapScale, position);
     }
 
-    /// <summary>Zooms for a wheel turn about the viewport's center; returns what is left for what is around, as a scroller does.</summary>
+    /// <summary>Zooms for a wheel turn about the content's center, in when the wheel turns away from the reader (a positive delta); returns what is left for what is around, as a scroller does.</summary>
     internal Point OnWheel(double deltaX, double deltaY)
     {
+        if (!IsWheelEnabled)
+            return new Point(deltaX, deltaY);
         if (Math.Abs(deltaY) <= double.Epsilon)
             return new Point(deltaX, 0);
         var before = Scale;
-        var viewport = target.ZoomViewport;
-        ZoomAbout(Scale * Math.Exp(-deltaY / WheelUnit), new Point(viewport.Width / 2, viewport.Height / 2));
+        ZoomAbout(Scale * Math.Exp(deltaY / WheelUnit), target.ZoomContentFrame.Center);
         return Math.Abs(Scale - before) > double.Epsilon ? new Point(deltaX, 0) : new Point(deltaX, deltaY);
     }
 }

@@ -1,8 +1,9 @@
 namespace MauiSkiaUi;
 
 /// <summary>
-/// Pinch, pan, double tap and wheel zoom of its content: the content's composite-time scale and offset change, so nothing re-records. At scale 1 it takes no
-/// drag, so it can sit in a scroll view; a double tap zooms in at the tap and back out. Same engine as <see cref="Core.SkUiCoreZoomView"/>.
+/// Pinch, pan, double tap and wheel zoom of its content: the content's composite-time scale and offset change, so nothing re-records. It owns the content's
+/// <c>Scale</c>, <c>TranslationX</c> and <c>TranslationY</c>. At scale 1 it takes no drag, so it can sit in a scroll view (with <see cref="IsWheelZoomEnabled"/> off, so
+/// the wheel scrolls); a double tap zooms in at the tap and back out. Same engine as <see cref="Core.SkUiCoreZoomView"/>.
 /// </summary>
 public class SkUiZoomView : SkUiContentView, ISkUiZoomTarget, ISkUiWheelHandler
 {
@@ -31,7 +32,12 @@ public class SkUiZoomView : SkUiContentView, ISkUiZoomTarget, ISkUiWheelHandler
         validateValue: SkUiValidate.FinitePositive,
         propertyChanged: static (view, _, value) => ((SkUiZoomView)view).Zoom.DoubleTapScale = (double)value);
 
+    /// <summary>Bindable <see cref="IsWheelZoomEnabled"/>.</summary>
+    public static readonly BindableProperty IsWheelZoomEnabledProperty = BindableProperty.Create(nameof(IsWheelZoomEnabled), typeof(bool), typeof(SkUiZoomView), true,
+        propertyChanged: static (view, _, value) => ((SkUiZoomView)view).Zoom.IsWheelEnabled = (bool)value);
+
     private SkUiZoomState? _zoom;
+    private View? _zoomedContent;
 
     // Created on first use: an implicit style sets properties inside the base constructor.
     private SkUiZoomState Zoom => _zoom ??= new SkUiZoomState(this);
@@ -60,6 +66,16 @@ public class SkUiZoomView : SkUiContentView, ISkUiZoomTarget, ISkUiWheelHandler
     /// <summary>The scale a double tap zooms to. Default 2.5.</summary>
     public double DoubleTapZoomScale { get => (double)GetValue(DoubleTapZoomScaleProperty); set => SetValue(DoubleTapZoomScaleProperty, value); }
 
+    /// <summary>Whether the wheel zooms. Default <c>true</c>; off, it passes to what is around, as a scroll view holding this view needs.</summary>
+    public bool IsWheelZoomEnabled { get => (bool)GetValue(IsWheelZoomEnabledProperty); set => SetValue(IsWheelZoomEnabledProperty, value); }
+
+    /// <summary>Sets <see cref="IsWheelZoomEnabled"/>.</summary>
+    public SkUiZoomView SetIsWheelZoomEnabled(bool value)
+    {
+        IsWheelZoomEnabled = value;
+        return this;
+    }
+
     /// <summary>Sets <see cref="MinimumZoomScale"/> (finite and positive).</summary>
     public SkUiZoomView SetMinimumZoomScale(double value)
     {
@@ -84,7 +100,7 @@ public class SkUiZoomView : SkUiContentView, ISkUiZoomTarget, ISkUiWheelHandler
         return this;
     }
 
-    /// <summary>Back to scale 1, centered.</summary>
+    /// <summary>Back to scale 1 (or the nearest the limits allow), centered.</summary>
     public void ResetZoom() => Zoom.Reset();
 
     /// <summary>Zooms to <paramref name="scale"/>, keeping the point at <paramref name="focus"/> (in this view's coordinates) where it is.</summary>
@@ -97,7 +113,22 @@ public class SkUiZoomView : SkUiContentView, ISkUiZoomTarget, ISkUiWheelHandler
         Zoom.Reclamp();
     }
 
-    Size ISkUiZoomTarget.ZoomViewport => new(Width, Height);
+    /// <inheritdoc />
+    protected override void OnContentChanged()
+    {
+        base.OnContentChanged();
+        // What left is not zoomed any more, and what came starts at rest.
+        if (_zoomedContent is { } previous)
+        {
+            previous.Scale = 1;
+            previous.TranslationX = 0;
+            previous.TranslationY = 0;
+        }
+        _zoomedContent = Content as View;
+        Zoom.Reset();
+    }
+
+    Rect ISkUiZoomTarget.ZoomContentFrame => Content is View content ? content.Frame : new Rect(0, 0, Width, Height);
 
     void ISkUiZoomTarget.ApplyZoom(double scale, double x, double y)
     {

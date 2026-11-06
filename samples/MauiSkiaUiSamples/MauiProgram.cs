@@ -1,7 +1,7 @@
-using MauiSkiaUi.Markdown.Math;
 using CommunityToolkit.Maui;
 using MauiSkiaUi;
 using MauiSkiaUi.CommunityToolkit;
+using MauiSkiaUi.Markdown.Math;
 using MauiSkiaUiTour;
 
 namespace MauiSkiaUiSamples;

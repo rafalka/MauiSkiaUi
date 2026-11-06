@@ -105,6 +105,7 @@ public static class SkUiHtml
             if (style.Background is { } background) span.BackgroundColor = background;
             if (style.FontSize is not null || style.SizeScale != 1) span.FontSize = style.Size(fontSize);
             if (style.FontFamily is { } family) span.FontFamily = family;
+            if (style.BaselineShift != 0) SkUiSpan.SetBaselineShift(span, style.BaselineShift);
             if (style.Href is { } href && linkTapped is not null)
                 span.GestureRecognizers.Add(new TapGestureRecognizer { Command = new Command(() => linkTapped(href)) });
             formatted.Spans.Add(span);
@@ -128,7 +129,8 @@ public static class SkUiHtml
                 .SetFontFamily(style.FontFamily)
                 .SetFontAttributes(style.SetsAttributes ? style.FontAttributes : null)
                 .SetTextDecorations(style.SetsDecorations ? style.Decorations : null)
-                .SetFontSize(style.FontSize is not null || style.SizeScale != 1 ? style.Size(fontSize) : null);
+                .SetFontSize(style.FontSize is not null || style.SizeScale != 1 ? style.Size(fontSize) : null)
+                .SetBaselineShift(style.BaselineShift);
             if (style.Href is { } href && linkTapped is not null)
                 span.Tapped += (_, _) => linkTapped(href);
             spans.Add(span);
@@ -187,6 +189,8 @@ public static class SkUiHtml
         OperatingSystem.IsIOS() || OperatingSystem.IsMacCatalyst() || OperatingSystem.IsMacOS() ? "Menlo"
         : OperatingSystem.IsWindows() ? "Consolas"
         : "monospace";
+
+    private const double ScriptScale = 0.7;
 
     private static readonly double[] HeadingScales = [1.5, 1.4, 1.3, 1.2, 1.1, 1.0];
     // HTML <font size="1".."7">, as browsers scale them.
@@ -509,10 +513,10 @@ public static class SkUiHtml
                     style = Scaled(style, 0.8);
                     break;
                 case "sub":
-                    style = Scaled(style, 0.7) with { BaselineShift = SkUiSpan.SubscriptShift };
+                    style = Script(style, SkUiSpan.SubscriptShift);
                     break;
                 case "sup":
-                    style = Scaled(style, 0.7) with { BaselineShift = SkUiSpan.SuperscriptShift };
+                    style = Script(style, SkUiSpan.SuperscriptShift);
                     break;
                 case "tt" or "code" or "kbd" or "samp" or "pre":
                     style = style with { FontFamily = MonospaceFamily };
@@ -534,6 +538,10 @@ public static class SkUiHtml
             }
             return attributes.TryGetValue("style", out var css) ? Css(css, style) : style;
         }
+
+        /// <summary><c>sub</c> or <c>sup</c>: smaller, and shifted from where the text around it already sits. A shift is a fraction of the span's own size, so the one so far grows with it.</summary>
+        private static SkUiHtmlStyle Script(SkUiHtmlStyle style, double shift) =>
+            Scaled(style, ScriptScale) with { BaselineShift = style.BaselineShift / ScriptScale + shift };
 
         private static SkUiHtmlStyle Scaled(SkUiHtmlStyle style, double scale) => style.FontSize is { } size
             ? style with { FontSize = size * scale }

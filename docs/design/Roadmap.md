@@ -125,7 +125,7 @@ Multi-target the one `SkiaUi.Maui` package (`net10.0-*` plus `net11.0-*`) so app
 - **CollectionView:** a selected-item template, extended selection, keyboard item navigation, animated insert and remove.
 - **CarouselView / IndicatorView:** `VisibleViews`; autoplay, several items per snap point, a Core carousel.
 - **Gesture recognizers on drawn views:** `PanGestureRecognizer` with `TouchPoints` other than 1 (reported and not run since 1.2).
-- **Labels:** span press feedback, HTML images, `sub` / `sup`, block indents; one fitted size for a group of labels.
+- **Labels:** span press feedback, HTML images, block indents; one fitted size for a group of labels.
 - **Templates:** button image tint.
 - **Drawn meanings of platform-specifics,** as SkiaUi members on both layers: a tap on a slider's track that moves the thumb, swipe view transition modes (reveal / drag), the press ripple's color, search bar chrome (minimal / prominent); pulling from other edges is under [Lists and scrolling](#lists-and-scrolling).
 
@@ -142,7 +142,7 @@ Multi-target the one `SkiaUi.Maui` package (`net10.0-*` plus `net11.0-*`) so app
 - Virtual stack: a public horizontal layout, `VirtualScrollMode` (`InfiniteFeed`, `Loop`), `PrefetchDistance`, `QueryItemSize`, a load-more hook with a placeholder, a Core twin.
 - Scroll bars: the thumb shrinking during a bounce (iOS), repeated paging on a held track press; native overlays following a stretch.
 - Pull to refresh from other edges; render-thread effects linked to overscroll.
-- Markdown: long documents as virtualized rows, measuring and recording only the top-level blocks near the viewport (the first frame of a 100 KB document takes 750 ms on the S9, [Performance.md](../Performance.md#markdown)). Not planned for now. Needs the virtual stack's Core twin or starts on `SkUiMarkdownView` only, and an opt-in way to scroll, since the view is as tall as its document today. Design notes: [1.8 plan, V2](ImplementationPlan-1.8.md#phase-v--long-documents).
+- Markdown: long documents as virtualized rows, measuring and recording only the top-level blocks near the viewport (the first frame of a 100 KB document takes about 790 ms on the S9, [Performance.md](../Performance.md#markdown)). Not planned for now. Needs the virtual stack's Core twin or starts on `SkUiMarkdownView` only, and an opt-in way to scroll, since the view is as tall as its document today. Design notes: [1.8 plan, V2](ImplementationPlan-1.8.md#phase-v--long-documents).
 
 ### Looks, colors and motion
 

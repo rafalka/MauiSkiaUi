@@ -46,7 +46,7 @@ A document may come from the network or from a model, so nothing it says happens
 
 - **Links** raise an event. A document can link to anything, `javascript:` included: check the target's scheme before you open it.
 - **Remote images do not load** until you set `AllowRemoteImages`. An image URL reaches its server as soon as it draws, which can track a reader, or carry data out of a conversation when a model writes the URL. With it off, the alt text shows, and a tap still raises `ImageTapped`.
-- **Local files stay out of reach.** The default rule (`SkUiMarkdownImages.Resolve`): `data:` image URLs decode in place, up to 8 MB; a bare relative name (no scheme, no leading `/`, no `..`, no `\`, no `%`) is one of the app's own images or assets; `http` and `https` with `AllowRemoteImages`; anything else, absolute paths and `file:` included, shows the alt text.
+- **Local files stay out of reach.** The default rule (`SkUiMarkdownImages.Resolve`): `data:` image URLs decode in place, up to 8 MB (a document has to fit `MaximumInputLength` too, 1,000,000 characters by default); a bare relative name (no scheme, no leading `/`, no `..`, no `\`, no `%`) is one of the app's own images or assets; `http` and `https` with `AllowRemoteImages`; anything else, absolute paths and `file:` included, shows the alt text.
 - **Raw HTML shows as text.** It is never interpreted.
 
 An SVG goes through the [vector icon reader](SkUiImage.md#vector-icons), with `currentColor` as the text color. What the reader cannot draw (gradients, `use`, filters) shows the alt text.
@@ -75,7 +75,7 @@ Bad input never throws into the app. A document past one of these shows as plain
 | `MaximumImages` | 100 per document | Later images show their alt text |
 | `MaximumInPlaceParseLength` | 0 | See [Threads](#threads) |
 
-A block (lines up to a blank one) with more than 4,000 delimiters (`*`, `[`, and so on) also shows as plain text: parse time grows faster than such a block's size, and a parse cannot be stopped.
+A run of text with more than 4,000 delimiters (`*`, `[`, and so on) also shows as plain text: parse time grows faster than such a run's size, and a parse cannot be stopped. A run ends at a blank line, a list item or a heading; fenced and indented code and the data of a `data:` image do not count.
 
 ## Threads
 
@@ -85,7 +85,7 @@ Set `Text` and the other properties on the UI thread. `ImageResolver`, `CodeHigh
 
 ## Updates
 
-Setting `Text` again parses it whole, and top-level blocks whose source and look did not change keep their nodes, so a growing text (a streamed answer) only builds its tail, and an edit only what it touched. One build runs at a time, with the latest text winning, so a stream of appends cannot pile up parses. A new `MarkdownStyle`, or a new color scheme, builds everything again.
+Setting `Text` again parses it whole, and top-level blocks whose source and look did not change keep their nodes, so a growing text (a streamed answer) only builds its tail, and an edit only what it touched. One build runs at a time, with the latest text winning, so a stream of appends cannot pile up parses. A new `MarkdownStyle`, a new color scheme, a new look or a new text size builds everything again. Sizes come from the app's look (`SkUiLook.Current`), because a build runs off the UI thread: a look set on part of the tree does not reach them.
 
 ## Formulas
 
@@ -96,7 +96,9 @@ markdownView.UseMath();                      // or one view
 
 `$$ … $$` is a block, centered, scrolling sideways when too wide. `$ … $` is part of its line, through an [inline object](SkUiLabel.md#inline-objects). Screen readers read the source.
 
-A deep formula could end the process with a stack overflow, which cannot be caught, so every formula is checked before the engine sees it: at most 4,096 characters, 32 levels of `{`, and 48 commands that can hold something (`\frac`, `\sqrt`, `\left`, and anything unknown). One past the limits, or one the engine cannot read, shows its source in the code style. Symbols such as `\alpha` and `\sum` do not count.
+A deep formula could end the process with a stack overflow, which cannot be caught, so every formula is checked before the engine sees it: at most 4,096 characters, and at most 48 of what can nest, added up: open `{`, commands that can hold something (`\frac`, `\sqrt`, `\left`, and anything unknown), and `^` or `_` that hold more than one symbol. Symbols such as `\alpha` and `\sum` do not count, and neither do `x^2` or `x_{10}` once closed. At most 8 `\left` can be open at once, because typesetting time grows exponentially with them. A formula past these limits shows its source in the code style, as does one the engine cannot read, or one that comes out too large to place: 20 lines high in a line of text, or 3,000 DIPs high or 20,000 wide on its own.
+
+A formula is typeset as the document builds, off the UI thread, and again on the UI thread only if the text size changed since, until the new build is done.
 
 ## Not included
 

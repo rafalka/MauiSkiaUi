@@ -4,22 +4,22 @@ namespace MauiSkiaUi.Markdown.Math;
 
 /// <summary>
 /// Decides whether the math engine may see a formula, without parsing it. The engine's parser, typesetter and drawing recurse, and a stack overflow cannot be
-/// caught: on a 512 KB stack a short formula of 500 <c>\frac</c> ends the process. Everything that can nest is counted, also what nests without braces
-/// (<c>\sqrt\sqrt</c>, <c>\frac1\frac1</c>); a formula past a limit shows its source. The limits stay well inside what passed on that stack (100 levels).
+/// caught: on a 512 KB stack a short formula of 500 <c>\frac</c> ends the process. So everything that can nest shares one budget, also what nests without braces
+/// (<c>\sqrt\sqrt</c>, <c>\frac1\frac1</c>, <c>^^</c>); a formula past it shows its source.
 /// </summary>
 internal static class SkUiMathGuard
 {
     /// <summary>Longest formula.</summary>
     internal const int MaximumLength = 4_096;
 
-    /// <summary>Deepest <c>{</c>.</summary>
-    internal const int MaximumBraceDepth = 32;
+    /// <summary>
+    /// How deep a formula can get: open braces, plus commands that can hold something, plus scripts that hold more than one symbol. Commands and such scripts count
+    /// for the whole formula, because they can nest without braces; unknown commands count too, so a new one in the engine cannot get past.
+    /// </summary>
+    internal const int MaximumNesting = 48;
 
-    /// <summary>Most commands that can hold something, in a formula: unknown ones count, so a new one in the engine cannot get past.</summary>
-    internal const int MaximumNestingCommands = 48;
-
-    /// <summary>Most of <c>^</c> and <c>_</c> in a row.</summary>
-    private const int MaximumScriptRun = 8;
+    /// <summary>Most <c>\left</c> open at once: a group typesets what it holds more than once, so the time grows exponentially with this and little else stops it.</summary>
+    internal const int MaximumLeftDepth = 8;
 
     // Symbols and operators: they hold nothing, and a long formula has many.
     private static readonly FrozenSet<string> LeafCommands = FrozenSet.ToFrozenSet(
@@ -42,39 +42,72 @@ internal static class SkUiMathGuard
     {
         if (latex.Length > MaximumLength)
             return false;
-        var depth = 0;
-        var commands = 0;
-        var scripts = 0;
+        var braces = 0;
+        var permanent = 0; // commands and scripts that hold something: they can nest without braces
+        var lefts = 0;
         for (var index = 0; index < latex.Length; index++)
         {
             var character = latex[index];
             switch (character)
             {
                 case '{':
-                    if (++depth > MaximumBraceDepth)
-                        return false;
+                    braces++;
                     break;
                 case '}':
-                    depth = System.Math.Max(0, depth - 1);
+                    braces = System.Math.Max(0, braces - 1);
                     break;
                 case '\\':
                     var start = index + 1;
                     var end = start;
                     while (end < latex.Length && char.IsAsciiLetter(latex[end]))
                         end++;
-                    index = System.Math.Max(index, end - 1);
-                    if (end > start && !LeafCommands.Contains(latex[start..end]) && ++commands > MaximumNestingCommands)
+                    if (end == start)
+                    {
+                        index++; // an escaped character (\{, \}, \\) is a symbol: it opens and closes nothing
+                        break;
+                    }
+                    index = end - 1;
+                    var command = latex[start..end];
+                    if (command == "left" && ++lefts > MaximumLeftDepth)
                         return false;
+                    if (command == "right")
+                        lefts = System.Math.Max(0, lefts - 1);
+                    if (!LeafCommands.Contains(command))
+                        permanent++;
+                    break;
+                case '^' or '_':
+                    if (!HoldsOneSymbol(latex, index + 1))
+                        permanent++;
+                    break;
+                default:
+                    if (char.IsControl(character) && !char.IsWhiteSpace(character))
+                        return false; // the engine skips these, so they would hide what is next to them from this count
                     break;
             }
-            if (character is '^' or '_')
-            {
-                if (++scripts > MaximumScriptRun)
-                    return false;
-            }
-            else if (!char.IsWhiteSpace(character))
-                scripts = 0;
+            if (braces + permanent > MaximumNesting)
+                return false;
         }
         return true;
+    }
+
+    /// <summary>
+    /// Whether a script whose content starts at <paramref name="index"/> holds one symbol, and so cannot nest: <c>x^2</c>, <c>x^\alpha</c>. A braced script counts
+    /// through its brace, and only while it is open: a long formula has many <c>x_{10}</c>. What this does not know counts, so nothing unknown can nest for free.
+    /// </summary>
+    private static bool HoldsOneSymbol(string latex, int index)
+    {
+        while (index < latex.Length && char.IsWhiteSpace(latex[index]))
+            index++;
+        if (index >= latex.Length)
+            return true;
+        var character = latex[index];
+        if (character == '{' || char.IsAsciiLetterOrDigit(character) || character is '+' or '-' or '*' or '/' or '=' or '<' or '>' or '(' or ')' or '[' or ']' or '|' or ',' or '.' or ':' or ';' or '!' or '?' or '\'')
+            return true;
+        if (character != '\\')
+            return char.IsLetter(character);
+        var end = index + 1;
+        while (end < latex.Length && char.IsAsciiLetter(latex[end]))
+            end++;
+        return end > index + 1 && LeafCommands.Contains(latex[(index + 1)..end]);
     }
 }

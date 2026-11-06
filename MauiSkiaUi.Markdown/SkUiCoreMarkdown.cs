@@ -34,6 +34,7 @@ public class SkUiCoreMarkdown : SkUiCoreContentView
     private int _generation;
     private bool _isBuilding;
     private TaskCompletionSource? _updated;
+    private bool _isZoomOpen;
 
     /// <summary>One top-level block: where its source was, and the nodes made from it.</summary>
     private sealed record Entry(int Start, int Length, List<SkUiCoreNode> Nodes, int BlockCount, int ImageCount);
@@ -52,6 +53,9 @@ public class SkUiCoreMarkdown : SkUiCoreContentView
         SetContent(_stack);
         SkUiColorScheme.CurrentChanged += OnSchemeChanged; // weak: the scheme does not keep a view alive
         ListenToScheme();
+        // Weak too. Sizes are worked out as a document builds, so what changes them builds it again.
+        SkUiLook.CurrentChanged += OnSizesChanged;
+        SkUiFontScaling.Changed += OnSizesChanged;
         // On Windows, the first read of the text size decides the thread its changes are raised on: this one, not a build's.
         _ = SkUiFontScaling.ScaleFontSize(1);
     }
@@ -120,6 +124,8 @@ public class SkUiCoreMarkdown : SkUiCoreContentView
     public SkUiCoreMarkdown SetMarkdownStyle(SkUiMarkdownStyle value)
     {
         ArgumentNullException.ThrowIfNull(value);
+        if (value.FindInvalidValue() is { } invalid)
+            throw new ArgumentException($"{invalid} is out of range.", nameof(value));
         if (!SetProperty(ref _style, value, nameof(MarkdownStyle))) return this;
         _stack.SetSpacing(value.BlockSpacing);
         Rebuild();
@@ -192,8 +198,22 @@ public class SkUiCoreMarkdown : SkUiCoreContentView
         ImageTapped?.Invoke(this, args);
         if (_imageTappedCommand?.CanExecute(args) == true)
             _imageTappedCommand.Execute(args);
-        if (_allowImageZoom && picture is not null && SkUiPopups.Presenter is not null && SkUiDiagnostics.GetSurfaceRoot(this) is { Window: { } window } anchor)
-            _ = ShowZoomAsync(anchor, picture, altText, new Size(window.Width, window.Height));
+        if (_allowImageZoom && !_isZoomOpen && picture is not null && SkUiPopups.Presenter is not null && SkUiDiagnostics.GetSurfaceRoot(this) is { Window: { } window } anchor)
+            _ = ShowOneZoomAsync(anchor, picture, altText, new Size(window.Width, window.Height));
+    }
+
+    // One popup at a time: a quick second tap can come before the first has opened.
+    private async Task ShowOneZoomAsync(SkUiView anchor, SkUiImageSource picture, string altText, Size size)
+    {
+        _isZoomOpen = true;
+        try
+        {
+            await ShowZoomAsync(anchor, picture, altText, size);
+        }
+        finally
+        {
+            _isZoomOpen = false;
+        }
     }
 
     /// <summary>The picture in a popup of the app's presenter: fitted, zoomable, and a tap closes it.</summary>
@@ -246,6 +266,8 @@ public class SkUiCoreMarkdown : SkUiCoreContentView
 
     private void OnSchemeTokensChanged(object? sender, EventArgs e) => Rebuild();
 
+    private void OnSizesChanged(object? sender, EventArgs e) => Rebuild();
+
     private void ListenToScheme()
     {
         if (_scheme is not null)
@@ -283,9 +305,13 @@ public class SkUiCoreMarkdown : SkUiCoreContentView
         _ = BuildInBackgroundAsync(CreateRequest(), generation, Dispatcher.GetForCurrentThread());
     }
 
-    private BuildRequest CreateRequest() => new(this, _text,
-        new SkUiMarkdownBuildSettings(_style, _allowRemoteImages, _imageResolver, _codeHighlighter, _mathRenderer ?? DefaultMathRenderer),
-        [.. _entries], _builtText, _builtReferences, _builtFootnotes, !_isStale && !_isPlainText);
+    private BuildRequest CreateRequest()
+    {
+        var bodySize = _style.FontSize ?? SkUiLook.Current.DefaultFontSize;
+        return new BuildRequest(this, _text,
+            new SkUiMarkdownBuildSettings(_style, _allowRemoteImages, _imageResolver, _codeHighlighter, _mathRenderer ?? DefaultMathRenderer, SkUiFontScaling.ScaleFontSize(bodySize) / bodySize),
+            [.. _entries], _builtText, _builtReferences, _builtFootnotes, !_isStale && !_isPlainText);
+    }
 
     private async Task BuildInBackgroundAsync(BuildRequest request, int generation, IDispatcher? dispatcher)
     {
@@ -342,13 +368,13 @@ public class SkUiCoreMarkdown : SkUiCoreContentView
     private static BuildResult Build(BuildRequest request)
     {
         var text = request.Text;
-        var style = request.Settings.Style;
-        if (text.Length > style.MaximumInputLength)
-            return BuildPlain(request, text[..style.MaximumInputLength], "The document is longer than MaximumInputLength.");
-        if (SkUiMarkdownParser.HasPathologicalBlock(text))
-            return BuildPlain(request, text, "A block holds too many delimiters.");
         try
         {
+            var style = request.Settings.Style;
+            if (text.Length > style.MaximumInputLength)
+                return BuildPlain(request, text[..style.MaximumInputLength], "The document is longer than MaximumInputLength.");
+            if (SkUiMarkdownParser.HasPathologicalBlock(text))
+                return BuildPlain(request, text, "A block holds too many delimiters.");
             return BuildDocument(request, SkUiMarkdownParser.Parse(text));
         }
         catch (Exception error)
@@ -396,10 +422,11 @@ public class SkUiCoreMarkdown : SkUiCoreContentView
         if (reusable)
             while (prefix < old.Length && prefix < blocks.Count && SameSource(old[prefix], blocks[prefix], text, request.BuiltText))
                 prefix++;
-        // Footnote numbers depend on what is before a block, so only what comes first is sure to hold when there are footnotes.
+        // Footnote numbers depend on what is before a block, so only what comes first is sure to hold when there are footnotes. Being first changes a block too (a heading's top spacing).
         var suffix = 0;
         if (reusable && !hasFootnotes && !request.BuiltFootnotes)
-            while (suffix < old.Length - prefix && suffix < blocks.Count - prefix && SameSource(old[^(suffix + 1)], blocks[^(suffix + 1)], text, request.BuiltText))
+            while (suffix < old.Length - prefix && suffix < blocks.Count - prefix && (old.Length - suffix == 1) == (blocks.Count - suffix == 1)
+                   && SameSource(old[^(suffix + 1)], blocks[^(suffix + 1)], text, request.BuiltText))
                 suffix++;
 
         var blockCount = 0;
@@ -424,6 +451,7 @@ public class SkUiCoreMarkdown : SkUiCoreContentView
         var suffixStarts = new int[suffix];
         for (var index = 0; index < suffix; index++)
             suffixStarts[index] = blocks[blocks.Count - suffix + index].Span.Start;
+        builder.ReleaseSource();
         return new BuildResult(text, built, prefixStarts, suffixStarts, references, hasFootnotes, null, builder.UiActions, builder.Warnings);
     }
 
@@ -444,6 +472,7 @@ public class SkUiCoreMarkdown : SkUiCoreContentView
         {
             foreach (var action in result.UiActions)
                 action();
+            result.UiActions.Clear(); // the builder lives on in what an image block keeps, and these hold every node of this build
             if (_isPlainText)
             {
                 _stack.Clear();

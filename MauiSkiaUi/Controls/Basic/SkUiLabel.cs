@@ -552,6 +552,9 @@ public class SkUiLabel : SkUiView, ISkUiFontElement, ISkUiBorderElement
         _chrome.ReleaseClip();
         _layout.Release();
         _richLayout?.Release();
+        if (_formattedText is { } formatted)
+            foreach (var span in formatted.Spans)
+                SkUiSpan.GetInlineObject(span)?.ReleaseDrawingResources?.Invoke();
     }
 
     private void UpdateDisplayText()
@@ -645,7 +648,9 @@ public class SkUiLabel : SkUiView, ISkUiFontElement, ISkUiBorderElement
                 return RichText.Text;
             foreach (var span in formatted.Spans)
                 if (SkUiSpan.GetInlineObject(span) is not null)
-                    return string.Concat(formatted.Spans.Select(static part => part.Text));
+                    return string.Concat(formatted.Spans.Select(part => SkUiSpan.GetInlineObject(part) is not null
+                        ? part.Text
+                        : SkUiTextTransform.Apply(part.Text ?? string.Empty, part.TextTransform != TextTransform.Default ? part.TextTransform : _textTransform)));
             return RichText.Text;
         }
     }

@@ -39,9 +39,7 @@ public class InlineTextObjectTests
         var plainSize = plain.Measure(200, 100);
         var raisedSize = raised.Measure(200, 100);
         Assert.True(raisedSize.Height > plainSize.Height);
-        using var plainInk = Draw(plain, 200, 100);
-        using var raisedInk = Draw(raised, 200, 100);
-        // The line grew by what the glyph rose, so the ink is where it was from the top; a lower span shows the shift.
+        // The line grew by what the glyph rose, so the ink is where it was from the top; a span beside it shows the shift.
         var mixed = Label(new SkUiCoreSpan("X").SetBaselineShift(0.5), new SkUiCoreSpan("X"));
         using var mixedInk = Draw(mixed, 200, 100);
         var (first, second) = (RowOfInk(mixedInk, 0, 9), RowOfInk(mixedInk, 10, 19));
@@ -64,6 +62,51 @@ public class InlineTextObjectTests
         var html = new SkUiCoreLabel().SetFontFamily(SkUiTestHelpers.BundledFontFamily).SetFontSize(16).SetTextType(TextType.Html).SetText("X<sup>2</sup>");
         var plain = new SkUiCoreLabel().SetFontFamily(SkUiTestHelpers.BundledFontFamily).SetFontSize(16).SetTextType(TextType.Html).SetText("X<small>2</small>");
         Assert.True(html.Measure(200, 100).Height > plain.Measure(200, 100).Height);
+
+        SkUiCoreLabel Html(string text) => new SkUiCoreLabel().SetFontFamily(SkUiTestHelpers.BundledFontFamily).SetFontSize(16).SetTextType(TextType.Html).SetText(text);
+        // The second glyph, about 10 DIPs in: above the X for a superscript, its bottom below the X's for a subscript.
+        using var sup = Draw(Html("X<sup>2</sup>"), 40, 40);
+        Assert.True(RowOfInk(sup, 11, 18) < RowOfInk(sup, 0, 8));
+        using var sub = Draw(Html("X<sub>2</sub>"), 40, 40);
+        Assert.True(BottomRowOfInk(sub, 11, 18) > BottomRowOfInk(sub, 0, 8));
+    }
+
+    private static int BottomRowOfInk(SKBitmap bitmap, int left, int right)
+    {
+        for (var y = bitmap.Height - 1; y >= 0; y--)
+            for (var x = left; x <= right; x++)
+                if (bitmap.GetPixel(x, y).Red < 128)
+                    return y;
+        return -1;
+    }
+
+    [Fact]
+    public void NestedScriptsAddUp()
+    {
+        using var _ = SkUiTestHelpers.UseBundledFont();
+        SkUiCoreLabel Html(string text) => new SkUiCoreLabel().SetFontFamily(SkUiTestHelpers.BundledFontFamily).SetFontSize(16).SetTextType(TextType.Html).SetText(text);
+        Assert.True(Html("x<sup>a<sup>b</sup></sup>").Measure(200, 100).Height > Html("x<sup>ab</sup>").Measure(200, 100).Height);
+        // A subscript of a superscript comes back toward the line, not below it.
+        Assert.True(Html("x<sup>a<sub>b</sub></sup>").Measure(200, 100).Height <= Html("x<sup>a</sup><sub>b</sub>").Measure(200, 100).Height);
+    }
+
+    [Fact]
+    public void TheSpanConvertersKeepTheShift()
+    {
+        using var _ = SkUiTestHelpers.UseBundledFont();
+        const string Markup = "x<sup>2</sup>y<sub>i</sub>";
+        var core = SkUiHtml.ToCoreSpans(Markup);
+        Assert.True(core[1].BaselineShift > 0);
+        Assert.True(core[3].BaselineShift < 0);
+        Assert.Equal(0, core[0].BaselineShift);
+        var formatted = SkUiHtml.ToFormattedString(Markup);
+        Assert.True(SkUiSpan.GetBaselineShift(formatted.Spans[1]) > 0);
+        Assert.True(SkUiSpan.GetBaselineShift(formatted.Spans[3]) < 0);
+        // As the same markup drawn as HTML.
+        var html = new SkUiCoreLabel().SetFontFamily(SkUiTestHelpers.BundledFontFamily).SetFontSize(16).SetTextType(TextType.Html).SetText(Markup).Measure(200, 100);
+        Assert.Equal(html.Height, Label(core.ToArray()).Measure(200, 100).Height, 1);
+        var label = new SkUiLabel { FontFamily = SkUiTestHelpers.BundledFontFamily, FontSize = 16, FormattedText = formatted };
+        Assert.Equal(html.Height, label.Measure(200, 100).Height, 1);
     }
 
     [Fact]
@@ -118,6 +161,10 @@ public class InlineTextObjectTests
         var dropped = Label(new SkUiCoreSpan("a"), new SkUiCoreSpan("x").SetInlineObject(Box(20, 40, 20)));
         Assert.True(standing.Measure(200, 200).Height >= 40);
         Assert.True(dropped.Measure(200, 200).Height >= 40);
+        // The box takes the top of both lines, so the text beside it, on the baseline, shows how far it hangs.
+        using var standingInk = Draw(standing, 200, 80);
+        using var droppedInk = Draw(dropped, 200, 80);
+        Assert.True(RowOfInk(standingInk, 0, 8) - RowOfInk(droppedInk, 0, 8) >= 15);
     }
 
     [Fact]
@@ -135,22 +182,115 @@ public class InlineTextObjectTests
     public void ItFollowsBidiOrder()
     {
         using var _ = SkUiTestHelpers.UseBundledFont();
-        var label = Label(new SkUiCoreSpan("אב"), new SkUiCoreSpan("x").SetInlineObject(Box(20, 10)), new SkUiCoreSpan("גד"));
+        var (first, formula, last) = (new SkUiCoreSpan("אב"), new SkUiCoreSpan("x").SetInlineObject(Box(20, 10)), new SkUiCoreSpan("גד"));
+        var label = Label(first, formula, last);
         using var bitmap = Draw(label, 200, 40);
-        Assert.NotEqual(-1, TopOfInk(bitmap));
-        Assert.True(label.Measure(200, 40).Width >= 20);
+        var columns = Enumerable.Range(0, 200).Where(x => ReferenceEquals(label.SpanAt(new Point(x, 10)), formula)).ToArray();
+        Assert.InRange(columns.Length, 19, 21);
+        // Right to left: what comes first in the text is to its right.
+        Assert.Same(last, label.SpanAt(new Point(columns[0] - 2, 10)));
+        Assert.Same(first, label.SpanAt(new Point(columns[^1] + 2, 10)));
+    }
+
+    private static bool IsRed(SKColor color) => color is { Red: > 200, Green: < 64, Blue: < 64 };
+
+    private static bool HasRed(SKBitmap bitmap) => bitmap.Pixels.Any(IsRed);
+
+    /// <summary>Columns of what is drawn and not the red object.</summary>
+    private static IEnumerable<int> TextColumns(SKBitmap bitmap) => Enumerable.Range(0, bitmap.Width).Where(x =>
+        Enumerable.Range(0, bitmap.Height).Any(y => bitmap.GetPixel(x, y) is { Red: < 128, Green: < 128 }));
+
+    private static double TextWidth(string text) =>
+        new SkUiCoreLabel().SetFontFamily(SkUiTestHelpers.BundledFontFamily).SetFontSize(16).SetText(text).Measure(500, 40).Width;
+
+    [Fact]
+    public void ATruncatedLineKeepsWhatFitsAndDropsWhatDoesNot()
+    {
+        using var _ = SkUiTestHelpers.UseBundledFont();
+        var keeps = Label(new SkUiCoreSpan("x").SetInlineObject(Box(30, 10, color: SKColors.Red)), new SkUiCoreSpan(new string('a', 100))).SetLineBreakMode(LineBreakMode.TailTruncation);
+        Assert.True(keeps.Measure(100, 40).Width <= 100);
+        using var kept = Draw(keeps, 100, 40);
+        Assert.True(HasRed(kept));
+        var drops = Label(new SkUiCoreSpan(new string('a', 100)), new SkUiCoreSpan("x").SetInlineObject(Box(30, 10, color: SKColors.Red))).SetLineBreakMode(LineBreakMode.TailTruncation);
+        using var dropped = Draw(drops, 100, 40);
+        Assert.False(HasRed(dropped));
     }
 
     [Fact]
-    public void ATruncatedLineKeepsItWhenItFitsAndDrops()
+    public void TheEllipsisDrawsWhenItFollowsAnObject()
     {
         using var _ = SkUiTestHelpers.UseBundledFont();
-        var label = Label(new SkUiCoreSpan("x").SetInlineObject(Box(30, 10)), new SkUiCoreSpan(new string('a', 100)));
-        label.SetLineBreakMode(LineBreakMode.TailTruncation);
-        var size = label.Measure(100, 40);
-        Assert.True(size.Width <= 100);
+        var before = TextWidth("aa");
+        // Room for "aa", the object and the ellipsis, and not for more: the cut comes right after the object.
+        var width = (int)(before + 30 + TextWidth(SkUiTextLayout.DefaultEllipsis) + 2);
+        var label = Label(new SkUiCoreSpan("aa"), new SkUiCoreSpan("x").SetInlineObject(Box(30, 10, color: SKColors.Red)), new SkUiCoreSpan(new string('b', 100)))
+            .SetTextColor(Colors.Black).SetLineBreakMode(LineBreakMode.TailTruncation);
+        using var bitmap = Draw(label, width, 40);
+        Assert.True(HasRed(bitmap));
+        Assert.Contains(TextColumns(bitmap), x => x >= before + 30);
+    }
+
+    [Fact]
+    public void AnObjectWiderThanTheLineLeavesTheEllipsis()
+    {
+        using var _ = SkUiTestHelpers.UseBundledFont();
+        var tail = Label(new SkUiCoreSpan("x").SetInlineObject(Box(300, 10, color: SKColors.Red)), new SkUiCoreSpan("aaa"))
+            .SetTextColor(Colors.Black).SetLineBreakMode(LineBreakMode.TailTruncation);
+        using var tailInk = Draw(tail, 100, 40);
+        Assert.False(HasRed(tailInk));
+        Assert.NotEmpty(TextColumns(tailInk));
+
+        // Head truncation: the ellipsis takes the object's span, and shows as an ellipsis.
+        var head = Label(new SkUiCoreSpan("aaa"), new SkUiCoreSpan("x").SetInlineObject(Box(300, 10, color: SKColors.Red)))
+            .SetTextColor(Colors.Black).SetLineBreakMode(LineBreakMode.HeadTruncation);
+        using var headInk = Draw(head, 100, 40);
+        Assert.False(HasRed(headInk));
+        Assert.NotEmpty(TextColumns(headInk));
+    }
+
+    [Fact]
+    public void WhatAnObjectPaintsDoesNotReachItsSpansDecorations()
+    {
+        using var _ = SkUiTestHelpers.UseBundledFont();
+        var inner = new SkUiCoreLabel().SetFontFamily(SkUiTestHelpers.BundledFontFamily).SetFontSize(16).SetText("x").SetTextColor(Colors.Red);
+        var inline = SkUiInlineObject.FromNode(inner);
+        var label = Label(new SkUiCoreSpan("x").SetInlineObject(inline).SetTextDecorations(TextDecorations.Underline)).SetTextColor(Colors.Black);
         using var bitmap = Draw(label, 100, 40);
-        Assert.NotEqual(-1, TopOfInk(bitmap));
+        var line = -1;
+        for (var y = 39; y >= 0 && line < 0; y--)
+            if (bitmap.GetPixel(2, y).Red < 128 || IsRed(bitmap.GetPixel(2, y)))
+                line = y;
+        Assert.NotEqual(-1, line);
+        Assert.False(IsRed(bitmap.GetPixel(2, line)));
+    }
+
+    private sealed class ReleaseCountingNode : SkUiCoreBox
+    {
+        internal int Releases { get; private set; }
+
+        internal override void ReleaseDrawingResources()
+        {
+            base.ReleaseDrawingResources();
+            Releases++;
+        }
+    }
+
+    [Fact]
+    public void ANodeLetsGoWithItsLabel()
+    {
+        using var _ = SkUiTestHelpers.UseBundledFont();
+        var core = new ReleaseCountingNode();
+        var label = Label(new SkUiCoreSpan("x").SetInlineObject(SkUiInlineObject.FromNode(core)));
+        using var bitmap = Draw(label, 100, 40);
+        Rendering.SkUiRenderInvalidation.ResetSubtree(label);
+        Assert.Equal(1, core.Releases);
+
+        var drawn = new ReleaseCountingNode();
+        var span = new Span { Text = "x" };
+        SkUiSpan.SetInlineObject(span, SkUiInlineObject.FromNode(drawn));
+        var view = new SkUiLabel { FormattedText = new FormattedString { Spans = { span } } };
+        Rendering.SkUiRenderInvalidation.ResetSubtree(view);
+        Assert.Equal(1, drawn.Releases);
     }
 
     [Fact]
@@ -174,6 +314,28 @@ public class InlineTextObjectTests
         var info = new SkUiSemanticsInfo();
         ((ISkUiAccessibleNode)label).GetSemantics(info);
         Assert.Equal("area pi r squared", info.Text);
+    }
+
+    [Fact]
+    public void ScreenReadersReadTheTextAsDrawn()
+    {
+        using var _ = SkUiTestHelpers.UseBundledFont();
+        var label = Label(new SkUiCoreSpan("area "), new SkUiCoreSpan("kept").SetTextTransform(TextTransform.Lowercase), new SkUiCoreSpan("Pi r").SetInlineObject(Box(10, 10)));
+        label.SetTextTransform(TextTransform.Uppercase);
+        var info = new SkUiSemanticsInfo();
+        ((ISkUiAccessibleNode)label).GetSemantics(info);
+        Assert.Equal("AREA keptPi r", info.Text);
+
+        var object_ = new Span { Text = "Pi r" };
+        SkUiSpan.SetInlineObject(object_, Box(10, 10));
+        var view = new SkUiLabel
+        {
+            TextTransform = TextTransform.Uppercase,
+            FormattedText = new FormattedString { Spans = { new Span { Text = "area " }, new Span { Text = "kept", TextTransform = TextTransform.Lowercase }, object_ } }
+        };
+        var drawnInfo = new SkUiSemanticsInfo();
+        ((ISkUiAccessibleNode)view).GetSemantics(drawnInfo);
+        Assert.Equal("AREA keptPi r", drawnInfo.Text);
     }
 
     [Fact]
@@ -243,5 +405,23 @@ public class InlineTextObjectTests
         Assert.Equal(80, label.Measure(200, 100).Width, 1);
         span.SetInlineObject(null);
         Assert.True(label.Measure(200, 100).Width < 40);
+    }
+
+    [Fact]
+    public void AChangedObjectOnAMauiSpanLaysOutAgain()
+    {
+        using var _ = SkUiTestHelpers.UseBundledFont();
+        var span = new Span { Text = "x" };
+        SkUiSpan.SetInlineObject(span, Box(50, 10));
+        var label = new SkUiLabel { FontFamily = SkUiTestHelpers.BundledFontFamily, FontSize = 16, FormattedText = new FormattedString { Spans = { span } } };
+        Assert.Equal(50, label.Measure(200, 100).Width, 1);
+        SkUiSpan.SetInlineObject(span, Box(80, 10));
+        Assert.Equal(80, label.Measure(200, 100).Width, 1);
+        var height = label.Measure(200, 100).Height;
+        SkUiSpan.SetInlineObject(span, null);
+        SkUiSpan.SetBaselineShift(span, 0.5);
+        var plain = new SkUiLabel { FontFamily = SkUiTestHelpers.BundledFontFamily, FontSize = 16, FormattedText = new FormattedString { Spans = { new Span { Text = "x" } } } };
+        Assert.True(label.Measure(200, 100).Height > plain.Measure(200, 100).Height);
+        Assert.True(height > 0);
     }
 }

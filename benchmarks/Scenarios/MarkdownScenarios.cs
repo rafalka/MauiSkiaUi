@@ -1,4 +1,3 @@
-using System.Reflection;
 using System.Text;
 using MauiSkiaUi;
 
@@ -34,16 +33,20 @@ internal static class MarkdownBench
             return Scenarios.Scroll(new SkUiVerticalStackLayout());
         var view = (SkUiView)Activator.CreateInstance(type)!;
         var style = Activator.CreateInstance(styleType)!;
-        styleType.GetProperty("MaximumInPlaceParseLength", BindingFlags.Public | BindingFlags.Instance)!.SetValue(style, int.MaxValue);
-        type.GetProperty("MarkdownStyle")!.SetValue(view, style);
-        type.GetProperty("Text")!.SetValue(view, Document);
+        BenchScenario.TrySetOption(style, "MaximumInPlaceParseLength", int.MaxValue);
+        BenchScenario.TrySetOption(view, "MarkdownStyle", style);
+        BenchScenario.TrySetOption(view, "Text", Document);
         return Scenarios.Scroll(view);
     }
 
+    /// <summary>Sets the text. On a commit without the package something still changes, so a frame follows and an update's wait does not time out.</summary>
     internal static void SetText(View root, string text)
     {
-        if (((SkUiScrollView)root).Content is { } view && view.GetType().GetProperty("Text") is { } property && property.PropertyType == typeof(string))
-            property.SetValue(view, text);
+        var scroll = (SkUiScrollView)root;
+        if (scroll.Content is { } view && view.GetType().GetProperty("Text") is not null)
+            BenchScenario.TrySetOption(view, "Text", text);
+        else
+            scroll.Content = new SkUiVerticalStackLayout();
     }
 }
 
@@ -57,8 +60,13 @@ public sealed class MarkdownDocument : BenchScenario
 
     public override Func<View, IDisposable?>? Motion => root =>
     {
-        if (root is SkUiScrollView scroll)
-            _ = scroll.ScrollToAsync(0, 5000, animated: true);
+        var scroll = (SkUiScrollView)root;
+        // Longer than MotionDuration so the whole sampling window is in motion, as ScrollFling does.
+        var duration = MotionDuration + TimeSpan.FromSeconds(0.5);
+        var animate = typeof(SkUiScrollView).GetMethod("AnimateScrollTo", [typeof(double), typeof(double), typeof(TimeSpan)]);
+        if (animate is not null)
+            return animate.Invoke(scroll, [0d, scroll.ContentSize.Height, duration]) as IDisposable;
+        _ = scroll.ScrollToAsync(0, scroll.ContentSize.Height, true);
         return null;
     };
 }

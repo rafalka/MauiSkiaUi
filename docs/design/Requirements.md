@@ -65,7 +65,7 @@ NFR-1 (platforms) is the table above.
 
 ## Functional requirements
 
-Status: **Shipped** (in the current release line), **Partly** (shipped, with open items in the [roadmap](Roadmap.md)), **Open**.
+Status: **Shipped** (in the current release line), **Partly** (shipped, with open items in the [roadmap](Roadmap.md)), **Built for 1.8** (on its branch, not released), **Open**.
 
 | # | Requirement | Status | Docs |
 | --- | --- | --- | --- |

@@ -183,4 +183,39 @@ public sealed record SkUiMarkdownStyle
     /// must not hold up the UI thread; the previous content stays until the build is done. <see cref="int.MaxValue"/>: always, for text the app trusts and wants at once.
     /// </summary>
     public int MaximumInPlaceParseLength { get; init; }
+
+    /// <summary>The name of a value no document can draw with, or <c>null</c> when all of them are fine: sizes finite and not negative, multiples and font sizes above 0, limits not negative.</summary>
+    internal string? FindInvalidValue()
+    {
+        static bool IsLength(double value) => double.IsFinite(value) && value >= 0;
+        static bool IsSize(double value) => double.IsFinite(value) && value > 0;
+        static bool IsThickness(Thickness value) => IsLength(value.Left) && IsLength(value.Top) && IsLength(value.Right) && IsLength(value.Bottom);
+
+        if (FontSize is { } fontSize && !IsSize(fontSize)) return nameof(FontSize);
+        if (CodeFontSize is { } codeFontSize && !IsSize(codeFontSize)) return nameof(CodeFontSize);
+        if (LineHeight is { } lineHeight && !IsSize(lineHeight)) return nameof(LineHeight);
+        if (!IsSize(Heading1Scale)) return nameof(Heading1Scale);
+        if (!IsSize(Heading2Scale)) return nameof(Heading2Scale);
+        if (!IsSize(Heading3Scale)) return nameof(Heading3Scale);
+        if (!IsSize(Heading4Scale)) return nameof(Heading4Scale);
+        if (!IsSize(Heading5Scale)) return nameof(Heading5Scale);
+        if (!IsSize(Heading6Scale)) return nameof(Heading6Scale);
+        if (!IsLength(HeadingTopSpacing)) return nameof(HeadingTopSpacing);
+        if (!IsLength(BlockSpacing)) return nameof(BlockSpacing);
+        if (!IsLength(ListItemSpacing)) return nameof(ListItemSpacing);
+        if (!IsLength(ListMarkerSpacing)) return nameof(ListMarkerSpacing);
+        if (!IsLength(CornerRadius)) return nameof(CornerRadius);
+        if (!IsLength(QuoteBarWidth)) return nameof(QuoteBarWidth);
+        if (!IsSize(TableMaximumColumnWidth)) return nameof(TableMaximumColumnWidth);
+        if (!IsLength(RuleThickness)) return nameof(RuleThickness);
+        if (!IsThickness(CodePadding)) return nameof(CodePadding);
+        if (!IsThickness(TableCellPadding)) return nameof(TableCellPadding);
+        if (MaximumInputLength < 0) return nameof(MaximumInputLength);
+        if (MaximumBlocks < 0) return nameof(MaximumBlocks);
+        if (MaximumBlockDepth < 0) return nameof(MaximumBlockDepth);
+        if (MaximumInlineDepth < 0) return nameof(MaximumInlineDepth);
+        if (MaximumTableCells < 0) return nameof(MaximumTableCells);
+        if (MaximumImages < 0) return nameof(MaximumImages);
+        return MaximumInPlaceParseLength < 0 ? nameof(MaximumInPlaceParseLength) : null;
+    }
 }

@@ -1,4 +1,5 @@
 using MauiSkiaUi.Core;
+using MauiSkiaUi.Rendering;
 using SkiaSharp;
 
 namespace MauiSkiaUi;
@@ -21,7 +22,7 @@ public sealed class SkUiInlineObject
     /// <summary>Creates an object of <paramref name="width"/> × <paramref name="height"/> DIPs.</summary>
     /// <param name="width">Width in DIPs (finite, not negative).</param>
     /// <param name="height">Height in DIPs (finite, not negative).</param>
-    /// <param name="baseline">Distance from the object's top to the line's baseline, in DIPs: <paramref name="height"/> stands the object on the baseline, and more than that drops it below.</param>
+    /// <param name="baseline">Distance from the object's top to the line's baseline, in DIPs: <paramref name="height"/> stands the object on the baseline, less than that drops it below, and more raises it.</param>
     /// <param name="paint">Draws the object, with the origin at its top-left.</param>
     public SkUiInlineObject(double width, double height, double baseline, Action<SKCanvas> paint)
     {
@@ -47,6 +48,9 @@ public sealed class SkUiInlineObject
     /// <summary>Draws the object, with the origin at its top-left.</summary>
     public Action<SKCanvas> Paint { get; }
 
+    /// <summary>Lets go of what drawing made (a node's text blobs and clips), when the label holding the object does.</summary>
+    internal Action? ReleaseDrawingResources { get; private init; }
+
     /// <summary>
     /// An object that draws <paramref name="node"/>, at the size it measures to now, standing on the baseline unless <paramref name="baseline"/>
     /// says otherwise. The node takes no input of its own and has no parent (use the span's <see cref="SkUiCoreSpan.Tapped"/>); its content is
@@ -60,7 +64,7 @@ public sealed class SkUiInlineObject
             throw new ArgumentException("An inline node must not have a parent.", nameof(node));
         var size = node.Measure(double.PositiveInfinity, double.PositiveInfinity);
         node.Arrange(new Rect(Point.Zero, size));
-        return new SkUiInlineObject(size.Width, size.Height, baseline ?? size.Height, node.Paint);
+        return new SkUiInlineObject(size.Width, size.Height, baseline ?? size.Height, node.Paint) { ReleaseDrawingResources = () => SkUiRenderInvalidation.ResetSubtree(node) };
     }
 }
 
@@ -75,7 +79,7 @@ public static class SkUiSpan
 
     /// <summary>How far the span sits above the line's baseline, as a fraction of its font size; see <see cref="SkUiCoreSpan.BaselineShift"/>.</summary>
     public static readonly BindableProperty BaselineShiftProperty = BindableProperty.CreateAttached("BaselineShift", typeof(double), typeof(SkUiSpan), 0.0,
-        validateValue: static (_, value) => value is double shift && double.IsFinite(shift));
+        validateValue: SkUiValidate.Finite);
 
     /// <summary>What the span draws instead of its text; see <see cref="SkUiCoreSpan.InlineObject"/>.</summary>
     public static readonly BindableProperty InlineObjectProperty = BindableProperty.CreateAttached("InlineObject", typeof(SkUiInlineObject), typeof(SkUiSpan), null);

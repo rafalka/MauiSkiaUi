@@ -140,6 +140,38 @@ The samples app shows these side by side (**Controls › Text that fits**).
 
 Core labels take `SkUiCoreSpan`s with the same rules (`SetSpans`, `AddSpan`, a span's `Tapped` event); see [SkUiCore.md](SkUiCore.md#text-and-spans).
 
+## Baseline shift
+
+A span can sit above or below the line's baseline: a fraction of its font size, positive up, and the line grows to hold it. `<sup>` and `<sub>` in HTML text use it (`SkUiSpan.SuperscriptShift`, `SkUiSpan.SubscriptShift`).
+
+```csharp
+var core = new SkUiCoreSpan("2").SetFontSize(11).SetBaselineShift(SkUiSpan.SuperscriptShift);
+
+var span = new Span { Text = "2", FontSize = 11 };
+SkUiSpan.SetBaselineShift(span, SkUiSpan.SuperscriptShift);
+```
+
+```xml
+<Span Text="2" FontSize="11" sk:SkUiSpan.BaselineShift="0.45" />
+```
+
+## Inline objects
+
+A span can draw something in the line instead of its text: `SkUiInlineObject` has a fixed width and height, a baseline, and a callback that draws it. It wraps, aligns and takes taps as a word of its size, and follows the line's bidi order. The span's `Text` stays what screen readers read.
+
+```csharp
+var formula = new SkUiInlineObject(width: 40, height: 18, baseline: 14, canvas => DrawFormula(canvas));
+label.SetSpans(new SkUiCoreSpan("Area: "), new SkUiCoreSpan("pi r squared").SetInlineObject(formula));
+
+// A node, drawn at the size it measures to now. It has no parent and takes no input of its own: use the span's Tapped.
+var box = new SkUiCoreBox().SetColor(Colors.Red);
+box.SetWidth(12);
+box.SetHeight(12);
+var inline = SkUiInlineObject.FromNode(box);
+```
+
+On MAUI's spans it is the attached `SkUiSpan.InlineObject`. The callback runs while the label records, on the UI thread, so what it draws is part of the label's picture. Its size is fixed: to change it, set a new object. To redraw it, call `InvalidatePaint` on the label. Text without an inline object pays only a comparison per character, as it is laid out. A span's text is read for screen readers as drawn: its `TextTransform` applies, except to the span of an object. An object from `FromNode` lets go of what its node drew when its label does.
+
 ## HTML text
 
 `TextType="Html"` (MAUI's) draws `Text` as HTML. SkiaUi parses the markup itself (`SkUiHtml`, no dependency) into styled runs drawn like spans, so the result is the same on every platform and does not need the platform's HTML importer (MAUI uses Android's `Html.fromHtml`, WebKit on iOS / Mac Catalyst and its own XHTML reader on Windows, which differ).
@@ -159,7 +191,7 @@ Core labels take `SkUiCoreSpan`s with the same rules (`SetSpans`, `AddSpan`, a s
 | `b`, `strong` / `i`, `em`, `cite`, `dfn` | Bold / italic (added to the label's `FontAttributes`) |
 | `u`, `ins` / `s`, `strike`, `del` | Underline / strikethrough |
 | `h1`–`h6` | Bold paragraph, 1.5× … 1× the label's size |
-| `big`, `small`, `sub`, `sup` | 1.25×, 0.8×, 0.7×, 0.7× (no baseline shift for `sub` / `sup`) |
+| `big`, `small`, `sub`, `sup` | 1.25×, 0.8×, 0.7×, 0.7×; `sub` and `sup` sit below and above the baseline, and nested ones add up |
 | `tt`, `code`, `kbd`, `pre` | The platform's monospace font; `pre` keeps whitespace and line breaks |
 | `font color face size` | Color, family, HTML size 1–7 (or `+1` / `-1`) |
 | `style="…"` on any element | `color`, `background-color`, `font-size` (px, pt, em, %, keywords), `font-weight`, `font-style`, `font-family`, `text-decoration` |
@@ -228,7 +260,7 @@ Fonts registered with MAUI's `ConfigureFonts` (`fonts.AddFont("file.ttf", "Alias
 | Topic | SkiaUi |
 | --- | --- |
 | Spans (`FormattedText`) | Supported, with span tap recognizers. Spans ignore `LineBreaker` and `TextRendering` (always shaped). Only `TapGestureRecognizer` on spans (as MAUI); `TappedEventArgs.GetPosition` answers for the label only |
-| HTML (`TextType="Html"`) | Parsed by SkiaUi (the Android tag subset, plus inline `style`), the same on every platform; links are tappable (`LinkTapped`); no images, `sub` / `sup` baseline shift or block indents |
+| HTML (`TextType="Html"`) | Parsed by SkiaUi (the Android tag subset, plus inline `style`), the same on every platform; links are tappable (`LinkTapped`); no images or block indents |
 | `<sk:SkUiLabel>text</sk:SkUiLabel>` | `Text` is the content property, as on MAUI |
 | Span decorations | A span without its own `TextDecorations` takes the label's (as MAUI on Android; iOS draws none) |
 | `HorizontalTextAlignment="Justify"` | Justified on every platform (MAUI's Android Label ignores it) |
@@ -250,36 +282,3 @@ Fonts registered with MAUI's `ConfigureFonts` (`fonts.AddFont("file.ttf", "Alias
 ## Related
 
 Gallery: `LabelDemoPage`
-
-## Baseline shift
-
-A span can sit above or below the line's baseline: a fraction of its font size, positive up, and the line grows to hold it. `<sup>` and `<sub>` in HTML text use it (`SkUiSpan.SuperscriptShift`, `SkUiSpan.SubscriptShift`).
-
-```csharp
-var core = new SkUiCoreSpan("2").SetFontSize(11).SetBaselineShift(SkUiSpan.SuperscriptShift);
-
-var span = new Span { Text = "2", FontSize = 11 };
-SkUiSpan.SetBaselineShift(span, SkUiSpan.SuperscriptShift);
-```
-
-```xml
-<Span Text="2" FontSize="11" sk:SkUiSpan.BaselineShift="0.45" />
-```
-
-## Inline objects
-
-A span can draw something in the line instead of its text: `SkUiInlineObject` has a fixed width and height, a baseline, and a callback that draws it. It wraps, aligns and takes taps as a word of its size, and follows the line's bidi order. The span's `Text` stays what screen readers read.
-
-```csharp
-var formula = new SkUiInlineObject(width: 40, height: 18, baseline: 14, canvas => DrawFormula(canvas));
-label.SetSpans(new SkUiCoreSpan("Area: "), new SkUiCoreSpan("pi r squared").SetInlineObject(formula));
-
-// A node, drawn at the size it measures to now. It has no parent and takes no input of its own: use the span's Tapped.
-var box = new SkUiCoreBox().SetColor(Colors.Red);
-box.SetWidth(12);
-box.SetHeight(12);
-var inline = SkUiInlineObject.FromNode(box);
-```
-
-On MAUI's spans it is the attached `SkUiSpan.InlineObject`. The callback runs while the label records, on the UI thread, so what it draws is part of the label's picture. Its size is fixed: to change it, set a new object. To redraw it, call `InvalidatePaint` on the label. Text without an inline object pays one null check per run.
-

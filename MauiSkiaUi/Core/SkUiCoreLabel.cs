@@ -494,7 +494,9 @@ public class SkUiCoreLabel : SkUiCoreNode, ISkUiFontElement, ISkUiBorderElement
         {
             foreach (var span in _spans)
                 if (span.InlineObject is not null)
-                    return string.Concat(_spans.Select(static part => part.Text));
+                    return string.Concat(_spans.Select(part => part.InlineObject is not null
+                        ? part.Text
+                        : SkUiTextTransform.Apply(part.Text, part.TextTransform != TextTransform.Default ? part.TextTransform : _textTransform)));
             return RichText.Text;
         }
     }
@@ -926,6 +928,8 @@ public class SkUiCoreLabel : SkUiCoreNode, ISkUiFontElement, ISkUiBorderElement
         _chrome.ReleaseClip();
         _layout.Release();
         _richLayout?.Release();
+        foreach (var span in _spans)
+            span.InlineObject?.ReleaseDrawingResources?.Invoke();
     }
 
     private void UpdateDisplayText()

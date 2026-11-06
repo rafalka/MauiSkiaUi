@@ -805,7 +805,7 @@ public class MarkdownTests
         await view.WhenUpdated.WaitAsync(TimeSpan.FromSeconds(30));
     }
 
-    private sealed class QueueDispatcher : IDispatcher
+    internal sealed class QueueDispatcher : IDispatcher
     {
         private readonly Queue<Action> _work = new();
 
@@ -1004,12 +1004,243 @@ public class MarkdownTests
         view.Text = "";
         Assert.Empty(Nodes<SkUiCoreLabel>(view.Markdown));
     }
+
+    [Theory]
+    [InlineData("# A", "intro\n\n# A")]
+    [InlineData("intro\n\n# A", "# A")]
+    public void AHeadingThatStopsOrStartsBeingFirstIsBuiltAgain(string before, string after)
+    {
+        var view = View(before);
+        view.SetText(after);
+        var heading = Nodes<SkUiCoreLabel>(view).Last();
+        var isFirst = !after.StartsWith("intro", StringComparison.Ordinal);
+        Assert.Equal(isFirst ? 0 : Style.HeadingTopSpacing, heading.Margin.Top);
+    }
+
+    [Fact]
+    public void AnImageInARowTakesItsVerticalAttribute()
+    {
+        var view = View("![a](x.png){vertical=Center} ![b](y.png)");
+        var blocks = Nodes<SkUiMarkdownImageBlock>(view).ToArray();
+        Assert.Equal(2, blocks.Length);
+        Assert.Equal(LayoutAlignment.Center, blocks[0].VerticalAlignment);
+        Assert.Equal(LayoutAlignment.Start, blocks[1].VerticalAlignment);
+    }
+
+    [Fact]
+    public void BindingsSeeThePlainTextChange()
+    {
+        var view = new SkUiMarkdownView().SetMarkdownStyle(Style with { MaximumBlocks = 1 });
+        var changes = new List<string?>();
+        view.PropertyChanged += (_, args) => changes.Add(args.PropertyName);
+        view.SetText("a\n\nb\n\nc");
+        Assert.True(view.IsPlainText);
+        Assert.Contains(nameof(SkUiMarkdownView.IsPlainText), changes);
+        view.SetText("a");
+        Assert.False(view.IsPlainText);
+    }
+
+    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
+    private static WeakReference SetOldText(SkUiCoreMarkdown view)
+    {
+        var text = "![a](missing.png)\n\n" + new string('x', 1000) + view.GetHashCode();
+        view.SetText(text);
+        return new WeakReference(text);
+    }
+
+    /// <summary>An image block outlives its build, and streaming keeps the first blocks of a document: they must not keep each version of its text.</summary>
+    [Fact]
+    public void WhatStaysOnScreenDoesNotKeepOldText()
+    {
+        var view = new SkUiCoreMarkdown().SetMarkdownStyle(Style);
+        var old = SetOldText(view);
+        view.SetText("![a](missing.png)\n\nnew");
+        GC.Collect();
+        GC.WaitForPendingFinalizers();
+        GC.Collect();
+        Assert.False(old.IsAlive);
+        Assert.Single(Nodes<SkUiMarkdownImageBlock>(view));
+    }
+
+    [Theory]
+    [InlineData(nameof(SkUiMarkdownStyle.MaximumInputLength))]
+    [InlineData(nameof(SkUiMarkdownStyle.BlockSpacing))]
+    [InlineData(nameof(SkUiMarkdownStyle.RuleThickness))]
+    [InlineData(nameof(SkUiMarkdownStyle.FontSize))]
+    [InlineData(nameof(SkUiMarkdownStyle.CodePadding))]
+    public void AStyleOutOfRangeIsRefused(string name)
+    {
+        var style = name switch
+        {
+            nameof(SkUiMarkdownStyle.MaximumInputLength) => Style with { MaximumInputLength = -1 },
+            nameof(SkUiMarkdownStyle.BlockSpacing) => Style with { BlockSpacing = double.NaN },
+            nameof(SkUiMarkdownStyle.RuleThickness) => Style with { RuleThickness = -1 },
+            nameof(SkUiMarkdownStyle.FontSize) => Style with { FontSize = 0 },
+            _ => Style with { CodePadding = new Thickness(-1) }
+        };
+        var core = new SkUiCoreMarkdown().SetMarkdownStyle(Style);
+        var error = Assert.Throws<ArgumentException>(() => core.SetMarkdownStyle(style));
+        Assert.Contains(name, error.Message);
+        Assert.Same(Style, core.MarkdownStyle);
+        var view = new SkUiMarkdownView().SetMarkdownStyle(Style);
+        Assert.Throws<ArgumentException>(() => view.SetMarkdownStyle(style));
+        view.MarkdownStyle = style; // a bindable property ignores what it does not take, with a warning, as MAUI does
+        Assert.Same(Style, view.MarkdownStyle);
+    }
+}
+
+/// <summary>What is left out of the count of delimiters, and what must not be: a document that gets past it can hold a parse for minutes.</summary>
+public class MarkdownDelimiterCountTests
+{
+    private static readonly SkUiMarkdownStyle Style = SkUiMarkdownStyle.Default with
+    {
+        FontFamily = SkUiTestHelpers.BundledFontFamily,
+        CodeFontFamily = SkUiTestHelpers.BundledFontFamily,
+        MaximumInPlaceParseLength = int.MaxValue
+    };
+
+    private static string R(string text, int count) => string.Concat(Enumerable.Repeat(text, count));
+
+    public static TheoryData<string> Ordinary() => new()
+    {
+        // 220 KB of an image's data, thousands of + in it.
+        "![pic](data:image/png;base64," + R("ab+/", 55_000) + "==)",
+        // A long tight list: each item is a run of its own.
+        R("- [item](https://example.com/a): text\n", 1_100),
+        R("* [item](https://example.com/a): text\n", 1_100),
+        "1. a\n" + R("2. [item](https://example.com/a): text\n", 1_100),
+        R("# [a](x:y) *b*\n", 1_500),
+        // Code is not parsed for delimiters.
+        "```json\n" + R("  \"key\": \"[a]*b*: c\",\n", 1_400) + "```\n",
+        "~~~\n" + R("[a](*b*\n", 2_000) + "~~~\n",
+        "````\n```\n" + R("[a](*b*\n", 2_000),
+        "\n    " + string.Join("\n    ", Enumerable.Repeat("[a](*b*", 2_000)),
+    };
+
+    [Theory]
+    [MemberData(nameof(Ordinary))]
+    public void OrdinaryDocumentsAreNotCounted(string text)
+    {
+        Assert.False(SkUiMarkdownParser.HasPathologicalBlock(text));
+        Assert.False(new SkUiCoreMarkdown().SetMarkdownStyle(Style).SetText(text).IsPlainText);
+    }
+
+    public static TheoryData<string> Hostile() => new()
+    {
+        R("[a](", 4_001),
+        // One paragraph, whatever its lines look like: these do not end it.
+        "x\n" + R("2. [a](\n", 2_001),
+        R("#[a](\n", 2_001),
+        R("[a](\n- \n", 2_001),
+        R("[a](\n    [a](\n", 1_001),
+        // In a list, an indented line is a paragraph.
+        "- x\n\n" + R("    [a](\n", 2_001),
+        "[^1]: x\n\n" + R("    [a](\n", 2_001),
+        // Not fences: the info string of a backtick fence has no backticks, and four spaces make no fence.
+        "``` `\n" + R("[a](\n", 2_001),
+        "```\n```\n" + R("[a](\n", 2_001),
+        // Not an image's data: unfinished, or with what data has not.
+        "![a](data:x;base64," + R("++a ", 3_000),
+        "![a](data:x;base64," + R("[a](", 2_001) + ")",
+        "x](data:;base64,++)" + R("[a](", 4_001),
+    };
+
+    [Theory]
+    [MemberData(nameof(Hostile))]
+    public void HostileDocumentsAreCounted(string text) => Assert.True(SkUiMarkdownParser.HasPathologicalBlock(text));
 }
 
 /// <summary>What the color scheme does to Markdown views. Replaces the app-wide scheme, which rebuilds every live view, so the class runs alone.</summary>
 [Collection(GlobalStateCollection.Name)]
 public class MarkdownColorSchemeTests
 {
+    [Fact]
+    public void ANewTextSizeBuildsTheDocumentAgain()
+    {
+        using var _ = SkUiTestHelpers.UseBundledFont();
+        var view = new SkUiCoreMarkdown().SetMarkdownStyle(SkUiMarkdownStyle.Default with { MaximumInPlaceParseLength = int.MaxValue, FontFamily = SkUiTestHelpers.BundledFontFamily })
+            .SetMathRenderer(Markdown.Math.SkUiMarkdownMath.Renderer).SetText("see $x^2$ there");
+        double Width() => ((SkUiCoreLabel)((SkUiCoreVerticalStackLayout)view.Content!).Children[0]).Spans.Single(span => span.InlineObject is not null).InlineObject!.Width;
+        var before = Width();
+        try
+        {
+            SkUiFontScaling.Factor = 2;
+            Assert.Equal(before * 2, Width(), 0);
+        }
+        finally
+        {
+            SkUiFontScaling.Factor = null;
+        }
+        Assert.Equal(before, Width(), 1);
+    }
+
+    [Fact]
+    public void ANewLookBuildsTheDocumentAgain()
+    {
+        using var _ = SkUiTestHelpers.UseBundledFont();
+        var look = SkUiLook.Current;
+        var view = new SkUiCoreMarkdown().SetMarkdownStyle(SkUiMarkdownStyle.Default with { MaximumInPlaceParseLength = int.MaxValue, FontFamily = SkUiTestHelpers.BundledFontFamily }).SetText("# a");
+        double Size() => ((SkUiCoreLabel)((SkUiCoreVerticalStackLayout)view.Content!).Children[0]).FontSize;
+        var before = Size();
+        try
+        {
+            SkUiLook.Current = new LargeLook();
+            Assert.Equal(before * 40 / look.DefaultFontSize, Size(), 1);
+        }
+        finally
+        {
+            SkUiLook.Current = look;
+        }
+        Assert.Equal(before, Size(), 1);
+    }
+
+    private sealed class LargeLook : DefaultSkUiLook
+    {
+        public override double DefaultFontSize => 40;
+    }
+
+    private sealed class PaddedLook : DefaultSkUiLook
+    {
+        public override bool TextIncludesFontPadding => true;
+    }
+
+    /// <summary>Android's font padding comes from the fonts drawn, and an inline object draws none.</summary>
+    [Fact]
+    public void FontPaddingCountsNoFontForAnInlineObject()
+    {
+        using var _ = SkUiTestHelpers.UseBundledFont();
+        var look = SkUiLook.Current;
+        try
+        {
+            SkUiLook.Current = new PaddedLook();
+            var label = new SkUiCoreLabel().SetSpans(new SkUiCoreSpan("x").SetInlineObject(new SkUiInlineObject(10, 4, 4, _ => { })));
+            Assert.Equal(4, label.Measure(100, 100).Height, 1);
+        }
+        finally
+        {
+            SkUiLook.Current = look;
+        }
+    }
+
+    [Fact]
+    public void TheAppWideRendererDrawsFormulas()
+    {
+        var saved = SkUiCoreMarkdown.DefaultMathRenderer;
+        try
+        {
+            SkUiCoreMarkdown.DefaultMathRenderer = null;
+            Markdown.Math.SkUiMarkdownMath.UseSkiaUiMarkdownMath(MauiApp.CreateBuilder());
+            Assert.Same(Markdown.Math.SkUiMarkdownMath.Renderer, SkUiCoreMarkdown.DefaultMathRenderer);
+            var view = new SkUiCoreMarkdown().SetMarkdownStyle(SkUiMarkdownStyle.Default with { MaximumInPlaceParseLength = int.MaxValue }).SetText("$$\nx\n$$");
+            Assert.Empty(((IVisualTreeElement)view).GetVisualChildren().OfType<SkUiCoreLabel>());
+            Assert.Null(new SkUiCoreMarkdown().MathRenderer); // the view's own stays unset
+        }
+        finally
+        {
+            SkUiCoreMarkdown.DefaultMathRenderer = saved;
+        }
+    }
+
     [Fact]
     public void ANewSchemeColorsTheDocument()
     {

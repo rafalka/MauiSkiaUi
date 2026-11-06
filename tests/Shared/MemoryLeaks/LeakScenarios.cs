@@ -291,6 +291,7 @@ public static class LeakScenarios
         private Markdown.SkUiCoreMarkdown? _core;
         private Markdown.SkUiMarkdownStyle? _style;
         private int _taps;
+        private bool _tapCanLand;
 
         public override View Build(LeakScenarioContext context)
         {
@@ -310,13 +311,18 @@ public static class LeakScenarios
             await context.WaitForAsync(_link!.WhenUpdated);
             await context.WaitForAsync(_view!.WhenUpdated);
             await context.SettleAsync();
+            // Without fonts (Linux CI) text measures 0 wide, and a tap has nothing to land on.
+            _tapCanLand = new SkUiLabel { Text = "a" }.Measure(100, 100).Width > 0;
             await context.TapAsync(_link);
-            for (var length = Document.Length / 2; length <= Document.Length; length += 20)
+            for (var length = Document.Length / 2; length < Document.Length; length += 20)
             {
                 _view.Text = Document[..length];
                 _core!.SetText(Document[..length]);
                 await context.SettleAsync();
             }
+            _core!.SetText(Document);
+            await context.WaitForAsync(_core.WhenUpdated);
+            _view.Text = Document;
             _view.MarkdownStyle = _style! with { BlockSpacing = 20 };
             await context.WaitForAsync(_view.WhenUpdated);
             await context.SettleAsync();
@@ -324,7 +330,7 @@ public static class LeakScenarios
 
         public override string? CheckInteraction()
         {
-            if (_taps == 0)
+            if (_taps == 0 && _tapCanLand)
                 return "The tap did not reach the link.";
             // A formula the engine could not typeset (its fonts trimmed away, say) would quietly show its source.
             return HasInlineFormula(_core!) ? null : "The inline formula was not typeset.";

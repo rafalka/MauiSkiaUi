@@ -170,6 +170,8 @@ internal sealed class SkUiRichTextLayout : ISkUiTextSpanFonts, ISkUiTextFitLayou
         float fontTop = 0, fontAscent = 0;
         foreach (var piece in first.Pieces)
         {
+            if (piece.InlineObject is not null)
+                continue; // draws no font
             fontTop = Math.Max(fontTop, -piece.Metrics.Top);
             fontAscent = Math.Max(fontAscent, -piece.Metrics.Ascent);
         }
@@ -179,7 +181,8 @@ internal sealed class SkUiRichTextLayout : ISkUiTextSpanFonts, ISkUiTextFitLayou
         var last = lines[^1];
         var bottom = 0f;
         foreach (var piece in last.Pieces)
-            bottom = Math.Max(bottom, piece.Metrics.Bottom - piece.Metrics.Descent);
+            if (piece.InlineObject is null)
+                bottom = Math.Max(bottom, piece.Metrics.Bottom - piece.Metrics.Descent);
         last.Height += bottom;
     }
 
@@ -579,6 +582,7 @@ internal sealed class SkUiRichTextLayout : ISkUiTextSpanFonts, ISkUiTextFitLayou
                     canvas.Translate(left + piece.X, pieceBaseline - (float)inlineObject.Baseline);
                     inlineObject.Paint(canvas);
                     canvas.RestoreToCount(saved);
+                    paint.Color = span.TextColor; // what it drew may share the paint, and the decorations are the span's
                 }
                 if (span.Decorations != TextDecorations.None)
                     SkUiTextLayout.DrawDecorations(canvas, span.Decorations, left + piece.X, pieceBaseline, piece.Width, piece.Size, piece.Metrics, paint);

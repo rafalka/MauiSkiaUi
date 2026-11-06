@@ -41,13 +41,15 @@ internal sealed class SkUiMarkdownBuilder
     private readonly SkUiCoreMarkdown _owner;
     private readonly SkUiMarkdownBuildSettings _settings;
     private readonly SkUiMarkdownStyle _style;
-    private readonly string _source;
+    private string _source;
     private readonly double _bodySize;
     private readonly Color _textColor;
     private readonly Color _mutedColor;
     private readonly Color _linkColor;
     private readonly Color _codeBackground;
     private readonly Color _tint;
+
+    private const double SizeScaleTolerance = 0.001;
 
     internal SkUiMarkdownBuilder(SkUiCoreMarkdown owner, SkUiMarkdownBuildSettings settings, string source, int blockCount, int imageCount)
     {
@@ -65,6 +67,9 @@ internal sealed class SkUiMarkdownBuilder
         _tint = _textColor.WithAlpha(0.07f);
         _codeBackground = style.CodeBackgroundColor ?? _tint;
     }
+
+    /// <summary>A build is done: what stays on screen can outlive it (an image block keeps a way to make its alt text), and must not keep the document's text.</summary>
+    internal void ReleaseSource() => _source = string.Empty;
 
     /// <summary>What must run on the UI thread before the nodes go on screen.</summary>
     internal List<Action> UiActions { get; } = [];
@@ -191,7 +196,7 @@ internal sealed class SkUiMarkdownBuilder
         label.SetLineBreakMode(LineBreakMode.WordWrap);
         if (_style.FontFamily is { } family)
             label.SetFontFamily(family);
-        if (_style.FontSize is not null || Math.Abs(context.SizeScale - 1) > 0.001)
+        if (_style.FontSize is not null || Math.Abs(context.SizeScale - 1) > SizeScaleTolerance)
             label.SetFontSize(_bodySize * context.SizeScale);
         if (_style.LineHeight is { } lineHeight)
             label.SetLineHeight(lineHeight);
@@ -267,9 +272,7 @@ internal sealed class SkUiMarkdownBuilder
         var row = new SkUiCoreWrapLayout().SetSpacing(4).SetRowSpacing(4);
         foreach (var (image, link) in images)
         {
-            var node = BuildImage(image, link, context);
-            node.SetVerticalAlignment(LayoutAlignment.Start);
-            row.Add(node);
+            row.Add(BuildImage(image, link, context));
         }
         output.Add(row);
         return true;
@@ -986,7 +989,8 @@ internal sealed class SkUiMarkdownBuilder
     private SkUiCoreNode BuildBlockMath(MathBlock math, in BlockContext context)
     {
         var latex = math.Lines.ToString().Trim();
-        var node = CreateMathBlock(latex, new SkUiMarkdownMathContext(_bodySize * context.SizeScale, context.TextColor));
+        var size = _bodySize * context.SizeScale;
+        var node = CreateMathBlock(latex, new SkUiMarkdownMathContext(size, context.TextColor, size * _settings.TextScale));
         if (node is null)
         {
             var source = HorizontalScroll(BuildCodeLabel(latex, null, context));
@@ -1003,7 +1007,8 @@ internal sealed class SkUiMarkdownBuilder
     private void AddInlineMath(MathInline math, in SpanLook look, InlineRun run)
     {
         var latex = math.Content.ToString();
-        var inlineObject = CreateMathInline(latex, new SkUiMarkdownMathContext(LookSize(look, run.Context), look.TextColor ?? run.Context.TextColor));
+        var size = LookSize(look, run.Context);
+        var inlineObject = CreateMathInline(latex, new SkUiMarkdownMathContext(size, look.TextColor ?? run.Context.TextColor, size * _settings.TextScale));
         if (inlineObject is null)
         {
             run.Append(latex, CodeLook(look, run.Context)); // D7 in the plan: the source, until the renderer can place it
@@ -1016,5 +1021,11 @@ internal sealed class SkUiMarkdownBuilder
 }
 
 /// <summary>What a build reads: a copy of the view's settings, so a build on another thread sees nothing change.</summary>
+/// <param name="Style">How the document draws.</param>
+/// <param name="AllowRemoteImages">Whether remote images load.</param>
+/// <param name="ImageResolver">The rule of what a URL may load.</param>
+/// <param name="CodeHighlighter">Colors code blocks.</param>
+/// <param name="MathRenderer">Draws formulas.</param>
+/// <param name="TextScale">What the system text size and the look's scale make of the body size, read on the UI thread: on Apple platforms a build's thread cannot.</param>
 internal sealed record SkUiMarkdownBuildSettings(SkUiMarkdownStyle Style, bool AllowRemoteImages, Func<string, SkUiImageSource?>? ImageResolver, SkUiMarkdownCodeHighlighter? CodeHighlighter,
-    ISkUiMarkdownMathRenderer? MathRenderer);
+    ISkUiMarkdownMathRenderer? MathRenderer, double TextScale);

@@ -19,7 +19,7 @@ public class SkUiMarkdownView : SkUiCoreHost
 
     /// <summary>Bindable <see cref="MarkdownStyle"/>.</summary>
     public static readonly BindableProperty MarkdownStyleProperty = BindableProperty.Create(nameof(MarkdownStyle), typeof(SkUiMarkdownStyle), typeof(SkUiMarkdownView), SkUiMarkdownStyle.Default,
-        validateValue: static (_, value) => value is SkUiMarkdownStyle,
+        validateValue: static (_, value) => value is SkUiMarkdownStyle style && style.FindInvalidValue() is null,
         propertyChanged: static (view, _, value) => ((SkUiMarkdownView)view)._markdown.SetMarkdownStyle((SkUiMarkdownStyle)value));
 
     /// <summary>Bindable <see cref="AllowRemoteImages"/>.</summary>
@@ -50,9 +50,22 @@ public class SkUiMarkdownView : SkUiCoreHost
     public static readonly BindableProperty ImageTappedCommandProperty = BindableProperty.Create(nameof(ImageTappedCommand), typeof(ICommand), typeof(SkUiMarkdownView), null,
         propertyChanged: static (view, _, value) => ((SkUiMarkdownView)view)._markdown.SetImageTappedCommand((ICommand?)value));
 
+    private static readonly BindablePropertyKey IsPlainTextPropertyKey = BindableProperty.CreateReadOnly(nameof(IsPlainText), typeof(bool), typeof(SkUiMarkdownView), false);
+
+    /// <summary>Bindable <see cref="IsPlainText"/>.</summary>
+    public static readonly BindableProperty IsPlainTextProperty = IsPlainTextPropertyKey.BindableProperty;
+
     /// <summary>Creates a view with no document.</summary>
     public SkUiMarkdownView()
     {
+        _markdown.PropertyChanged += (_, args) =>
+        {
+            if (args.PropertyName == nameof(SkUiCoreMarkdown.IsPlainText))
+                SetValue(IsPlainTextPropertyKey, _markdown.IsPlainText);
+        };
+        // An implicit style can have set a text before the line above.
+        if (_markdown.IsPlainText)
+            SetValue(IsPlainTextPropertyKey, true);
         _markdown.LinkTapped += (_, args) => LinkTapped?.Invoke(this, args);
         _markdown.ImageTapped += (_, args) => ImageTapped?.Invoke(this, args);
         _markdown.Warning += (_, message) => Warning?.Invoke(this, message);
@@ -103,7 +116,7 @@ public class SkUiMarkdownView : SkUiCoreHost
     public ICommand? ImageTappedCommand { get => (ICommand?)GetValue(ImageTappedCommandProperty); set => SetValue(ImageTappedCommandProperty, value); }
 
     /// <inheritdoc cref="SkUiCoreMarkdown.IsPlainText" />
-    public bool IsPlainText => _markdown.IsPlainText;
+    public bool IsPlainText => (bool)GetValue(IsPlainTextProperty);
 
     /// <inheritdoc cref="SkUiCoreMarkdown.WhenUpdated" />
     public Task WhenUpdated => _markdown.WhenUpdated;
@@ -115,6 +128,8 @@ public class SkUiMarkdownView : SkUiCoreHost
     public SkUiMarkdownView SetMarkdownStyle(SkUiMarkdownStyle value)
     {
         ArgumentNullException.ThrowIfNull(value);
+        if (value.FindInvalidValue() is { } invalid)
+            throw new ArgumentException($"{invalid} is out of range.", nameof(value));
         MarkdownStyle = value;
         return this;
     }

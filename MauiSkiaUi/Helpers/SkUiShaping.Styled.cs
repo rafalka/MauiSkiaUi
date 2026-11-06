@@ -71,7 +71,7 @@ internal static partial class SkUiShaping
         foreach (var run in paragraph.Runs)
         {
             // An inline object has no glyphs: its one code unit advances by the object's width.
-            if (fonts.InlineObject(run.Span) is { } inlineObject)
+            if (text[run.Start] == SkUiInlineObject.ReplacementCharacter && fonts.InlineObject(run.Span) is { } inlineObject)
             {
                 run.Width = (float)inlineObject.Width;
                 paragraph.Width += run.Width;
@@ -92,6 +92,7 @@ internal static partial class SkUiShaping
         var spans = paragraph.Spans!;
         var unicode = UnicodeFunctions.Default;
         Run? current = null;
+        var afterObject = false;
         for (var index = 0; index < text.Length;)
         {
             var cp = text.ConvertToUtf32OrReplacement(index);
@@ -103,10 +104,11 @@ internal static partial class SkUiShaping
                 : unicode.GetScript(cp);
             var neutralScript = script == Script.Common || script == Script.Inherited || script == Script.Unknown;
             var sameSpan = current is not null && current.Span == span;
-            // An inline object draws no glyph: no fallback font for its replacement character.
-            var face = fonts.InlineObject(span) is not null ? fonts.Typeface(span) : FaceFor(cp, fonts.Typeface(span), sameSpan ? current!.Typeface : null);
+            // An inline object draws no glyph: no fallback font for its replacement character, and a run of its own, as the ellipsis of a cut line can share its span.
+            var isObject = cp == SkUiInlineObject.ReplacementCharacter && fonts.InlineObject(span) is not null;
+            var face = isObject ? fonts.Typeface(span) : FaceFor(cp, fonts.Typeface(span), sameSpan ? current!.Typeface : null);
             var sameScript = current is not null && (neutralScript || current.Script == script || current.Script == Script.Common);
-            if (!sameSpan || current!.Level != level || !ReferenceEquals(current.Typeface, face) || !sameScript)
+            if (!sameSpan || isObject || afterObject || current!.Level != level || !ReferenceEquals(current.Typeface, face) || !sameScript)
             {
                 current = new Run
                 {
@@ -121,6 +123,7 @@ internal static partial class SkUiShaping
             }
             current.Length += units;
             index += units;
+            afterObject = isObject;
         }
     }
 
@@ -199,7 +202,7 @@ internal static partial class SkUiShaping
             }
             var metrics = font.Metrics;
             var baselineShift = fonts.BaselineShift(piece.Span);
-            if (fonts.InlineObject(piece.Span) is { } inlineObject)
+            if (piece.Glyphs.Length == 0 && fonts.InlineObject(piece.Span) is { } inlineObject)
             {
                 // The object's own box decides the line: above and below the baseline it is placed on.
                 var above = (float)inlineObject.Baseline;

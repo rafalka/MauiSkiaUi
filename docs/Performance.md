@@ -157,18 +157,18 @@ The scenarios create the SkUi\* layer's SVG sources by name, so a baseline witho
 
 ## Markdown
 
-**A 100 KB document** (`markdown-document`, `markdown-append` in `scripts/bench.sh`): about 200 sections of a heading, a paragraph with links and code, a quote, a nested list with a task, a code block and a table. Galaxy S9, Release, medians of 6 runs after a warm-up, measured on 5 November 2026. The iPhone 8 was not measured. For scale, `core-labels` (1,000 labels) on the same run: generate 14 ms, add 3.6 ms, first frame 145 ms.
+**A 100 KB document** (`markdown-document`, `markdown-append` in `scripts/bench.sh`): about 200 sections of a heading, a paragraph with links and code, a quote, a nested list with a task, a code block and a table. Galaxy S9, Release, medians of 6 runs after a warm-up, measured on 6 November 2026. The iPhone 8 was not measured. For scale, `core-labels` (1,000 labels) on the same run: generate 14 ms, add 3.6 ms, first frame 145 ms.
 
 | | S9 (ms) | Thread |
 | --- | ---: | --- |
-| Parse and create the nodes | 155 | Background |
-| Add to the page | 16 | UI |
-| First frame: measure, record every block, composite | 750 | UI |
-| An append to the last paragraph (the whole document parsed again, its last block built) | 116 | Mostly background |
+| Parse and create the nodes | 157 | Background |
+| Add to the page | 15 | UI |
+| First frame: measure, record every block, composite | 793 | UI |
+| An append to the last paragraph (the whole document parsed again, its last block built) | 123 | Mostly background |
 
 The bench builds in place (`MaximumInPlaceParseLength = int.MaxValue`), so a frame has content to wait for; an app's default runs the first row on a background thread.
 
-Scrolling across it: 44.5 fps, 6.3 ms per composited frame on average, 17.7 ms at most. Nothing is recorded while it scrolls, but the first frame records every block whether it shows or not, as in any long tree. Virtualizing top-level blocks is not planned for now ([backlog](design/Roadmap.md#lists-and-scrolling)): only documents much longer than a typical page would gain from it.
+Scrolling across it, a scroll that lasts the whole sampling window: 59.8 fps, 7.1 ms per composited frame on average, 17 ms at most. Nothing is recorded while it scrolls, but the first frame records every block whether it shows or not, as in any long tree. Virtualizing top-level blocks is not planned for now ([backlog](design/Roadmap.md#lists-and-scrolling)): only documents much longer than a typical page would gain from it.
 
 ## Reproducing
 

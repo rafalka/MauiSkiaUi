@@ -2,11 +2,13 @@ namespace MauiSkiaUi.Core;
 
 /// <summary>
 /// Pinch, pan, double tap and wheel zoom of its content (Core analogue of <see cref="SkUiZoomView"/>): the content's composite-time scale and offset change,
-/// so nothing re-records. At scale 1 it takes no drag, so it can sit in a scroll view; a double tap zooms in at the tap and back out.
+/// so nothing re-records. It owns the content's <c>Scale</c>, <c>TranslationX</c> and <c>TranslationY</c>. At scale 1 it takes no drag, so it can sit in a scroll view
+/// (with <see cref="IsWheelZoomEnabled"/> off, so the wheel scrolls); a double tap zooms in at the tap and back out.
 /// </summary>
 public class SkUiCoreZoomView : SkUiCoreContentView, ISkUiZoomTarget, ISkUiWheelHandler
 {
     private readonly SkUiZoomState _zoom;
+    private SkUiCoreNode? _zoomedContent;
 
     /// <summary>Creates a zoom view.</summary>
     public SkUiCoreZoomView()
@@ -31,6 +33,18 @@ public class SkUiCoreZoomView : SkUiCoreContentView, ISkUiZoomTarget, ISkUiWheel
 
     /// <summary>The scale a double tap zooms to. Default 2.5.</summary>
     public double DoubleTapZoomScale { get => _zoom.DoubleTapScale; set => SetDoubleTapZoomScale(value); }
+
+    /// <summary>Whether the wheel zooms. Default <c>true</c>; off, it passes to what is around, as a scroll view holding this view needs.</summary>
+    public bool IsWheelZoomEnabled { get => _zoom.IsWheelEnabled; set => SetIsWheelZoomEnabled(value); }
+
+    /// <summary>Sets <see cref="IsWheelZoomEnabled"/>.</summary>
+    public SkUiCoreZoomView SetIsWheelZoomEnabled(bool value)
+    {
+        if (_zoom.IsWheelEnabled == value) return this;
+        _zoom.IsWheelEnabled = value;
+        OnPropertyChanged(nameof(IsWheelZoomEnabled));
+        return this;
+    }
 
     /// <summary>Sets <see cref="MinimumZoomScale"/> (finite and positive).</summary>
     public SkUiCoreZoomView SetMinimumZoomScale(double value)
@@ -61,7 +75,7 @@ public class SkUiCoreZoomView : SkUiCoreContentView, ISkUiZoomTarget, ISkUiWheel
         return this;
     }
 
-    /// <summary>Back to scale 1, centered.</summary>
+    /// <summary>Back to scale 1 (or the nearest the limits allow), centered.</summary>
     public void ResetZoom() => _zoom.Reset();
 
     /// <summary>Zooms to <paramref name="scale"/>, keeping the point at <paramref name="focus"/> (in this view's coordinates) where it is.</summary>
@@ -74,7 +88,22 @@ public class SkUiCoreZoomView : SkUiCoreContentView, ISkUiZoomTarget, ISkUiWheel
         _zoom.Reclamp();
     }
 
-    Size ISkUiZoomTarget.ZoomViewport => Frame.Size;
+    /// <inheritdoc />
+    protected override void OnContentChanged()
+    {
+        base.OnContentChanged();
+        // What left is not zoomed any more, and what came starts at rest.
+        if (_zoomedContent is { } previous)
+        {
+            previous.SetScale(1);
+            previous.SetTranslationX(0);
+            previous.SetTranslationY(0);
+        }
+        _zoomedContent = Content;
+        _zoom.Reset();
+    }
+
+    Rect ISkUiZoomTarget.ZoomContentFrame => Content is { } content ? content.Frame : new Rect(Point.Zero, Frame.Size);
 
     void ISkUiZoomTarget.ApplyZoom(double scale, double x, double y)
     {

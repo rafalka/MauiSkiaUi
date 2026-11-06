@@ -119,6 +119,18 @@ public class MarkdownMathTests
             R("_^", 1000),
             R("\\sqrt[", 500),
             R("a", 40000),
+            // An escaped brace is a symbol to the engine, so it must not close what the count has open.
+            R("{\\}", 1365),
+            R("{x\\}", 1000),
+            // Limits that add up: scripts, braces and commands nest in one another.
+            R("^^^^^^^^\\frac1", 24) + "2",
+            R("^^^^^^^^{", 32) + R("^^^^^^^^\\sqrt", 48) + "x" + R("}", 32),
+            R("\\sqrt{", 30) + R("\\frac1", 30) + "2" + R("}", 30),
+            // The engine skips control characters, which would hide scripts from a count of runs.
+            R("^\u0001", 300),
+            // Short, and exponential in time: each \left typesets what it holds again.
+            R("\\left(\\frac{a}{", 24) + "x" + R("}\\right)", 24),
+            R("\\left(x^{", 24) + "x" + R("}\\right)", 24),
         };
     }
 
@@ -139,6 +151,8 @@ public class MarkdownMathTests
         "\\begin{pmatrix} a & b \\\\ c & d \\end{pmatrix}",
         "x_1 + x_2 + x_3 + x_4 + x_5 + x_6 + x_7 + x_8 + x_9 + x_{10} + x_{11} + x_{12} + x_{13} + x_{14}",
         "\\alpha\\beta\\gamma\\delta\\epsilon\\zeta\\eta\\theta\\iota\\kappa\\lambda\\mu\\nu\\xi\\pi\\rho\\sigma\\tau\\upsilon\\phi\\chi\\psi\\omega",
+        "\\left(\\frac{a}{b}\\right)^2 + e^{-x} + x^* + y^\\prime + \\{a, b\\}",
+        string.Concat(Enumerable.Repeat("x_{i}^{2} + ", 100)) + "y",
     };
 
     [Theory]
@@ -154,17 +168,26 @@ public class MarkdownMathTests
     {
         using var _ = SkUiTestHelpers.UseBundledFont();
         string R(string text, int count) => string.Concat(Enumerable.Repeat(text, count));
-        var depth = SkUiMathGuard.MaximumNestingCommands;
+        var depth = SkUiMathGuard.MaximumNesting;
+        var lefts = SkUiMathGuard.MaximumLeftDepth;
+        var pairs = depth / 2;
         string[] formulas =
         [
-            R("{", SkUiMathGuard.MaximumBraceDepth) + "x" + R("}", SkUiMathGuard.MaximumBraceDepth),
-            R("x^{", SkUiMathGuard.MaximumBraceDepth) + "x" + R("}", SkUiMathGuard.MaximumBraceDepth),
-            R("\\frac{a}{", SkUiMathGuard.MaximumBraceDepth) + "x" + R("}", SkUiMathGuard.MaximumBraceDepth),
+            R("{", depth) + "x" + R("}", depth),
+            R("x^{", depth) + "x" + R("}", depth),
+            R("\\frac{a}{", pairs) + "x" + R("}", pairs),
             R("\\frac1", depth) + "2",
-            R("\\sqrt", depth) + "x",
-            R("\\overline", depth) + "x",
-            R("\\hat", depth) + "x",
-            R("\\left(", depth) + "x" + R("\\right)", depth),
+            R("\\sqrt ", depth) + "x",
+            R("\\sqrt{", pairs) + "x" + R("}", pairs),
+            R("\\sqrt[", pairs) + "3" + R("]{x}", pairs),
+            R("\\overline ", depth) + "x",
+            R("\\hat ", depth) + "x",
+            R("\\begin{matrix}", depth - 1) + "x" + R("\\end{matrix}", depth - 1),
+            R("\\left(", lefts) + "x" + R("\\right)", lefts),
+            R("^", depth) + "x",
+            R("^\\sqrt ", pairs) + "x",
+            R("\\sqrt{\\frac{a}{", depth / 4) + "x" + R("}}", depth / 4),
+            R("\\left(\\frac{a}{", lefts) + "x" + R("}\\right)", lefts),
         ];
         Exception? failure = null;
         var passed = 0;
@@ -176,6 +199,7 @@ public class MarkdownMathTests
                 {
                     Assert.True(SkUiMathGuard.IsSafe(latex), latex);
                     var view = new SkUiCoreMarkdown().SetMarkdownStyle(Style).UseMath().SetText("$$\n" + latex + "\n$$");
+                    Assert.Single(Nodes<SkUiMathNode>(view)); // what the engine refuses would pass without testing anything
                     using var bitmap = Draw(view, 300, 100);
                     passed++;
                 }
@@ -189,6 +213,76 @@ public class MarkdownMathTests
         thread.Join();
         Assert.Null(failure);
         Assert.Equal(formulas.Length, passed);
+    }
+
+    /// <summary>The engine holds its lock as it typesets and a typeset cannot be stopped, so what the guard lets through has to end soon.</summary>
+    [Fact]
+    public void TheSlowestFormulasThatPassTypesetQuickly()
+    {
+        string R(string text, int count) => string.Concat(Enumerable.Repeat(text, count));
+        var lefts = SkUiMathGuard.MaximumLeftDepth;
+        var rest = (SkUiMathGuard.MaximumNesting - 3 * lefts) / 2;
+        string[] formulas =
+        [
+            R("\\left(\\frac{a}{", lefts) + "x" + R("}\\right)", lefts),
+            R("\\left(x^{", lefts) + "x" + R("}\\right)", lefts),
+            R("\\left(\\frac{a}{", lefts) + R("\\frac{a}{", rest) + "x" + R("}", rest) + R("}\\right)", lefts),
+        ];
+        foreach (var latex in formulas)
+        {
+            Assert.True(SkUiMathGuard.IsSafe(latex), latex);
+            var watch = System.Diagnostics.Stopwatch.StartNew();
+            _ = SkUiMathRenderer.Typeset(latex, 16, Colors.Black, CSharpMath.Atom.LineStyle.Display, out _);
+            Assert.True(watch.Elapsed < TimeSpan.FromSeconds(5), latex);
+        }
+    }
+
+    [Fact]
+    public void AFormulaTooLargeToPlaceShowsItsSource()
+    {
+        using var font = SkUiTestHelpers.UseBundledFont();
+        string R(string text, int count) => string.Concat(Enumerable.Repeat(text, count));
+        var lefts = SkUiMathGuard.MaximumLeftDepth;
+        // Inside every limit of the guard, and hundreds of lines high.
+        var tall = R("\\left(\\frac{a}{", lefts) + "x" + R("}\\right)", lefts);
+        var inline = new SkUiCoreMarkdown().SetMarkdownStyle(Style).UseMath().SetText("a $" + tall + "$ b");
+        Assert.DoesNotContain(Nodes<SkUiCoreLabel>(inline).SelectMany(label => label.Spans), span => span.InlineObject is not null);
+        var wide = R("x", SkUiMathGuard.MaximumLength);
+        Assert.Null(SkUiMathRenderer.Typeset(wide, 16, Colors.Black, CSharpMath.Atom.LineStyle.Display, out _));
+        var rest = (SkUiMathGuard.MaximumNesting - 3 * lefts) / 2;
+        var taller = R("\\left(\\frac{a}{", lefts) + R("\\frac{a}{", rest) + "x" + R("}", rest) + R("}\\right)", lefts);
+        Assert.Null(SkUiMathRenderer.Typeset(taller, 16, Colors.Black, CSharpMath.Atom.LineStyle.Display, out _));
+    }
+
+    /// <summary>The engine measures an environment's columns narrower than it draws them.</summary>
+    [Theory]
+    [InlineData("\\begin{aligned} a &= b \\\\ c &= d \\end{aligned}", 47)]
+    [InlineData("\\begin{cases} a & b \\\\ c & d \\end{cases}", 53)]
+    public void AnEnvironmentIsAsWideAsItsInk(string latex, double ink)
+    {
+        Assert.NotNull(SkUiMathRenderer.Typeset(latex, 16, Colors.Black, CSharpMath.Atom.LineStyle.Display, out var bounds));
+        Assert.True(bounds.Width >= ink, bounds.Width.ToString(System.Globalization.CultureInfo.InvariantCulture));
+    }
+
+    [Fact]
+    public async Task AFormulaOnABackgroundBuildDraws()
+    {
+        using var _ = SkUiTestHelpers.UseBundledFont();
+        var view = new SkUiCoreMarkdown().SetMarkdownStyle(Style with { TextColor = Colors.Black, MaximumInPlaceParseLength = 0 }).UseMath().SetText("$$\n\\frac{a}{b}\n$$\n\nsee $x^2$ there");
+        await view.WhenUpdated;
+        Assert.Single(Nodes<SkUiMathNode>(view));
+        Assert.Contains(Nodes<SkUiCoreLabel>(view).SelectMany(label => label.Spans), span => span.InlineObject is not null);
+        using var bitmap = Draw(view, 300, 120);
+        Assert.True(InkPixels(bitmap) > 20);
+    }
+
+    [Fact]
+    public void TheMauiViewDrawsFormulasToo()
+    {
+        using var _ = SkUiTestHelpers.UseBundledFont();
+        var view = new SkUiMarkdownView().SetMarkdownStyle(Style).UseMath().SetText("$$\nx^2\n$$");
+        Assert.Same(SkUiMarkdownMath.Renderer, view.MathRenderer);
+        Assert.Single(Nodes<SkUiMathNode>(view.Markdown));
     }
 
     [Fact]

@@ -166,6 +166,126 @@ public class MarkdownSurfaceTests
     }
 
     [Fact]
+    public async Task ThePicturePopupShowsAZoomViewAndCloses()
+    {
+        var anchor = new SkUiLabel { Text = "anchor" };
+        SkUiTestHelpers.Arrange(anchor, 100, 40);
+        var presenter = new RecordingPopupPresenter();
+        var showing = SkUiCoreMarkdown.ShowZoomAsync(anchor, SkUiImageSource.FromFile("a.png"), "alt", new Size(300, 300), presenter);
+        var request = presenter.Current!;
+        var host = Assert.IsType<SkUiCoreHost>(request.Content);
+        var zoom = Assert.IsType<SkUiCoreZoomView>(host.Content);
+        Assert.Equal("alt", zoom.Content!.SemanticDescription);
+        request.Cancel();
+        await showing;
+        Assert.True(request.IsCompleted);
+    }
+
+    [Fact]
+    public async Task ATapClosesThePicturePopup()
+    {
+        var anchor = new SkUiLabel { Text = "anchor" };
+        SkUiTestHelpers.Arrange(anchor, 100, 40);
+        var presenter = new RecordingPopupPresenter();
+        var showing = SkUiCoreMarkdown.ShowZoomAsync(anchor, SkUiImageSource.FromFile("a.png"), "alt", new Size(300, 300), presenter);
+        var zoom = (SkUiCoreZoomView)((SkUiCoreHost)presenter.Current!.Content!).Content!;
+        zoom.Measure(300, 300);
+        zoom.Arrange(new Rect(0, 0, 300, 300));
+        zoom.Touch(new(1, SkUiTouchAction.Pressed, new Point(100, 100), TimeSpan.Zero));
+        zoom.Touch(new(1, SkUiTouchAction.Released, new Point(100, 100), TimeSpan.FromMilliseconds(20)));
+        // A single tap waits to see that it is no double tap.
+        Assert.Same(showing, await Task.WhenAny(showing, Task.Delay(TimeSpan.FromSeconds(10))));
+        Assert.True(presenter.Current.IsCompleted);
+    }
+
+    [Fact]
+    public async Task ACancelledTokenShowsNothing()
+    {
+        var anchor = new SkUiLabel { Text = "anchor" };
+        SkUiTestHelpers.Arrange(anchor, 100, 40);
+        var presenter = new RecordingPopupPresenter();
+        Assert.False(await SkUiPopups.ShowContentAsync(anchor, new SkUiCoreHost(), new Size(100, 100), presenter, null, new CancellationToken(canceled: true)));
+        Assert.Empty(presenter.Requests);
+    }
+
+    [Fact]
+    public async Task AFailingCallbackShowsNothingAndCompletesTheRequest()
+    {
+        var anchor = new SkUiLabel { Text = "anchor" };
+        SkUiTestHelpers.Arrange(anchor, 100, 40);
+        var presenter = new RecordingPopupPresenter();
+        SkUiPopupRequest? request = null;
+        Assert.False(await SkUiPopups.ShowContentAsync(anchor, new SkUiCoreHost(), new Size(100, 100), presenter, opened =>
+        {
+            request = opened;
+            throw new InvalidOperationException("boom");
+        }));
+        Assert.Empty(presenter.Requests);
+        Assert.True(request!.IsCompleted);
+    }
+
+    /// <summary>A token can be cancelled on any thread; a presenter closes on the thread that showed it.</summary>
+    [Fact]
+    public async Task CancellingClosesOnTheThreadThatShows()
+    {
+        var dispatcher = new MarkdownTests.QueueDispatcher();
+        using var scope = SkUiTestHelpers.UseTestDispatcher(dispatcher);
+        var anchor = new SkUiLabel { Text = "anchor" };
+        SkUiTestHelpers.Arrange(anchor, 100, 40);
+        var presenter = new RecordingPopupPresenter();
+        using var source = new CancellationTokenSource();
+        var showing = SkUiPopups.ShowContentAsync(anchor, new SkUiCoreHost(), new Size(100, 100), presenter, null, source.Token);
+        await Task.Run(source.Cancel);
+        Assert.False(presenter.Current!.CloseRequested.IsCancellationRequested);
+        dispatcher.RunAll();
+        Assert.True(presenter.Current.CloseRequested.IsCancellationRequested);
+        Assert.True(await showing);
+    }
+
+    [Fact]
+    public async Task TheContentFitsTheRoomThePresenterReports()
+    {
+        var anchor = new SkUiLabel { Text = "anchor" };
+        SkUiTestHelpers.Arrange(anchor, 100, 40);
+        var presenter = new RecordingPopupPresenter();
+        var content = new SkUiCoreHost();
+        var showing = SkUiPopups.ShowContentAsync(anchor, content, new Size(300, 300), presenter);
+        var request = presenter.Current!;
+        var moves = 0;
+        request.BoundsChanged += (_, _) => moves++;
+        var room = new Rect(0, 0, 400, request.Bounds.Height / 2);
+        request.SetAvailableArea(room);
+        Assert.Equal(1, moves);
+        Assert.True(request.Bounds.Height <= room.Height);
+        Assert.Equal(request.Bounds.Height, content.HeightRequest, 3);
+        request.Cancel();
+        await showing;
+    }
+
+    /// <summary>Zooming moves composite-time properties only.</summary>
+    [Fact]
+    public void ZoomingRecordsNothing()
+    {
+        var renderer = new CountingRenderer();
+        var zoom = new SkUiCoreZoomView();
+        zoom.SetContent(renderer.CreateBlock("x", new SkUiMarkdownMathContext(16, Colors.Black, 16)));
+        var host = new SkUiCoreHost().SetContent(zoom);
+        var (frames, queue) = Show(host, 200, 100);
+        Assert.Equal(1, renderer.Recordings);
+        zoom.ZoomTo(3, new Point(150, 50));
+        frames.RequestFrame();
+        Frame(queue);
+        Assert.Equal(1, renderer.Recordings);
+    }
+}
+
+/// <summary>The picture popup through the app's presenter, a process-wide setting, so the class runs alone.</summary>
+[Collection(GlobalStateCollection.Name)]
+public class MarkdownPopupPresenterTests
+{
+    private const string Picture = "picture.png";
+
+    [Fact]
     public async Task AContentPopupWithoutAPresenterShowsNothing()
     {
         var saved = SkUiPopups.Presenter;
@@ -181,19 +301,58 @@ public class MarkdownSurfaceTests
         }
     }
 
-    [Fact]
-    public async Task ThePicturePopupShowsAZoomViewAndCloses()
+    private static SkUiCoreMarkdown InAWindow(bool allowZoom)
     {
-        var anchor = new SkUiLabel { Text = "anchor" };
-        SkUiTestHelpers.Arrange(anchor, 100, 40);
+        var view = new SkUiCoreMarkdown().SetAllowImageZoom(allowZoom);
+        _ = new Window(new ContentPage { Content = new SkUiCoreHost().SetContent(view) });
+        return view;
+    }
+
+    [Fact]
+    public void AllowImageZoomOpensOnePopupAtATime()
+    {
+        var saved = SkUiPopups.Presenter;
         var presenter = new RecordingPopupPresenter();
-        var showing = SkUiCoreMarkdown.ShowZoomAsync(anchor, SkUiImageSource.FromFile("a.png"), "alt", new Size(300, 300), presenter);
-        var request = presenter.Current!;
-        var host = Assert.IsType<SkUiCoreHost>(request.Content);
-        var zoom = Assert.IsType<SkUiCoreZoomView>(host.Content);
-        Assert.Equal("alt", zoom.Content!.SemanticDescription);
-        request.Cancel();
-        await showing;
-        Assert.True(request.IsCompleted);
+        SkUiPopups.Presenter = presenter;
+        try
+        {
+            var view = InAWindow(allowZoom: true);
+            var tapped = 0;
+            view.ImageTapped += (_, _) => tapped++;
+            var image = SkUiImageSource.FromFile(Picture);
+            view.OnImageTapped(Picture, "alt", image);
+            view.OnImageTapped(Picture, "alt", image);
+            Assert.Equal(2, tapped);
+            var request = Assert.Single(presenter.Requests);
+            request.Cancel();
+        }
+        finally
+        {
+            SkUiPopups.Presenter = saved;
+        }
+    }
+
+    [Fact]
+    public void WithoutAPresenterOrTheSettingOnlyTheEventRemains()
+    {
+        var saved = SkUiPopups.Presenter;
+        var presenter = new RecordingPopupPresenter();
+        try
+        {
+            SkUiPopups.Presenter = null;
+            var view = InAWindow(allowZoom: true);
+            var tapped = 0;
+            view.ImageTapped += (_, _) => tapped++;
+            view.OnImageTapped(Picture, "alt", SkUiImageSource.FromFile(Picture));
+            Assert.Equal(1, tapped);
+
+            SkUiPopups.Presenter = presenter;
+            InAWindow(allowZoom: false).OnImageTapped(Picture, "alt", SkUiImageSource.FromFile(Picture));
+            Assert.Empty(presenter.Requests);
+        }
+        finally
+        {
+            SkUiPopups.Presenter = saved;
+        }
     }
 }

@@ -1,7 +1,7 @@
-using MauiSkiaUi.Markdown.Math;
 ﻿using Microsoft.Extensions.Logging;
 using CommunityToolkit.Maui;
 using MauiSkiaUi;
+using MauiSkiaUi.Markdown.Math;
 using MauiSkiaUi.CommunityToolkit;
 using MauiSkiaUiTour;
 #if MAUI_DEVFLOW

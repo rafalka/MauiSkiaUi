@@ -3,7 +3,7 @@ using Xunit;
 
 namespace MauiSkiaUi.Tests;
 
-/// <summary>The zoom views: scale and offset stay in range and move only composite-time properties.</summary>
+/// <summary>The zoom views: the gestures, and scale and offset staying in range. <see cref="MarkdownSurfaceTests"/> shows that zooming records nothing.</summary>
 public class ZoomViewTests
 {
     private static (SkUiCoreZoomView Zoom, SkUiCoreBox Content) Core()
@@ -132,10 +132,150 @@ public class ZoomViewTests
     {
         var (zoom, _) = Core();
         var handler = (ISkUiWheelHandler)zoom;
-        Assert.Equal(new Point(0, 0), handler.OnWheel(0, -100));
+        // A positive delta is the wheel turned away from the reader: in.
+        Assert.Equal(new Point(0, 0), handler.OnWheel(0, 100));
         Assert.True(zoom.ZoomScale > 1);
         zoom.ResetZoom();
-        Assert.Equal(new Point(0, 100), handler.OnWheel(0, 100));
+        Assert.Equal(new Point(0, -100), handler.OnWheel(0, -100));
+    }
+
+    [Fact]
+    public void WithoutWheelZoomTheWheelPassesOn()
+    {
+        var (zoom, _) = Core();
+        zoom.SetIsWheelZoomEnabled(false);
+        Assert.Equal(new Point(3, 100), ((ISkUiWheelHandler)zoom).OnWheel(3, 100));
+        Assert.Equal(1, zoom.ZoomScale);
+        var drawn = new SkUiZoomView { Content = new SkUiBox(), IsWheelZoomEnabled = false };
+        SkUiTestHelpers.Arrange(drawn, 200, 100);
+        Assert.Equal(new Point(0, 100), ((ISkUiWheelHandler)drawn).OnWheel(0, 100));
+        drawn.IsWheelZoomEnabled = true;
+        Assert.Equal(new Point(0, 0), ((ISkUiWheelHandler)drawn).OnWheel(0, 100));
+        Assert.True(drawn.ZoomScale > 1);
+    }
+
+    private static void Pinch(Action<SkUiTouchEvent> touch, Point middle, double from, double to)
+    {
+        var time = TimeSpan.Zero;
+        touch(new(1, SkUiTouchAction.Pressed, new Point(middle.X - from, middle.Y), time));
+        touch(new(2, SkUiTouchAction.Pressed, new Point(middle.X + from, middle.Y), time));
+        const int Steps = 10;
+        for (var step = 1; step <= Steps; step++)
+        {
+            time += TimeSpan.FromMilliseconds(16);
+            var half = from + (to - from) * step / Steps;
+            touch(new(1, SkUiTouchAction.Moved, new Point(middle.X - half, middle.Y), time));
+            touch(new(2, SkUiTouchAction.Moved, new Point(middle.X + half, middle.Y), time));
+        }
+        touch(new(1, SkUiTouchAction.Released, new Point(middle.X - to, middle.Y), time));
+        touch(new(2, SkUiTouchAction.Released, new Point(middle.X + to, middle.Y), time));
+    }
+
+    [Fact]
+    public void APinchKeepsThePointBetweenTheFingers()
+    {
+        var (zoom, content) = Core();
+        Pinch(touch => zoom.Touch(touch), new Point(150, 50), 20, 40);
+        Assert.True(zoom.ZoomScale > 1.5, zoom.ZoomScale.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        // 50 from the center: moved out by (scale - 1) times that, so it stays under the fingers.
+        Assert.Equal(-(zoom.ZoomScale - 1) * 50, content.TranslationX, 0);
+        Assert.Equal(0, content.TranslationY, 0);
+    }
+
+    [Fact]
+    public void ThePinchOfTheDrawnViewKeepsThePointToo()
+    {
+        var content = new SkUiBox();
+        var zoom = new SkUiZoomView { Content = content };
+        SkUiTestHelpers.Arrange(zoom, 200, 100);
+        Pinch(touch => zoom.Touch(touch), new Point(150, 50), 20, 40);
+        Assert.True(zoom.ZoomScale > 1.5);
+        Assert.Equal(-(zoom.ZoomScale - 1) * 50, content.TranslationX, 0);
+    }
+
+    [Fact]
+    public void ADoubleTapZoomsInWhenTheSmallestScaleIsAboveOne()
+    {
+        var (zoom, _) = Core();
+        zoom.SetMinimumZoomScale(2);
+        zoom.SetDoubleTapZoomScale(4);
+        Assert.Equal(2, zoom.ZoomScale);
+        var at = new Point(100, 50);
+        var time = TimeSpan.Zero;
+        void Tap()
+        {
+            zoom.Touch(new(1, SkUiTouchAction.Pressed, at, time));
+            time += TimeSpan.FromMilliseconds(20);
+            zoom.Touch(new(1, SkUiTouchAction.Released, at, time));
+            time += TimeSpan.FromMilliseconds(40);
+        }
+        Tap();
+        Tap();
+        Assert.Equal(4, zoom.ZoomScale);
+        time += TimeSpan.FromSeconds(1);
+        Tap();
+        Tap();
+        Assert.Equal(2, zoom.ZoomScale);
+    }
+
+    [Fact]
+    public void TheGeometryFollowsWhereTheContentIs()
+    {
+        var content = new SkUiCoreBox();
+        var zoom = new SkUiCoreZoomView();
+        zoom.SetPadding(new Thickness(40, 0, 0, 0));
+        zoom.SetContent(content);
+        zoom.Measure(200, 100);
+        zoom.Arrange(new Rect(0, 0, 200, 100));
+        Assert.Equal(40, content.Frame.X);
+        // The content's center is at x = 120; the point at 150 is 30 from it.
+        zoom.ZoomTo(2, new Point(150, 50));
+        Assert.Equal(-30, content.TranslationX, 3);
+        zoom.ZoomTo(5, new Point(200, 50));
+        Assert.True(Math.Abs(content.TranslationX) <= 160 * 4 / 2.0 + 0.001);
+    }
+
+    [Fact]
+    public void ReplacedContentIsLeftUntransformedAndTheNewOneStartsAtRest()
+    {
+        var (zoom, content) = Core();
+        zoom.ZoomTo(3, new Point(150, 50));
+        var next = new SkUiCoreBox();
+        zoom.SetContent(next);
+        Assert.Equal(1, content.Scale);
+        Assert.Equal(0, content.TranslationX);
+        Assert.Equal(1, zoom.ZoomScale);
+        Assert.Equal(1, next.Scale);
+
+        var drawn = new SkUiBox();
+        var view = new SkUiZoomView { Content = drawn };
+        SkUiTestHelpers.Arrange(view, 200, 100);
+        view.ZoomTo(3, new Point(150, 50));
+        view.Content = new SkUiBox();
+        Assert.Equal(1, drawn.Scale);
+        Assert.Equal(0, drawn.TranslationX);
+        Assert.Equal(1, view.ZoomScale);
+    }
+
+    [Fact]
+    public void ADragAndTheWheelMoveTheDrawnViewToo()
+    {
+        var content = new SkUiBox();
+        var zoom = new SkUiZoomView { Content = content };
+        SkUiTestHelpers.Arrange(zoom, 200, 100);
+        zoom.ZoomTo(3, new Point(100, 50));
+        var time = TimeSpan.Zero;
+        zoom.Touch(new(1, SkUiTouchAction.Pressed, new Point(100, 50), time));
+        for (var step = 1; step <= 5; step++)
+        {
+            time += TimeSpan.FromMilliseconds(16);
+            zoom.Touch(new(1, SkUiTouchAction.Moved, new Point(100 + 8 * step, 50), time));
+        }
+        zoom.Touch(new(1, SkUiTouchAction.Released, new Point(140, 50), time));
+        Assert.True(content.TranslationX > 10);
+        var scale = zoom.ZoomScale;
+        ((ISkUiWheelHandler)zoom).OnWheel(0, 100);
+        Assert.True(zoom.ZoomScale > scale);
     }
 
     [Fact]

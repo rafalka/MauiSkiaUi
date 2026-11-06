@@ -9,6 +9,7 @@ public sealed class MarkdownDemoPage : ComponentDemoPage
     private static readonly string[] CodeSizes = ["Default", "11", "16"];
 
     private readonly SkUiMarkdownView _markdown;
+    private bool _isStreaming;
 
     public MarkdownDemoPage() : base(nameof(SkUiMarkdownView), new SkUiScrollView { HeightRequest = 480 }, widthRange: (240, 600, 360))
     {
@@ -31,11 +32,22 @@ public sealed class MarkdownDemoPage : ComponentDemoPage
     /// <summary>The text arrives a piece at a time, as an answer from a model does: only the last block is built again.</summary>
     private async void StreamDocument()
     {
-        var text = MarkdownDemoDocument.Text;
-        for (var length = 0; length <= text.Length; length = Math.Min(length + 40, text.Length + 1))
+        if (_isStreaming)
+            return;
+        _isStreaming = true;
+        try
         {
-            _markdown.Text = text[..Math.Min(length, text.Length)];
-            await Task.Delay(16);
+            var text = MarkdownDemoDocument.Text;
+            // Stops when the page is left.
+            for (var length = 0; length <= text.Length && (length == 0 || _markdown.Window is not null); length = Math.Min(length + 40, text.Length + 1))
+            {
+                _markdown.Text = text[..Math.Min(length, text.Length)];
+                await Task.Delay(16);
+            }
+        }
+        finally
+        {
+            _isStreaming = false;
         }
     }
 }

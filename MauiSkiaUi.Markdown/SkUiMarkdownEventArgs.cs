@@ -20,7 +20,8 @@ public delegate IEnumerable<MauiSkiaUi.Core.SkUiCoreSpan>? SkUiMarkdownCodeHighl
 /// <summary>What a math renderer draws with.</summary>
 /// <param name="FontSize">Font size of the text around the formula, in DIPs (before the system text size).</param>
 /// <param name="TextColor">Color of the text around the formula.</param>
-public readonly record struct SkUiMarkdownMathContext(double FontSize, Color TextColor);
+/// <param name="ScaledFontSize">The size that text draws at, with the system text size: read on the UI thread, because on Apple platforms a build's thread cannot. A change starts a new build.</param>
+public readonly record struct SkUiMarkdownMathContext(double FontSize, Color TextColor, double ScaledFontSize);
 
 /// <summary>
 /// Draws formulas for a Markdown view (<c>MathRenderer</c>): the math package's <c>UseMath()</c> sets one. Without one, or when it
