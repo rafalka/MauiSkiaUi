@@ -1,4 +1,5 @@
 using Markdig;
+using Markdig.Extensions.Footnotes;
 using Markdig.Extensions.Tables;
 using Markdig.Parsers.Inlines;
 using Markdig.Renderers;
@@ -57,7 +58,20 @@ internal static class SkUiMarkdownParser
     /// <summary>Runs after the others, which look for the parsers they extend.</summary>
     private sealed class BlocksOnlyExtension : IMarkdownExtension
     {
-        public void Setup(MarkdownPipelineBuilder pipeline) => pipeline.InlineParsers.RemoveAll(static parser => parser is not LiteralInlineParser);
+        internal static readonly object FootnotesKey = new();
+
+        public void Setup(MarkdownPipelineBuilder pipeline)
+        {
+            pipeline.InlineParsers.RemoveAll(static parser => parser is not LiteralInlineParser);
+            // Without inline parsers no footnote has a link, and Markdig drops those from the document after this pass, though a full parse reads them: keep them here.
+            if (pipeline.BlockParsers.Find<FootnoteParser>() is { } footnotes)
+                footnotes.Closed += static (processor, block) =>
+                {
+                    if (processor.Document.GetData(FootnotesKey) is not List<Block> kept)
+                        processor.Document.SetData(FootnotesKey, kept = []);
+                    kept.Add(block);
+                };
+        }
 
         public void Setup(MarkdownPipeline pipeline, IMarkdownRenderer renderer)
         {
@@ -68,16 +82,23 @@ internal static class SkUiMarkdownParser
     internal static MarkdownDocument Parse(string text) => Markdig.Markdown.Parse(text, Pipeline);
 
     /// <summary>
-    /// Whether a block the inline parser will read holds too many delimiters to parse in reasonable time. The blocks come from Markdig itself, with no inline parsers, which takes
-    /// time in line with the text: only it can tell a paragraph from code, as what ends a fence or a list depends on every extension in the pipeline. So what is never parsed for
-    /// delimiters (code, formulas) does not count, and neither does the data of a <c>data:</c> image. Throws as <see cref="Parse"/> does.
+    /// Whether a block the inline parser will read holds too many delimiters to parse in reasonable time. The blocks come from Markdig itself, with no inline parsers: only it can
+    /// tell a paragraph from code, as what ends a fence or a list depends on every extension in the pipeline. So what is never parsed for delimiters (code, formulas) does not count,
+    /// and neither does the data of a <c>data:</c> image. Throws as <see cref="Parse"/> does.
     /// </summary>
     internal static bool HasPathologicalBlock(string text)
     {
         if (HasManySlowLines(text))
             return true;
+        // Fewer in all than a block may hold: most documents need no pass.
+        if (text.Length == 0 || !HoldsTooManyDelimiters(text, new SourceSpan(0, text.Length - 1)))
+            return false;
+        var document = Markdig.Markdown.Parse(text, BlocksOnly);
         var containers = new Stack<ContainerBlock>();
-        containers.Push(Markdig.Markdown.Parse(text, BlocksOnly));
+        containers.Push(document);
+        if (document.GetData(BlocksOnlyExtension.FootnotesKey) is List<Block> footnotes)
+            foreach (var footnote in footnotes)
+                containers.Push((ContainerBlock)footnote);
         while (containers.TryPop(out var container))
         {
             foreach (var block in container)
@@ -100,7 +121,7 @@ internal static class SkUiMarkdownParser
 
     /// <summary>
     /// The block pass itself takes time faster than the text's size for reference and footnote definitions and setext underlines: 100,000 definitions, 700 KB, take 12 s on a
-    /// desktop. Documents do not hold thousands of these, so counting lines keeps the pass from starting on such a text.
+    /// desktop. Documents do not hold thousands of these, so counting lines keeps the pass from starting on such a text. Blocks are not known yet, so lines in code count too.
     /// </summary>
     private static bool HasManySlowLines(string text)
     {
@@ -111,7 +132,7 @@ internal static class SkUiMarkdownParser
             var end = remaining.IndexOfAny('\n', '\r');
             var line = (end < 0 ? remaining : remaining[..end]).TrimStart(" \t>");
             remaining = end < 0 ? default : remaining[(end + 1)..];
-            var isDefinition = line.StartsWith("[") && line.IndexOf("]:") >= 0;
+            var isDefinition = line.IndexOf("]:") >= 0; // anywhere: a label can start on an earlier line, and a definition can be in a list item
             var isUnderline = !line.IsEmpty && line[0] is '=' or '-' && line.TrimEnd(" \t").TrimStart(line[0]).IsEmpty;
             if ((isDefinition || isUnderline) && ++count > MaximumSlowLines)
                 return true;
@@ -143,28 +164,28 @@ internal static class SkUiMarkdownParser
     /// The start of the destination and its <c>)</c>, when an image written <c>![alt](data:type;base64,data)</c> starts at <paramref name="index"/>; otherwise -1. Only a whole,
     /// plain image counts, with nothing in its header or data that could keep it from being one: then its data is a destination, not text. Its alt text is parsed, and counts.
     /// </summary>
-    private static (int Start, int End) FindImageData(string text, int index, int lineEnd)
+    private static (int Start, int End) FindImageData(string text, int index, int end)
     {
         const string Destination = "](data:";
-        if (index + 1 >= lineEnd || text[index + 1] != '[')
+        if (index + 1 >= end || text[index + 1] != '[')
             return (-1, -1);
         var position = index + 2;
-        var altEnd = Math.Min(lineEnd, position + MaximumSkippedHeaderLength);
+        var altEnd = Math.Min(end, position + MaximumSkippedHeaderLength);
         while (position < altEnd && text[position] is not ('[' or ']' or '`' or '\\'))
             position++;
-        if (!text.AsSpan(position, lineEnd - position).StartsWith(Destination, StringComparison.Ordinal))
+        if (!text.AsSpan(position, end - position).StartsWith(Destination, StringComparison.Ordinal))
             return (-1, -1);
         var start = position + 1;
         position += Destination.Length;
-        var headerEnd = Math.Min(lineEnd, position + MaximumSkippedHeaderLength);
+        var headerEnd = Math.Min(end, position + MaximumSkippedHeaderLength);
         while (position < headerEnd && (char.IsAsciiLetterOrDigit(text[position]) || text[position] is '/' or '+' or '-' or '.' or ';' or '='))
             position++;
         if (position >= headerEnd || text[position] != ',')
             return (-1, -1);
         position++;
-        while (position < lineEnd && (char.IsAsciiLetterOrDigit(text[position]) || text[position] is '+' or '/' or '='))
+        while (position < end && (char.IsAsciiLetterOrDigit(text[position]) || text[position] is '+' or '/' or '='))
             position++;
-        return position < lineEnd && text[position] == ')' ? (start, position) : (-1, -1);
+        return position < end && text[position] == ')' ? (start, position) : (-1, -1);
     }
 
     /// <summary>Whether <paramref name="text"/> is parsed in place: short, and without enough delimiters to take long. A limit of <see cref="int.MaxValue"/> means always.</summary>

@@ -142,7 +142,7 @@ Multi-target the one `SkiaUi.Maui` package (`net10.0-*` plus `net11.0-*`) so app
 - Virtual stack: a public horizontal layout, `VirtualScrollMode` (`InfiniteFeed`, `Loop`), `PrefetchDistance`, `QueryItemSize`, a load-more hook with a placeholder, a Core twin.
 - Scroll bars: the thumb shrinking during a bounce (iOS), repeated paging on a held track press; native overlays following a stretch.
 - Pull to refresh from other edges; render-thread effects linked to overscroll.
-- Markdown: long documents as virtualized rows, measuring and recording only the top-level blocks near the viewport (the first frame of a 100 KB document takes about 790 ms on the S9, [Performance.md](../Performance.md#markdown)). Not planned for now. Needs the virtual stack's Core twin or starts on `SkUiMarkdownView` only, and an opt-in way to scroll, since the view is as tall as its document today. Design notes: [1.8 plan, V2](ImplementationPlan-1.8.md#phase-v--long-documents).
+- Markdown: long documents as virtualized rows, measuring and recording only the top-level blocks near the viewport (the first frame of a 100 KB document takes about 760 ms on the S9, [Performance.md](../Performance.md#markdown)). Not planned for now. Needs the virtual stack's Core twin or starts on `SkUiMarkdownView` only, and an opt-in way to scroll, since the view is as tall as its document today. Design notes: [1.8 plan, V2](ImplementationPlan-1.8.md#phase-v--long-documents).
 
 ### Looks, colors and motion
 

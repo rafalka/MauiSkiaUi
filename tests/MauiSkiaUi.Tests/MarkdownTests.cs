@@ -1151,10 +1151,19 @@ public class MarkdownDelimiterCountTests
         R("![a](data:(,+a=b)", 2_000),
         // The alt text of an image is parsed, whatever its destination.
         R("![*a*a](data:,AA)", 2_000),
-        // Fences that end with what holds them, where this does not follow them.
+        // Fences that end with what holds them.
         "- a\n  ```\n" + R("[a](", 4_001),
         "::: x\n```\n:::\n" + R("[a](", 4_001),
+        // Footnotes, linked or not: a full parse reads them all.
+        "[^1]: " + R("[a](", 4_001),
+        "[^1]\n\n[^1]: " + R("[a](", 4_001),
+        "x[^1][^2]\n\n[^1]: a\n\n[^2]: " + R("[a](", 4_001),
+        "[^1]: > " + R("[a](", 4_001),
         // What takes the block pass itself long: nothing of these is a delimiter in a paragraph.
+        R("[a\nb]: x\n", 4_001),
+        R("- [a]: x\n", 4_001),
+        R("- [^a]: x\n", 4_001),
+        "::: x\n" + R("[a\nb]: x\n", 4_001),
         R("[a]: x\n", 4_001),
         R("[a]: x\n\n", 4_001),
         R("> [a]: x\n", 4_001),
@@ -1179,6 +1188,19 @@ public class MarkdownDelimiterCountTests
     [Theory]
     [MemberData(nameof(Hostile))]
     public void HostileDocumentsAreCounted(string text) => Assert.True(SkUiMarkdownParser.HasPathologicalBlock(text));
+
+    [Fact]
+    public void AFootnoteInBoundsIsNotCounted() =>
+        Assert.False(SkUiMarkdownParser.HasPathologicalBlock("[^1]: " + R("[a](", 100) + "\n\n" + R("[a](x:y) *b*\n\n", 2_000)));
+
+    [Theory]
+    [InlineData(">")]
+    [InlineData("- ")]
+    public void NestingPastTheParsersLimitsShowsAsPlainText(string level)
+    {
+        var view = new SkUiCoreMarkdown().SetMarkdownStyle(Style).SetText(R(level, 5_000) + "a");
+        Assert.True(view.IsPlainText);
+    }
 }
 
 /// <summary>What the color scheme does to Markdown views. Replaces the app-wide scheme, which rebuilds every live view, so the class runs alone.</summary>

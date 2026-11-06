@@ -161,14 +161,14 @@ The scenarios create the SkUi\* layer's SVG sources by name, so a baseline witho
 
 | | S9 (ms) | Thread |
 | --- | ---: | --- |
-| Parse and create the nodes | 157 | Background |
-| Add to the page | 15 | UI |
-| First frame: measure, record every block, composite | 793 | UI |
-| An append to the last paragraph (the whole document parsed again, its last block built) | 123 | Mostly background |
+| Parse and create the nodes | 170 | Background |
+| Add to the page | 26 | UI |
+| First frame: measure, record every block, composite | 760 | UI |
+| An append to the last paragraph (the whole document parsed again, its last block built) | 113 | Mostly background |
 
 The bench builds in place (`MaximumInPlaceParseLength = int.MaxValue`), so a frame has content to wait for; an app's default runs the first row on a background thread.
 
-Scrolling across it, a scroll that lasts the whole sampling window: 59.8 fps, 7.1 ms per composited frame on average, 17 ms at most. Nothing is recorded while it scrolls, but the first frame records every block whether it shows or not, as in any long tree. Virtualizing top-level blocks is not planned for now ([backlog](design/Roadmap.md#lists-and-scrolling)): only documents much longer than a typical page would gain from it.
+Scrolling across it, a scroll that lasts the whole sampling window: 60 fps, 6.8 ms per composited frame on average, 16.4 ms at most. Nothing is recorded while it scrolls, but the first frame records every block whether it shows or not, as in any long tree. Virtualizing top-level blocks is not planned for now ([backlog](design/Roadmap.md#lists-and-scrolling)): only documents much longer than a typical page would gain from it.
 
 ## Reproducing
 

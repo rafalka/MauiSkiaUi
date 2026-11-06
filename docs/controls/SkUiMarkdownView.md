@@ -75,7 +75,7 @@ Bad input never throws into the app. A document past one of these shows as plain
 | `MaximumImages` | 100 per document | Later images show their alt text |
 | `MaximumInPlaceParseLength` | 0 | See [Threads](#threads) |
 
-A paragraph, heading or table with more than 4,000 delimiters (`*`, `[`, and so on) also shows as plain text: parse time grows faster than such a block's size, and a parse cannot be stopped. Code, formulas and the data of a `data:` image do not count. So does a document with more than 4,000 reference or footnote definitions and setext underlines.
+A paragraph, heading or table with more than 4,000 delimiters (`*`, `[`, and so on) also shows as plain text: parse time grows faster than such a block's size, and a parse cannot be stopped. Code, formulas and the data of a `data:` image do not count. A document with more than 4,000 lines holding `]:` or only `=` or `-` shows as plain text too, as definitions and setext underlines slow the parser down: those lines count even in code, so a very long pasted log can do this.
 
 ## Threads
 
