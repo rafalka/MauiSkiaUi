@@ -20,7 +20,9 @@ Built on `1.8-implementation`: phases P, B, I, U, M, X1, X2 and Z. Not built: X3
 
 G1 and V1 so far: the Markdown scenario with formulas passes under Native AOT on Mac Catalyst, and fully trimmed on the Galaxy S9, with no trim or AOT warnings from SkiaUi. Numbers: [Performance.md](../Performance.md#markdown). Assemblies before trimming: Markdig 0.5 MB, CSharpMath 1.8 MB with its fonts.
 
-Still open before release: the iPhone 8 and Windows; app size with and without each package on each platform; the LaTeX depth that overflows on those devices' UI thread (the guard's limits come from the 512 KB stack test, not from them; formulas are typeset on a background thread and drawn on the UI thread); the licenses of CSharpMath's bundled fonts, which the package does not state; a screen reader pass.
+Still open before release: the iPhone 8 and Windows; app size with and without each package on each platform; the LaTeX depth that overflows on those devices' UI thread (the guard's limits come from the 512 KB stack test, not from them; formulas are typeset on a background thread and drawn on the UI thread); a screen reader pass.
+
+CSharpMath's embedded fonts: Latin Modern Math under the GUST Font License, Cyrillic Modern and AMS Capital Blackboard Bold under the SIL Open Font License 1.1. Both allow redistribution; `THIRD-PARTY-NOTICES.txt` in the math package lists them, with the copyright lines from the fonts themselves.
 
 ## What a spike found
 

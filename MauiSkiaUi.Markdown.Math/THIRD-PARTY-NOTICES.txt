@@ -1,0 +1,18 @@
+SkiaUi.Maui.Markdown.Math draws formulas with CSharpMath (MIT License), a dependency of this package.
+CSharpMath.Rendering 0.5.1 embeds the fonts below, so they reach an app that uses this package. None of them is modified here.
+
+Latin Modern Math (latinmodern-math.otf), the primary math font
+  Copyright 2012--2014 for Latin Modern Math OTF by B. Jackowski, P. Strzelczyk and P. Pianowski (on behalf of TeX users groups).
+  GUST Font License: http://tug.org/fonts/licenses/GUST-FONT-LICENSE.txt
+
+Cyrillic Modern (cyrillic-modern-nmr10.otf), the Cyrillic supplement
+  Copyright (c) 1997, 2009 American Mathematical Society (<http://www.ams.org>), with Reserved Font Name CMR10.
+  Copyright (c) 2012-2014 Andrey V. Panov
+  SIL Open Font License 1.1: https://openfontlicense.org
+
+AMS Capital Blackboard Bold (AMS-Capital-Blackboard-Bold.otf), the blackboard bold override
+  Taken from AMSMathematicalSymbol-Medium5, Copyright (c) 1997, 2009 American Mathematical Society (<http://www.ams.org>), with Reserved Font Name MSBM9.
+  Extracted by Happypig375, (c) 2018
+  SIL Open Font License 1.1: https://openfontlicense.org
+
+CSharpMath: https://github.com/verybadcat/CSharpMath#license
