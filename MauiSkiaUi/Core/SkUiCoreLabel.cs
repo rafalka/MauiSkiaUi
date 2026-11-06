@@ -417,6 +417,8 @@ public class SkUiCoreLabel : SkUiCoreNode, ISkUiFontElement, ISkUiBorderElement
         _spans = next;
         if (next.Length > 0 && SetProperty(ref _text, string.Empty, nameof(Text)))
             _displayText = string.Empty;
+        if (next.Length == 0)
+            ReleaseInlineObjects();
         _spanTap?.Cancel();
         OnPropertyChanged(nameof(Spans));
         InvalidateText();
@@ -428,6 +430,15 @@ public class SkUiCoreLabel : SkUiCoreNode, ISkUiFontElement, ISkUiBorderElement
     {
         ArgumentNullException.ThrowIfNull(span);
         return SetSpans([.. _spans, span]);
+    }
+
+    /// <summary>The spans are gone for good. Plain text builds no rich text, so nothing else would let their objects go, and the rich layout's lines still hold them.</summary>
+    private void ReleaseInlineObjects()
+    {
+        if (_inlineObjects is null) return;
+        SkUiInlineObject.Replace(ref _inlineObjects, null);
+        _richLayout?.Release();
+        _richLayout = null;
     }
 
     private void ClearSpans()

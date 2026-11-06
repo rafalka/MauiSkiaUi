@@ -332,6 +332,74 @@ public class InlineTextObjectTests
         Assert.Equal(1, other.Releases);
     }
 
+    [Theory]
+    [InlineData(TextType.Text)]
+    [InlineData(TextType.Html)]
+    public void LeavingSpansForTextLetsTheObjectsGoAtOnce(TextType textType)
+    {
+        using var _ = SkUiTestHelpers.UseBundledFont();
+        var core = new ReleaseCountingNode();
+        var label = Label(new SkUiCoreSpan("x").SetInlineObject(SkUiInlineObject.FromNode(core))).SetTextType(textType);
+        label.Measure(100, 40);
+        label.SetText("plain");
+        Assert.Equal(1, core.Releases);
+        label.Measure(100, 40);
+        Assert.Equal(1, core.Releases);
+
+        var drawn = new ReleaseCountingNode();
+        var view = new SkUiLabel { TextType = textType, FormattedText = Formatted(drawn) };
+        view.Measure(100, 40);
+        view.Text = "plain";
+        Assert.Equal(1, drawn.Releases);
+        view.Measure(100, 40);
+        Assert.Equal(1, drawn.Releases);
+
+        var cleared = new ReleaseCountingNode();
+        var clearing = new SkUiLabel { TextType = textType, FormattedText = Formatted(cleared) };
+        clearing.Measure(100, 40);
+        clearing.FormattedText = null;
+        Assert.Equal(1, cleared.Releases);
+    }
+
+    [Fact]
+    public void ALabelLeftWithPlainTextHoldsNothingOfItsSpans()
+    {
+        using var _ = SkUiTestHelpers.UseBundledFont();
+        var label = Label();
+        var view = new SkUiLabel();
+        var (coreNode, drawnNode) = ShowAndLeave(label, view);
+        GC.Collect();
+        GC.WaitForPendingFinalizers();
+        GC.Collect();
+        Assert.False(coreNode.IsAlive);
+        Assert.False(drawnNode.IsAlive);
+        GC.KeepAlive(label);
+        GC.KeepAlive(view);
+    }
+
+    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
+    private static (WeakReference Core, WeakReference Drawn) ShowAndLeave(SkUiCoreLabel label, SkUiLabel view)
+    {
+        var core = new ReleaseCountingNode();
+        label.SetSpans(new SkUiCoreSpan("x").SetInlineObject(SkUiInlineObject.FromNode(core)));
+        label.Measure(100, 40);
+        label.SetText("plain");
+        label.Measure(100, 40);
+        var drawn = new ReleaseCountingNode();
+        view.FormattedText = Formatted(drawn);
+        view.Measure(100, 40);
+        view.Text = "plain";
+        view.Measure(100, 40);
+        return (new WeakReference(core), new WeakReference(drawn));
+    }
+
+    private static FormattedString Formatted(SkUiCoreNode node)
+    {
+        var span = new Span { Text = "x" };
+        SkUiSpan.SetInlineObject(span, SkUiInlineObject.FromNode(node));
+        return new FormattedString { Spans = { span } };
+    }
+
     [Fact]
     public void ATapOnItReachesItsSpan()
     {

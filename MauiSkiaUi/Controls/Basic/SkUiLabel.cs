@@ -361,8 +361,19 @@ public class SkUiLabel : SkUiView, ISkUiFontElement, ISkUiBorderElement
             value.PropertyChanged += OnFormattedTextPropertyChanged;
             Text = null!; // as MAUI: formatted text replaces text
         }
+        else
+            ReleaseInlineObjects();
         _spanTap?.Cancel();
         InvalidateText();
+    }
+
+    /// <summary>The spans are gone for good. Plain text builds no rich text, so nothing else would let their objects go, and the rich layout's lines still hold them.</summary>
+    private void ReleaseInlineObjects()
+    {
+        if (_inlineObjects is null) return;
+        SkUiInlineObject.Replace(ref _inlineObjects, null);
+        _richLayout?.Release();
+        _richLayout = null;
     }
 
     /// <summary>A span was added, removed or changed (<see cref="FormattedString"/> reports all of them as <c>Spans</c>).</summary>
@@ -613,15 +624,15 @@ public class SkUiLabel : SkUiView, ISkUiFontElement, ISkUiBorderElement
 
     private SkUiRichText BuildRichText()
     {
-        if (IsHtml)
-            return SkUiHtml.ToRichText(HtmlRuns, _fontFamily, EffectiveFontSize, _fontAttributes, _characterSpacing, _lineHeight, _textColor, _textDecorations,
-                _fontAutoScalingEnabled);
         List<SkUiInlineObject>? inlineObjects = null;
         if (_formattedText is { } shown)
             foreach (var span in shown.Spans)
                 if (SkUiSpan.GetInlineObject(span) is { } shownObject)
                     (inlineObjects ??= []).Add(shownObject);
         SkUiInlineObject.Replace(ref _inlineObjects, inlineObjects);
+        if (IsHtml)
+            return SkUiHtml.ToRichText(HtmlRuns, _fontFamily, EffectiveFontSize, _fontAttributes, _characterSpacing, _lineHeight, _textColor, _textDecorations,
+                _fontAutoScalingEnabled);
         if (_formattedText is not { Spans.Count: > 0 } formatted) return SkUiRichText.Empty;
         var builder = new SkUiRichText.Builder();
         foreach (var span in formatted.Spans)
