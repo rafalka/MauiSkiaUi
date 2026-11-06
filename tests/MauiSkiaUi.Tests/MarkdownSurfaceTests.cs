@@ -8,8 +8,6 @@ namespace MauiSkiaUi.Tests;
 /// <summary>The Markdown view on a drawn surface: what an update records, and how it behaves in a scroll view.</summary>
 public class MarkdownSurfaceTests
 {
-    private const string RedDot = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFBQIAX8jx0gAAAABJRU5ErkJggg==";
-
     private static SkUiMarkdownStyle Style { get; } = SkUiMarkdownStyle.Default with
     {
         FontFamily = SkUiTestHelpers.BundledFontFamily,
@@ -131,15 +129,25 @@ public class MarkdownSurfaceTests
     {
         using var _ = SkUiTestHelpers.UseBundledFont();
         var filler = string.Join("\n\n", Enumerable.Repeat("A paragraph of text.", 40));
-        var view = new SkUiMarkdownView { MarkdownStyle = Style, Text = filler + "\n\n![dot](" + RedDot + ")\n\nthe end" };
+        // The image waits until the height without it is known.
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var source = SkUiImageSource.FromStream(async _ =>
+        {
+            await release.Task;
+            return new MemoryStream(ImageLoadingTests.Png(SkiaSharp.SKColors.Red));
+        });
+        var view = new SkUiMarkdownView { MarkdownStyle = Style, ImageResolver = _ => source, Text = filler + "\n\n![dot](dot.png)\n\nthe end" };
         var page = InScroll(view);
         await page.ScrollToAsync(0, 100, animated: false);
         var before = page.ScrollY;
         Assert.True(before > 0);
         var height = view.Markdown.DesiredSize.Height;
         var picture = Assert.Single(Nodes<SkUiMarkdownPicture>(view.Markdown));
-        for (var attempt = 0; attempt < 300 && picture.ImageSize.Width <= 0; attempt++)
-            await Task.Delay(10);
+        Assert.True(picture.ImageSize.Width <= 0);
+        var loaded = new TaskCompletionSource<SkUiImageLoadStatus>(TaskCreationOptions.RunContinuationsAsynchronously);
+        picture.LoadingFinished += (_, args) => loaded.TrySetResult(args.Status);
+        release.SetResult();
+        Assert.Equal(SkUiImageLoadStatus.Succeeded, await loaded.Task.WaitAsync(TimeSpan.FromSeconds(30)));
         Assert.True(picture.ImageSize.Width > 0);
         SkUiTestHelpers.Arrange(page, 300, 300);
         Assert.True(view.Markdown.DesiredSize.Height > height);
