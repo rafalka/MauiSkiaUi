@@ -16,7 +16,7 @@
 
 ## Status
 
-Built on `1.8-implementation`: phases P, B, I, U, M, X1, X2 and Z. Not built: V2 and X3 (step 12), which nothing has asked for. Images among text still cut the paragraph; X1 could place them in the line later.
+Built on `1.8-implementation`: phases P, B, I, U, M, X1, X2 and Z. Not built: X3 (step 12), which nothing has asked for. V2 is not planned for now and is in the [backlog](Roadmap.md#lists-and-scrolling). Images among text still cut the paragraph; X1 could place them in the line later.
 
 G1 and V1 so far: the Markdown scenario with formulas passes under Native AOT on Mac Catalyst, and fully trimmed on the Galaxy S9, with no trim or AOT warnings from SkiaUi. Numbers: [Performance.md](../Performance.md#markdown). Assemblies before trimming: Markdig 0.5 MB, CSharpMath 1.8 MB with its fonts.
 
@@ -155,7 +155,7 @@ Additive, useful beyond Markdown, and each can be dropped without affecting the 
 ## Phase V — Long documents
 
 - **V1 Measure.** Bench scenarios for a 100 KB document: first frame, scrolling, and an append (`scripts/bench.sh`, set through `TrySetOption` so baselines still build), plus the same document on the S9 and the iPhone 8. Results in [Performance.md](../Performance.md). Size: S, device time.
-- **V2 Only if V1 asks for it.** Top-level blocks as rows of a virtual stack, recorded when near the viewport. Needs the Core twin of `SkUiVirtualVerticalStackLayout`, or is SkUi-only at first. The 1.9 plan's [R2](ImplementationPlan-1.9.md#phase-r--performance-backed-by-measurements) (no re-recording of ancestors on a measure change) would help appends and image loads, but comes after this release, so V1 measures without it and is run again after it. Size: M–L.
+- **V2 Not planned for now; in the [backlog](Roadmap.md#lists-and-scrolling).** To take up when a real app shows long documents or later measurements ask for it. Top-level blocks as rows of a virtual stack, recorded when near the viewport. Needs the Core twin of `SkUiVirtualVerticalStackLayout`, or is SkUi-only at first. The 1.9 plan's [R2](ImplementationPlan-1.9.md#phase-r--performance-backed-by-measurements) (no re-recording of ancestors on a measure change) would help appends and image loads, but comes after this release, so V1 measures without it and is run again after it. Size: M–L.
 
 ## Phase Z — Image zoom
 
@@ -184,13 +184,13 @@ Text selection (labels have none; a separate engine feature); a bundled syntax h
 | 5 | B3, B4, B5, B6, B7 | S–M each | The rest of the blocks; independent of each other |
 | 6 | I1, I2, I3 | S, M, S | I1 first, also a security step |
 | 7 | U1, U2, U4 | M, S, S | Depend on the builder being complete |
-| 8 | V1 | S | Judges whether V2 is needed; **if 1.8 has to ship early, it can stop here** |
+| 8 | V1 | S | Measures long documents; **if 1.8 has to ship early, it can stop here** |
 | 9 | M1, M2, M3 | S–M, S, S | Second package; M2 before any network formula |
 | 10 | X2, X1, M4 | S–M, M–L, S | Inline objects, then inline math |
 | 11 | Z1, Z2 | M, S | Independent of everything above |
-| 12 | V2, X3 | M–L, M | When measurements or a real app ask for them |
+| 12 | X3 | M | When a real app asks for it |
 
-1.8 is steps 1–11. If it has to ship early, steps 1–8 stand alone (the whole scope except math, inline objects and zoom) and the rest moves to a later release. Step 12 is in 1.8 only if V1 or a real app asks for it.
+1.8 is steps 1–11. If it has to ship early, steps 1–8 stand alone (the whole scope except math, inline objects and zoom) and the rest moves to a later release. Step 12 is in 1.8 only if a real app asks for it. V2 is not a step of 1.8: it is in the [backlog](Roadmap.md#lists-and-scrolling).
 
 ## Decisions
 

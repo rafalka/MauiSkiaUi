@@ -168,7 +168,7 @@ The scenarios create the SkUi\* layer's SVG sources by name, so a baseline witho
 
 The bench builds in place (`MaximumInPlaceParseLength = int.MaxValue`), so a frame has content to wait for; an app's default runs the first row on a background thread.
 
-Scrolling across it: 44.5 fps, 6.3 ms per composited frame on average, 17.7 ms at most. Nothing is recorded while it scrolls, but the first frame records every block whether it shows or not, as in any long tree. Virtualizing top-level blocks ([plan, V2](design/ImplementationPlan-1.8.md#phase-v--long-documents)) is not done: only documents much longer than a typical page would gain from it.
+Scrolling across it: 44.5 fps, 6.3 ms per composited frame on average, 17.7 ms at most. Nothing is recorded while it scrolls, but the first frame records every block whether it shows or not, as in any long tree. Virtualizing top-level blocks is not planned for now ([backlog](design/Roadmap.md#lists-and-scrolling)): only documents much longer than a typical page would gain from it.
 
 ## Reproducing
 
