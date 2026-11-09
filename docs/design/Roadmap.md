@@ -95,7 +95,7 @@ One feature: a drawn Markdown view on both layers, in new optional packages, wit
 
 Moved from 1.6, then from 1.8. Built on the branch `1.9-implementation`. Steps, order and open decisions: [ImplementationPlan-1.9.md](ImplementationPlan-1.9.md).
 
-- **Performance:** the device results measured again on the current toolchain; Core measure invalidation without re-recording ancestors (done); shaped borders sharing their content clips (done).
+- **Performance:** the device results measured again on the current toolchain (done: Core's first frame is faster, the stress page's first-frame column was the wrong measure); Core measure invalidation without re-recording ancestors (done); shaped borders sharing their content clips (done).
 - **Layouts and containers:** a tile layout for galleries of equal tiles, with an overflow tile (done: [SkUiTileLayout](../controls/SkUiTileLayout.md)); Core twins of the state container and the expander (with independent `ScaleX` / `ScaleY` and `AnchorX` / `AnchorY` on Core nodes; animating one scale axis of a Core node no longer scales both).
 - **Text input:** password reveal (show / hide) in drawn password fields.
 
@@ -159,7 +159,6 @@ Multi-target the one `SkiaUi.Maui` package (`net10.0-*` plus `net11.0-*`) so app
 - Scheme defaults resolved at paint time on the Core layer: Core controls copy `SkUiColors.Accent`, `TrackOff`, `Muted` and so on into fields when they are created, so a Core tree made before `SkUiColorScheme.Current` changes (dark mode) keeps the old colors.
 - Text shadows on mid-range Android: they are cast from the glyphs and rasterized on the CPU once per item, which holds a scrolling list on the S9 at 45 fps; cast them on the GPU as outline shadows are.
 - Relayout boundaries below the surface root (the root is one); raster cache of stable subtrees with a per-frame budget, for what is expensive to composite every frame (dashed strokes of complex paths: 33 fps on the S9).
-- Core's first frame is no faster than SkUi\*'s on devices (1,000 buttons: S9 169 vs 167 ms, iPhone 8 35 vs 37 ms) although Core builds its tree three times faster; `scripts/bench.sh` `core-buttons` `firstFrame` on the S9 went from 110 to 140 ms (Release) with gradient backgrounds (MAUI parity P7). Measured again in 1.9 first ([plan, R1](ImplementationPlan-1.9.md#phase-r--performance-backed-by-measurements)).
 - Recording Core-only subtrees off the UI thread (the look, the color scheme and the text and image caches would have to be safe to read from it); hit-testing against render-thread transforms while animations run.
 - Overlay masks, so drawn popups can cover hosted native controls (mostly WebView, media and maps now that text fields are drawn); cheaper overlay bookkeeping on Android.
 - Windows GPU surfaces can still flash the window's backdrop for a frame when their swap chain panel changes size (rare since `SkUiSurfaceSlack`). `SKSwapChainPanel` handles a size change by presenting an empty buffer before the real frame (`pendingSizeChange` in SkiaSharp's `AngleSwapChainPanel`), and that blank can reach the screen. The fix needs a way around that swap: our own ANGLE panel, or a SkiaSharp change.

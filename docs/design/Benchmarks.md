@@ -102,7 +102,7 @@ The catalog lives in [benchmarks/Scenarios/Scenarios.cs](../../benchmarks/Scenar
 | --- | --- |
 | `core-labels`, `skui-labels` | 1,000 plain labels in a 2-column grid (Core vs SkUi* layer) |
 | `core-buttons`, `skui-buttons` | 1,000 buttons (the Stress page workload) |
-| `skui-stress-buttons` | The same buttons as the Stress page builds them: text color, fill, border and a command each |
+| `skui-stress-buttons`, `core-stress-buttons` | The same buttons as the Stress page builds them: text color, fill, border and a command (click handler) each |
 | `mixed-script-labels` | Arabic / Hebrew / Devanagari / emoji / CJK: HarfBuzz shaping, bidi, font fallback |
 | `core-labels-simple` | Numeric labels with `TextRendering = Simple` (no shaping; `Auto` shapes plain Latin as one run since 1.4) |
 | `core-labels-update`, `skui-labels-update` | Steady state: change every label's text (re-layout + re-record) |

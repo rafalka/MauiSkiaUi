@@ -26,7 +26,7 @@ Publishing (the NuGet publish workflow, [docs/Releasing.md](docs/Releasing.md)) 
 
 ### Other
 
-- **Shaped borders' first frame:** borders with the same outline (equal ticket-shaped cards in a list) share its content clip and shadow silhouette, which took a path operation per border: 400 such cards record their first frame in 25 ms instead of 590 ms on a desktop CPU (SkUi\*; Core 8 ms instead of 570 ms). It also works when each card makes its own stroke shape.
+- **Shaped borders' first frame:** borders with the same outline (equal ticket-shaped cards in a list) share its content clip and shadow silhouette, which took a path operation per border: 400 such cards record their first frame in 25 ms instead of 590 ms on a desktop CPU (SkUi\*; Core 8 ms instead of 570 ms), and reach it in 0.6 s instead of 1.9 s on a Galaxy S9 and 0.17 s instead of 1.0 s on an iPhone 8 ([Performance.md](docs/Performance.md#drawing-effects)). It also works when each card makes its own stroke shape.
 - **Core layout changes re-record less:** a Core node whose measure changes (a label's new text, a box's new size) re-records itself and the containers whose size changes, no longer every container up to the host, as SkUi\* views since 1.0. `SkUiCoreTable` still re-records when a cell's measure changes, since its track fills and separators follow the cells.
 
 ## 1.8.0

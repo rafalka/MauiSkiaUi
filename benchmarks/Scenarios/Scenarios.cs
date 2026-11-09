@@ -20,6 +20,7 @@ public static class Scenarios
         new CoreButtons(),
         new SkUiButtons(),
         new SkUiStressButtons(),
+        new CoreStressButtons(),
         new MixedScriptLabels(),
         new CoreLabelsSimpleMode(),
         new CoreLabelsUpdate(),
@@ -662,6 +663,38 @@ public sealed class SkUiStressButtons : BenchScenario
         }
         grid.EndUpdating();
         return Scenarios.Scroll(grid);
+    }
+}
+
+/// <summary>The demo's Stress page exactly, Core layer: <see cref="CoreButtons"/> with the page's colors, border and a click handler each.</summary>
+public sealed class CoreStressButtons : BenchScenario
+{
+    private static readonly Color Ink = Color.FromArgb("#1F2933");
+    private static readonly Color Alternate = Color.FromArgb("#F3F6FA");
+    private static readonly Color Border = Color.FromArgb("#D9E2EC");
+
+    public override string Name => "core-stress-buttons";
+    public override string Description => "1,000 SkUiCoreButton as the demo's Stress page builds them (text color, fill, border, a click handler each)";
+
+    public override View Build()
+    {
+        var grid = Scenarios.CoreGrid(Scenarios.Count);
+        grid.StartUpdating();
+        for (var i = 0; i < Scenarios.Count; i++)
+        {
+            var button = new SkUiCoreButton();
+            button.SetText($"Item {i + 1:0000}");
+            button.SetFontSize(14);
+            button.SetPadding(new Thickness(6));
+            button.SetTextColor(Ink);
+            button.SetFillColor(i % 4 < 2 ? Colors.White : Alternate);
+            button.SetBorderColor(Border);
+            button.SetBorderWidth(1);
+            button.SetClicked(() => { });
+            grid.Add(button, i / 2, i % 2);
+        }
+        grid.EndUpdating();
+        return Scenarios.Scroll(Scenarios.Host(grid));
     }
 }
 
