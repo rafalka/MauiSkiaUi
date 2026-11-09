@@ -2,7 +2,7 @@
 
 **Goal:** the Core layer stops re-recording ancestors on a measure change and shaped borders stop costing seconds on the first frame; galleries of equal tiles lay out by themselves; the Core twins of the state container and the expander close the Core layer's container gaps; drawn password fields can show their text.
 
-**Scope:** moved from the 1.6 plan, whose [viewport insets](ImplementationPlan-1.6.md) ship alone; 1.7 brought [vector icons](Roadmap.md#170-vector-icons-shipped) and 1.8 [Markdown](ImplementationPlan-1.8.md). Started on `1.9-implementation` (9 November 2026): R1, R2, R3 and T1–T3 done.
+**Scope:** moved from the 1.6 plan, whose [viewport insets](ImplementationPlan-1.6.md) ship alone; 1.7 brought [vector icons](Roadmap.md#170-vector-icons-shipped) and 1.8 [Markdown](ImplementationPlan-1.8.md). Started on `1.9-implementation` (9 November 2026): R1, R2, R3, T1–T3 and S1–S3 done.
 
 **Baseline:** .NET MAUI 10.0.120 (or the latest 10.0.x when 1.9 ships), SkiaSharp 4.154.0, branch `1.9-implementation` from `devel` after 1.8.0. .NET 11 / MAUI 11 waits until it is released ([roadmap](Roadmap.md#net-11--maui-11-support)). What has shipped is in the [changelog](../../CHANGELOG.md); the rest of the 1.x backlog stays in the [roadmap](Roadmap.md#backlog-1x).
 
@@ -40,14 +40,14 @@
 
 ## Phase S — Core containers
 
-- **S1 Core state container.** Size: M.
+- **S1 Core state container.** Size: M. **Done** (`SkUiCoreStateContainer`, `SkUiCoreStates`; `CoreStateContainerTests`, leak scenario `CoreStatesSwitched`). `States` is a keyed collection (`Add(key, node)`, `Add(key, factory)`, the indexer, `Remove`) with collection initializers; a factory's node is kept once built. `ShownState` reports the state on screen. A shown state removed from `States` shows nothing until its key is back (as a state view that left `StateViews`).
   - Core nodes are not bindable, so a node with keyed states instead of attached properties: `SkUiCoreStateContainer` with `States` (key → node or factory), `CurrentState` (`string?`, `null` shows the children), `CanStateChange`, and the SkUi\* container's before / after animations on the render thread (the shared `SkUiStateTransition`). Shimmer and skeleton states work as on the SkUi\* layer.
   - Tests and a leak scenario as `StatesSwitched`, on Core.
-- **S2 Core expander** (after R2). Size: M.
+- **S2 Core expander** (after R2). Size: M. **Done** (`SkUiCoreExpander`; `CoreExpanderTests`, leak scenario `CoreExpanderToggled`; Core `ScaleX` / `ScaleY` / `AnchorX` / `AnchorY` in `CoreLayerTests`). An animation frame records at most the resized expander: the stack and border around it are not recorded again. No `ContentTemplate` on Core (content is built in code).
   - First `ScaleX` / `ScaleY` and `AnchorX` / `AnchorY` on Core nodes ([D2](#decisions)): composite-time render props, as SkUi\* views have them.
   - `SkUiCoreExpander`: `Header`, `Content`, `IsExpanded`, `Direction`, `Command`, `ExpandedChanged`, `LazyContentExpansion`, `AnimationLength` / `AnimationEasing`, on the SkUi\* expander's engine (content scaled from the header's side while the height follows on the UI clock). The header is a button for screen readers and the keyboard.
   - Tests: as `ExpanderTests` on Core; recorded pictures per animation frame (R2's win); leak scenario.
-- **S3 Docs and demo.** Size: S. [SkUiStateContainer.md](../controls/SkUiStateContainer.md), [SkUiExpander.md](../controls/SkUiExpander.md), [SkUiCore.md](../controls/SkUiCore.md); gallery rows on the Core layer; [Migration.md](../Migration.md): Core code that animated one scale axis.
+- **S3 Docs and demo.** Size: S. **Done** (`CoreStateContainerDemoPage`, `CoreExpanderDemoPage`; Core sections in the control pages; the breaking change in the migration guide's animations). [SkUiStateContainer.md](../controls/SkUiStateContainer.md), [SkUiExpander.md](../controls/SkUiExpander.md), [SkUiCore.md](../controls/SkUiCore.md); gallery rows on the Core layer; [Migration.md](../Migration.md): Core code that animated one scale axis.
 
 ## Phase E — Password reveal
 
@@ -79,7 +79,7 @@ T, S1 and E are independent of phase R and of each other.
 ## Decisions
 
 - **D1 The tile layout is a layout, not a virtualized list.** Galleries with many items use the collection view's grid; the tile layout is for a page's strip or block of tiles. **Decided** (built so in T1).
-- **D2 Core `ScaleX` / `ScaleY` become independent.** Today Core nodes scale uniformly, and animating `ScaleX` or `ScaleY` on a Core node scales both. With separate scales an animation of `ScaleX` scales X only, as on SkUi\* views and in MAUI; `Scale` still sets both. A behavior change for Core code that animates one axis, so it goes under `### Breaking changes` in the changelog with the fix (animate `Scale`). **Decided:** independent.
+- **D2 Core `ScaleX` / `ScaleY` become independent.** Today Core nodes scale uniformly, and animating `ScaleX` or `ScaleY` on a Core node scales both. With separate scales an animation of `ScaleX` scales X only, as on SkUi\* views and in MAUI; `Scale` still sets both. A behavior change for Core code that animates one axis, so it goes under `### Breaking changes` in the changelog with the fix (animate `Scale`). **Decided:** independent (done in S2).
 - **D3 Reveal names.** `IsPasswordRevealed` / `ShowsPasswordRevealButton` / `HidesPasswordOnUnfocus`: MAUI has no API to follow. **Proposed.**
 
 ## Acceptance

@@ -69,6 +69,20 @@ From the toolkit, change `mct:Expander` to `sk:SkUiExpander` and the header and 
 | `IsAnimating` | `false` | Expanding or collapsing (read-only) |
 | `ExpandedChanged` (event) | — | After `Command`, at each change |
 
+## Core layer
+
+`SkUiCoreExpander` is the Core twin: `Header`, `Content`, `IsExpanded`, `Direction`, `Command` / `CommandParameter`, `ExpandedChanged`, `LazyContentExpansion`, `AnimationLength` / `AnimationEasing`, `Padding` and `IsAnimating`, with fluent `Set*`. It runs on the same rules: the content scaled from the header's side while the height follows on the UI clock, a change while it animates reversing from where it is, the header a button for screen readers and the keyboard, the content's own `ScaleY` / `AnchorY` never touched. Each frame re-records only the nodes whose size changed (the expander and ancestors that size to their content); its content and the containers around it are not recorded again.
+
+```csharp
+var section = new SkUiCoreExpander()
+    .SetHeader(new SkUiCoreLabel().SetText("Details"))
+    .SetContent(details)
+    .SetAnimationLength(250);
+section.ExpandedChanged += (_, args) => _ = chevron.AnimateAsync(SkUiAnimatableProperty.Rotation, args.IsExpanded ? 90 : 0, 250);
+```
+
+Not on Core: `ContentTemplate` (build the content in code; with `LazyContentExpansion` it is in the tree only while expanded) and hosted native views.
+
 ## Related
 
-[SkUiAlternateContentView](SkUiAlternateContentView.md) (one of two contents) · [SkUiContentView](SkUiContentView.md) (content loaded when shown) · Gallery: `ExpanderDemoPage` (a header chevron that turns with the expander's length and easing), `ExpanderNestingDemoPage` (bordered expanders three levels deep in a scroll view) · Tests: `ExpanderTests`, `ExpanderXamlTests`; leak scenario `ExpanderToggled`
+[SkUiAlternateContentView](SkUiAlternateContentView.md) (one of two contents) · [SkUiContentView](SkUiContentView.md) (content loaded when shown) · Gallery: `ExpanderDemoPage` (a header chevron that turns with the expander's length and easing), `ExpanderNestingDemoPage` (bordered expanders three levels deep in a scroll view) · `CoreExpanderDemoPage` (Core FAQ sections) · Tests: `ExpanderTests`, `ExpanderXamlTests`, `CoreExpanderTests`; leak scenarios `ExpanderToggled`, `CoreExpanderToggled`

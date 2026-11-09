@@ -141,16 +141,10 @@ public sealed class SkUiViewAnimation
         return RunAsync((ISkUiAnimationTarget)view);
     }
 
-    /// <summary>
-    /// Runs the animation on a Core node, as <see cref="RunAsync(SkUiView)"/>. Core nodes scale uniformly:
-    /// <see cref="SkUiAnimatableProperty.ScaleX"/> and <see cref="SkUiAnimatableProperty.ScaleY"/> are not supported.
-    /// </summary>
+    /// <summary>Runs the animation on a Core node, as <see cref="RunAsync(SkUiView)"/>.</summary>
     public Task<bool> RunAsync(Core.SkUiCoreNode node)
     {
         ArgumentNullException.ThrowIfNull(node);
-        foreach (var property in Properties)
-            if (property.Property is SkUiAnimatableProperty.ScaleX or SkUiAnimatableProperty.ScaleY)
-                throw new NotSupportedException($"Core nodes scale uniformly: animate {nameof(SkUiAnimatableProperty.Scale)} instead of {property.Property}.");
         return RunAsync((ISkUiAnimationTarget)node);
     }
 
@@ -276,10 +270,10 @@ public sealed class SkUiViewAnimation
 /// </summary>
 internal interface ISkUiAnimationTarget : Rendering.ISkUiRenderable
 {
-    /// <summary>The property's value (a Core node's <see cref="SkUiAnimatableProperty.ScaleX"/> / <see cref="SkUiAnimatableProperty.ScaleY"/>: its uniform scale).</summary>
+    /// <summary>The property's value.</summary>
     double GetAnimatable(SkUiAnimatableProperty property);
 
-    /// <summary>Sets the property (a Core node takes <see cref="SkUiAnimatableProperty.ScaleX"/> / <see cref="SkUiAnimatableProperty.ScaleY"/> as its uniform scale).</summary>
+    /// <summary>Sets the property.</summary>
     void SetAnimatable(SkUiAnimatableProperty property, double value);
 
     /// <summary>Animates the property on the render thread (the node's <c>AnimateAsync</c>).</summary>

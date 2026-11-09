@@ -280,7 +280,6 @@ public class ShimmerTests
         Assert.Null(bone.Parent);
         Assert.False(bone.RenderState.HasCommitted);
         Assert.Throws<InvalidOperationException>(() => core.SetSkeletonContent(content));
-        Assert.Throws<ArgumentException>(() => core.SetBeforeStateChangeAnimation(new SkUiViewAnimation([new(SkUiAnimatableProperty.ScaleX, to: 0)])));
     }
 
     [Fact]
@@ -418,7 +417,8 @@ public class ShimmerTests
         var node = new SkUiCoreBox { Opacity = 0.8 };
         Assert.True(await SkUiViewAnimation.FadeOut().RunAsync(node)); // not drawn: jumps to the end
         Assert.Equal(0, node.Opacity);
-        await Assert.ThrowsAsync<NotSupportedException>(() => new SkUiViewAnimation([new(SkUiAnimatableProperty.ScaleY, to: 2)]).RunAsync(node));
+        Assert.True(await new SkUiViewAnimation([new(SkUiAnimatableProperty.ScaleY, to: 2)]).RunAsync(node));
+        Assert.Equal((1d, 1d, 2d), (node.Scale, node.ScaleX, node.ScaleY));
     }
 
     private const string Xaml = """

@@ -281,6 +281,11 @@ Each column splitter spans every row (`RowSpan`), shows its line (`ShowsLine`) a
 (`GripAlignment` `Start`); the table's column separators are hidden, as the splitters' lines take their place. A splitter
 merges no cells: the table still draws its row separators across it.
 
+## CoreStateContainerDemoPage.Animation
+
+How the container switches between its content and a state: at once, fading, or growing (the new state scaled
+vertically from 0.6, a Core ScaleY animation).
+
 ## StateContainerDemoPage.Animation
 
 How the container switches between its content and a state view: at once, fading, or sliding (the state change

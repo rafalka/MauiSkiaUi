@@ -496,6 +496,44 @@ public class CoreLayerTests
     }
 
     [Fact]
+    public void CoreNode_ScalesEachAxisAboutItsAnchor()
+    {
+        var box = new SkUiCoreBox();
+        box.SetColor(Colors.Red);
+        var clicks = 0;
+        var button = new SkUiCoreButton();
+        button.SetText("x");
+        button.Clicked += (_, _) => clicks++;
+        var panel = new SkUiCoreAbsoluteLayout();
+        panel.Add(box, new Rect(0, 0, 20, 20));
+        panel.Add(button, new Rect(0, 30, 20, 20));
+        var host = new SkUiCoreHost().SetContent(panel);
+        using var surface = new SkUiTestSurface(host, 80, 80);
+        box.SetAnchorX(0).SetAnchorY(0).SetScaleX(3);
+        button.SetAnchorX(0).SetScaleX(3);
+        var bitmap = surface.Frame();
+        Assert.Equal(SKColors.Red, bitmap.GetPixel(50, 10)); // wider from its left edge
+        Assert.NotEqual(SKColors.Red, bitmap.GetPixel(10, 25)); // not taller
+        host.Touch(new(1, SkUiTouchAction.Pressed, new Point(50, 40)));
+        host.Touch(new(1, SkUiTouchAction.Released, new Point(50, 40)));
+        Assert.Equal(1, clicks);
+
+        // Scale multiplies both axes, as in MAUI; the anchor moves the fixed point to the bottom-right corner.
+        box.SetScaleX(1).SetScale(2).SetScaleY(0.5).SetAnchorX(1).SetAnchorY(1);
+        bitmap = surface.Frame();
+        Assert.Equal(SKColors.Red, bitmap.GetPixel(-15 + 20, 15)); // spans x -20..20, y 0..20
+        Assert.NotEqual(SKColors.Red, bitmap.GetPixel(25, 10));
+    }
+
+    [Fact]
+    public async Task CoreNode_ViewAnimationsScaleOneAxis()
+    {
+        var node = new SkUiCoreBox();
+        Assert.True(await new SkUiViewAnimation([new(SkUiAnimatableProperty.ScaleX, to: 2)]).RunAsync(node)); // not drawn: jumps to the end
+        Assert.Equal((1d, 2d, 1d), (node.Scale, node.ScaleX, node.ScaleY));
+    }
+
+    [Fact]
     public void CoreImage_ReplaceSameInstanceDoesNotDispose()
     {
         using var bitmap = new SKBitmap(8, 8);

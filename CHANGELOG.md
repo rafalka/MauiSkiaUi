@@ -23,6 +23,14 @@ Publishing (the NuGet publish workflow, [docs/Releasing.md](docs/Releasing.md)) 
 - **Tile layout:** `SkUiTileLayout` and `SkUiCoreTileLayout` lay out equal tiles for galleries and attachment strips: as many columns of at most `TileSize` as the width takes, stretched to fill the row but never past it, a column dropped below `MinimumTileSize`, `TileAspectRatio`, `ColumnSpacing` / `RowSpacing`: [SkUiTileLayout.md](docs/controls/SkUiTileLayout.md).
   - `MaximumRows` cuts the rows: the children past it are neither measured nor drawn, and an `OverflowTemplate` (bound to `SkUiTileOverflow.HiddenCount`: "+5") shows over the last tile, with `OverflowTapped` / `OverflowCommand`.
   - Replaces a `Grid` rebuilt in `SizeChanged` ([Migration.md](docs/Migration.md#equal-tiles)); the gallery's tile layout pages, on both layers.
+- **Core state container:** `SkUiCoreStateContainer`, the Core twin of the attached `SkUiStateContainer`: its content, or the node of the state `CurrentState` names, from keyed `States` (a node, or a factory run when the state is first named). `CanStateChange`, `ChangeStateWithAnimation` and the before / after state change animations on the render thread work as on the SkUi\* layer; a `SkUiCoreShimmer` makes a skeleton loading state ([SkUiStateContainer.md](docs/controls/SkUiStateContainer.md#core-layer)).
+- **Core expander:** `SkUiCoreExpander`, the Core twin of `SkUiExpander`: `Header`, `Content`, `IsExpanded`, `Direction`, `Command`, `ExpandedChanged`, `LazyContentExpansion`, `AnimationLength` / `AnimationEasing`, the content growing from the header while the height follows. Each animation frame re-records only the nodes whose size changed ([SkUiExpander.md](docs/controls/SkUiExpander.md#core-layer)).
+- **Core nodes scale each axis:** `ScaleX`, `ScaleY` (multiplied by `Scale`, as in MAUI), `AnchorX` and `AnchorY` on every Core node, composite-time and animatable on the render thread (`AnimateAsync`, `SkUiViewAnimation`), with transform-aware hit testing.
+- Gallery: Core state container and Core expander pages.
+
+### Breaking changes
+
+- **Animating one scale axis of a Core node scales that axis only:** an `SkUiViewAnimation` (or a Core shimmer's state change animation) of `ScaleX` or `ScaleY` on a Core node used to scale both axes, or was rejected; it now scales its own axis, as on SkUi\* views and in MAUI. Animate `Scale` to scale both ([Migration.md](docs/Migration.md#7-animations)).
 
 ### Other
 

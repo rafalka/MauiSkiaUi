@@ -256,7 +256,7 @@ Skeleton views built from MAUI shapes and `Animation`s (one animation per box) p
 | `RepeatMode` | `Default` | `Restart` or `Reverse` after each pass; `Default`: the effect's own (a wave restarts, a pulse and a color shift go back) |
 | `Easing` | `null` | The curve of each pass; `null`: linear for a wave, `SinInOut` otherwise. Runs on the render thread (MAUI's easings are pure functions) |
 | `PulseOpacity` | 0.4 | The bones' opacity at a pulse's low point, 0–1 |
-| `BeforeStateChangeAnimation` / `AfterStateChangeAnimation` | `null` | `SkUiViewAnimation`s on the child that leaves and the one that comes, as [`SkUiStateContainer`](SkUiStateContainer.md)'s (XAML `"FadeOut 350 CubicInOut"`). Core: uniform `Scale` only |
+| `BeforeStateChangeAnimation` / `AfterStateChangeAnimation` | `null` | `SkUiViewAnimation`s on the child that leaves and the one that comes, as [`SkUiStateContainer`](SkUiStateContainer.md)'s (XAML `"FadeOut 350 CubicInOut"`) |
 
 Attached, for views in a skeleton made from the content: `SkUiShimmer.Skeleton` (`SkUiSkeleton`: `Default`, `Bone`, `Keep`, `Hidden`, `Children`) `SkUiShimmer.SkeletonLines` (an empty label's placeholder lines, default 1) and, on a collection view, `SkUiShimmer.SkeletonItemCount` (its placeholder items while empty, default -1: fill it); `GetSkeleton` / `SetSkeleton`, `GetSkeletonLines` / `SetSkeletonLines`, `GetSkeletonItemCount` / `SetSkeletonItemCount`. Core: `SkUiCoreShimmer.SkeletonProperty` and `SkeletonLinesProperty` (`node.SetValue(…)`).
 

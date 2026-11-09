@@ -101,6 +101,27 @@ await SkUiStateContainer.ChangeStateWithAnimation(layout, null, leave, enter);
 - An animated automatic change that fails (an animation error, a state view removed meanwhile) still ends with the views following `CurrentState`, switched without animating.
 - Native views as states go inside a `SkUiMauiContentView`.
 
+## Core layer
+
+Core nodes are not bindable, so `SkUiCoreStateContainer` is a node with keyed states instead of attached properties. It shows its `Content`, or the node of the state `CurrentState` names; the rules above apply (unknown states throw `SkUiStateContainerException` before anything changes, `CanStateChange`, the explicit and the automatic animations, a newer state winning while nodes animate, a cancelled change still ending in the new state).
+
+```csharp
+var states = new SkUiCoreStateContainer()
+    .SetContent(list)
+    .AddState("Loading", new SkUiCoreShimmer().SetSkeletonContent(bones))   // a skeleton loading state
+    .AddState("Error", () => BuildErrorCard())                              // built when first named, then kept
+    .SetBeforeStateChangeAnimation(SkUiViewAnimation.FadeOut(150))
+    .SetAfterStateChangeAnimation(SkUiViewAnimation.FadeIn());
+states.SetCurrentState("Loading");
+// later
+states.SetCurrentState(null);   // the content
+```
+
+- `States` is keyed by `string` (ordinal): `Add(key, node)`, `Add(key, factory)`, the indexer (adds or replaces), `Remove`, `Clear`, `TryGetNode`; collection initializers work (`States = { { "Loading", spinner } }`). A node belongs to one state and cannot be the content.
+- The nodes not shown stay owned by the container, detached from the drawn tree, so their drawing resources are released. A shown state replaced in `States` shows its new node; removed, the container shows nothing until a state with that key is added again.
+- `ShownState` is the state on screen (it follows `CurrentState` after the animations). `CurrentState`, `ShownState` and `CanStateChange` raise `PropertyChanged`.
+- Animations may scale one axis (`ScaleX` / `ScaleY`): Core nodes scale each axis on its own since 1.9.
+
 ## Related
 
-Gallery: `StateContainerDemoPage` (a grid with loading, error and empty states). Tests: `StateContainerTests`; leak scenario `StatesSwitched`.
+Gallery: `StateContainerDemoPage` (a grid with loading, error and empty states), `CoreStateContainerDemoPage` (a Core list with a skeleton loading state). Tests: `StateContainerTests`, `CoreStateContainerTests`; leak scenarios `StatesSwitched`, `CoreStatesSwitched`.

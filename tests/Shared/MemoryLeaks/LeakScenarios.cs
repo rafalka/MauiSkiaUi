@@ -65,6 +65,8 @@ public static class LeakScenarios
         new("MovedBetweenSurfaces", Rendering, "A subtree with gestures, a scroller and a native Entry moves between two surfaces and back.", () => new MoveRun()),
         new("TextFieldsEdited", Input, "Drawn entries (a password, a search bar with a long-lived command; a leading label and a trailing image button with a long-lived command), an editor, steppers (on double, a typed decimal one with texts, a typed uint Core one) and numeric entries (a typed int one with split buttons, a Core decimal one with end buttons), with their Core twins: focused (the platform's text input attached), typed in, a word long-pressed (selection handles and the edit menu), tabbed through, the editor scrolled, the steppers and numeric entries stepped, text set by code; closed with a field focused.", () => new TextFieldsRun()),
         new("AccessibleFocused", Input, "Drawn and Core controls with semantic properties, read through a semantics tree that reports changes; focused by Focus() and Tab, activated by Space / Enter and screen-reader actions, a slider stepped; a focused row removed; a button given a long-lived Tag.", () => new AccessibilityRun()),
+        new("CoreStatesSwitched", Core, "SkUiCoreStateContainer over a Core list: loading (a spinner running), error (a retry button with a long-lived command, built by a factory) and skeleton (a SkUiCoreShimmer) states switched directly and with the fade, a change rejected while one runs; the shown state replaced and removed, hidden states removed; automatic state change animations (one shared long-lived animation) retargeted while running; closed while one runs.", () => new CoreStatesRun()),
+        new("CoreExpanderToggled", Core, "SkUiCoreExpander sections (explicit and lazy content, a button with a long-lived command in the content, a long-lived command on the expander, both directions): expanded and collapsed by header taps, animated and not, reversed mid-animation, content replaced while collapsed; closed mid-collapse.", () => new CoreExpanderRun()),
         new("CoreControls", Core, "Core buttons (long-lived command), toggles, a table and a scroll view: clicked, scrolled, rows removed, columns changed.", () => new CoreRun()),
         new("NativeOverlays", Native, "Entry / Editor overlays in a drawn scroller (snapshot mode): scrolled, an Entry focused, overlay content replaced.", () => new OverlaysRun()),
         new("NativeNesting", Native, "GPU and software surfaces inside a native ScrollView: drawn list, carousel and Core scroller dragged.", () => new NestingRun())
@@ -3275,6 +3277,139 @@ public static class LeakScenarios
 
         public override string? CheckInteraction() =>
             _clicks < 8 ? $"{_clicks} Core clicks / toggles, expected 8." : _scroll!.ScrollY <= 0 ? "The Core scroll view did not scroll." : null;
+    }
+
+    private sealed class CoreStatesRun : LeakScenarioRun
+    {
+        private const string Loading = "Loading";
+        private const string Error = "Error";
+        private const string Skeleton = "Skeleton";
+        private SkUiCoreStateContainer? _states;
+        private string? _problem;
+
+        // Long-lived, shared by every run (and frozen by the first one).
+        private static readonly SkUiViewAnimation CoreStatesSlideIn = new([new(SkUiAnimatableProperty.TranslationY, from: 20), new(SkUiAnimatableProperty.Opacity, from: 0)], 160, Easing.CubicOut);
+
+        public override View Build(LeakScenarioContext context)
+        {
+            var rows = new SkUiCoreVerticalStackLayout().SetSpacing(4);
+            for (var index = 0; index < 6; index++)
+                rows.Add(new SkUiCoreLabel().SetText($"Core row {index}").SetFontSize(13).SetHeight(24));
+            _states = new SkUiCoreStateContainer()
+                .SetContent(rows)
+                .AddState(Loading, new SkUiCoreActivityIndicator().SetIsRunning(true).SetWidth(32).SetHeight(32))
+                .AddState(Error, () =>
+                {
+                    var retry = new SkUiCoreButton();
+                    retry.SetText("Retry").SetHeight(40);
+                    retry.SetCommand(LeakCommands.Shared);
+                    return retry;
+                })
+                .AddState(Skeleton, new SkUiCoreShimmer().SetSkeletonContent(new SkUiCoreShimmerBone { Width = 200, Height = 12, CornerRadius = 4 }));
+            _states.SetPadding(new Thickness(12)).SetHeight(220);
+            return new SkUiCoreHost().SetContent(_states);
+        }
+
+        public override async Task InteractAsync(LeakScenarioContext context)
+        {
+            var states = _states!;
+            foreach (var state in new[] { Loading, Error, Skeleton, null, Error })
+            {
+                states.SetCurrentState(state);
+                await context.SettleAsync();
+            }
+            await context.TapAsync(states.States[Error]);
+            var fade = states.ChangeStateWithAnimation(Loading);
+            try
+            {
+                states.SetCurrentState(Skeleton);
+                _problem = "a Core state change was accepted while an animated one ran";
+            }
+            catch (SkUiStateContainerException)
+            {
+            }
+            await context.WaitForAsync(fade);
+            await context.WaitForAsync(states.ChangeStateWithAnimation(null));
+            // The shown state replaced, then removed: the nodes that left must go while the container lives on.
+            states.SetCurrentState(Loading);
+            context.TrackDetached(states.States[Loading], "replaced Core loading state");
+            states.States[Loading] = new SkUiCoreLabel().SetText("Loading again").SetHeight(24);
+            await context.SettleAsync();
+            context.TrackDetached(states.States[Loading], "removed Core loading state");
+            context.TrackDetached(states.States[Skeleton], "removed Core skeleton state");
+            states.States.Remove(Loading);
+            states.States.Remove(Skeleton);
+            await context.SettleAsync();
+            states.States.Add(Loading, () => new SkUiCoreLabel().SetText("Loading once more").SetHeight(24));
+            await context.SettleAsync();
+            // Automatic state change animations, retargeted while running and left running at close.
+            states.SetBeforeStateChangeAnimation(SkUiViewAnimation.FadeOut(120)).SetAfterStateChangeAnimation(CoreStatesSlideIn);
+            states.SetCurrentState(null);
+            states.SetCurrentState(Error);
+            states.SetCurrentState(null);
+            for (var wait = 0; wait < 60 && !states.CanStateChange; wait++)
+                await context.SettleAsync();
+            if (states.ShownState is not null || states.ShownChild is not SkUiCoreVerticalStackLayout)
+                _problem ??= "the Core container did not end with its content after automatic changes";
+            states.SetCurrentState(Loading);
+        }
+
+        public override string? CheckInteraction() => _problem;
+    }
+
+    private sealed class CoreExpanderRun : LeakScenarioRun
+    {
+        private readonly List<SkUiCoreExpander> _sections = [];
+        private string? _problem;
+
+        public override View Build(LeakScenarioContext context)
+        {
+            var stack = new SkUiCoreVerticalStackLayout().SetSpacing(6).SetPadding(new Thickness(10));
+            for (var index = 0; index < 3; index++)
+            {
+                var header = new SkUiCoreLabel().SetText($"Core section {index}").SetFontSize(14);
+                header.SetHeight(32);
+                var retry = new SkUiCoreButton();
+                retry.SetText("Retry").SetHeight(36);
+                retry.SetCommand(LeakCommands.Shared);
+                var body = new SkUiCoreVerticalStackLayout().SetSpacing(4);
+                body.Add(new SkUiCoreLabel().SetText($"Details {index}").SetFontSize(13).SetHeight(24));
+                body.Add(retry);
+                var section = new SkUiCoreExpander()
+                    .SetHeader(header)
+                    .SetContent(body)
+                    .SetCommand(LeakCommands.Shared)
+                    .SetLazyContentExpansion(index == 1)
+                    .SetDirection(index == 2 ? SkUiExpandDirection.Up : SkUiExpandDirection.Down)
+                    .SetAnimationLength(index == 0 ? 0u : 180u);
+                _sections.Add(section);
+                stack.Add(section);
+            }
+            return new SkUiCoreHost().SetContent(stack);
+        }
+
+        public override async Task InteractAsync(LeakScenarioContext context)
+        {
+            foreach (var section in _sections)
+                await context.TapAsync(section.HeaderHost);
+            await context.WaitAsync(250);
+            _sections[1].SetIsExpanded(false); // reversed mid-animation
+            _sections[1].SetIsExpanded(true);
+            await context.WaitAsync(250);
+            if (_sections.Any(section => !section.IsExpanded || section.Content?.Parent is null))
+                _problem = "a Core section did not expand with its content attached";
+            await context.TapAsync(((SkUiCoreVerticalStackLayout)_sections[0].Content!).Children[1]);
+            // Content replaced while collapsed: the old content must go while the expander lives on.
+            _sections[1].SetIsExpanded(false);
+            await context.WaitAsync(250);
+            context.TrackDetached(_sections[1].Content!, "replaced Core expander content");
+            _sections[1].SetContent(new SkUiCoreLabel().SetText("New details").SetHeight(24));
+            await context.SettleAsync();
+            // Closed mid-collapse.
+            _sections[2].SetIsExpanded(false);
+        }
+
+        public override string? CheckInteraction() => _problem;
     }
 
     // ---- Native -----------------------------------------------------------------------------------------------

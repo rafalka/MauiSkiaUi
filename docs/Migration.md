@@ -41,8 +41,8 @@ Checked against .NET MAUI 10.0.120 (`MauiApiParityTests` compares every drawn co
 | ScrollView | SkUi* + Core | Done: scroll bars (draggable on desktop, `SkUiCoreScrollBar`), overscroll (bounce, stretch), scroll to element, both wheel axes, plus snap points |
 | Grid, VerticalStackLayout, HorizontalStackLayout, AbsoluteLayout, ContentView | SkUi* + Core | Done |
 | FlexLayout | `SkUiFlexLayout` (SkUi* only) | Done |
-| Toolkit Expander | `SkUiExpander` (SkUi* only) | Done, plus `ContentTemplate`, lazy content, animation |
-| Toolkit StateContainer | `SkUiStateContainer` / `SkUiStateView` attached properties on every drawn layout (SkUi* only) | Done, plus animations before and after each state change |
+| Toolkit Expander | `SkUiExpander`; Core: `SkUiCoreExpander` | Done, plus `ContentTemplate` (SkUi\*), lazy content, animation |
+| Toolkit StateContainer | `SkUiStateContainer` / `SkUiStateView` attached properties on every drawn layout; Core: `SkUiCoreStateContainer` with keyed states | Done, plus animations before and after each state change |
 | Toolkit AvatarView | `SkUiAvatarView` + Core | Done, plus initials of the text, colors by the text, a status badge |
 | StackLayout | Stacks | Map |
 | BindableLayout | Every `SkUiLayout` (grid, stacks, absolute, flex, wrap, shrink) | Done: MAUI's controller over `IBindableLayout`; templates and empty views must be drawn (a string `EmptyView` throws); no virtualization (use the collection view) |
@@ -369,6 +369,8 @@ APIs that take a reusable animation take a `SkUiViewAnimation` (render thread) i
 | `new Animation(v => view.Opacity = v, 1, 0, Easing.CubicIn)` | `new SkUiViewAnimation([new(SkUiAnimatableProperty.Opacity, from: 1, to: 0)], 250, Easing.CubicIn)` |
 | Parent `Animation` with children over the same span | One `SkUiViewAnimation` listing every property (they run together) |
 | Toolkit `StateContainer.ChangeStateWithAnimation(layout, state, before, after)` with `Animation`s | `SkUiStateContainer.ChangeStateWithAnimation(layout, state, before, after)` with `SkUiViewAnimation`s; `SkUiViewAnimation.FadeOut()` / `FadeIn()` cover the common case, no `to` ends at the view's own value. Or set `sk:SkUiStateContainer.BeforeStateChangeAnimation="FadeOut"` / `AfterStateChangeAnimation="FadeIn"` once and drop the call: every `CurrentState` change animates |
+
+**Core code from before 1.9 that animated one scale axis:** Core nodes now have `ScaleX` / `ScaleY` (multiplied by `Scale`, as in MAUI) and `AnchorX` / `AnchorY`. Before, setting `ScaleX` or `ScaleY` through an animation scaled both axes of a Core node; now it scales its own axis only. Animate `Scale` where both axes should follow.
 
 Animations of layout properties (`WidthRequest`, `HeightRequest`, `Margin`) and child animations with staggered spans have no render-thread form: keep them as MAUI or `SkUiAnimationClock` callbacks (they re-lay out every frame), or redesign them as transforms.
 
