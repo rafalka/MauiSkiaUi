@@ -23,6 +23,11 @@ public static class Scenarios
         new MixedScriptLabels(),
         new CoreLabelsSimpleMode(),
         new CoreLabelsUpdate(),
+        new CoreDeepUpdate(),
+        new ShapedCards(core: false, shaped: false),
+        new ShapedCards(core: false, shaped: true),
+        new ShapedCards(core: true, shaped: false),
+        new ShapedCards(core: true, shaped: true),
         new SkUiLabelsUpdate(),
         new CoreLabelsFit(),
         new CoreLabelsFit(idle: true),
@@ -730,6 +735,179 @@ public sealed class CoreLabelsUpdate : BenchScenario
             ((SkUiCoreLabel)child).SetText($"Value {index++ + _round:0000}");
         grid.EndUpdating();
     };
+}
+
+/// <summary>
+/// Steady-state: one label deep in each of 20 shadowed Core cards changes text. Measures what a child's measure change
+/// costs its ancestors (1.9 R2): before it, every container up to the host re-recorded and each card's shadow was cast
+/// again; after it, only the labels re-record.
+/// </summary>
+public sealed class CoreDeepUpdate : BenchScenario
+{
+    private const int Cards = 200;
+    private const int LabelsPerCard = 4;
+    private const int UpdatedEvery = 10;
+    private readonly List<SkUiCoreLabel> _updated = [];
+    private int _round;
+
+    public override string Name => "core-deep-update";
+    public override string Description =>
+        $"{Cards} shadowed SkUiCoreBorder cards (border > stack > grid > {LabelsPerCard} labels); update = one label's text in every {UpdatedEvery}th card";
+
+    public override View Build()
+    {
+        _updated.Clear();
+        var list = new SkUiCoreVerticalStackLayout();
+        list.SetPadding(new Thickness(8));
+        list.SetSpacing(8);
+        list.StartUpdating();
+        for (var c = 0; c < Cards; c++)
+        {
+            var grid = new SkUiCoreGrid()
+                .SetColumnSpacing(4)
+                .SetColumnDefinitions([new SkUiCoreColumnDefinition(SkUiCoreGridLength.Auto), new SkUiCoreColumnDefinition(SkUiCoreGridLength.Star)]);
+            grid.SetRowDefinitions([new SkUiCoreRowDefinition(SkUiCoreGridLength.Auto), new SkUiCoreRowDefinition(SkUiCoreGridLength.Auto)]);
+            for (var i = 0; i < LabelsPerCard; i++)
+            {
+                var label = new SkUiCoreLabel();
+                label.SetText(i % 2 == 0 ? $"Field {i}" : $"Value {c:000}.{i}");
+                label.SetFontSize(14);
+                grid.Add(label, i / 2, i % 2);
+                if (i == 1 && c % UpdatedEvery == 0)
+                    _updated.Add(label);
+            }
+            var title = new SkUiCoreLabel();
+            title.SetText($"Card {c:000}");
+            title.SetFontSize(16);
+            var stack = new SkUiCoreVerticalStackLayout();
+            stack.SetSpacing(4);
+            stack.Add(title);
+            stack.Add(grid);
+            var card = new SkUiCoreBorder()
+                .SetCornerRadius(12)
+                .SetStroke(Colors.LightGray)
+                .SetPadding(new Thickness(12))
+                .SetContent(stack);
+            card.SetBackground(Colors.White);
+            card.SetShadow(new SkUiCoreShadow(Colors.Black, new Point(0, 2), 8, 0.25f));
+            list.Add(card);
+        }
+        list.EndUpdating();
+        return Scenarios.Scroll(Scenarios.Host(list));
+    }
+
+    public override Action<View>? Update => _ =>
+    {
+        _round++;
+        foreach (var label in _updated)
+            label.SetText($"Value {_round:0000}{(_round % 2 == 0 ? " (updated)" : "")}");
+    };
+}
+
+/// <summary>
+/// The demo's Effects stress page with one effect: 400 cards (avatar, title, subtitle), plain (a white rectangle with a
+/// 1 DIP border) or ticket-shaped (a path with notches, a dashed gradient stroke). The first frame of the shaped cards
+/// is what 1.9 R3 shares outlines and clips for.
+/// </summary>
+public sealed class ShapedCards(bool core, bool shaped) : BenchScenario
+{
+    private const int Cards = 400;
+    private const double CardHeight = 72;
+    private const double AvatarSize = 40;
+    private const string Ticket = "M 0,8 A 8,8 0 0 0 8,0 L 192,0 A 8,8 0 0 0 200,8 L 200,26 A 10,10 0 0 0 200,46 L 200,64 " +
+        "A 8,8 0 0 0 192,72 L 8,72 A 8,8 0 0 0 0,64 L 0,46 A 10,10 0 0 0 0,26 Z";
+    private static readonly Color Ink = Color.FromArgb("#1F2937");
+    private static readonly Color Caption = Color.FromArgb("#6B7280");
+    private static readonly Color Border = Color.FromArgb("#D1D5DB");
+    private static readonly Color[] AvatarColors = [Color.FromArgb("#0EA5E9"), Color.FromArgb("#22C55E"), Color.FromArgb("#0F766E"), Color.FromArgb("#B45309")];
+
+    public override string Name => $"{(core ? "core" : "skui")}-{(shaped ? "shaped" : "plain")}-cards";
+    public override string Description =>
+        $"{Cards} {(core ? "Core" : "SkUi*")} cards as the Effects page's {(shaped ? "shaped border (ticket path, dashed gradient stroke)" : "baseline")}";
+
+    private static readonly Brush ShapedStroke =
+        new LinearGradientBrush([new GradientStop(Color.FromArgb("#0F766E"), 0), new GradientStop(Color.FromArgb("#6366F1"), 1)], new Point(0, 0), new Point(1, 0));
+
+    public override View Build() => core ? BuildCore() : BuildSkUi();
+
+    private View BuildSkUi()
+    {
+        var list = new SkUiVerticalStackLayout { Spacing = 10, Padding = new Thickness(16, 12, 16, 24) };
+        list.StartUpdating();
+        for (var index = 0; index < Cards; index++)
+        {
+            var row = new SkUiHorizontalStackLayout
+            {
+                Spacing = 12,
+                Children =
+                {
+                    new SkUiBox
+                    {
+                        Color = AvatarColors[index % AvatarColors.Length], WidthRequest = AvatarSize, HeightRequest = AvatarSize,
+                        VerticalOptions = LayoutOptions.Center
+                    },
+                    new SkUiVerticalStackLayout
+                    {
+                        VerticalOptions = LayoutOptions.Center,
+                        Children =
+                        {
+                            new SkUiLabel { Text = $"Order {index + 1:0000}", FontSize = 16, FontAttributes = FontAttributes.Bold, TextColor = Ink },
+                            new SkUiLabel { Text = "Shipped · 3 items", FontSize = 13, TextColor = Caption }
+                        }
+                    }
+                }
+            };
+            var card = new SkUiBorder
+            {
+                HeightRequest = CardHeight, Padding = new Thickness(14, 0), Background = Colors.White,
+                Stroke = shaped ? ShapedStroke : new SolidColorBrush(Border), StrokeThickness = shaped ? 2 : 1, Content = row
+            };
+            if (shaped)
+            {
+                card.StrokeShape = new SkUiPath { Aspect = Stretch.Fill }.SetData(Ticket);
+                card.StrokeDashArray = [4, 2];
+            }
+            list.Children.Add(card);
+        }
+        list.EndUpdating();
+        return Scenarios.Scroll(list);
+    }
+
+    private View BuildCore()
+    {
+        Paint stroke = shaped ? ShapedStroke : new SolidColorBrush(Border);
+        var list = new SkUiCoreVerticalStackLayout().SetSpacing(10).SetPadding(new Thickness(16, 12, 16, 24));
+        list.StartUpdating();
+        for (var index = 0; index < Cards; index++)
+        {
+            var title = new SkUiCoreLabel().SetText($"Order {index + 1:0000}").SetFontSize(16).SetFontAttributes(FontAttributes.Bold).SetTextColor(Ink);
+            var avatar = new SkUiCoreBox().SetColor(AvatarColors[index % AvatarColors.Length]);
+            avatar.SetWidth(AvatarSize).SetHeight(AvatarSize).SetVerticalAlignment(LayoutAlignment.Center);
+            var text = new SkUiCoreVerticalStackLayout()
+                .Add(title)
+                .Add(new SkUiCoreLabel().SetText("Shipped · 3 items").SetFontSize(13).SetTextColor(Caption));
+            text.SetVerticalAlignment(LayoutAlignment.Center);
+            var row = new SkUiCoreHorizontalStackLayout().SetSpacing(12).Add(avatar).Add(text);
+            var card = new SkUiCoreBorder()
+                .SetStroke(stroke)
+                .SetStrokeThickness(shaped ? 2 : 1)
+                .SetPadding(new Thickness(14, 0))
+                .SetContent(row);
+            if (shaped)
+                card.SetStrokeShape(new SkUiCorePath().SetData(TicketGeometry()).SetAspect(SkUiCoreStretch.Fill)).SetStrokeDashArray(4, 2);
+            card.SetBackground(Colors.White).SetHeight(CardHeight);
+            list.Add(card);
+        }
+        list.EndUpdating();
+        return Scenarios.Scroll(Scenarios.Host(list));
+    }
+
+    private static PathF TicketGeometry()
+    {
+        var path = new PathF();
+        ((Microsoft.Maui.Controls.Shapes.Geometry)new Microsoft.Maui.Controls.Shapes.PathGeometryConverter().ConvertFromInvariantString(Ticket)!).AppendPath(path);
+        return path;
+    }
 }
 
 /// <summary>1,000 drawn Core text fields (a spreadsheet-like page), against <see cref="CoreLabels"/>.</summary>

@@ -209,6 +209,7 @@ Attached properties stay MAUI's (`Grid.Row`, `AbsoluteLayout.LayoutBounds`, `Fle
 | `StackLayout` | `SkUiVerticalStackLayout` / `SkUiHorizontalStackLayout` | Pick by `Orientation`; keep `Spacing` |
 | `AbsoluteLayout` | `SkUiAbsoluteLayout` | |
 | `FlexLayout` | `SkUiFlexLayout` | Also `SkUiWrapLayout` for chips and tags |
+| A `Grid` of equal tiles rebuilt in `SizeChanged` (photo galleries, attachment strips) | `SkUiTileLayout` | See [equal tiles](#equal-tiles) |
 | Toolkit `StateContainer` / `StateView` (attached properties) | `SkUiStateContainer` / `SkUiStateView` | Same properties and `ChangeStateWithAnimation` overloads, on any drawn layout ([SkUiStateContainer.md](controls/SkUiStateContainer.md)) |
 | Toolkit `Expander` | `SkUiExpander` | Same properties and `ExpandedChanged`; `Header` / `Content` must be drawn views. `ExpandDirection` → `SkUiExpandDirection`, `ExpandedChangedEventArgs` → `SkUiExpandedChangedEventArgs`; drop `HandleHeaderTapped` (a native list view workaround). `IsExpanded` is two-way by default. Plus `ContentTemplate`, `LazyContentExpansion`, `AnimationLength` / `AnimationEasing` ([SkUiExpander.md](controls/SkUiExpander.md)) |
 | Hand-made skeleton views (shapes with animations) | `SkUiShimmer` / `SkUiCoreShimmer` | Your skeleton as `SkeletonContent`, one shimmer around it: see [Shimmer](#shimmer) |
@@ -513,6 +514,19 @@ Styles now apply to everything the toolkit's constructor set (padding, stroke, s
 | A skeleton view that repeats the page's own layout (the same cards and rows, boxes where the texts go) | No skeleton: the drawn page in a shimmer without `SkeletonContent`, `Mode="Bones"`; texts become bars, cards keep their chrome; static texts `Skeleton="Keep"`; empty bound texts draw `SkeletonLines` placeholder lines; an empty collection view shows placeholder rows of its own template (no fake items in the view model). The page takes no input while loading |
 | A skeleton view swapped with the MAUI page (a state container) | The page stays; one `SkUiShimmer` with only `SkeletonContent` over it, hidden once faded (`IsVisible` bound to `IsShowingSkeleton`) |
 | Pausing on `Unloaded`, hardware layers, per-box animation names | Drop: a shimmer not drawn requests no frames; the bones are one recorded picture in one layer |
+
+## Equal tiles
+
+A page that lays out equal tiles (photos, attachments, cards) in a `Grid` and rebuilds its columns in `SizeChanged` (or a `FlexLayout` of fixed-size children) becomes an `SkUiTileLayout` ([SkUiTileLayout.md](controls/SkUiTileLayout.md)), and the handler goes:
+
+| Before | After |
+| --- | --- |
+| `columns = (int)(width / tileWidth)`, column definitions rebuilt, `Grid.SetRow` / `SetColumn` per child | `TileSize="{tileWidth}"`: the columns follow the width; children are added in order (`BindableLayout` works) |
+| Tile height set from its width in code | `TileAspectRatio` (width per unit of height) |
+| A smallest tile below which a column is removed | `MinimumTileSize` |
+| Children past the second row hidden, a "+5" label laid over the last one | `MaximumRows="2"` and an `OverflowTemplate` bound to `HiddenCount`; `OverflowCommand` for the tap |
+
+A gallery of many items (a whole library) stays a collection view with a `GridItemsLayout`, which virtualizes.
 
 ## Icons (`FontImageSource`, tint behaviors, `MauiImage` SVGs)
 

@@ -32,6 +32,7 @@ METRICS = [
     ("Composite", "composite", True),
     ("FirstFrame", "firstFrame", True),
     ("Update", "update", True),
+    ("UpdatePictures", "updatePictures", True),
     ("MotionFps", "motionFps", False),
     ("MotionAvgRenderMs", "motionAvgRenderMs", True),
     ("MotionMaxRenderMs", "motionMaxRenderMs", True),
@@ -137,7 +138,7 @@ def compare(baseline_path, current_path, threshold, min_ms, markdown, as_json):
             b_lo, b_hi = quartiles(b)
             separated = b_lo > a_hi or b_hi < a_lo
             verdict = "~"
-            timing = key not in ("MotionFps", "AllocatedBytes")
+            timing = key not in ("MotionFps", "AllocatedBytes", "UpdatePictures")
             if separated and abs(delta) >= threshold and (not timing or abs(mb - ma) >= min_ms):
                 improved = (delta < 0) == lower_is_better
                 verdict = "faster" if improved else "slower"

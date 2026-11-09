@@ -152,7 +152,7 @@ DRAWN_VALUE_PROPERTIES = {"ControlTemplate", "ItemTemplate", "EmptyView", "Empty
 # Drawn views that make good surface roots: a region of the page. Any other drawn view directly in MAUI content is a
 # surface of its own.
 REGION_ROOTS = {"SkUiContentView", "SkUiLayout", "SkUiGrid", "SkUiVerticalStackLayout", "SkUiHorizontalStackLayout",
-                "SkUiAbsoluteLayout", "SkUiFlexLayout", "SkUiWrapLayout", "SkUiHorizontalShrinkLayout",
+                "SkUiAbsoluteLayout", "SkUiFlexLayout", "SkUiWrapLayout", "SkUiTileLayout", "SkUiHorizontalShrinkLayout",
                 "SkUiVerticalShrinkLayout", "SkUiHorizontalAlignStackLayout", "SkUiScrollView", "SkUiBorder", "SkUiCoreHost"}
 
 

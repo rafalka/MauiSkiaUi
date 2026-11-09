@@ -14,8 +14,8 @@ What the next releases bring, and the work after them. What has shipped is in th
 | **1.5.0** | 10.0.120 | 27 | 10.0.402 | As 1.1.0 | `master`, released 3 November 2026 |
 | **1.5.1** | 10.0.120 | 27 | 10.0.402 | As 1.1.0 | `master`, released 3 November 2026 |
 | **1.6.0** | 10.0.120 | 27 | 10.0.402 | As 1.1.0 | `master`, released 4 November 2026 |
-| **1.7.0** | 10.0.120 or a later 10.0.x | 27 | 10.0.402 | As 1.1.0 | Planned |
-| **1.8.0** | 10.0.120 or a later 10.0.x | 27 | 10.0.402 | As 1.1.0 | Planned |
+| **1.7.0** | 10.0.120 | 27 | 10.0.402 | As 1.1.0 | `master`, released 5 November 2026 |
+| **1.8.0** | 10.0.120 | 27 | 10.0.402 | As 1.1.0 | `master`, released 6 November 2026 |
 | **1.9.0** | 10.0.120 or a later 10.0.x | 27 | 10.0.402 | As 1.1.0 | Planned |
 
 SkiaUi stays on MAUI 10.x. Development happens on `devel`; `master` holds stable releases ([Releasing.md](../Releasing.md#branches-and-versions)).
@@ -69,9 +69,9 @@ Steps and decisions: [ImplementationPlan-1.6.md](ImplementationPlan-1.6.md). The
 - **Viewport insets (device checks in the [verification backlog](#verification-backlog)):** `ViewportInsets` on the scroll views and the collection view (the virtual stack follows its scroller's), so edge-to-edge pages scroll content under drawn top and bottom bars while scroll bars, `ScrollTo`, snap points, the refresh indicator, sticky headers and keyboard reveal work in the uncovered band; the surface root's `SafeAreaInsets` readable for binding.
 - **Fix:** hosted native views follow a resize of what clips them ([#81](https://github.com/rafalka/MauiSkiaUi/issues/81), fixed in [#82](https://github.com/rafalka/MauiSkiaUi/pull/82)).
 
-### 1.7.0: vector icons (planned)
+### 1.7.0: vector icons (shipped)
 
-Built on the branch `1.7-implementation`, not released: [what it costs](../Performance.md#vector-icons), [how to use it](../controls/SkUiImage.md#vector-icons).
+From [#83](https://github.com/rafalka/MauiSkiaUi/pull/83): [what it costs](../Performance.md#vector-icons), [how to use it](../controls/SkUiImage.md#vector-icons).
 
 One feature: an app's `.svg` icons drawn at runtime on both layers, through a small SVG reader in `SkiaUi.Maui`, with no new dependency or package. A `MauiImage` keeps working as today, and an app can use both. Steps and decisions: [ImplementationPlan-1.7.md](ImplementationPlan-1.7.md).
 
@@ -80,11 +80,11 @@ One feature: an app's `.svg` icons drawn at runtime on both layers, through a sm
 - **Recoloring:** `SkUiVectorImageSource`, shaped like `FontImageSource`, whose `Color` is the starting value of `currentColor`.
 - **Loading:** in the image decoder, so every source gets it, along with the caches, progress and load events. Files ship as `MauiAsset`.
 
-### 1.8.0: Markdown (planned)
+### 1.8.0: Markdown (shipped)
 
-Built on the branch `1.8-implementation`, not released: [how to use it](../controls/SkUiMarkdownView.md), [what it costs](../Performance.md#markdown).
+From [#84](https://github.com/rafalka/MauiSkiaUi/pull/84): [how to use it](../controls/SkUiMarkdownView.md), [what it costs](../Performance.md#markdown).
 
-One feature: a drawn Markdown view on both layers, in new optional packages, with no new dependency in `SkiaUi.Maui`. Steps, order, a spike's findings and open decisions: [ImplementationPlan-1.8.md](ImplementationPlan-1.8.md).
+One feature: a drawn Markdown view on both layers, in new optional packages, with no new dependency in `SkiaUi.Maui`. Steps, order, a spike's findings and decisions: [ImplementationPlan-1.8.md](ImplementationPlan-1.8.md).
 
 - **View:** `SkUiMarkdownView` + `SkUiCoreMarkdown` in `SkiaUi.Maui.Markdown` on Markdig: text, quotes, alerts, code, lists, tables, images and links, styled by one style object over the color scheme; a growing text only rebuilds its tail.
 - **Untrusted documents:** nothing opens by itself, remote images stay off until an app allows them, a document cannot read a local file, and hostile input cannot take the app down.
@@ -93,10 +93,10 @@ One feature: a drawn Markdown view on both layers, in new optional packages, wit
 
 ### 1.9.0: performance, tiles, Core containers and password reveal (planned)
 
-Moved from 1.6, then from 1.8. Steps, order and open decisions: [ImplementationPlan-1.9.md](ImplementationPlan-1.9.md).
+Moved from 1.6, then from 1.8. Built on the branch `1.9-implementation`. Steps, order and open decisions: [ImplementationPlan-1.9.md](ImplementationPlan-1.9.md).
 
-- **Performance:** the device results measured again on the current toolchain; Core measure invalidation without re-recording ancestors; shaped borders sharing their outlines and clips.
-- **Layouts and containers:** a tile layout for galleries of equal tiles (with an overflow tile); Core twins of the state container and the expander (with independent `ScaleX` / `ScaleY` and `AnchorX` / `AnchorY` on Core nodes; animating one scale axis of a Core node no longer scales both).
+- **Performance:** the device results measured again on the current toolchain; Core measure invalidation without re-recording ancestors (done); shaped borders sharing their content clips (done).
+- **Layouts and containers:** a tile layout for galleries of equal tiles, with an overflow tile (done: [SkUiTileLayout](../controls/SkUiTileLayout.md)); Core twins of the state container and the expander (with independent `ScaleX` / `ScaleY` and `AnchorX` / `AnchorY` on Core nodes; animating one scale axis of a Core node no longer scales both).
 - **Text input:** password reveal (show / hide) in drawn password fields.
 
 .NET 11 / MAUI 11 waits until it is released.

@@ -157,6 +157,7 @@ public class LayoutTests
     [InlineData(typeof(SkUiAbsoluteLayout))]
     [InlineData(typeof(SkUiFlexLayout))]
     [InlineData(typeof(SkUiWrapLayout))]
+    [InlineData(typeof(SkUiTileLayout))]
     [InlineData(typeof(SkUiHorizontalShrinkLayout))]
     [InlineData(typeof(SkUiVerticalShrinkLayout))]
     [InlineData(typeof(SkUiLabel))]

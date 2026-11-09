@@ -617,6 +617,29 @@ public partial class SkUiCoreNode : ISkUiCoreNode, INotifyPropertyChanged, ISkUi
         InvalidatePaint();
     }
 
+    /// <summary>
+    /// Measures and arranges this node again without re-recording its own content: a child's measure changed. The node's
+    /// picture (background, border, chrome) depends on its frame, which re-records it when arranged at another size, and
+    /// moved children are composite-time; so one label's new text re-records the label alone, not every container up to
+    /// the host. Containers that draw from their children's layout opt out with <see cref="PaintsFromChildLayout"/>.
+    /// </summary>
+    internal void InvalidateMeasureFromChild()
+    {
+        _measureDirty = true;
+        _arrangeDirty = true;
+        _layoutPending = true;
+        if (PaintsFromChildLayout)
+            _paintPending = true;
+        if (_updateDepth == 0)
+            FlushInvalidation();
+    }
+
+    /// <summary>
+    /// Whether this node's own picture depends on its children's layout (a table's track backgrounds and separators), so a
+    /// child's measure change re-records it as well (<see cref="InvalidateMeasureFromChild"/>). Default <see langword="false"/>.
+    /// </summary>
+    private protected virtual bool PaintsFromChildLayout => false;
+
     /// <inheritdoc />
     public void InvalidatePaint()
     {
@@ -643,7 +666,7 @@ public partial class SkUiCoreNode : ISkUiCoreNode, INotifyPropertyChanged, ISkUi
         if (layout)
         {
             if (_parent is SkUiCoreNode coreParent)
-                coreParent.InvalidateMeasure();
+                coreParent.InvalidateMeasureFromChild();
             else
                 MeasureInvalidated?.Invoke(this, EventArgs.Empty);
         }
@@ -1533,7 +1556,12 @@ public partial class SkUiCoreNode : ISkUiCoreNode, INotifyPropertyChanged, ISkUi
             OnSkeletonChanged();
         OnPropertyChanged(property.Name);
         if (property.AffectsParentMeasure)
-            _parent?.InvalidateMeasure();
+        {
+            if (_parent is SkUiCoreNode coreParent)
+                coreParent.InvalidateMeasureFromChild();
+            else
+                _parent?.InvalidateMeasure();
+        }
     }
 
     private void OnSkeletonValueChanged()

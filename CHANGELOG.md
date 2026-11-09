@@ -18,6 +18,17 @@ Publishing (the NuGet publish workflow, [docs/Releasing.md](docs/Releasing.md)) 
 
 ## Unreleased
 
+### New features
+
+- **Tile layout:** `SkUiTileLayout` and `SkUiCoreTileLayout` lay out equal tiles for galleries and attachment strips: as many columns of at most `TileSize` as the width takes, stretched to fill the row but never past it, a column dropped below `MinimumTileSize`, `TileAspectRatio`, `ColumnSpacing` / `RowSpacing`: [SkUiTileLayout.md](docs/controls/SkUiTileLayout.md).
+  - `MaximumRows` cuts the rows: the children past it are neither measured nor drawn, and an `OverflowTemplate` (bound to `SkUiTileOverflow.HiddenCount`: "+5") shows over the last tile, with `OverflowTapped` / `OverflowCommand`.
+  - Replaces a `Grid` rebuilt in `SizeChanged` ([Migration.md](docs/Migration.md#equal-tiles)); the gallery's tile layout pages, on both layers.
+
+### Other
+
+- **Shaped borders' first frame:** borders with the same outline (equal ticket-shaped cards in a list) share its content clip and shadow silhouette, which took a path operation per border: 400 such cards record their first frame in 25 ms instead of 590 ms on a desktop CPU (SkUi\*; Core 8 ms instead of 570 ms). It also works when each card makes its own stroke shape.
+- **Core layout changes re-record less:** a Core node whose measure changes (a label's new text, a box's new size) re-records itself and the containers whose size changes, no longer every container up to the host, as SkUi\* views since 1.0. `SkUiCoreTable` still re-records when a cell's measure changes, since its track fills and separators follow the cells.
+
 ## 1.8.0
 
 ### New features

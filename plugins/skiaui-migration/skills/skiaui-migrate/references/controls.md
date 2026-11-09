@@ -14,6 +14,7 @@ Namespace: `xmlns:sk="clr-namespace:MauiSkiaUi;assembly=MauiSkiaUi"`. Drawn cont
 | `AbsoluteLayout` | `sk:SkUiAbsoluteLayout` | MAUI's `AbsoluteLayout.LayoutBounds` / `LayoutFlags` |
 | `FlexLayout` | `sk:SkUiFlexLayout` | MAUI's attached `FlexLayout.*` properties |
 | — | `sk:SkUiWrapLayout` | Chips and tags (wrapping rows) |
+| A `Grid` of equal tiles whose columns are rebuilt in `SizeChanged` | `sk:SkUiTileLayout` | `TileSize` (the largest tile), `MinimumTileSize`, `TileAspectRatio`, `ColumnSpacing` / `RowSpacing`; `MaximumRows` with an `OverflowTemplate` (bound to `HiddenCount`: "+5") replaces code that hides the extra items; delete the `SizeChanged` handler. Many items (a photo library): a collection view with `GridItemsLayout` instead |
 | — | `sk:SkUiDragger` | A drawn handle whose `DragStarted` / `DragDelta` / `DragCompleted` report the travel in its parent's coordinates: resize or move views from code (replaces a hand-made pan handle) |
 | — | `sk:SkUiGridSplitter` | A handle in its own `Auto` row or column that resizes the rows or columns around it (drag, arrow keys); works in `sk:SkUiGrid` and MAUI's `Grid`; limits with `sk:SkUiGridSplitter.MinimumLength` / `MaximumLength` on the definitions |
 | Two views toggled by `IsVisible`, or a `DataTrigger` swapping `Content` | `sk:SkUiAlternateContentView` | `ShowsAlternate="{Binding …}"` shows `Content` (`false`), `AlternateContent` (`true`) or nothing (`null`); templates run on first show; optional switch animations |

@@ -6,10 +6,10 @@ Measure performance **before and after a change**, for any component, in a way t
 
 | Tier | Where | What it measures | Use it for |
 | --- | --- | --- | --- |
-| **Headless** (`benchmarks/MauiSkiaUi.Benchmarks`) | `net10.0` console app, any dev machine or CI | `generate` (build tree), `measure`, `arrange`, `record` (UI-thread picture recording of the first frame), `composite` (render-thread compositing into an offscreen raster), `update`, `allocKB` (managed bytes) | Fast inner loop (≈ 10 s), layout / text / recording regressions, allocations |
+| **Headless** (`benchmarks/MauiSkiaUi.Benchmarks`) | `net10.0` console app, any dev machine or CI | `generate` (build tree), `measure`, `arrange`, `record` (UI-thread picture recording of the first frame), `composite` (render-thread compositing into an offscreen raster), `update`, `updatePictures` (pictures the update's frame re-records), `allocKB` (managed bytes) | Fast inner loop (≈ 10 s), layout / text / recording regressions, allocations |
 | **Device** (`benchmarks/MauiSkiaUiBench`) | Release MAUI app on Android / iOS / Mac Catalyst | `generate`, `add` (attach to the page: handler creation), `firstFrame` (attach → first composited frame: layout, recording and compositing on the real surface), `update` (change → next composited frame), `motionFps` / `motionAvgRenderMs` / `motionMaxRenderMs` (render-thread frames while animating), `motionUiFps` / `motionAvgUiMs` / `motionMaxUiMs` (UI-thread animation frames: clock tick, recording and commit) | Authoritative numbers: JIT/AOT, GPU surfaces, vsync pacing, real text stacks |
 
-All values are **milliseconds** (except `motionFps` and `allocKB`). Reports show the **median** of the measured iterations; each scenario first runs `--warmup` iterations that are discarded.
+All values are **milliseconds** (except `motionFps`, `updatePictures` and `allocKB`). Reports show the **median** of the measured iterations; each scenario first runs `--warmup` iterations that are discarded.
 
 On iOS and Mac Catalyst the app forces UIKit layout (`LayoutIfNeeded`) right after attaching or updating. Since iOS 18, UIKit lays out in an update cycle aligned to the display refresh. Without forcing it, `firstFrame` would include a 0–16 ms wait that depends only on where the benchmark's continuation falls in that cycle. Native views pay that wait too. The update and motion phases start after a 100 ms idle gap: a change right after a frame waits for the next vsync, which is correct pacing but not what `update` should measure.
 

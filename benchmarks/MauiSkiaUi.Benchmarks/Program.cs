@@ -82,8 +82,10 @@ static BenchSample Run(BenchScenario scenario, int iteration, bool measureRetain
         Console.WriteLine($"SKUIRETAINED {scenario.Name} {(GC.GetTotalMemory(true) - retainedBefore) / 1024.0:F0} KB after first frame");
 
     double? update = null;
+    double? updatePictures = null;
     if (scenario.Update is { } apply)
     {
+        var picturesBefore = pipeline?.RecordedPictures;
         watch.Restart();
         apply(root);
         view.Measure(width, height);
@@ -98,12 +100,14 @@ static BenchSample Run(BenchScenario scenario, int iteration, bool measureRetain
             Paint(root, width, height);
         }
         update = watch.Elapsed.TotalMilliseconds;
+        if (picturesBefore is { } before && pipeline?.RecordedPictures is { } after)
+            updatePictures = after - before;
         if (measureRetained)
             Console.WriteLine($"SKUIRETAINED {scenario.Name} {(GC.GetTotalMemory(true) - retainedBefore) / 1024.0:F0} KB after update");
     }
 
     return new BenchSample(scenario.Name, "headless", iteration, generate, null, measure, arrange, paint, composite, null, update, null, null, null,
-        GC.GetAllocatedBytesForCurrentThread() - allocated);
+        GC.GetAllocatedBytesForCurrentThread() - allocated) { UpdatePictures = updatePictures };
 }
 
 static void Paint(View root, double width, double height)
@@ -125,6 +129,7 @@ sealed class FramePipeline : IDisposable
     private readonly object _renderer;
     private readonly System.Reflection.MethodInfo _present;
     private readonly System.Reflection.MethodInfo _render;
+    private readonly System.Reflection.PropertyInfo? _recordedPictures;
     private readonly SKBitmap _bitmap;
     private readonly SKCanvas _canvas;
     private readonly Stopwatch _clock = Stopwatch.StartNew();
@@ -134,6 +139,8 @@ sealed class FramePipeline : IDisposable
         _renderer = renderer;
         _present = present;
         _render = render;
+        _recordedPictures = renderer.GetType().GetProperty("RecordedPictures",
+            System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Public);
         _bitmap = new SKBitmap(width, height);
         _canvas = new SKCanvas(_bitmap);
     }
@@ -152,6 +159,9 @@ sealed class FramePipeline : IDisposable
         var renderer = ctor.Invoke([root, new Action<Action>(_ => { }), new Action(() => { }), new Action(() => { })]);
         return new FramePipeline(renderer, present, render, (int)width, (int)height);
     }
+
+    /// <summary>Pictures recorded so far (<c>null</c> on libraries without the counter).</summary>
+    public int? RecordedPictures => _recordedPictures?.GetValue(_renderer) as int?;
 
     /// <summary>UI-thread half: record dirty nodes and commit.</summary>
     public void Record() => _present.Invoke(_renderer, null);

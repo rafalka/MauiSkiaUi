@@ -308,6 +308,20 @@ The third chip's text: as it grows or shrinks, its row re-wraps and later chips 
 
 The third chip's `WidthRequest`; 0 for its natural width.
 
+## TileLayoutDemoPage.OverflowTile
+
+Sets an `OverflowTemplate`: a dimmed "+N" over the last photo when the photos need more than `MaximumRows`; off, the rows
+are only cut. Tap it to see `OverflowTapped`.
+
+## TileLayoutDemoPage.SecondPhotoVisible
+
+The second photo's `IsVisible`: a hidden photo takes no tile, and the others move up one.
+
+## CoreTileLayoutDemoPage.OverflowTile
+
+Sets an `OverflowTemplate` (a function that makes the node): a dimmed "+N" over the last photo when the photos need more
+than `MaximumRows`; off, the rows are only cut. Tap it to see `OverflowTapped`.
+
 ## CoreWrapLayoutDemoPage.FirstChipVisible
 
 The first chip's `IsVisible`: a hidden chip takes no room, and the others move up.

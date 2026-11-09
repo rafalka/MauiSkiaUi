@@ -97,7 +97,7 @@ First frame of the 400-card list (ms):
 - **All effects together** stay usable on the iPhone 8 (52–53 fps) but not on the S9 (20 fps).
 - **Animated content keeps the surface drawing.** With spinners, the surface composites about 60 frames per second even while nothing scrolls, where a static list composites none. That is little work per frame, but it never stops, which costs battery. With every effect on, even the idle S9 only manages 30 fps.
 - **First frames:**
-  - A shaped border costs about 1–2 s for the first frame of 400 cards, because each card computes its outline and its content clip (a path operation) when it is first laid out.
+  - A shaped border costs about 1–2 s for the first frame of 400 cards, because each card computes its outline and its content clip (a path operation) when it is first laid out. Since 1.9, borders with the same outline share the clip: headless, the 400 cards record in 25 ms instead of 590 ms (SkUi\*) and 8 ms instead of 570 ms (Core); the devices are measured again in 1.9 ([plan, R1](design/ImplementationPlan-1.9.md#phase-r--performance-backed-by-measurements)).
   - With the other effects, the S9's SkUi* first frame takes 290–340 ms.
   - The first configuration of each run (the baseline) also pays one-time costs.
 - **Native MAUI** builds the same card lists in 2.7–6.4 s to first frame on the iPhone 8 and 3.1–11.7 s on the S9, depending on the effects. Later configurations in a run are slower, as earlier native trees are still being released; only the first configuration compares cleanly.

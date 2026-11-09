@@ -22,6 +22,16 @@ internal static class SkUiValidate
 
     public static bool FinitePositive(BindableObject bindable, object? value) => value is double number && double.IsFinite(number) && number > 0;
 
+    /// <summary>A row limit: -1 (none) or at least 1.</summary>
+    public static bool RowLimit(BindableObject bindable, object? value) => value is int rows && (rows == -1 || rows >= 1);
+
+    /// <summary>Throws unless <paramref name="value"/> is -1 (no limit) or at least 1.</summary>
+    public static void ThrowIfNotRowLimit(int value, string name)
+    {
+        if (value != -1 && value < 1)
+            throw new ArgumentOutOfRangeException(name, value, "Expected -1 (no limit) or at least 1.");
+    }
+
     /// <summary>A scale up: finite, at least 1.</summary>
     public static bool AtLeastOne(BindableObject bindable, object? value) => value is double number && double.IsFinite(number) && number >= 1;
 
