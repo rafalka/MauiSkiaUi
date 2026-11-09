@@ -31,6 +31,8 @@ public sealed class SignInFormSample : SamplePage, ISample
                 "`<sk:SkUiEntry IsPassword=\"True\" AutofillHint=\"password\" />` (constants in `SkUiAutofillHints`: `Username`, " +
                 "`Password`, `NewPassword`, `OneTimeCode`, …).",
             "A new account: `AutofillHint=\"newPassword\"` on the new and the confirm field, so managers offer a generated password.",
+            "Let users check what they typed: `ShowsPasswordRevealButton=\"True\"` draws an eye that shows and hides the text; the " +
+                "field stays a password field for the keyboard and the password manager, and hides the text again when focus leaves.",
             "When the sign-in succeeds, call `SkUiAutofill.Commit()` (Android offers to save at once); when it is refused, " +
                 "`SkUiAutofill.Cancel()`.",
             "Ask for a one-time code on its own page: `AutofillHint=\"oneTimeCode\"`, `Keyboard=\"Numeric\"`, `MaxLength=\"6\"`; " +
@@ -71,9 +73,12 @@ public sealed class SignInFormSample : SamplePage, ISample
     {
         _user.Keyboard = Keyboard.Email;
         _password.IsPassword = true;
+        _password.ShowsPasswordRevealButton = true;
         _password.ReturnType = ReturnType.Done;
         _newPassword.IsPassword = true;
+        _newPassword.ShowsPasswordRevealButton = true;
         _confirmPassword.IsPassword = true;
+        _confirmPassword.ShowsPasswordRevealButton = true;
         _confirmPassword.ReturnType = ReturnType.Done;
         _submit.Clicked += (_, _) => SignIn(_user.Text, DrawnSource);
         _nativeSubmit.Clicked += (_, _) => SignIn(_nativeUser.Text, NativeSource);

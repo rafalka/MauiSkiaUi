@@ -97,7 +97,7 @@ Moved from 1.6, then from 1.8. Built on the branch `1.9-implementation`. Steps, 
 
 - **Performance:** the device results measured again on the current toolchain (done: Core's first frame is faster, the stress page's first-frame column was the wrong measure); Core measure invalidation without re-recording ancestors (done); shaped borders sharing their content clips (done).
 - **Layouts and containers:** a tile layout for galleries of equal tiles, with an overflow tile (done: [SkUiTileLayout](../controls/SkUiTileLayout.md)); Core twins of the state container and the expander (done: `SkUiCoreStateContainer`, `SkUiCoreExpander`; with independent `ScaleX` / `ScaleY` and `AnchorX` / `AnchorY` on Core nodes, so animating one scale axis of a Core node no longer scales both).
-- **Text input:** password reveal (show / hide) in drawn password fields.
+- **Text input:** password reveal (show / hide) in drawn password fields (done: `IsPasswordRevealed`, `ShowsPasswordRevealButton`, `HidesPasswordOnUnfocus` on both entries; device checks in the [verification backlog](#verification-backlog)).
 
 .NET 11 / MAUI 11 waits until it is released.
 
@@ -168,7 +168,7 @@ Multi-target the one `SkiaUi.Maui` package (`net10.0-*` plus `net11.0-*`) so app
 
 Device runs that are still open. How to run them: [Testing.md](Testing.md#device-acceptance-checklists-still-open).
 
-- **Text input:** dictation, Google / iOS / third-party password managers on devices; drawn popups over a focused field. (CJK and Korean composition, Android autofill on devices, Windows runs, VoiceOver text navigation on a device and the Windows touch keyboard: verified, reported 29 October 2026.)
+- **Text input:** dictation, Google / iOS / third-party password managers on devices; drawn popups over a focused field. Password reveal (1.9): checked 9 November 2026 on the Galaxy S9 (Android 10, Samsung Keyboard, Samsung Pass) and the iPhone 8 (iOS 16.7) by the device tests' password reveal check, and on the S9 by hand on the samples' sign-in form (see [TextInput.md](TextInput.md#text-fields-d3)); still open: Google and third-party autofill services and iOS Passwords on a revealed field, TalkBack and VoiceOver themselves speaking it, Windows' masked box and Narrator. (CJK and Korean composition, Android autofill on devices, Windows runs, VoiceOver text navigation on a device and the Windows touch keyboard: verified, reported 29 October 2026.)
 - **Accessibility:** TalkBack, VoiceOver (iOS) and Narrator on devices; keyboards on Android and Windows; an Appium run with `ExposeAutomationIds`.
 - **Hosted controls:** the manual checklist (soft keyboard, IME, WebView nesting) on devices and Windows.
 - **Controls:** feel and frame time on devices for the collection view (fling at 10k items, memory), virtual stack, swipe view, refresh view, carousel, expander, avatar view, shimmer (a scrolling list of shimmering rows), scroll bars and overscroll; the pickers' presenters on Windows (the toolkit's anchored list was checked on 29 October 2026: frame, keyboard, dismissal), in landscape, on rotation and window resize, with screen readers; tooltips on Windows and iPad.

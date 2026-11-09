@@ -15,6 +15,7 @@ Add entries under `## Unreleased`, grouped under these subsections (only the one
 ### Other`: behavior changes that are not breaking, performance, samples and demo.
 
 Publishing (the NuGet publish workflow, [docs/Releasing.md](docs/Releasing.md)) renames `## Unreleased` to the new version. The package's `PackageReleaseNotes`, shown on nuget.org as plain text, gets a link to the version's section, the titles of its new features and its breaking changes; the GitHub release gets the whole section. Newest section first; headings are exactly `## <version>`. Sections up to 1.0.0-Prerelease07 predate the subsections.
+- **Device tests:** a password reveal check with the platform's real text input (the keyboard is not restarted, the field stays a password field, screen readers follow), passed on a Galaxy S9 and an iPhone 8; `scripts/device_tests.sh --xcode` launches on iOS 16 devices with an older Xcode, whose developer image Xcode 27 no longer mounts.
 
 ## Unreleased
 
@@ -26,6 +27,10 @@ Publishing (the NuGet publish workflow, [docs/Releasing.md](docs/Releasing.md)) 
 - **Core state container:** `SkUiCoreStateContainer`, the Core twin of the attached `SkUiStateContainer`: its content, or the node of the state `CurrentState` names, from keyed `States` (a node, or a factory run when the state is first named). `CanStateChange`, `ChangeStateWithAnimation` and the before / after state change animations on the render thread work as on the SkUi\* layer; a `SkUiCoreShimmer` makes a skeleton loading state ([SkUiStateContainer.md](docs/controls/SkUiStateContainer.md#core-layer)).
 - **Core expander:** `SkUiCoreExpander`, the Core twin of `SkUiExpander`: `Header`, `Content`, `IsExpanded`, `Direction`, `Command`, `ExpandedChanged`, `LazyContentExpansion`, `AnimationLength` / `AnimationEasing`, the content growing from the header while the height follows. Each animation frame re-records only the nodes whose size changed ([SkUiExpander.md](docs/controls/SkUiExpander.md#core-layer)).
 - **Core nodes scale each axis:** `ScaleX`, `ScaleY` (multiplied by `Scale`, as in MAUI), `AnchorX` and `AnchorY` on every Core node, composite-time and animatable on the render thread (`AnimateAsync`, `SkUiViewAnimation`), with transform-aware hit testing.
+- **Password reveal:** `IsPasswordRevealed` (two-way), `ShowsPasswordRevealButton` and `HidesPasswordOnUnfocus` (default `true`) on `SkUiEntry` and `SkUiCoreEntry` (and the numeric entries): a password field draws its text instead of the bullets, with an optional reveal button (an eye) at its end that toggles without focusing the field ([SkUiEntry.md](docs/controls/SkUiEntry.md)).
+  - The field stays a password field for the platform while revealed (the keyboard, autofill and password managers see one) and copying stays off; the caret and selection stay put, and the text is masked again when the field loses focus.
+  - Screen readers read the text only while it shows, and the button as "Show password" / "Hide password" (`SkUiStrings.ShowPasswordText` / `HidePasswordText`, automation id `{AutomationId}_Reveal`).
+  - The look sizes and draws the button: `TextFieldPasswordRevealButtonWidth`, `DrawTextFieldPasswordRevealButton` (`DrawTextFieldPasswordRevealButtonCore`, `DrawPasswordRevealGlyph`, `TextFieldPasswordRevealButtonPainter`) with `SkUiPasswordRevealButtonPaint`.
 - Gallery: Core state container and Core expander pages.
 
 ### Breaking changes

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Run the on-device tests (tests/MauiSkiaUi.DeviceTests: a render check, the hosted-control and surface-state checks and memory leak
+# Run the on-device tests (tests/MauiSkiaUi.DeviceTests: a render check, the hosted-control, surface-state and password reveal checks and memory leak
 # scenarios with real handlers and platform views) and report the results. Builds the app (Release by default), installs it, launches it with --autorun --exit,
 # collects its "SKUILEAK" console lines and exits non-zero when anything failed.
 # Results: artifacts/device-tests/<timestamp>/{<target>.log,build.log}.
@@ -10,6 +10,7 @@
 #   scripts/device_tests.sh -t android -s 2299011508047ece -S ButtonsClicked,NativeOverlays
 #   scripts/device_tests.sh -t ios                             # the booted simulator
 #   scripts/device_tests.sh -t ios -s <device-udid>            # physical device (devicectl, or mlaunch below iOS 17)
+#   scripts/device_tests.sh -t ios -s <udid> --xcode /Applications/Xcode-26.6.0.app   # below iOS 17 with an Xcode that still mounts its developer image
 #   scripts/device_tests.sh -t maccatalyst --aot               # Native AOT (fully trimmed) build of the app
 #   scripts/device_tests.sh -t android --trim                  # fully trimmed build (no AOT)
 #   scripts/device_tests.sh -t maccatalyst -S NativeOverlays --placement-tolerance -1   # the hosted check must fail
@@ -33,6 +34,7 @@ BUILD=true
 AOT=false
 TRIM=false
 PLACEMENT_TOLERANCE=""
+XCODE=""
 
 usage() {
     cat <<'EOF'
@@ -48,6 +50,8 @@ Usage: scripts/device_tests.sh -t TARGET [options]
   --trim           build the app fully trimmed (TrimMode=full, no AOT); fails on trim warnings from SkiaUi
   --placement-tolerance DIPS
                    override the hosted-control check's tolerance (default 1.01; a negative value must make it fail)
+  --xcode PATH     Xcode (.app or its Developer folder) mlaunch uses below iOS 17: newer Xcodes may fail to mount the
+                   device's developer image (HE0032)
   --no-build       reuse the last build
   -h, --help       this help
 EOF
@@ -62,6 +66,7 @@ while [[ $# -gt 0 ]]; do
         -o) OUT="$2"; shift 2 ;;
         --timeout) TIMEOUT="$2"; shift 2 ;;
         --no-build) BUILD=false; shift ;;
+        --xcode) XCODE="$2"; shift 2 ;;
         --aot) AOT=true; shift ;;
         --trim) TRIM=true; shift ;;
         --placement-tolerance) PLACEMENT_TOLERANCE="$2"; shift 2 ;;
@@ -107,7 +112,7 @@ if [[ "$AOT" == true ]]; then
 fi
 IOS_MLAUNCH=false
 if [[ "$TARGET" == ios && "$RID" == ios-arm64 ]] && ! xcrun devicectl list devices 2>/dev/null | grep -q "$DEVICE"; then
-    IOS_MLAUNCH=true # devicectl knows only iOS 17+ devices; older ones launch through mlaunch (dotnet build -t:Run)
+    IOS_MLAUNCH=true # devicectl knows only iOS 17+ devices; older ones install and launch through mlaunch
 fi
 if [[ "$IOS_MLAUNCH" == true && ( "$AOT" == true || "$TRIM" == true ) ]]; then
     echo "--aot / --trim are not supported for iOS devices below iOS 17 (mlaunch path); use a simulator or an iOS 17+ device" >&2
@@ -214,11 +219,21 @@ run_ios() {
         xcrun simctl install "$DEVICE" "$(output "$RID/*.app")"
         timeout "$TIMEOUT" xcrun simctl launch --console --terminate-running-process "$DEVICE" "$APP_ID" "${app_args[@]}" 2>&1 | filter >"$LOG" || true
     elif [[ "$IOS_MLAUNCH" == true ]]; then
-        local mlaunch_args="" stdout="$OUT/ios.stdout"
-        for arg in "${app_args[@]}"; do mlaunch_args+="--argument=$arg;"; done
-        timeout "$TIMEOUT" dotnet build -t:Run -c "$CONFIG" -f "$TFM" -p:RuntimeIdentifier=ios-arm64 "-p:_DeviceName=$DEVICE" \
-            "-p:MlaunchAdditionalArgumentsProperty=\"${mlaunch_args%;}\"" "-p:StandardOutputPath=$stdout" -p:WaitForExit=true \
-            "$PROJECT" -v q -nologo >>"$OUT/build.log" 2>&1 || true
+        # mlaunch directly (installs, then launches and waits): `dotnet build -t:Run` needs a build of the same invocation.
+        local mlaunch stdout="$OUT/ios.stdout" sdk=() launch_args=()
+        mlaunch="$(find /usr/local/share/dotnet/packs "$HOME/.dotnet/packs" -path "*Microsoft.iOS.Sdk.net10*/tools/bin/mlaunch" -type f 2>/dev/null | sort -V | tail -1)"
+        [[ -n "$mlaunch" ]] || { echo "mlaunch not found (iOS workload)" >&2; exit 1; }
+        if [[ -n "$XCODE" ]]; then
+            [[ -d "$XCODE/Contents/Developer" ]] && XCODE="$XCODE/Contents/Developer"
+            sdk=(--sdkroot "$XCODE")
+        fi
+        for arg in "${app_args[@]}"; do launch_args+=("--argument=$arg"); done
+        : >"$stdout"
+        "$mlaunch" "${sdk[@]}" --installdev "$(output "ios-arm64/*.app")" --devname "$DEVICE" >>"$OUT/build.log" 2>&1 \
+            || { echo "install failed ($OUT/build.log)" >&2; exit 1; }
+        timeout "$TIMEOUT" "$mlaunch" "${sdk[@]}" --launchdev "$(output "ios-arm64/*.app")" --devname "$DEVICE" --stdout "$stdout" \
+            --wait-for-exit:true "${launch_args[@]}" >>"$OUT/build.log" 2>&1 || true
+        grep -q "HE0032" "$OUT/build.log" && echo "mlaunch could not mount the developer image: pass --xcode with an older Xcode" >&2
         filter <"$stdout" >"$LOG" || true
     else
         xcrun devicectl device install app --device "$DEVICE" "$(output "ios-arm64/*.app")" >/dev/null
@@ -232,8 +247,7 @@ run_maccatalyst() {
     timeout "$TIMEOUT" "$binary" "${app_args[@]}" 2>&1 | filter >"$LOG" || true
 }
 
-# mlaunch builds and launches in one step; the other paths build first.
-if [[ "$BUILD" == true && "$IOS_MLAUNCH" != true ]]; then build; fi
+if [[ "$BUILD" == true ]]; then build; fi
 log "running on $TARGET${DEVICE:+ ($DEVICE)}"
 "run_$TARGET"
 
@@ -242,7 +256,7 @@ log "running on $TARGET${DEVICE:+ ($DEVICE)}"
 python3 - "$LOG" <<'PY'
 import json, sys
 lines = open(sys.argv[1]).read().splitlines()
-results, detector, render, hosted, surface, done, errors = [], None, None, None, None, None, []
+results, detector, render, hosted, surface, reveal, done, errors = [], None, None, None, None, None, None, []
 for line in lines:
     tag, _, payload = line.partition(" ")
     if tag == "SKUILEAK":
@@ -255,13 +269,15 @@ for line in lines:
         hosted = json.loads(payload)
     elif tag == "SKUILEAK_SURFACE":
         surface = json.loads(payload)
+    elif tag == "SKUILEAK_REVEAL":
+        reveal = json.loads(payload)
     elif tag == "SKUILEAK_DONE":
         done = payload
     elif tag == "SKUILEAK_START":
         print(payload)
     elif tag == "SKUILEAK_ERROR":
         errors.append(payload)
-for check, name in ((render, "rendering"), (hosted, "hosted"), (surface, "surface"), (detector, "detector")):
+for check, name in ((render, "rendering"), (hosted, "hosted"), (surface, "surface"), (reveal, "reveal"), (detector, "detector")):
     if check:
         print(f"{name:9} {check['Status']:4}  {check['Details']}")
 for r in results:
@@ -272,7 +288,7 @@ for e in errors:
 if done is None:
     print("the run did not finish (crash or timeout); see the log")
 ok = (done is not None and not failed and not errors
-      and all(check is not None and check["Status"] == "Pass" for check in (detector, render, hosted, surface)))
+      and all(check is not None and check["Status"] == "Pass" for check in (detector, render, hosted, surface, reveal)))
 print(f"\n{len(results) - len(failed)}/{len(results)} passed" + ("" if ok else " — FAILED"))
 sys.exit(0 if ok else 1)
 PY

@@ -569,3 +569,11 @@ public enum SkUiPopupButton
 /// <param name="IsMore">The token stands for the chosen items that do not fit ("+N").</param>
 public readonly record struct SkUiPickerTokenPaint(SKRect Bounds, SKRect RemoveBounds, SKColor Fill, SKColor Foreground, bool IsRemovePressed, bool IsEnabled,
     bool IsMore);
+
+/// <summary>What a look draws a password field's reveal button with (<see cref="SkUiLook.DrawTextFieldPasswordRevealButton"/>).</summary>
+/// <param name="Bounds">The button's room in the field (at the end side, inside the trailing view).</param>
+/// <param name="Color">The button's color (the color scheme's muted color).</param>
+/// <param name="IsRevealed">The password's text shows (<c>IsPasswordRevealed</c>).</param>
+/// <param name="IsPressed">The button is pressed.</param>
+/// <param name="IsEnabled">The field is enabled.</param>
+public readonly record struct SkUiPasswordRevealButtonPaint(SKRect Bounds, SKColor Color, bool IsRevealed, bool IsPressed, bool IsEnabled);

@@ -36,6 +36,9 @@ public sealed class EntryDemoPage : ComponentDemoPage
         Text(nameof(SkUiEntry.Placeholder), Placeholder, value => { skia.Placeholder = value; native.Placeholder = value; }, () => skia.Placeholder ?? string.Empty,
             () => native.Placeholder ?? string.Empty);
         Toggle(nameof(SkUiEntry.IsPassword), false, value => { skia.IsPassword = value; native.IsPassword = value; }, () => skia.IsPassword, () => native.IsPassword);
+        Toggle(nameof(SkUiEntry.ShowsPasswordRevealButton), false, value => skia.ShowsPasswordRevealButton = value, () => skia.ShowsPasswordRevealButton);
+        Toggle(nameof(SkUiEntry.IsPasswordRevealed), false, value => skia.IsPasswordRevealed = value, () => skia.IsPasswordRevealed);
+        Toggle(nameof(SkUiEntry.HidesPasswordOnUnfocus), true, value => skia.HidesPasswordOnUnfocus = value, () => skia.HidesPasswordOnUnfocus);
         Toggle(nameof(SkUiEntry.IsReadOnly), false, value => { skia.IsReadOnly = value; native.IsReadOnly = value; }, () => skia.IsReadOnly, () => native.IsReadOnly);
         Choice(nameof(SkUiEntry.Keyboard), ["Default", "Text", "Numeric", "Telephone", "Email", "Url", "Chat", "Plain"], "Default",
             value => { skia.Keyboard = KeyboardOf(value); native.Keyboard = KeyboardOf(value); }, () => NameOf(skia.Keyboard), () => NameOf(native.Keyboard));

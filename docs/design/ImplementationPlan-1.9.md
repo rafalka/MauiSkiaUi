@@ -2,7 +2,7 @@
 
 **Goal:** the Core layer stops re-recording ancestors on a measure change and shaped borders stop costing seconds on the first frame; galleries of equal tiles lay out by themselves; the Core twins of the state container and the expander close the Core layer's container gaps; drawn password fields can show their text.
 
-**Scope:** moved from the 1.6 plan, whose [viewport insets](ImplementationPlan-1.6.md) ship alone; 1.7 brought [vector icons](Roadmap.md#170-vector-icons-shipped) and 1.8 [Markdown](ImplementationPlan-1.8.md). Started on `1.9-implementation` (9 November 2026): R1, R2, R3, T1–T3 and S1–S3 done.
+**Scope:** moved from the 1.6 plan, whose [viewport insets](ImplementationPlan-1.6.md) ship alone; 1.7 brought [vector icons](Roadmap.md#170-vector-icons-shipped) and 1.8 [Markdown](ImplementationPlan-1.8.md). Started on `1.9-implementation` (9 November 2026): R1, R2, R3, T1–T3, S1–S3, E1 and E2 done (E1's device checks in the verification backlog).
 
 **Baseline:** .NET MAUI 10.0.120 (or the latest 10.0.x when 1.9 ships), SkiaSharp 4.154.0, branch `1.9-implementation` from `devel` after 1.8.0. .NET 11 / MAUI 11 waits until it is released ([roadmap](Roadmap.md#net-11--maui-11-support)). What has shipped is in the [changelog](../../CHANGELOG.md); the rest of the 1.x backlog stays in the [roadmap](Roadmap.md#backlog-1x).
 
@@ -51,7 +51,7 @@
 
 ## Phase E — Password reveal
 
-- **E1 Show / hide in drawn password fields** ([D3](#decisions)). Size: M.
+- **E1 Show / hide in drawn password fields** ([D3](#decisions)). Size: M. **Done** (headless: `PasswordRevealTests`; on devices, the device tests' `PasswordRevealCheck` passed on the Galaxy S9 and the iPhone 8 and the S9 was checked by hand on 9 November 2026; what is still open is in the [verification backlog](Roadmap.md#verification-backlog)). The model's `Masks` (a password, not revealed) drives the drawing and the semantics, `IsPassword` the platform's options and the edit actions; the button sits between the clear button and the trailing view, and a tap on it does not focus the field.
   - On `SkUiEntry` and `SkUiCoreEntry`: `IsPasswordRevealed` (two-way) and `ShowsPasswordRevealButton` (`bool`, default `false`). The button is a trailing icon drawn by the look (new virtual members for its glyphs and size), a toggle for screen readers ("Show password" / "Hide password" in `SkUiStrings`).
   - The field stays a password field for the platform while revealed: Android keeps the password input type (only the drawing stops masking), iOS keeps `secureTextEntry`, Windows' proxy box keeps its mask; so the keyboard, autofill and password managers behave as before, and copy stays disabled. Screen readers read the text only while revealed.
   - Hidden again when the field loses focus (`HidesPasswordOnUnfocus`, default `true`).
@@ -80,7 +80,7 @@ T, S1 and E are independent of phase R and of each other.
 
 - **D1 The tile layout is a layout, not a virtualized list.** Galleries with many items use the collection view's grid; the tile layout is for a page's strip or block of tiles. **Decided** (built so in T1).
 - **D2 Core `ScaleX` / `ScaleY` become independent.** Today Core nodes scale uniformly, and animating `ScaleX` or `ScaleY` on a Core node scales both. With separate scales an animation of `ScaleX` scales X only, as on SkUi\* views and in MAUI; `Scale` still sets both. A behavior change for Core code that animates one axis, so it goes under `### Breaking changes` in the changelog with the fix (animate `Scale`). **Decided:** independent (done in S2).
-- **D3 Reveal names.** `IsPasswordRevealed` / `ShowsPasswordRevealButton` / `HidesPasswordOnUnfocus`: MAUI has no API to follow. **Proposed.**
+- **D3 Reveal names.** `IsPasswordRevealed` / `ShowsPasswordRevealButton` / `HidesPasswordOnUnfocus`: MAUI has no API to follow. **Decided** (built so in E1; look members `TextFieldPasswordRevealButtonWidth`, `DrawTextFieldPasswordRevealButton`, `DrawPasswordRevealGlyph`; strings `ShowPasswordText` / `HidePasswordText`).
 
 ## Acceptance
 

@@ -1285,6 +1285,9 @@ public class SkUiLook
     /// <summary>The room a text field keeps for its clear button (<c>ClearButtonVisibility</c>) at the end, in DIPs (default 32).</summary>
     public virtual double TextFieldClearButtonWidth => 32;
 
+    /// <summary>The room a password field keeps for its reveal button (<c>ShowsPasswordRevealButton</c>) at the end, in DIPs (default 40).</summary>
+    public virtual double TextFieldPasswordRevealButtonWidth => 40;
+
     /// <summary>
     /// The space between a text field's leading or trailing view (<c>LeadingView</c>, <c>TrailingView</c>) and its text, in DIPs
     /// (default 8). A clear button between the text and the trailing view is the space there.
@@ -1570,6 +1573,61 @@ public class SkUiLook
 
     /// <summary>Default text field clear button: the picker's (<see cref="DrawPickerClearButtonCore"/>).</summary>
     protected virtual void DrawTextFieldClearButtonCore(SKCanvas canvas, SkUiClearButtonPaint button) => DrawPickerClearButtonCore(canvas, button);
+
+    /// <summary>Optional painter of a password field's reveal button; when set, replaces <see cref="DrawTextFieldPasswordRevealButtonCore"/>.</summary>
+    public Action<SKCanvas, SkUiPasswordRevealButtonPaint>? TextFieldPasswordRevealButtonPainter { get; set; }
+
+    /// <summary>
+    /// Draws the reveal button of a password field (delegate or <see cref="DrawTextFieldPasswordRevealButtonCore"/>) in
+    /// <see cref="SkUiPasswordRevealButtonPaint.Bounds"/>, at the field's end; shown with <c>ShowsPasswordRevealButton</c>.
+    /// </summary>
+    public void DrawTextFieldPasswordRevealButton(SKCanvas canvas, SkUiPasswordRevealButtonPaint button)
+    {
+        if (TextFieldPasswordRevealButtonPainter is { } painter)
+        {
+            painter(canvas, button);
+            return;
+        }
+        DrawTextFieldPasswordRevealButtonCore(canvas, button);
+    }
+
+    /// <summary>
+    /// Default reveal button: an eye in the button's color, centered, showing the state as Material's password toggle does (an eye
+    /// while the text shows, struck through while it is masked); dimmed while pressed or disabled. Override
+    /// <see cref="DrawPasswordRevealGlyph"/> to change only the glyph.
+    /// </summary>
+    protected virtual void DrawTextFieldPasswordRevealButtonCore(SKCanvas canvas, SkUiPasswordRevealButtonPaint button)
+    {
+        var alpha = button.IsEnabled ? (button.IsPressed ? 0.6f : 1f) : 0.5f;
+        using var paint = new SKPaint
+        {
+            IsAntialias = true, Style = SKPaintStyle.Stroke, StrokeWidth = 1.5f, StrokeCap = SKStrokeCap.Round, StrokeJoin = SKStrokeJoin.Round,
+            Color = button.Color.WithAlpha((byte)(button.Color.Alpha * alpha))
+        };
+        DrawPasswordRevealGlyph(canvas, new SKPoint(button.Bounds.MidX, button.Bounds.MidY), button.IsRevealed, paint);
+    }
+
+    /// <summary>
+    /// The reveal button's glyph centered at <paramref name="center"/> with <paramref name="paint"/> (a 1.5 DIP round stroke in the
+    /// button's color): an eye 18 DIPs wide, with a slash across it while the text is masked (<paramref name="revealed"/> false).
+    /// </summary>
+    protected virtual void DrawPasswordRevealGlyph(SKCanvas canvas, SKPoint center, bool revealed, SKPaint paint)
+    {
+        const float halfWidth = 9;
+        const float lid = 6.5f;
+        const float pupil = 2.75f;
+        const float slash = 7.5f;
+        using var builder = new SKPathBuilder();
+        builder.MoveTo(center.X - halfWidth, center.Y);
+        builder.QuadTo(center.X, center.Y - lid * 2, center.X + halfWidth, center.Y);
+        builder.QuadTo(center.X, center.Y + lid * 2, center.X - halfWidth, center.Y);
+        builder.Close();
+        using var eye = builder.Detach();
+        canvas.DrawPath(eye, paint);
+        canvas.DrawCircle(center, pupil, paint);
+        if (!revealed)
+            canvas.DrawLine(center.X - slash, center.Y - slash, center.X + slash, center.Y + slash, paint);
+    }
 
     #endregion
 

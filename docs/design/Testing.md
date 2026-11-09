@@ -126,6 +126,7 @@ One scenario catalog, [`tests/Shared/MemoryLeaks`](../../tests/Shared/MemoryLeak
 ```bash
 scripts/device_tests.sh -t maccatalyst
 scripts/device_tests.sh -t ios                          # booted simulator; -s UDID for a device
+scripts/device_tests.sh -t ios -s <udid> --xcode /Applications/Xcode-26.6.0.app   # below iOS 17 (mlaunch), when the default Xcode cannot mount the device's developer image (HE0032)
 scripts/device_tests.sh -t android -s 2299011508047ece
 scripts/device_tests.sh -t android -S ButtonsClicked,NativeOverlays
 ```
@@ -136,6 +137,7 @@ The script builds the app in Release (no debugger or Hot Reload keeping instance
 - `SKUILEAK_RENDER {json}` for the render check;
 - `SKUILEAK_HOSTED {json}` for the hosted-control check;
 - `SKUILEAK_SURFACE {json}` for the surface-state check;
+- `SKUILEAK_REVEAL {json}` for the password reveal check;
 - `SKUILEAK_DETECTOR {json}` for the self-test;
 - one `SKUILEAK {json}` per scenario;
 - `SKUILEAK_DONE`.
@@ -148,7 +150,8 @@ It prints a table and exits non-zero on any failure. Logs go to `artifacts/devic
 - **Render check:** before the scenarios, the app draws a label, a button and an app-defined view with an overlay layer offscreen, and checks their pixels (`SKUILEAK_RENDER`). Leak scenarios alone would not notice a build where drawing silently breaks. It also loads a `MauiImage` (an SVG item, by its generated PNG name) and checks it lays out at its 48 × 48 base size from the display-density file, and that a `FontImageSource` glyph renders synchronously in a `ConfigureFonts` font: the platform-specific image lookups of P4. Last, it checks that `SkUiWeakEvent` still tells closures from objects in that build (a lambda capturing a local keeps firing after a collection, an object's handler does not keep it alive): it relies on compiler-generated type names, which trimming or Native AOT could change.
 - **Hosted-control check (A6):** `HostedControlsCheck` opens a page with an Entry, an Editor, a WebView, an Entry in a nested horizontal scroller, one in a collapsed expander, one under an ancestor with `ClipToBounds` and one that gets replaced, all hosted in a drawn scroller. After each step it reads every native view back from the platform (`SkUiMauiContentView.GetNativePlacement`: the clip wrapper's and the view's laid-out geometry, whether it shows) and compares it with the drawn tree's frame, visible part and hidden state, within 1 DIP (`SkUiMauiContentView.FindNativePlacementMismatch`, also behind the demo's **Check native placement**). The steps are: first layout, instant scrolls of both scrollers, an animated scroll (snapshots on Android / Windows, live placement on Apple; the motion must be observed, else the step fails) and the restore after it, a focused Entry that keeps focus and stays live while scrolling, the same tree on a new page, expand and collapse, a replaced control, and resizing the clipping ancestor and the scroller without an offset change (`SKUILEAK_HOSTED`). `--placement-tolerance -1` must make it fail (`scripts/device_tests.sh -t maccatalyst -S NativeOverlays --placement-tolerance -1`): proof that it compares real native geometry.
 - **Surface-state check:** `SurfaceStateCheck` opens a page with a software-drawn label in a hidden `ContentView` and a button in a disabled one, then shows and enables them and hides and disables them again. After each step the internal SkiaSharp view must show and take input (MAUI state and native view), and the root's native view must show or hide with its container (`SKUILEAK_SURFACE`). The SkiaSharp view has no MAUI parent: MAUI propagates inherited state (effective visibility since MAUI 10.0.120, `IsEnabled`) through visual children, which it is not, so a parent's state taken at creation would stay (#69). The root's native view shows and hides it; the drawn tree handles `IsEnabled`.
-- **CI** runs the Mac Catalyst device tests with `--aot`. iOS devices below iOS 17 (not supported by `devicectl`) are launched through `mlaunch` (`dotnet build -t:Run`).
+- **Password reveal check (1.9 E1):** `PasswordRevealCheck` focuses a drawn password field (`ShowsPasswordRevealButton`) with the platform's real text input, reveals it with a tap on its drawn button through the surface, hides it with a second tap, then reveals it and moves the focus away. It requires: the same platform input session before and after revealing (Android: the input connection the input method holds, so the keyboard was not restarted; iOS: the same first-responder input view) and a password field for the platform throughout (Android: a password input type, the input method active and accepting text; iOS: `secureTextEntry`, the same keyboard type), the focus kept, no copy or cut, the semantics' password flag and value following the state, on Apple VoiceOver's element (value, and text navigation while revealed), and the text masked again once the focus leaves (`SKUILEAK_REVEAL`).
+- **CI** runs the Mac Catalyst device tests with `--aot`. iOS devices below iOS 17 (not supported by `devicectl`) are installed and launched through `mlaunch` directly; Xcode 27's developer image no longer mounts on iOS 16, so pass `--xcode` with an older Xcode (`mlaunch --sdkroot`).
 
 Launched normally, the app shows the test page: **Run all**, **Rerun failed**, **Self-checks** (detector and render check), and **Run** per scenario, with results and survivors inline.
 
@@ -301,7 +304,8 @@ Steps (drawn form first, then the native form for comparison):
 6. **New password.** **Create account** side, tap the new-password field: Android (Google) offers a generated strong password; iOS with an associated domain offers *Use Strong Password*. Picking it fills the field (and on iOS the confirm field if one is marked `NewPassword` too).
 7. **One-time code.** On the **Verify** page, focus the code field and have another phone send an SMS to the device: *Your code is 123456*. iOS: *From Messages 123456* in the QuickType bar; Android: Gboard's strip offers the code (Google autofill with SMS permission). Picking it fills the field.
 8. **Sensitive data.** With TalkBack or VoiceOver on, the filled password is read as bullets; Android's autofill service never shows the password in its dropdown.
-9. **Leak check.** Sign in and out ten times, then run the `TextFieldsEdited` scenario (`scripts/device_tests.sh -S TextFieldsEdited`): no growth.
+9. **Reveal (1.9).** The password fields have a reveal button. Tap it on a focused, typed password: the text shows, the keyboard stays up and stays a password keyboard (no suggestions, Android `inputType` unchanged: `adb shell dumpsys input_method`), typing continues; the service still offers and fills on the fields; with TalkBack / VoiceOver the text is read only while revealed and the button as "Show password" / "Hide password"; moving the focus away masks it again.
+10. **Leak check.** Sign in and out ten times, then run the `TextFieldsEdited` scenario (`scripts/device_tests.sh -S TextFieldsEdited`): no growth.
 
 ### Accessibility and keyboard (P10)
 

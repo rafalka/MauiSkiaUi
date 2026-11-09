@@ -48,6 +48,12 @@ internal interface ISkUiTextFieldOwner : ISkUiTransitionHost
     /// itself (a button): the field's own gestures leave it alone.
     /// </summary>
     bool AdornmentTakesPointer(Point local);
+
+    /// <summary>
+    /// The user showed or hid a password's text (its reveal button, or the field lost focus with <c>HidesPasswordOnUnfocus</c>): the
+    /// control's <c>IsPasswordRevealed</c> follows.
+    /// </summary>
+    void PasswordRevealEdited(bool revealed);
 }
 
 /// <summary>
@@ -94,6 +100,7 @@ internal sealed class SkUiTextFieldModel : ISkUiTextInputClient, ISkUiTextEditor
     private IDisposable? _blink;
     private SkUiDrawableSlot<CaretKey> _caret;
     private bool _clearPressed;
+    private bool _revealPressed;
     // The field's own height (without its message) at the last measure: a node too short for both keeps the field at this height.
     private float _fieldHeight;
 
@@ -140,6 +147,18 @@ internal sealed class SkUiTextFieldModel : ISkUiTextInputClient, ISkUiTextEditor
     public Keyboard Keyboard = Keyboard.Default;
     public ReturnType ReturnType;
     public bool IsPassword;
+
+    /// <summary>
+    /// The control's <c>IsPasswordRevealed</c>: a password's text is drawn (and read by screen readers) instead of bullets. The
+    /// platform still sees a password field (<see cref="Options"/>), and copying stays off. Set it with <see cref="SetPasswordRevealed"/>.
+    /// </summary>
+    public bool IsPasswordRevealed { get; private set; }
+
+    /// <summary>The control's <c>ShowsPasswordRevealButton</c>: a password field draws the look's reveal button at its end.</summary>
+    public bool ShowsPasswordRevealButton;
+
+    /// <summary>The control's <c>HidesPasswordOnUnfocus</c>: a revealed password is masked again when the field loses focus (default).</summary>
+    public bool HidesPasswordOnUnfocus = true;
     public bool IsSpellCheckEnabled = true;
     public bool IsTextPredictionEnabled = true;
     public ClearButtonVisibility ClearButtonVisibility;
@@ -315,6 +334,30 @@ internal sealed class SkUiTextFieldModel : ISkUiTextInputClient, ISkUiTextEditor
         Editor.Select(SkUiTextBoundaries.AlignToGrapheme(Editor.Text, start), SkUiTextBoundaries.AlignToGrapheme(Editor.Text, end));
     }
 
+    /// <summary>
+    /// Shows (<paramref name="revealed"/>) or masks a password's text: the field is laid out and drawn again (the caret and the
+    /// selection stay on the same characters) and screen readers read the text or the bullets; the platform's input keeps its
+    /// password options. The control's <c>IsPasswordRevealed</c> follows (<see cref="ISkUiTextFieldOwner.PasswordRevealEdited"/>).
+    /// </summary>
+    public void SetPasswordRevealed(bool revealed)
+    {
+        if (IsPasswordRevealed == revealed)
+            return;
+        IsPasswordRevealed = revealed;
+        if (IsPassword)
+            TextChanged();
+        _owner.PasswordRevealEdited(revealed);
+    }
+
+    /// <summary>The control's <c>ShowsPasswordRevealButton</c> changed: the text box makes room for the button or takes it back.</summary>
+    public void SetShowsPasswordRevealButton(bool value)
+    {
+        if (ShowsPasswordRevealButton == value)
+            return;
+        ShowsPasswordRevealButton = value;
+        TextChanged();
+    }
+
     /// <summary>A property the text's shape depends on changed (font, spacing, direction, password).</summary>
     public void TextChanged()
     {
@@ -378,20 +421,26 @@ internal sealed class SkUiTextFieldModel : ISkUiTextInputClient, ISkUiTextEditor
     internal bool ClearButtonShown => (IsSearch || (ClearButtonVisibility == ClearButtonVisibility.WhileEditing && _owner.IsFocused))
         && Editor.Text.Length > 0 && IsEnabled && !Editor.IsReadOnly;
 
+    /// <summary>Whether the text is drawn as bullets: a password, not revealed (<see cref="IsPasswordRevealed"/>).</summary>
+    internal bool Masks => IsPassword && !IsPasswordRevealed;
+
+    /// <summary>Whether the reveal button shows: a password field with <see cref="ShowsPasswordRevealButton"/> (dimmed while disabled).</summary>
+    internal bool RevealButtonShown => IsPassword && ShowsPasswordRevealButton;
+
     /// <summary>
     /// What sits across the field's width, as room taken from its start and its end side (mirrored in right-to-left): at the start
     /// a numeric entry's step buttons, the padding, a search bar's icon, the leading view and the space after it; at the end the
-    /// step buttons, the padding, the trailing view, then the clear button (or the space before the trailing view). The text box
-    /// takes what is left between them.
+    /// step buttons, the padding, the trailing view, a password's reveal button, then the clear button (or the space before the
+    /// trailing view). The text box takes what is left between them.
     /// </summary>
     private readonly record struct AdornmentRow(float StartButtons, float StartPadding, float SearchIcon, float Leading, float LeadingSpacing,
-        float EndButtons, float EndPadding, float Trailing, float Clear, float TrailingSpacing)
+        float EndButtons, float EndPadding, float Trailing, float Reveal, float Clear, float TrailingSpacing)
     {
         /// <summary>The room before the text box, from the start side.</summary>
         public float Start => StartButtons + StartPadding + SearchIcon + Leading + LeadingSpacing;
 
         /// <summary>The room after the text box, from the end side.</summary>
-        public float End => EndButtons + EndPadding + Trailing + Clear + TrailingSpacing;
+        public float End => EndButtons + EndPadding + Trailing + Reveal + Clear + TrailingSpacing;
     }
 
     private AdornmentRow Row
@@ -404,11 +453,12 @@ internal sealed class SkUiTextFieldModel : ISkUiTextInputClient, ISkUiTextEditor
             var spacing = (float)look.TextFieldAdornmentSpacing;
             var leading = (float)LeadingSize.Width;
             var trailing = (float)TrailingSize.Width;
+            var reveal = RevealButtonShown ? (float)look.TextFieldPasswordRevealButtonWidth : 0;
             var clear = ClearButtonShown ? (float)look.TextFieldClearButtonWidth : 0;
             var buttons = Steps?.Room ?? default;
             return new AdornmentRow(buttons.Start, (float)(rightToLeft ? padding.Right : padding.Left), IsSearch ? (float)look.SearchIconWidth : 0,
-                leading, leading > 0 ? spacing : 0, buttons.End, (float)(rightToLeft ? padding.Left : padding.Right), trailing, clear,
-                trailing > 0 && clear <= 0 ? spacing : 0);
+                leading, leading > 0 ? spacing : 0, buttons.End, (float)(rightToLeft ? padding.Left : padding.Right), trailing, reveal, clear,
+                trailing > 0 && clear <= 0 && reveal <= 0 ? spacing : 0);
         }
     }
 
@@ -589,13 +639,22 @@ internal sealed class SkUiTextFieldModel : ISkUiTextInputClient, ISkUiTextEditor
         return new SKRect(left, top, Math.Max(left, area.Right - (float)inset.Right), Math.Max(top, area.Bottom - (float)inset.Bottom));
     }
 
-    /// <summary>The clear button's room at the end side of the field, inside the trailing view.</summary>
+    /// <summary>The clear button's room at the end side of the field, inside the trailing view and the reveal button.</summary>
     private SKRect ClearButtonBounds(float width, float height)
     {
         var area = RowArea(Area(width, height));
         var row = Row;
-        var from = row.EndButtons + row.EndPadding + row.Trailing;
+        var from = row.EndButtons + row.EndPadding + row.Trailing + row.Reveal;
         return FromEnd(area, from, from + (float)SkUiLook.Current.TextFieldClearButtonWidth, area.Top, area.Bottom);
+    }
+
+    /// <summary>A password's reveal button room at the end side of the field, inside the trailing view.</summary>
+    private SKRect RevealButtonBounds(float width, float height)
+    {
+        var area = RowArea(Area(width, height));
+        var row = Row;
+        var from = row.EndButtons + row.EndPadding + row.Trailing;
+        return FromEnd(area, from, from + row.Reveal, area.Top, area.Bottom);
     }
 
     /// <summary>A search bar's icon room at the start side of the field, before the leading view.</summary>
@@ -614,10 +673,10 @@ internal sealed class SkUiTextFieldModel : ISkUiTextInputClient, ISkUiTextEditor
 
     private SkUiTextLayout MessageLayout => _messageLayout ??= new SkUiTextLayout(_owner);
 
-    /// <summary>The text as drawn: bullets for a password, spaces for line breaks in a single-line field.</summary>
+    /// <summary>The text as drawn: bullets for a password (unless revealed), spaces for line breaks in a single-line field.</summary>
     private string DisplayText(string text)
     {
-        if (IsPassword)
+        if (Masks)
         {
             var count = 0;
             for (var index = 0; index < text.Length; index = SkUiTextBoundaries.NextGrapheme(text, index))
@@ -864,6 +923,9 @@ internal sealed class SkUiTextFieldModel : ISkUiTextInputClient, ISkUiTextEditor
             DrawHandles(canvas, width, height);
         else if (InsertionHandleShown)
             DrawInsertionHandle(canvas, width, height);
+        if (RevealButtonShown)
+            SkUiLook.Current.DrawTextFieldPasswordRevealButton(canvas, new SkUiPasswordRevealButtonPaint(RevealButtonBounds(width, height),
+                ToSkColor(SkUiColors.Muted), IsPasswordRevealed, _revealPressed, IsEnabled));
         if (ClearButtonShown)
             SkUiLook.Current.DrawTextFieldClearButton(canvas, new SkUiClearButtonPaint(ClearButtonBounds(width, height), ToSkColor(ClearButtonColor ?? SkUiColors.Muted),
                 ToSkColor(SkUiColors.DefaultBackground), _clearPressed, IsEnabled));
@@ -1321,6 +1383,8 @@ internal sealed class SkUiTextFieldModel : ISkUiTextInputClient, ISkUiTextEditor
             Editor.FinishComposing();
             Editor.BreakUndoCoalescing();
             _gestures.Cancel();
+            if (HidesPasswordOnUnfocus)
+                SetPasswordRevealed(false);
         }
         // The clear button shows only while focused: the text box changes.
         _owner.InvalidatePaint();
@@ -1558,6 +1622,16 @@ internal sealed class SkUiTextFieldModel : ISkUiTextInputClient, ISkUiTextEditor
 
     private int CharacterAt(Point local) => ToSource(_layout.CharacterAt(ToText(local)));
 
+    /// <summary>Whether <paramref name="local"/> is on the reveal button of an enabled password field.</summary>
+    internal bool HitsRevealButton(Point local)
+    {
+        var (width, height) = Size;
+        return RevealButtonShown && IsEnabled && RevealButtonBounds(width, height).Contains((float)local.X, (float)local.Y);
+    }
+
+    /// <summary>The reveal button: the password's text shows or hides again; the focus stays where it is (no keyboard comes up).</summary>
+    internal void ToggleReveal() => SetPasswordRevealed(!IsPasswordRevealed);
+
     /// <summary>Whether <paramref name="local"/> is on the shown clear button.</summary>
     internal bool HitsClearButton(Point local)
     {
@@ -1607,6 +1681,11 @@ internal sealed class SkUiTextFieldModel : ISkUiTextInputClient, ISkUiTextEditor
             SetClearPressed(true);
             return;
         }
+        if (HitsRevealButton(local))
+        {
+            SetRevealPressed(true);
+            return;
+        }
         Focus();
         _dragUnit = Math.Clamp(clicks, 1, 3);
         if (_dragUnit == 1)
@@ -1628,6 +1707,11 @@ internal sealed class SkUiTextFieldModel : ISkUiTextInputClient, ISkUiTextEditor
         if (_clearPressed)
         {
             SetClearPressed(HitsClearButton(local));
+            return;
+        }
+        if (_revealPressed)
+        {
+            SetRevealPressed(HitsRevealButton(local));
             return;
         }
         if (_dragUnit == 0)
@@ -1654,15 +1738,30 @@ internal sealed class SkUiTextFieldModel : ISkUiTextInputClient, ISkUiTextEditor
             if (!cancelled && HitsClearButton(local))
                 Clear();
         }
+        // A drag off the button unpressed it: only a release on it toggles.
+        if (_revealPressed)
+        {
+            SetRevealPressed(false);
+            if (!cancelled && HitsRevealButton(local))
+                ToggleReveal();
+        }
         _dragUnit = 0;
     }
 
-    /// <summary>A tap (touch): focuses and shows the keyboard, places the caret (1 tap) or selects a word (2 taps); the clear button clears.</summary>
+    /// <summary>
+    /// A tap (touch): focuses and shows the keyboard, places the caret (1 tap) or selects a word (2 taps); the clear button clears,
+    /// the reveal button shows or hides a password.
+    /// </summary>
     internal void Tapped(Point local, int taps)
     {
         if (HitsClearButton(local))
         {
             Clear();
+            return;
+        }
+        if (HitsRevealButton(local))
+        {
+            ToggleReveal();
             return;
         }
         var wasFocused = _owner.IsFocused;
@@ -1746,6 +1845,14 @@ internal sealed class SkUiTextFieldModel : ISkUiTextInputClient, ISkUiTextEditor
         _owner.InvalidatePaint();
     }
 
+    private void SetRevealPressed(bool pressed)
+    {
+        if (_revealPressed == pressed)
+            return;
+        _revealPressed = pressed;
+        _owner.InvalidatePaint();
+    }
+
     private void Focus()
     {
         if (!_owner.IsFocused)
@@ -1819,18 +1926,18 @@ internal sealed class SkUiTextFieldModel : ISkUiTextInputClient, ISkUiTextEditor
     #region Screen readers
 
     /// <summary>
-    /// An editable text field: the placeholder as its name, the text (bullets for a password) as its value, the message under it
-    /// (helper or error text) read after them, and whether its input is invalid.
+    /// An editable text field: the placeholder as its name, the text (bullets for a password, unless revealed) as its value, the
+    /// message under it (helper or error text) read after them, whether its input is invalid, and its clear and reveal buttons.
     /// </summary>
     public void PopulateSemantics(SkUiSemanticsInfo info)
     {
         info.Role = SkUiSemanticsRole.TextField;
         info.Text = Placeholder;
-        info.Value = IsPassword ? new string('•', ToDisplayIndex(Editor.Text.Length)) : Editor.Text;
+        info.Value = Masks ? new string('•', ToDisplayIndex(Editor.Text.Length)) : Editor.Text;
         info.IsEnabled &= IsEnabled;
         info.Actions |= SkUiSemanticsActions.Activate;
-        var (start, end) = IsPassword ? (ToDisplayIndex(Editor.SelectionStart), ToDisplayIndex(Editor.SelectionEnd)) : (Editor.SelectionStart, Editor.SelectionEnd);
-        info.TextField = new SkUiSemanticsTextField(start, end, IsPassword, Editor.IsReadOnly, IsMultiline, HasError, Message);
+        var (start, end) = Masks ? (ToDisplayIndex(Editor.SelectionStart), ToDisplayIndex(Editor.SelectionEnd)) : (Editor.SelectionStart, Editor.SelectionEnd);
+        info.TextField = new SkUiSemanticsTextField(start, end, Masks, Editor.IsReadOnly, IsMultiline, HasError, Message);
         Steps?.PopulateSemantics(info);
         if (ClearButtonShown)
         {
@@ -1838,6 +1945,14 @@ internal sealed class SkUiTextFieldModel : ISkUiTextInputClient, ISkUiTextEditor
             var bounds = ClearButtonBounds(width, height);
             info.AddPart(new SkUiSemanticsPart(ClearButtonSemanticsId, ClearButtonPart, new Rect(bounds.Left, bounds.Top, bounds.Width, bounds.Height),
                 SkUiStrings.Current.ClearTextButtonText, SkUiAccessibility.ClearButtonAutomationIdSuffix));
+        }
+        if (RevealButtonShown && IsEnabled)
+        {
+            var (width, height) = Size;
+            var bounds = RevealButtonBounds(width, height);
+            var strings = SkUiStrings.Current;
+            info.AddPart(new SkUiSemanticsPart(RevealButtonSemanticsId, RevealButtonPart, new Rect(bounds.Left, bounds.Top, bounds.Width, bounds.Height),
+                IsPasswordRevealed ? strings.HidePasswordText : strings.ShowPasswordText, SkUiAccessibility.PasswordRevealButtonAutomationIdSuffix));
         }
     }
 
@@ -1851,13 +1966,31 @@ internal sealed class SkUiTextFieldModel : ISkUiTextInputClient, ISkUiTextEditor
     /// <summary>The clear button's element id, kept while the field lives.</summary>
     private int ClearButtonSemanticsId => field == 0 ? field = SkUiSemanticsTree.NewId() : field;
 
-    /// <summary>A screen reader activated a part (<see cref="PopulateSemantics"/>): the clear button clears, as a tap on it.</summary>
+    /// <summary>The reveal button's <see cref="SkUiSemanticsPart.Index"/>.</summary>
+    private const int RevealButtonPart = 1;
+
+    /// <summary>The reveal button's element id, kept while the field lives.</summary>
+    private int RevealButtonSemanticsId => field == 0 ? field = SkUiSemanticsTree.NewId() : field;
+
+    /// <summary>
+    /// A screen reader activated a part (<see cref="PopulateSemantics"/>), as a tap on it: the clear button clears, the reveal button
+    /// shows or hides the password.
+    /// </summary>
     public bool PerformSemanticsPartAction(int part, SkUiSemanticsActions action)
     {
-        if (part != ClearButtonPart || action != SkUiSemanticsActions.Activate || !ClearButtonShown)
+        if (action != SkUiSemanticsActions.Activate)
             return false;
-        Clear();
-        return true;
+        switch (part)
+        {
+            case ClearButtonPart when ClearButtonShown:
+                Clear();
+                return true;
+            case RevealButtonPart when RevealButtonShown && IsEnabled:
+                ToggleReveal();
+                return true;
+            default:
+                return false;
+        }
     }
 
     /// <summary>
@@ -2162,7 +2295,7 @@ internal sealed class SkUiTextFieldModel : ISkUiTextInputClient, ISkUiTextEditor
         if (!IsEnabled)
             return false;
         Editor.FinishComposing();
-        if (IsPassword)
+        if (Masks)
         {
             // A screen reader counts the bullets.
             ToDisplayIndex(0);

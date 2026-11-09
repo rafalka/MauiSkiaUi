@@ -20,6 +20,18 @@ public class SkUiEntry : SkUiInputView
     public static readonly BindableProperty IsPasswordProperty = BindableProperty.Create(nameof(IsPassword), typeof(bool), typeof(SkUiEntry), false,
         propertyChanged: (view, _, value) => ((SkUiEntry)view).OnIsPasswordChanged((bool)value));
 
+    /// <summary>Bindable property for <see cref="IsPasswordRevealed"/>.</summary>
+    public static readonly BindableProperty IsPasswordRevealedProperty = BindableProperty.Create(nameof(IsPasswordRevealed), typeof(bool), typeof(SkUiEntry), false,
+        BindingMode.TwoWay, propertyChanged: (view, _, value) => ((SkUiEntry)view).Model.SetPasswordRevealed((bool)value));
+
+    /// <summary>Bindable property for <see cref="ShowsPasswordRevealButton"/>.</summary>
+    public static readonly BindableProperty ShowsPasswordRevealButtonProperty = BindableProperty.Create(nameof(ShowsPasswordRevealButton), typeof(bool),
+        typeof(SkUiEntry), false, propertyChanged: (view, _, value) => ((SkUiEntry)view).Model.SetShowsPasswordRevealButton((bool)value));
+
+    /// <summary>Bindable property for <see cref="HidesPasswordOnUnfocus"/>.</summary>
+    public static readonly BindableProperty HidesPasswordOnUnfocusProperty = BindableProperty.Create(nameof(HidesPasswordOnUnfocus), typeof(bool),
+        typeof(SkUiEntry), true, propertyChanged: (view, _, value) => ((SkUiEntry)view).Model.HidesPasswordOnUnfocus = (bool)value);
+
     /// <summary>Bindable property for <see cref="ReturnType"/>.</summary>
     public static readonly BindableProperty ReturnTypeProperty = BindableProperty.Create(nameof(ReturnType), typeof(ReturnType), typeof(SkUiEntry), ReturnType.Default,
         validateValue: (_, value) => Enum.IsDefined((ReturnType)value),
@@ -40,6 +52,22 @@ public class SkUiEntry : SkUiInputView
     /// <summary>Whether the text is masked (bullets); copying is off and the keyboard offers no suggestions.</summary>
     public bool IsPassword { get => (bool)GetValue(IsPasswordProperty); set => SetValue(IsPasswordProperty, value); }
 
+    /// <summary>
+    /// Whether a password's text is drawn instead of bullets (two-way: the reveal button and <see cref="HidesPasswordOnUnfocus"/>
+    /// change it). The field stays a password field for the platform (the keyboard, autofill and password managers see one) and
+    /// copying stays off; screen readers read the text only while it shows. No effect unless <see cref="IsPassword"/>.
+    /// </summary>
+    public bool IsPasswordRevealed { get => (bool)GetValue(IsPasswordRevealedProperty); set => SetValue(IsPasswordRevealedProperty, value); }
+
+    /// <summary>
+    /// Whether a password field draws the look's reveal button at its end (an eye; default <c>false</c>): a tap shows or hides the
+    /// text (<see cref="IsPasswordRevealed"/>) without moving the focus. Screen readers read it as "Show password" / "Hide password".
+    /// </summary>
+    public bool ShowsPasswordRevealButton { get => (bool)GetValue(ShowsPasswordRevealButtonProperty); set => SetValue(ShowsPasswordRevealButtonProperty, value); }
+
+    /// <summary>Whether a revealed password is masked again when the field loses focus (default <c>true</c>).</summary>
+    public bool HidesPasswordOnUnfocus { get => (bool)GetValue(HidesPasswordOnUnfocusProperty); set => SetValue(HidesPasswordOnUnfocusProperty, value); }
+
     /// <summary>The soft keyboard's return key.</summary>
     public ReturnType ReturnType { get => (ReturnType)GetValue(ReturnTypeProperty); set => SetValue(ReturnTypeProperty, value); }
 
@@ -57,6 +85,15 @@ public class SkUiEntry : SkUiInputView
 
     /// <summary>Sets <see cref="IsPassword"/>.</summary>
     public SkUiEntry SetIsPassword(bool value) { IsPassword = value; return this; }
+
+    /// <summary>Sets <see cref="IsPasswordRevealed"/>.</summary>
+    public SkUiEntry SetIsPasswordRevealed(bool value) { IsPasswordRevealed = value; return this; }
+
+    /// <summary>Sets <see cref="ShowsPasswordRevealButton"/>.</summary>
+    public SkUiEntry SetShowsPasswordRevealButton(bool value) { ShowsPasswordRevealButton = value; return this; }
+
+    /// <summary>Sets <see cref="HidesPasswordOnUnfocus"/>.</summary>
+    public SkUiEntry SetHidesPasswordOnUnfocus(bool value) { HidesPasswordOnUnfocus = value; return this; }
 
     /// <summary>Sets <see cref="ReturnType"/>.</summary>
     public SkUiEntry SetReturnType(ReturnType value) { ThrowIfUndefined(value); ReturnType = value; return this; }
@@ -187,6 +224,9 @@ public class SkUiEntry : SkUiInputView
         Model.TextChanged();
         Model.OptionsChanged();
     }
+
+    /// <inheritdoc />
+    private protected override void OnPasswordRevealEdited(bool revealed) => SetValue(IsPasswordRevealedProperty, revealed);
 
     /// <inheritdoc />
     private protected override void OnReturnPressed()
