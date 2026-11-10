@@ -273,6 +273,9 @@ public class SkUiCoreNumericEntry<T> : SkUiCoreNumericEntryBase, ISkUiNumericVal
     /// <inheritdoc cref="SkUiCoreEntry.SetHidesPasswordOnUnfocus" />
     public new SkUiCoreNumericEntry<T> SetHidesPasswordOnUnfocus(bool value) { base.SetHidesPasswordOnUnfocus(value); return this; }
 
+    /// <inheritdoc cref="SkUiCoreEntry.SetPasswordRevealMode" />
+    public new SkUiCoreNumericEntry<T> SetPasswordRevealMode(SkUiPasswordRevealMode value) { base.SetPasswordRevealMode(value); return this; }
+
     /// <inheritdoc cref="SkUiCoreEntry.SetReturnType" />
     public new SkUiCoreNumericEntry<T> SetReturnType(ReturnType value) { base.SetReturnType(value); return this; }
 

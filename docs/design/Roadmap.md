@@ -97,7 +97,7 @@ Moved from 1.6, then from 1.8. Built on the branch `1.9-implementation`. Steps, 
 
 - **Performance:** the device results measured again on the current toolchain (done: Core's first frame is faster, the stress page's first-frame column was the wrong measure); Core measure invalidation without re-recording ancestors (done); shaped borders sharing their content clips (done).
 - **Layouts and containers:** a tile layout for galleries of equal tiles, with an overflow tile (done: [SkUiTileLayout](../controls/SkUiTileLayout.md)); Core twins of the state container and the expander (done: `SkUiCoreStateContainer`, `SkUiCoreExpander`; with independent `ScaleX` / `ScaleY` and `AnchorX` / `AnchorY` on Core nodes, so animating one scale axis of a Core node no longer scales both).
-- **Text input:** password reveal (show / hide) in drawn password fields (done: `IsPasswordRevealed`, `ShowsPasswordRevealButton`, `HidesPasswordOnUnfocus` on both entries; device checks in the [verification backlog](#verification-backlog)).
+- **Text input:** password reveal (show / hide) in drawn password fields (done: `IsPasswordRevealed`, `ShowsPasswordRevealButton`, `HidesPasswordOnUnfocus`, `PasswordRevealMode` (toggle or hold) on both entries; device checks in the [verification backlog](#verification-backlog)).
 
 .NET 11 / MAUI 11 waits until it is released.
 

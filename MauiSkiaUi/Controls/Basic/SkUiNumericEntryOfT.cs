@@ -326,6 +326,9 @@ public class SkUiNumericEntry<[DynamicallyAccessedMembers(DynamicallyAccessedMem
     /// <inheritdoc cref="SkUiEntry.SetHidesPasswordOnUnfocus" />
     public new SkUiNumericEntry<T> SetHidesPasswordOnUnfocus(bool value) { base.SetHidesPasswordOnUnfocus(value); return this; }
 
+    /// <inheritdoc cref="SkUiEntry.SetPasswordRevealMode" />
+    public new SkUiNumericEntry<T> SetPasswordRevealMode(SkUiPasswordRevealMode value) { base.SetPasswordRevealMode(value); return this; }
+
     /// <inheritdoc cref="SkUiEntry.SetReturnType" />
     public new SkUiNumericEntry<T> SetReturnType(ReturnType value) { base.SetReturnType(value); return this; }
 

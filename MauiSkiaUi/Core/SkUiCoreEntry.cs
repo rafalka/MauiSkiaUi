@@ -33,6 +33,12 @@ public class SkUiCoreEntry : SkUiCoreInputView
     /// <summary>Whether a revealed password is masked again when the field loses focus (default <c>true</c>).</summary>
     public bool HidesPasswordOnUnfocus { get => Model.HidesPasswordOnUnfocus; set => SetHidesPasswordOnUnfocus(value); }
 
+    /// <summary>
+    /// How the reveal button shows the text: a tap toggles it (<see cref="SkUiPasswordRevealMode.Toggle"/>, the default), or it shows
+    /// only while the button is held down (<see cref="SkUiPasswordRevealMode.WhilePressed"/>; screen readers still toggle it).
+    /// </summary>
+    public SkUiPasswordRevealMode PasswordRevealMode { get => Model.PasswordRevealMode; set => SetPasswordRevealMode(value); }
+
     /// <summary>The soft keyboard's return key.</summary>
     public ReturnType ReturnType { get => Model.ReturnType; set => SetReturnType(value); }
 
@@ -80,6 +86,14 @@ public class SkUiCoreEntry : SkUiCoreInputView
     public SkUiCoreEntry SetHidesPasswordOnUnfocus(bool value)
     {
         SetProperty(ref Model.HidesPasswordOnUnfocus, value, nameof(HidesPasswordOnUnfocus));
+        return this;
+    }
+
+    /// <summary>Sets <see cref="PasswordRevealMode"/>.</summary>
+    public SkUiCoreEntry SetPasswordRevealMode(SkUiPasswordRevealMode value)
+    {
+        ThrowIfUndefined(value);
+        SetProperty(ref Model.PasswordRevealMode, value, nameof(PasswordRevealMode));
         return this;
     }
 

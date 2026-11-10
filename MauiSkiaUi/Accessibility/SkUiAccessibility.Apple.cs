@@ -333,6 +333,28 @@ internal sealed class SkUiAccessibilityBridge
             SkUiSemantics.BringIntoView(source);
     }
 
+    /// <summary>
+    /// The drawn element at <paramref name="local"/> (the container's coordinates) for VoiceOver's explore by touch: the front-most,
+    /// innermost one (<see cref="SkUiSemanticsTree.HitTest(Point)"/>), as on the other platforms. UIKit itself picks among the elements
+    /// whose frames hold the point (the top-left one on iOS 16+), so a part inside its control (a field's clear or reveal button)
+    /// or an action inside a described group would never be found. <c>null</c> over a hosted native view or nothing: UIKit's own
+    /// search answers.
+    /// </summary>
+    internal NSObject? HitTest(CGPoint local)
+    {
+        _ = Elements();
+        var point = new Point(local.X, local.Y);
+        // Not every node is an element (a scroller without a name, id-only nodes while VoiceOver runs): its element ancestor is.
+        for (var node = Tree.HitTest(point); node is not null; node = node.Parent)
+        {
+            if (node.IsNative)
+                return null;
+            if (_elements.TryGetValue(node.Id, out var element))
+                return element;
+        }
+        return null;
+    }
+
     private void RequestAccessibilityFocus(int id)
     {
         _ = Elements();
@@ -374,6 +396,23 @@ internal class SkUiAccessibilityElement : UIAccessibilityElement
     public override bool AccessibilityScroll(UIAccessibilityScrollDirection direction) => Bridge?.Scroll(Id, direction) == true;
 
     public override void AccessibilityElementDidBecomeFocused() => Bridge?.OnFocused(Id);
+
+    /// <summary>
+    /// An element asked for the element at a screen point (UIKit's private hit test, as Flutter's iOS engine overrides it): the
+    /// front-most, innermost drawn element there (<see cref="SkUiAccessibilityBridge.HitTest"/>). UIKit's search from the window
+    /// asks the container (<c>SkUiOverlayContainer</c>), which answers the same way.
+    /// </summary>
+    [Export("_accessibilityHitTest:withEvent:")]
+    public NSObject? AccessibilityHitTest(CGPoint point, UIEvent? uiEvent)
+    {
+        if (AccessibilityContainer is not UIView container)
+            return null;
+        var bounds = container.Bounds;
+        var screen = UIAccessibility.ConvertFrameToScreenCoordinates(bounds, container);
+        if (screen.Width <= 0 || screen.Height <= 0)
+            return null;
+        return Bridge?.HitTest(new CGPoint((point.X - screen.X) * bounds.Width / screen.Width, (point.Y - screen.Y) * bounds.Height / screen.Height));
+    }
 
     private string[]? _customActions;
 

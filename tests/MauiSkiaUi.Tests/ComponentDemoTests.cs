@@ -99,16 +99,64 @@ public class ComponentDemoTests
             Assert.Equal(demo.Title, page.Title);
             Assert.True(ContainsComponent(page, demo.ComponentType),
                 $"{demo.PageType.Name}'s preview does not contain a {demo.ComponentType.Name}.");
-            Assert.Empty(page.CheckProperties());
+            AssertChecksPass(page, "created");
             foreach (var slider in Descendants(page.Editors).OfType<SkUiSlider>()) slider.Value = (slider.Minimum + slider.Maximum) / 2;
             foreach (var toggle in Descendants(page.Editors).OfType<SkUiSwitch>()) toggle.IsToggled = !toggle.IsToggled;
             foreach (var picker in Descendants(page.Editors).OfType<SkUiPicker>()) picker.SelectedIndex = picker.Items.Count - 1;
-            Assert.Empty(page.CheckProperties());
+            AssertChecksPass(page, "edited");
             page.ResetProperties();
-            Assert.Empty(page.CheckProperties());
+            AssertChecksPass(page, "reset");
             Assert.Null(page.SkiaControl.Handler);
         }
     }
+
+    private static void AssertChecksPass(ComponentDemoPage page, string when)
+    {
+        var failures = page.CheckProperties();
+        Assert.True(failures.Length == 0, $"{page.GetType().Name} ({when}): {string.Join(", ", failures)}");
+    }
+
+    [Fact]
+    public void EditorsFollowWhatTheUserChangesOnThePreviews()
+    {
+        var page = new EntryDemoPage();
+        var skia = (SkUiEntry)page.SkiaControl;
+        var native = (Entry)page.NativeControl!;
+        var reveal = Editor<SkUiSwitch>(page, nameof(SkUiEntry.IsPasswordRevealed));
+        var text = Editor<SkUiEntry>(page, nameof(SkUiEntry.Text));
+
+        // The reveal button sets the property as the editor would have.
+        skia.IsPasswordRevealed = true;
+        Assert.True(reveal.IsToggled);
+        // Typed on either preview: the editor shows it and applies it to the other preview.
+        skia.Text = "typed in SkUi";
+        Assert.Equal("typed in SkUi", text.Text);
+        Assert.Equal("typed in SkUi", native.Text);
+        native.Text = "typed in MAUI";
+        Assert.Equal("typed in MAUI", text.Text);
+        Assert.Equal("typed in MAUI", skia.Text);
+        AssertChecksPass(page, "edited on the previews");
+    }
+
+    [Fact]
+    public void EditorsDoNotApplyAnEffectiveIsEnabled()
+    {
+        var page = new ButtonDemoPage();
+        var canExecute = Editor<SkUiSwitch>(page, nameof(Command.CanExecute));
+        var isEnabled = Editor<SkUiSwitch>(page, nameof(VisualElement.IsEnabled));
+
+        // A command that cannot execute disables MAUI's button without its IsEnabled being set (MAUI coerces it); the editor
+        // stays as set, and both buttons are enabled again with the command.
+        canExecute.IsToggled = false;
+        Assert.False(page.NativeControl!.IsEnabled);
+        Assert.True(isEnabled.IsToggled);
+        canExecute.IsToggled = true;
+        Assert.True(page.SkiaControl.IsEnabled);
+        Assert.True(page.NativeControl.IsEnabled);
+    }
+
+    private static T Editor<T>(ComponentDemoPage page, string name) where T : SkUiView =>
+        Descendants(page.Editors).OfType<T>().Single(editor => editor.AutomationId == "Edit" + name);
 
     private static bool ContainsComponent(ComponentDemoPage page, Type type)
     {

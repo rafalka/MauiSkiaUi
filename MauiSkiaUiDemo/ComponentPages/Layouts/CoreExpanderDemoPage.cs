@@ -23,6 +23,7 @@ public sealed class CoreExpanderDemoPage : ComponentDemoPage
     public CoreExpanderDemoPage()
         : base(nameof(SkUiCoreExpander), CreateHost(out var sections), native: null, widthRange: (160, 400, 300), heightRange: (120, 480, 320))
     {
+        SyncFrom(sections[0]);
         Number(nameof(SkUiCoreExpander.AnimationLength), 0, 1000, 250, value => Each(sections, section => section.SetAnimationLength((uint)value)),
             () => sections[0].AnimationLength, whole: true);
         Choice(nameof(SkUiCoreExpander.AnimationEasing), EasingNames, EasingNames[0],

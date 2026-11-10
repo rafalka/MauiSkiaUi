@@ -15,6 +15,7 @@ public sealed class DraggerDemoPage : ComponentDemoPage
     public DraggerDemoPage()
         : base(nameof(SkUiDragger), CreatePreview(out var panel, out var dragger), widthRange: (240, 480, 320), heightRange: (160, 480, 260))
     {
+        SyncFrom(dragger);
         Choice(nameof(SkUiDragger.DragAxis), [SkUiPanAxis.Vertical, SkUiPanAxis.Horizontal, SkUiPanAxis.Both], SkUiPanAxis.Vertical,
             value => dragger.DragAxis = value, () => dragger.DragAxis);
         Toggle(nameof(SkUiDragger.ShowsGrip), true, value => dragger.ShowsGrip = value, () => dragger.ShowsGrip);

@@ -101,6 +101,8 @@ internal sealed class SkUiTextFieldModel : ISkUiTextInputClient, ISkUiTextEditor
     private SkUiDrawableSlot<CaretKey> _caret;
     private bool _clearPressed;
     private bool _revealPressed;
+    // A press began on the reveal button and has not been released (the button shows pressed only while the pointer is on it).
+    private bool _revealHeld;
     // The field's own height (without its message) at the last measure: a node too short for both keeps the field at this height.
     private float _fieldHeight;
 
@@ -159,6 +161,12 @@ internal sealed class SkUiTextFieldModel : ISkUiTextInputClient, ISkUiTextEditor
 
     /// <summary>The control's <c>HidesPasswordOnUnfocus</c>: a revealed password is masked again when the field loses focus (default).</summary>
     public bool HidesPasswordOnUnfocus = true;
+
+    /// <summary>
+    /// The control's <c>PasswordRevealMode</c>: the reveal button toggles the text (default) or shows it only while held down
+    /// (a touch on it is then the field's at once, so a scroller around it does not take the hold).
+    /// </summary>
+    public SkUiPasswordRevealMode PasswordRevealMode;
     public bool IsSpellCheckEnabled = true;
     public bool IsTextPredictionEnabled = true;
     public ClearButtonVisibility ClearButtonVisibility;
@@ -1632,6 +1640,11 @@ internal sealed class SkUiTextFieldModel : ISkUiTextInputClient, ISkUiTextEditor
     /// <summary>The reveal button: the password's text shows or hides again; the focus stays where it is (no keyboard comes up).</summary>
     internal void ToggleReveal() => SetPasswordRevealed(!IsPasswordRevealed);
 
+    /// <summary>Whether a press at <paramref name="local"/> holds the reveal button down (<see cref="SkUiPasswordRevealMode.WhilePressed"/>).</summary>
+    internal bool HoldsRevealAt(Point local) => PasswordRevealMode == SkUiPasswordRevealMode.WhilePressed && HitsRevealButton(local);
+
+    private bool HoldsReveal => PasswordRevealMode == SkUiPasswordRevealMode.WhilePressed;
+
     /// <summary>Whether <paramref name="local"/> is on the shown clear button.</summary>
     internal bool HitsClearButton(Point local)
     {
@@ -1684,6 +1697,8 @@ internal sealed class SkUiTextFieldModel : ISkUiTextInputClient, ISkUiTextEditor
         if (HitsRevealButton(local))
         {
             SetRevealPressed(true);
+            if (HoldsReveal)
+                SetPasswordRevealed(true);
             return;
         }
         Focus();
@@ -1709,9 +1724,13 @@ internal sealed class SkUiTextFieldModel : ISkUiTextInputClient, ISkUiTextEditor
             SetClearPressed(HitsClearButton(local));
             return;
         }
-        if (_revealPressed)
+        if (_revealHeld)
         {
-            SetRevealPressed(HitsRevealButton(local));
+            // Held: on the button the text shows, off it the text is masked (and shows again back on it).
+            var on = HitsRevealButton(local);
+            SetRevealPressed(on);
+            if (HoldsReveal)
+                SetPasswordRevealed(on);
             return;
         }
         if (_dragUnit == 0)
@@ -1738,11 +1757,15 @@ internal sealed class SkUiTextFieldModel : ISkUiTextInputClient, ISkUiTextEditor
             if (!cancelled && HitsClearButton(local))
                 Clear();
         }
-        // A drag off the button unpressed it: only a release on it toggles.
-        if (_revealPressed)
+        // A drag off the button unpressed it: only a release on it toggles. A hold ends: the text is masked again.
+        if (_revealHeld)
         {
+            var toggles = _revealPressed && !cancelled && HitsRevealButton(local);
             SetRevealPressed(false);
-            if (!cancelled && HitsRevealButton(local))
+            _revealHeld = false;
+            if (HoldsReveal)
+                SetPasswordRevealed(false);
+            else if (toggles)
                 ToggleReveal();
         }
         _dragUnit = 0;
@@ -1847,6 +1870,9 @@ internal sealed class SkUiTextFieldModel : ISkUiTextInputClient, ISkUiTextEditor
 
     private void SetRevealPressed(bool pressed)
     {
+        // A press on the button starts a hold that only a release (or a cancel) ends: a drag off and back keeps it.
+        if (pressed)
+            _revealHeld = true;
         if (_revealPressed == pressed)
             return;
         _revealPressed = pressed;
@@ -2414,9 +2440,10 @@ internal sealed class SkUiTextFieldGestures(SkUiTextFieldModel model) : SkUiGest
     private bool _caretGrab;
     private bool _onCaretHandle;
     private Point _lastPress;
+    private bool _revealHold;
 
     /// <inheritdoc />
-    protected internal override bool IsExclusive => _mouse || _longPressed || _scrolling || _handle != 0;
+    protected internal override bool IsExclusive => _mouse || _revealHold || _longPressed || _scrolling || _handle != 0;
 
     /// <inheritdoc />
     protected internal override bool IsDiscrete => true;
@@ -2428,7 +2455,7 @@ internal sealed class SkUiTextFieldGestures(SkUiTextFieldModel model) : SkUiGest
             return false;
         _pointer = pointer.Id;
         _mouse = pointer.Device != SkUiPointerDevice.Touch;
-        _moved = _longPressed = _scrolling = _secondary = _caretGrab = _onCaretHandle = false;
+        _moved = _longPressed = _scrolling = _secondary = _caretGrab = _onCaretHandle = _revealHold = false;
         _handle = 0;
         _startLocal = pointer.GetPosition(owner);
         var now = pointer.Timestamp;
@@ -2449,6 +2476,14 @@ internal sealed class SkUiTextFieldGestures(SkUiTextFieldModel model) : SkUiGest
                 return true;
             }
             model.MousePressed(_startLocal, _clicks);
+            return true;
+        }
+        if (model.HoldsRevealAt(_startLocal))
+        {
+            // A finger holding the reveal button (WhilePressed): pressed and released as a mouse button is, never a tap or a scroll.
+            _revealHold = true;
+            Claim();
+            model.MousePressed(_startLocal, 1);
             return true;
         }
         var handle = model.HandleAt(_startLocal);
@@ -2485,7 +2520,7 @@ internal sealed class SkUiTextFieldGestures(SkUiTextFieldModel model) : SkUiGest
             return;
         if (_secondary)
             return;
-        if (_mouse)
+        if (_mouse || _revealHold)
         {
             model.MouseDragged(pointer.GetPosition(owner));
             return;
@@ -2545,10 +2580,10 @@ internal sealed class SkUiTextFieldGestures(SkUiTextFieldModel model) : SkUiGest
         _longPress = null;
         _pointer = null;
         // Only a tap or a click counts towards the next one (not a drag, a long press or a handle).
-        _lastReleaseTime = _mouse || !(_moved || _longPressed || _handle != 0) ? pointer.Timestamp : null;
+        _lastReleaseTime = _mouse || !(_moved || _longPressed || _handle != 0 || _revealHold) ? pointer.Timestamp : null;
         if (_secondary)
             return;
-        if (_mouse)
+        if (_mouse || _revealHold)
         {
             model.MouseReleased(local, cancelled: false);
             return;
@@ -2579,7 +2614,7 @@ internal sealed class SkUiTextFieldGestures(SkUiTextFieldModel model) : SkUiGest
         _lastReleaseTime = null;
         _longPress?.Dispose();
         _longPress = null;
-        if (_mouse)
+        if (_mouse || _revealHold)
         {
             model.MouseReleased(_startLocal, cancelled: true);
             return;

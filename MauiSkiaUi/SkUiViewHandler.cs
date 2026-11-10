@@ -1852,6 +1852,27 @@ internal sealed class SkUiOverlayContainer : MauiView
     [Foundation.Export("accessibilityElements")]
     public Foundation.NSArray? DrawnAccessibilityElements() => Accessibility?.Elements();
 
+    private static readonly ObjCRuntime.Selector AccessibilityHitTestSelector = new("_accessibilityHitTest:withEvent:");
+
+    [System.Runtime.InteropServices.DllImport(ObjCRuntime.Constants.ObjectiveCLibrary, EntryPoint = "objc_msgSendSuper")]
+    private static extern IntPtr SendSuperHitTest(IntPtr super, IntPtr selector, CoreGraphics.CGPoint point, IntPtr uiEvent);
+
+    /// <summary>
+    /// VoiceOver's explore by touch (and Accessibility Inspector's pointer): UIKit's search from the window asks each view for the
+    /// element at a point in its coordinates. Over a drawn element the answer is the front-most, innermost one
+    /// (<see cref="SkUiAccessibilityBridge.HitTest"/>): UIKit alone picks among the overlapping frames of the flat element array
+    /// (the top-left one), so a field's clear or reveal button inside the field's frame was never found. Elsewhere (a hosted native
+    /// view) UIKit's own answer. A private UIKit method (its accessibility runtime adds it while a client runs), overridden as
+    /// Flutter's iOS engine does.
+    /// </summary>
+    [Foundation.Export("_accessibilityHitTest:withEvent:")]
+    public Foundation.NSObject? AccessibilityHitTest(CoreGraphics.CGPoint point, UIKit.UIEvent? uiEvent)
+    {
+        if (Accessibility?.HitTest(point) is { } element)
+            return element;
+        return ObjCRuntime.Runtime.GetNSObject(SendSuperHitTest(SuperHandle, AccessibilityHitTestSelector.Handle, point, uiEvent is null ? IntPtr.Zero : uiEvent.Handle));
+    }
+
     public override bool CanBecomeFirstResponder => KeyboardFocus is { } focus && (focus.Focused is not null || focus.HasFocusableNodes);
 
     /// <summary>In UIKit's keyboard focus loop (Tab / Shift+Tab) while a drawn node can take focus.</summary>

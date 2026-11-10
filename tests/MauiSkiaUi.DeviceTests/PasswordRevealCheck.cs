@@ -72,6 +72,7 @@ internal static class PasswordRevealCheck
                 problems.Add($"the keyboard's input type changed ({masked.InputKind} → {revealed.InputKind})");
             CheckSemantics("revealed", root, revealed: true, problems);
             CheckPlatformAccessibility(container, revealed: true, problems, notes);
+            CheckHitTest(container, root, "revealed", problems, notes);
             entry.Model.Editor.SelectAll();
             if (entry.Model.CanPerformEditAction(SkUiTextEditAction.Copy) || entry.Model.CanPerformEditAction(SkUiTextEditAction.Cut))
                 problems.Add("a revealed password can be copied");
@@ -84,6 +85,7 @@ internal static class PasswordRevealCheck
                 if (entry.IsPasswordRevealed)
                     problems.Add("a second tap did not mask");
                 CheckPlatformAccessibility(container, revealed: false, problems, notes);
+                CheckHitTest(container, root, "masked", problems, notes);
             }
             entry.IsPasswordRevealed = true;
             entry.Unfocus();
@@ -166,6 +168,11 @@ internal static class PasswordRevealCheck
     {
         // TalkBack's nodes are built only while an accessibility service runs (checked with uiautomator, which is one).
     }
+
+    private static void CheckHitTest(SkUiOverlayContainer container, SkUiView root, string step, List<string> problems, List<string> notes)
+    {
+        // TalkBack hit-tests the virtual view tree (SkUiSemanticsTree.HitTest), covered headless.
+    }
 #elif IOS || MACCATALYST
     private static PlatformInput Platform(SkUiOverlayContainer container)
     {
@@ -207,10 +214,66 @@ internal static class PasswordRevealCheck
                 problems.Add($"VoiceOver's text navigation reads \"{read}\"");
         }
     }
+
+    [System.Runtime.InteropServices.DllImport(ObjCRuntime.Constants.ObjectiveCLibrary, EntryPoint = "objc_msgSend")]
+    private static extern IntPtr SendHitTest(IntPtr receiver, IntPtr selector, CoreGraphics.CGPoint point, IntPtr uiEvent);
+
+    /// <summary>
+    /// VoiceOver's explore by touch: the element UIKit finds at the reveal button is the button, at the text the field (UIKit
+    /// alone picks the top-left of overlapping frames, the field). Asked from the window when UIKit's accessibility runtime is
+    /// loaded (an accessibility client ran), else from the field's element, which answers for the surface.
+    /// </summary>
+    private static void CheckHitTest(SkUiOverlayContainer container, SkUiView root, string step, List<string> problems, List<string> notes)
+    {
+        var nodes = SkUiSemanticsTree.Build(root).Flatten().ToList();
+        var button = nodes.FirstOrDefault(node => node.AutomationId == FieldId + SkUiAccessibility.PasswordRevealButtonAutomationIdSuffix);
+        var field = nodes.FirstOrDefault(node => node.AutomationId == FieldId);
+        if (button is null || field is null || container.Window is not { } window || container.DrawnAccessibilityElements() is not { } elements)
+        {
+            problems.Add($"{step} hit test: no button, field, window or elements");
+            return;
+        }
+        UIKit.UIAccessibilityElement? fieldElement = null;
+        for (nuint index = 0; index < elements.Count; index++)
+            if (elements.GetItem<Foundation.NSObject>(index) is UIKit.UIAccessibilityElement element && element.AccessibilityLabel == Placeholder)
+                fieldElement = element;
+        var selector = new ObjCRuntime.Selector("_accessibilityHitTest:withEvent:");
+        var fromWindow = window.RespondsToSelector(selector);
+        if (!fromWindow && fieldElement is null)
+        {
+            problems.Add($"{step} hit test: no field element");
+            return;
+        }
+        string? LabelAt(Point at)
+        {
+            // UIView's hit test takes its own coordinates, an element's the screen's.
+            var point = fromWindow
+                ? container.ConvertPointToView(new CoreGraphics.CGPoint(at.X, at.Y), window)
+                : UIKit.UIAccessibility.ConvertFrameToScreenCoordinates(new CoreGraphics.CGRect(at.X, at.Y, 0, 0), container).Location;
+            var hit = ObjCRuntime.Runtime.GetNSObject(SendHitTest(fromWindow ? window.Handle : fieldElement!.Handle, selector.Handle, point, IntPtr.Zero));
+            return hit switch
+            {
+                UIKit.UIAccessibilityElement element => element.AccessibilityLabel,
+                null => null,
+                _ => hit.GetType().Name
+            };
+        }
+        var atButton = LabelAt(button.Bounds.Center);
+        var atText = LabelAt(new Point(field.Bounds.Left + 24, field.Bounds.Center.Y));
+        notes.Add($"{step} hit test from the {(fromWindow ? "window" : "field element")}: button \"{atButton}\", text \"{atText}\"");
+        if (atButton != button.Label)
+            problems.Add($"{step}: VoiceOver's hit test at the reveal button finds \"{atButton}\", not \"{button.Label}\"");
+        if (atText != Placeholder)
+            problems.Add($"{step}: VoiceOver's hit test at the text finds \"{atText}\"");
+    }
 #else
     private static PlatformInput Platform(SkUiOverlayContainer container) => new(container, "", "(not checked on this platform)", null);
 
     private static void CheckPlatformAccessibility(SkUiOverlayContainer container, bool revealed, List<string> problems, List<string> notes)
+    {
+    }
+
+    private static void CheckHitTest(SkUiOverlayContainer container, SkUiView root, string step, List<string> problems, List<string> notes)
     {
     }
 #endif

@@ -32,6 +32,12 @@ public class SkUiEntry : SkUiInputView
     public static readonly BindableProperty HidesPasswordOnUnfocusProperty = BindableProperty.Create(nameof(HidesPasswordOnUnfocus), typeof(bool),
         typeof(SkUiEntry), true, propertyChanged: (view, _, value) => ((SkUiEntry)view).Model.HidesPasswordOnUnfocus = (bool)value);
 
+    /// <summary>Bindable property for <see cref="PasswordRevealMode"/>.</summary>
+    public static readonly BindableProperty PasswordRevealModeProperty = BindableProperty.Create(nameof(PasswordRevealMode), typeof(SkUiPasswordRevealMode),
+        typeof(SkUiEntry), SkUiPasswordRevealMode.Toggle,
+        validateValue: (_, value) => Enum.IsDefined((SkUiPasswordRevealMode)value),
+        propertyChanged: (view, _, value) => ((SkUiEntry)view).Model.PasswordRevealMode = (SkUiPasswordRevealMode)value);
+
     /// <summary>Bindable property for <see cref="ReturnType"/>.</summary>
     public static readonly BindableProperty ReturnTypeProperty = BindableProperty.Create(nameof(ReturnType), typeof(ReturnType), typeof(SkUiEntry), ReturnType.Default,
         validateValue: (_, value) => Enum.IsDefined((ReturnType)value),
@@ -68,6 +74,12 @@ public class SkUiEntry : SkUiInputView
     /// <summary>Whether a revealed password is masked again when the field loses focus (default <c>true</c>).</summary>
     public bool HidesPasswordOnUnfocus { get => (bool)GetValue(HidesPasswordOnUnfocusProperty); set => SetValue(HidesPasswordOnUnfocusProperty, value); }
 
+    /// <summary>
+    /// How the reveal button shows the text: a tap toggles it (<see cref="SkUiPasswordRevealMode.Toggle"/>, the default), or it shows
+    /// only while the button is held down (<see cref="SkUiPasswordRevealMode.WhilePressed"/>; screen readers still toggle it).
+    /// </summary>
+    public SkUiPasswordRevealMode PasswordRevealMode { get => (SkUiPasswordRevealMode)GetValue(PasswordRevealModeProperty); set => SetValue(PasswordRevealModeProperty, value); }
+
     /// <summary>The soft keyboard's return key.</summary>
     public ReturnType ReturnType { get => (ReturnType)GetValue(ReturnTypeProperty); set => SetValue(ReturnTypeProperty, value); }
 
@@ -94,6 +106,9 @@ public class SkUiEntry : SkUiInputView
 
     /// <summary>Sets <see cref="HidesPasswordOnUnfocus"/>.</summary>
     public SkUiEntry SetHidesPasswordOnUnfocus(bool value) { HidesPasswordOnUnfocus = value; return this; }
+
+    /// <summary>Sets <see cref="PasswordRevealMode"/>.</summary>
+    public SkUiEntry SetPasswordRevealMode(SkUiPasswordRevealMode value) { ThrowIfUndefined(value); PasswordRevealMode = value; return this; }
 
     /// <summary>Sets <see cref="ReturnType"/>.</summary>
     public SkUiEntry SetReturnType(ReturnType value) { ThrowIfUndefined(value); ReturnType = value; return this; }

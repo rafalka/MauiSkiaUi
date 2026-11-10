@@ -162,6 +162,99 @@ public sealed class PasswordRevealTests : IDisposable
         Assert.False(entry.IsPasswordRevealed);
     }
 
+    [Theory]
+    [InlineData(SkUiPointerDevice.Touch)]
+    [InlineData(SkUiPointerDevice.Mouse)]
+    public void WhilePressedShowsTheTextOnlyWhileTheButtonIsHeld(SkUiPointerDevice device)
+    {
+        using var _ = SkUiTestHelpers.UseBundledFont();
+        var entry = Password().SetPasswordRevealMode(SkUiPasswordRevealMode.WhilePressed);
+        var root = Root(entry);
+        var button = Reveal(root)!;
+        var off = new Point(button.Parent!.Bounds.Left + 20, button.Bounds.Center.Y);
+        var id = ++_pointer;
+        var time = TimeSpan.FromSeconds(id);
+        void Send(SkUiTouchAction action, Point at)
+        {
+            time += TimeSpan.FromMilliseconds(20);
+            root.Touch(new SkUiTouchEvent(id, action, at, time, Device: device));
+        }
+
+        // Shown as soon as the button goes down (no tap needed), without focusing the field.
+        Send(SkUiTouchAction.Pressed, button.Bounds.Center);
+        Assert.True(entry.IsPasswordRevealed);
+        Assert.Equal(Secret, Shown(entry.Model));
+        Assert.False(entry.IsFocused);
+        // Held past a long press: still shown (no edit menu or loupe).
+        time += TimeSpan.FromSeconds(1);
+        Send(SkUiTouchAction.Moved, button.Bounds.Center);
+        Assert.True(entry.IsPasswordRevealed);
+        // Off the button masked, back on shown again, released masked.
+        Send(SkUiTouchAction.Moved, off);
+        Assert.False(entry.IsPasswordRevealed);
+        Send(SkUiTouchAction.Moved, button.Bounds.Center);
+        Assert.True(entry.IsPasswordRevealed);
+        Send(SkUiTouchAction.Released, button.Bounds.Center);
+        Assert.False(entry.IsPasswordRevealed);
+        Assert.Equal(Bullets, Shown(entry.Model));
+        Assert.False(entry.IsFocused);
+
+        // A cancelled hold masks too.
+        id = ++_pointer;
+        Send(SkUiTouchAction.Pressed, button.Bounds.Center);
+        Assert.True(entry.IsPasswordRevealed);
+        Send(SkUiTouchAction.Cancelled, button.Bounds.Center);
+        Assert.False(entry.IsPasswordRevealed);
+
+        // Screen readers cannot hold: activating still toggles.
+        var owner = new SkUiSemanticsOwner(root);
+        Assert.True(owner.Perform(button.Id, SkUiSemanticsActions.Activate));
+        Assert.True(entry.IsPasswordRevealed);
+        Assert.True(owner.Perform(button.Id, SkUiSemanticsActions.Activate));
+        Assert.False(entry.IsPasswordRevealed);
+
+        // Elsewhere a tap still focuses the field.
+        Tap(root, off, device);
+        Assert.True(entry.IsFocused);
+        Assert.False(entry.IsPasswordRevealed);
+    }
+
+    [Fact]
+    public void TheRevealModeIsValidatedAndKeptOnBothLayers()
+    {
+        var entry = new SkUiEntry();
+        Assert.Equal(SkUiPasswordRevealMode.Toggle, entry.PasswordRevealMode);
+        Assert.Throws<ArgumentOutOfRangeException>(() => entry.SetPasswordRevealMode((SkUiPasswordRevealMode)7));
+        entry.PasswordRevealMode = (SkUiPasswordRevealMode)7; // ignored, as MAUI ignores invalid values
+        Assert.Equal(SkUiPasswordRevealMode.Toggle, entry.PasswordRevealMode);
+        entry.SetPasswordRevealMode(SkUiPasswordRevealMode.WhilePressed);
+        Assert.Equal(SkUiPasswordRevealMode.WhilePressed, entry.Model.PasswordRevealMode);
+
+        var core = new SkUiCoreEntry();
+        var changes = new List<string?>();
+        ((INotifyPropertyChanged)core).PropertyChanged += (_, args) => changes.Add(args.PropertyName);
+        Assert.Throws<ArgumentOutOfRangeException>(() => core.SetPasswordRevealMode((SkUiPasswordRevealMode)7));
+        core.SetPasswordRevealMode(SkUiPasswordRevealMode.WhilePressed).SetPasswordRevealMode(SkUiPasswordRevealMode.WhilePressed);
+        Assert.Equal([nameof(SkUiCoreEntry.PasswordRevealMode)], changes);
+        Assert.Equal(SkUiPasswordRevealMode.WhilePressed, core.Model.PasswordRevealMode);
+        Assert.IsType<SkUiCoreNumericEntry<int>>(new SkUiCoreNumericEntry<int>().SetPasswordRevealMode(SkUiPasswordRevealMode.WhilePressed));
+        Assert.IsType<SkUiNumericEntry<int>>(new SkUiNumericEntry<int>().SetPasswordRevealMode(SkUiPasswordRevealMode.WhilePressed));
+    }
+
+    [Fact]
+    public void ACoreEntryHoldsTheSameWay()
+    {
+        using var _ = SkUiTestHelpers.UseBundledFont();
+        var core = CorePassword().SetPasswordRevealMode(SkUiPasswordRevealMode.WhilePressed);
+        var root = Root(new SkUiCoreHost().SetContent(core));
+        var center = Reveal(root)!.Bounds.Center;
+        var id = ++_pointer;
+        root.Touch(new SkUiTouchEvent(id, SkUiTouchAction.Pressed, center, TimeSpan.FromSeconds(id)));
+        Assert.True(core.IsPasswordRevealed);
+        root.Touch(new SkUiTouchEvent(id, SkUiTouchAction.Released, center, TimeSpan.FromSeconds(id) + TimeSpan.FromMilliseconds(500)));
+        Assert.False(core.IsPasswordRevealed);
+    }
+
     [Fact]
     public void TheButtonShowsOnlyOnAPasswordFieldThatAsksForIt()
     {
@@ -217,6 +310,11 @@ public sealed class PasswordRevealTests : IDisposable
         Assert.Equal(SkUiSemanticsRole.Button, button.Role);
         Assert.Equal(SkUiStrings.Current.ShowPasswordText, button.Label);
         Assert.Equal(SkUiSemanticsActions.Activate, button.Actions);
+        // Explore by touch reaches it inside the field's element (the Apple bridge answers UIKit's hit test with this).
+        var tree = SkUiSemanticsTree.Build(root);
+        var hit = tree.HitTest(button.Bounds.Center);
+        Assert.Equal(button.Id, hit?.Id);
+        Assert.Equal(hit!.Parent!.Id, tree.HitTest(new Point(hit.Parent.Bounds.Left + 30, button.Bounds.Center.Y))?.Id);
 
         var owner = new SkUiSemanticsOwner(root);
         Assert.True(owner.Perform(button.Id, SkUiSemanticsActions.Activate));

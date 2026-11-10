@@ -23,6 +23,7 @@ public sealed class CoreStateContainerDemoPage : ComponentDemoPage
     public CoreStateContainerDemoPage()
         : base(nameof(SkUiCoreStateContainer), CreateHost(out var states), native: null, widthRange: (120, 360, 260), heightRange: (80, 320, 200))
     {
+        SyncFrom(states);
         Choice("Animation", Animations, None, value => SetAnimation(states, value), () => AnimationName(states));
         Choice(nameof(SkUiCoreStateContainer.CurrentState), [ContentState, Loading, Error, Empty], ContentState,
             value => states.CurrentState = value == ContentState ? null : value, () => states.CurrentState ?? ContentState);
