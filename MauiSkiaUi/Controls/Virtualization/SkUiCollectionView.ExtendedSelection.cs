@@ -202,7 +202,8 @@ public partial class SkUiCollectionView
     /// </summary>
     private void ChangeSelectionByGesture(IReadOnlyList<object> selection)
     {
-        if (selection.Count == _selectedSnapshot.Count && selection.SequenceEqual(_selectedSnapshot))
+        // The same items in another order (select-all lists them in source order, clicks in click order) change nothing.
+        if (selection.Count == _selectedSnapshot.Count && SameItems(selection))
             return;
         var args = new SkUiSelectionChangingEventArgs(_selectedSnapshot, selection);
         SelectionChanging?.Invoke(this, args);
@@ -270,6 +271,15 @@ public partial class SkUiCollectionView
             _rangeBase = _selectedSnapshot;
         ChangeSelectionByGesture(Toggled(_rangeBase, ItemsPastAnchor(anchor, Model.GlobalIndex(group, index))));
         _rangeResult = _selectedSnapshot;
+    }
+
+    /// <summary>Whether <paramref name="selection"/> (as many items as are selected, each once) holds only selected items.</summary>
+    private bool SameItems(IReadOnlyList<object> selection)
+    {
+        foreach (var item in selection)
+            if (!_selectedSet.Contains(item))
+                return false;
+        return true;
     }
 
     /// <summary>The items past global index <paramref name="anchor"/> up to <paramref name="target"/> (either way), or none.</summary>

@@ -122,7 +122,8 @@ internal sealed class SkUiRenderTween : SkUiRenderAnimation
 
     /// <summary>
     /// Values last written on the render thread (property order), or <c>null</c> if the tween never ran.
-    /// Read on the UI thread from <see cref="SkUiRenderAnimation.Finished"/> (posted after the write).
+    /// Read on the UI thread from <see cref="SkUiRenderAnimation.Finished"/> (posted after the write), or while it runs as an
+    /// estimate of what shows (a float is written whole; at most a frame old).
     /// </summary>
     internal float[]? LastValues { get; private set; }
 

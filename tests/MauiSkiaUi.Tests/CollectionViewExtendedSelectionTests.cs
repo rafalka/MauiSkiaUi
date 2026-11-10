@@ -310,6 +310,23 @@ public class CollectionViewExtendedSelectionTests
     }
 
     [Fact]
+    public void SelectingAllWhenEveryItemIsSelectedInAnotherOrderChangesNothing()
+    {
+        var list = List(Rows(3));
+        var counter = new Counter(list);
+        Click(list, 2);
+        Click(list, 0, SkUiKeyModifiers.Control);
+        Click(list, 1, SkUiKeyModifiers.Control);
+        counter.AssertOne(3, 3);
+        var focus = list.FocusManager;
+        focus.KeyDown(SkUiKey.None);
+        Assert.True(list.Focus());
+        Assert.True(focus.KeyDown(SkUiKey.Character, SkUiKeyModifiers.Control, character: 'a'));
+        counter.AssertOne(0, 0);
+        Assert.Equal([2, 0, 1], Selected(list)); // as clicked
+    }
+
+    [Fact]
     public void AResetForgetsTheAnchor()
     {
         var list = List(new ObservableCollection<Row>(Enumerable.Range(0, 10).Select(index => new Row(index))));

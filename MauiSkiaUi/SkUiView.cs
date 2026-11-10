@@ -1292,7 +1292,21 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
     /// <param name="length">Milliseconds.</param>
     /// <param name="easing">The curve.</param>
     /// <param name="finished">Runs on the UI thread when it ends (<c>true</c>: ran to completion).</param>
-    internal Task<bool> AnimateFromAsync(SkUiAnimatableProperty property, double from, uint length, Easing? easing, Action<bool>? finished = null)
+    internal Task<bool> AnimateFromAsync(SkUiAnimatableProperty property, double from, uint length, Easing? easing, Action<bool>? finished = null) =>
+        AnimateFromAsync(property, from, length, easing, out _, finished);
+
+    /// <summary>
+    /// <see cref="AnimateFromAsync(SkUiAnimatableProperty, double, uint, Easing?, Action{bool}?)"/>, also giving the
+    /// render-thread tween, whose <see cref="SkUiRenderTween.LastValues"/> tell where the view was drawn last.
+    /// </summary>
+    /// <param name="property">Opacity, TranslationX or TranslationY.</param>
+    /// <param name="from">Where the drawing starts.</param>
+    /// <param name="length">Milliseconds.</param>
+    /// <param name="easing">The curve.</param>
+    /// <param name="tween">The render-thread tween.</param>
+    /// <param name="finished">Runs on the UI thread when it ends (<c>true</c>: ran to completion).</param>
+    internal Task<bool> AnimateFromAsync(SkUiAnimatableProperty property, double from, uint length, Easing? easing, out SkUiRenderTween tween,
+        Action<bool>? finished = null)
     {
         var (renderProperty, to) = property switch
         {
@@ -1302,7 +1316,7 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
             _ => throw new ArgumentOutOfRangeException(nameof(property))
         };
         var completion = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
-        var tween = new SkUiRenderTween([renderProperty], [(float)to], TimeSpan.FromMilliseconds(Math.Max(1, length)), easing)
+        tween = new SkUiRenderTween([renderProperty], [(float)to], TimeSpan.FromMilliseconds(Math.Max(1, length)), easing)
         {
             From = [(float)from],
             Finished = (animation, completed) =>

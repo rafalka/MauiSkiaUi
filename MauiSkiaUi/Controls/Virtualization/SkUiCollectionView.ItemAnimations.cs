@@ -15,8 +15,8 @@ public partial class SkUiCollectionView
     /// <summary>An item, group header or group footer, by what it shows (views are recycled and grid cells rebound).</summary>
     private readonly record struct MotionKey(MotionPart Part, object? Value);
 
-    /// <summary>A view drawn from an offset back to its place: where it started, when, for how long, how.</summary>
-    private readonly record struct Motion(Point From, long Started, double Length, Easing Easing);
+    /// <summary>A view drawn from an offset back to its place: where it started, and the render thread's tweens of each axis.</summary>
+    private sealed record Motion(Point From, SkUiRenderTween X, SkUiRenderTween Y);
 
     /// <summary>A removed item's view fading out: its recycle key, and the views generation it belongs to.</summary>
     private sealed record Ghost(SkUiView View, object Key, Rect Place, int Generation);
@@ -67,7 +67,7 @@ public partial class SkUiCollectionView
     internal int FadingViewCount => _ghosts.Count;
 
     /// <summary>The offset a view is drawn from towards its place, as it started, or <c>null</c> (tests).</summary>
-    internal Point? MotionFrom(SkUiView view) => _motions.TryGetValue(view, out var motion) && Offset(motion) is not null ? motion.From : null;
+    internal Point? MotionFrom(SkUiView view) => _motions.TryGetValue(view, out var motion) ? motion.From : null;
 
     /// <summary>Whether a view fades in (tests).</summary>
     internal bool IsFadingIn(SkUiView view) => _fadingIn.Contains(view);
@@ -247,16 +247,15 @@ public partial class SkUiCollectionView
             return;
         var length = (uint)Math.Max(1, transition.Duration.TotalMilliseconds);
         var easing = transition.Easing ?? Easing.Linear;
-        var motion = new Motion(shift, System.Diagnostics.Stopwatch.GetTimestamp(), length, easing);
-        _motions[view] = motion;
-        _ = view.AnimateFromAsync(SkUiAnimatableProperty.TranslationX, view.TranslationX + shift.X, length, easing);
-        // The render thread's end (or a newer glide replacing it) ends the bookkeeping too: the clock above only estimates
-        // where the view is drawn while it glides.
-        _ = view.AnimateFromAsync(SkUiAnimatableProperty.TranslationY, view.TranslationY + shift.Y, length, easing, _ =>
+        Motion? motion = null;
+        _ = view.AnimateFromAsync(SkUiAnimatableProperty.TranslationX, view.TranslationX + shift.X, length, easing, out var x);
+        // The render thread's end (or a newer glide replacing it) ends the bookkeeping.
+        _ = view.AnimateFromAsync(SkUiAnimatableProperty.TranslationY, view.TranslationY + shift.Y, length, easing, out var y, _ =>
         {
-            if (_motions.TryGetValue(view, out var current) && current == motion)
+            if (_motions.TryGetValue(view, out var current) && ReferenceEquals(current, motion))
                 _motions.Remove(view);
         });
+        _motions[view] = motion = new Motion(shift, x, y);
     }
 
     /// <summary>
@@ -368,25 +367,15 @@ public partial class SkUiCollectionView
     private Rect? PlaceOf(SkUiView view) =>
         SkUiScrollController.GetContentBounds(Scroller, view) is { } bounds ? bounds.Offset(-Scroller.ScrollX, -Scroller.ScrollY) : null;
 
-    /// <summary>Where a gliding view is drawn now, from its place, or <c>null</c> (not gliding any more).</summary>
-    private Point? Offset(SkUiView view)
-    {
-        if (!_motions.TryGetValue(view, out var motion))
-            return null;
-        if (Offset(motion) is { } offset)
-            return offset;
-        _motions.Remove(view);
-        return null;
-    }
+    /// <summary>
+    /// Where a gliding view is drawn now, from its place, or <c>null</c> (not gliding): what the render thread drew last (its
+    /// tweens' last values; the full offset until the first frame draws them), so the estimate never runs ahead of what shows.
+    /// </summary>
+    private Point? Offset(SkUiView view) =>
+        _motions.TryGetValue(view, out var motion) ? new Point(Drawn(motion.X, motion.From.X), Drawn(motion.Y, motion.From.Y)) : null;
 
-    private static Point? Offset(Motion motion)
-    {
-        var progress = System.Diagnostics.Stopwatch.GetElapsedTime(motion.Started).TotalMilliseconds / motion.Length;
-        if (progress >= 1)
-            return null;
-        var left = 1 - motion.Easing.Ease(Math.Max(0, progress));
-        return new Point(motion.From.X * left, motion.From.Y * left);
-    }
+    /// <summary>The offset <paramref name="tween"/> last drew from its target (a benign read of a value the render thread writes).</summary>
+    private static double Drawn(SkUiRenderTween tween, double from) => tween.LastValues is { } values ? values[0] - tween.Targets[0] : from;
 
     /// <summary>Holds the views of removed items while they fade out: under the items, input-transparent, hidden from screen readers.</summary>
     private sealed class GhostPart : SkUiView
