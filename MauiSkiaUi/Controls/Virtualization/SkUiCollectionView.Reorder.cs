@@ -32,6 +32,22 @@ public partial class SkUiCollectionView
     /// </summary>
     public bool CanMixGroups { get => (bool)GetValue(CanMixGroupsProperty); set => SetValue(CanMixGroupsProperty, value); }
 
+    /// <summary>
+    /// Attached to a view inside the item template: the item's reorder handle (a ⋮⋮ or ≡ glyph). With
+    /// <see cref="CanReorderItems"/>, a press on a shown handle lifts the item at once, with any pointer, and drags it; the
+    /// rest of the item no longer lifts it, so its taps and long presses behave as they would without reordering. An item
+    /// with no view marked lifts with a long press anywhere, as before. A hidden handle still marks its item, which then does
+    /// not lift by touch until the handle shows. Screen readers keep the moves on the item.
+    /// </summary>
+    public static readonly BindableProperty IsReorderHandleProperty = BindableProperty.CreateAttached(
+        "IsReorderHandle", typeof(bool), typeof(SkUiCollectionView), false);
+
+    /// <summary>Whether <paramref name="view"/> is its item's reorder handle (<see cref="IsReorderHandleProperty"/>).</summary>
+    public static bool GetIsReorderHandle(BindableObject view) => (bool)view.GetValue(IsReorderHandleProperty);
+
+    /// <summary>Makes <paramref name="view"/> its item's reorder handle, or not (<see cref="IsReorderHandleProperty"/>).</summary>
+    public static void SetIsReorderHandle(BindableObject view, bool value) => view.SetValue(IsReorderHandleProperty, value);
+
     /// <summary>Raised after the user moved an item (the source has changed). An item put back where it was raises nothing.</summary>
     public event EventHandler? ReorderCompleted;
 
@@ -842,10 +858,52 @@ public partial class SkUiCollectionView
         return null;
     }
 
+    /// <summary>Where a press is on an item, for its reorder handles (<see cref="IsReorderHandleProperty"/>).</summary>
+    private enum ReorderHandleHit
+    {
+        /// <summary>The item has no handle: it lifts from anywhere.</summary>
+        NoHandle,
+        /// <summary>The item has a handle, and the press is not on a shown one.</summary>
+        Elsewhere,
+        /// <summary>The press is on a shown handle.</summary>
+        OnHandle
+    }
+
+    /// <summary>Whether <paramref name="view"/>'s subtree has a reorder handle, and whether the press of <paramref name="pointer"/> is on a shown one.</summary>
+    private static ReorderHandleHit HitReorderHandle(SkUiView view, SkUiPointer pointer, bool shown)
+    {
+        var hit = ReorderHandleHit.NoHandle;
+        shown &= view.IsVisible;
+        if (GetIsReorderHandle(view))
+        {
+            if (shown && IsOn(view, pointer))
+                return ReorderHandleHit.OnHandle;
+            hit = ReorderHandleHit.Elsewhere;
+        }
+        foreach (var child in view.SkiaChildren)
+        {
+            if (child is not SkUiView childView)
+                continue;
+            var childHit = HitReorderHandle(childView, pointer, shown);
+            if (childHit == ReorderHandleHit.OnHandle)
+                return childHit;
+            if (childHit == ReorderHandleHit.Elsewhere)
+                hit = childHit;
+        }
+        return hit;
+
+        static bool IsOn(SkUiView handle, SkUiPointer pointer)
+        {
+            var local = pointer.MapToElement(handle, pointer.StartPosition);
+            return local.X >= 0 && local.Y >= 0 && local.X < handle.Width && local.Y < handle.Height;
+        }
+    }
+
     /// <summary>
     /// Lifts the item under the pointer: a long press (touch, pen) or a primary-button press and drag (mouse), then moves it
-    /// with the pointer until release. One for the rows (they stay attached while the item's container is recycled).
-    /// Exclusive, so native ancestors stay out once it claims.
+    /// with the pointer until release; an item with a reorder handle lifts at once from the handle, and only from there. One
+    /// for the rows (they stay attached while the item's container is recycled). Exclusive, so native ancestors stay out
+    /// once it claims.
     /// </summary>
     private sealed class ReorderGesture(SkUiCollectionView owner) : SkUiGestureRecognizer
     {
@@ -864,9 +922,23 @@ public partial class SkUiCollectionView
         {
             if (_pointer is not null || owner.ItemHostAt(pointer) is not { } host || !owner.CanLift(host))
                 return false;
-            _mouse = pointer.Device == SkUiPointerDevice.Mouse;
-            if (_mouse && (pointer.Buttons & ~SkUiPointerButtons.Primary) != 0)
+            var mouse = pointer.Device == SkUiPointerDevice.Mouse;
+            if (mouse && (pointer.Buttons & ~SkUiPointerButtons.Primary) != 0)
                 return false;
+            var handle = HitReorderHandle(host, pointer, shown: true);
+            if (handle == ReorderHandleHit.Elsewhere)
+                return false; // the item's own taps and long presses
+            _mouse = mouse;
+            if (handle == ReorderHandleHit.OnHandle)
+            {
+                // Lifted at once: it claims the pointer, so the list does not scroll and the handle's own taps do not fire.
+                _host = host;
+                _pointer = pointer.Id;
+                _last = pointer;
+                _lifted = false;
+                Lift(pointer.Id);
+                return _lifted;
+            }
             if (!_mouse)
             {
                 var id = pointer.Id;

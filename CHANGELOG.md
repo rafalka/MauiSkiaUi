@@ -31,11 +31,16 @@ Publishing (the NuGet publish workflow, [docs/Releasing.md](docs/Releasing.md)) 
   - The field stays a password field for the platform while revealed (the keyboard, autofill and password managers see one) and copying stays off; the caret and selection stay put, and the text is masked again when the field loses focus.
   - Screen readers read the text only while it shows, and the button as "Show password" / "Hide password" (`SkUiStrings.ShowPasswordText` / `HidePasswordText`, automation id `{AutomationId}_Reveal`).
   - The look sizes and draws the button: `TextFieldPasswordRevealButtonWidth`, `DrawTextFieldPasswordRevealButton` (`DrawTextFieldPasswordRevealButtonCore`, `DrawPasswordRevealGlyph`, `TextFieldPasswordRevealButtonPainter`) with `SkUiPasswordRevealButtonPaint`.
-- Gallery: Core state container and Core expander pages.
+- **Reorder from a drag handle:** the attached `SkUiCollectionView.IsReorderHandle` marks a view in the item template (a ⋮⋮ or ≡ glyph) as the item's drag handle. With `CanReorderItems`, a press on it lifts the item at once, with any pointer, and drags it; the rest of the item no longer lifts it, so the row's own taps and long presses (`LongPressedCommand`: entering a select mode) work, and a drag there scrolls the list. Items with no handle lift with a long press anywhere, as before; a hidden handle stops touch reordering of its item; the screen-reader moves stay on the item ([SkUiCollectionView.md](docs/controls/SkUiCollectionView.md)).
+- Gallery: Core state container and Core expander pages; drag handles on the collection view reordering page.
 
 ### Breaking changes
 
 - **Animating one scale axis of a Core node scales that axis only:** an `SkUiViewAnimation` (or a Core shimmer's state change animation) of `ScaleX` or `ScaleY` on a Core node used to scale both axes, or was rejected; it now scales its own axis, as on SkUi\* views and in MAUI. Animate `Scale` to scale both ([Migration.md](docs/Migration.md#7-animations)).
+
+### Fixes
+
+- **A drawn root sized by its content grows with it again:** a surface root in a MAUI layout (a drawn stack in a `VerticalStackLayout` in a `ScrollView`) kept its old height when a nested `BindableLayout` list gained items while the page was shown, cutting off what was below the list until the page laid out again. A native layout pass that arranged the root after the change and before its next frame measured it at its old bounds, capping its height, so its relayout found no change to report. It is now measured with the constraint the native layout gave it, which is asked again when the root's size changed.
 
 ### Other
 

@@ -6,7 +6,7 @@ namespace MauiSkiaUiDemo;
 /// <summary>
 /// Reordering on <see cref="SkUiCollectionView"/> next to MAUI's <see cref="CollectionView"/>: both lists show the same
 /// tasks, so a move in either shows in both. A list, a grid or a horizontal list; grouped, with or without moves between
-/// the groups.
+/// the groups. With drag handles, the SkiaUi rows lift from their handle at once and keep their long press.
 /// </summary>
 public sealed class ReorderDemoPage : ComponentDemoPage
 {
@@ -29,6 +29,7 @@ public sealed class ReorderDemoPage : ComponentDemoPage
     private readonly ObservableCollection<TaskGroup> _groups = [];
     private string _layout = List;
     private bool _grouped;
+    private bool _handles;
     private int _moves;
 
     public ReorderDemoPage() : base("SkUiCollectionView (reordering)", new SkUiCollectionView(), new CollectionView(),
@@ -37,7 +38,7 @@ public sealed class ReorderDemoPage : ComponentDemoPage
         _skia = (SkUiCollectionView)SkiaControl;
         _native = (CollectionView)NativeControl!;
         Fill();
-        _skia.ItemTemplate = new DataTemplate(() => new SkiaTask());
+        _skia.ItemTemplate = SkiaTemplate();
         _skia.GroupHeaderTemplate = new DataTemplate(() => new SkiaHeader());
         _skia.ReorderCompleted += (_, _) => { _moves++; Status(); };
         _native.ItemTemplate = new DataTemplate(() => new NativeTask());
@@ -53,8 +54,13 @@ public sealed class ReorderDemoPage : ComponentDemoPage
         Toggle(nameof(SkUiCollectionView.CanMixGroups), false,
             value => { _skia.CanMixGroups = value; _native.CanMixGroups = value; },
             () => _skia.CanMixGroups, () => _native.CanMixGroups);
+        Toggle("Drag handles (SkiaUi)", false, value => { _handles = value; _skia.ItemTemplate = SkiaTemplate(); }, () => _handles);
         ActionButton("Reset the order", () => { Fill(); Apply(); });
     }
+
+    /// <summary>The SkiaUi rows, with or without a drag handle (then a long press on the row is the row's own).</summary>
+    private DataTemplate SkiaTemplate() =>
+        _handles ? new DataTemplate(() => new SkiaTask(task => Feedback($"Long press: {task.Title}"))) : new DataTemplate(() => new SkiaTask(null));
 
     /// <summary>The tasks in their first order: one list, and the same tasks in two groups.</summary>
     private void Fill()
@@ -103,21 +109,39 @@ public sealed class ReorderDemoPage : ComponentDemoPage
         public string Name { get; } = name;
     }
 
-    /// <summary>A task: a colored bar and its title, a row in a list, a card in a grid or a horizontal list.</summary>
+    /// <summary>
+    /// A task: a colored bar and its title, a row in a list, a card in a grid or a horizontal list. With
+    /// <paramref name="longPressed"/>, a drag handle (≡) at its end lifts it, and a long press elsewhere calls that.
+    /// </summary>
     private sealed class SkiaTask : SkUiGrid
     {
         private readonly SkUiBox _bar = new() { WidthRequest = 6, CornerRadius = 3 };
         private readonly SkUiLabel _title = new() { FontSize = 15, TextColor = DemoColors.Ink, VerticalTextAlignment = TextAlignment.Center, Margin = new Thickness(12, 0) };
 
-        public SkiaTask()
+        public SkiaTask(Action<TaskItem>? longPressed)
         {
             HeightRequest = RowHeight;
             MinimumWidthRequest = CardWidth;
             Background = Colors.White;
-            ColumnDefinitions = [new ColumnDefinition(GridLength.Auto), new ColumnDefinition(GridLength.Star)];
+            ColumnDefinitions = [new ColumnDefinition(GridLength.Auto), new ColumnDefinition(GridLength.Star), new ColumnDefinition(GridLength.Auto)];
             Children.Add(_bar);
             Microsoft.Maui.Controls.Grid.SetColumn((BindableObject)_title, 1);
             Children.Add(_title);
+            if (longPressed is null)
+                return;
+            var handle = new SkUiLabel
+            {
+                Text = "≡", FontSize = 22, TextColor = DemoColors.Caption, VerticalTextAlignment = TextAlignment.Center,
+                HorizontalTextAlignment = TextAlignment.Center, WidthRequest = 44
+            };
+            SkUiCollectionView.SetIsReorderHandle(handle, true);
+            Microsoft.Maui.Controls.Grid.SetColumn((BindableObject)handle, 2);
+            Children.Add(handle);
+            LongPressed += (_, _) =>
+            {
+                if (BindingContext is TaskItem task)
+                    longPressed(task);
+            };
         }
 
         protected override void OnBindingContextChanged()

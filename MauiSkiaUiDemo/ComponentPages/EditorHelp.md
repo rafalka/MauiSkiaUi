@@ -454,6 +454,12 @@ The same tasks in two groups, "Today" and "Later". Group headers do not move.
 
 In grouped lists, whether a task can move to the other group (off: it stays in its own).
 
+## ReorderDemoPage.Drag handles (SkiaUi)
+
+Gives the SkiaUi tasks a drag handle (≡, `SkUiCollectionView.IsReorderHandle`) at their end: a press on it lifts the task
+at once, with no long press. The rest of the row no longer lifts it: a long press there is the row's own (it shows the
+task under the lists), and a drag there scrolls.
+
 ## ReorderDemoPage.Reset the order
 
 Puts the tasks back in their first order.
