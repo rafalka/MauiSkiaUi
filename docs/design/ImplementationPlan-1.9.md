@@ -61,7 +61,7 @@
 
 ## Taken in from the issue tracker
 
-- **#85 A drawn root sized by its content grows with it again.** **Done.** A surface root arranged before its pending relayout is measured with the constraint the native layout last gave it (on the axes where that constraint was unbounded or the arranged size) and asks the native layout again when its size changes. Tests: `PipelineTests`; checked on the Android emulator.
+- **#85 A drawn root sized by its content grows with it again.** **Done.** A surface root arranged before its pending relayout is measured with the constraint the native layout last gave it (on the axes where that constraint was unbounded or the arranged slot still holds what the root last asked for) and asks the native layout again when its size changes. Tests: `PipelineTests`; checked on the Android emulator.
 - **#86 Reorder from a drag handle.** **Done.** `SkUiCollectionView.IsReorderHandle` (attached): a press on a marked view lifts its item at once, with any pointer; the rest of the item keeps its taps, long presses and scrolling; a hidden handle lifts nothing. Tests: `CollectionViewReorderTests`; the reordering demo page.
 
 ## Docs, migration and demo
