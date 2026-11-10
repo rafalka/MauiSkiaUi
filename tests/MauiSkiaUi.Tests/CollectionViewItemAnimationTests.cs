@@ -289,6 +289,22 @@ public class CollectionViewItemAnimationTests
         }
     }
 
+    [Fact]
+    public void RowsAfterARowThatTakesItsSelectedTemplateGlideToMakeRoom()
+    {
+        var rows = Rows(30);
+        var list = List(rows);
+        list.SelectionMode = SkUiSelectionMode.Single;
+        list.SelectedItemTemplate = new DataTemplate(() => new SkUiBox { HeightRequest = 120 });
+        using var surface = new SkUiTestSurface(list, 300, 500);
+        surface.Frame(0);
+
+        list.SelectedItem = rows[2];
+        surface.Frame(16);
+        Assert.Null(From(list, 2)); // the selected row stays where it starts
+        Assert.Equal(new Point(0, -70), From(list, 3)); // the next one makes room: from 150 to 220
+    }
+
     private sealed class AnimatingLook : DefaultSkUiLook
     {
         public override bool CollectionViewAnimatesItemChanges => true;

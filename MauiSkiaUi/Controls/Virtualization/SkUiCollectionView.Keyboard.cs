@@ -3,7 +3,7 @@ using MauiSkiaUi.Rendering;
 namespace MauiSkiaUi;
 
 // Keyboard item navigation: the list is one tab stop with a current item, moved by the arrow keys, Home / End and the page
-// keys, and activated by Space / Enter as a tap would. The current item is kept by item (and group), not by index or
+// keys, and activated by Space / Enter as a tap would (in an extended selection Space selects and Enter taps). The current item is kept by item (and group), not by index or
 // container, so it survives collection changes, recycling and scrolling out of view; its container draws the focus ring
 // while the list has keyboard focus from the keyboard.
 public partial class SkUiCollectionView : ISkUiKeyHandler, ISkUiItemFocusTarget
@@ -76,11 +76,11 @@ public partial class SkUiCollectionView : ISkUiKeyHandler, ISkUiItemFocusTarget
 
     bool ISkUiKeyHandler.OnKeyDown(in SkUiKeyEvent key)
     {
-        // Ctrl / Command take part in an extended selection's keys (move without selecting, toggle, select all); Alt never.
+        // Ctrl / Command take part in an extended selection's keys (select all; with the moving keys and Space as without); Alt never.
         if (!IsVisualStateEnabled || (key.HasCommandModifier && ((key.Modifiers & SkUiKeyModifiers.Alt) != 0 || !ExtendsSelection)))
             return false;
         if (!IsFocused)
-            return key.Key is not (SkUiKey.Enter or SkUiKey.Space or SkUiKey.Tab or SkUiKey.Escape or SkUiKey.Character or SkUiKey.None)
+            return key.Key is not (SkUiKey.Enter or SkUiKey.Space or SkUiKey.Insert or SkUiKey.Tab or SkUiKey.Escape or SkUiKey.Character or SkUiKey.None)
                 && TakeFocusFromItem() && Navigate(key);
         return Navigate(key);
     }
@@ -117,6 +117,8 @@ public partial class SkUiCollectionView : ISkUiKeyHandler, ISkUiItemFocusTarget
     {
         if (key.Key is SkUiKey.Enter or SkUiKey.Space)
             return Activate(key);
+        if (key.Key == SkUiKey.Insert)
+            return ExtendsSelection && ToggleAndMoveOn();
         if (key.Key == SkUiKey.Character && ExtendsSelection && HasToggleModifier(key.Modifiers) && char.ToLowerInvariant(key.Character) == 'a')
         {
             if (!key.IsRepeat)
@@ -126,7 +128,7 @@ public partial class SkUiCollectionView : ISkUiKeyHandler, ISkUiItemFocusTarget
         var (kind, index) = (_currentKind, ResolveCurrent());
         if (!Move(key))
             return false;
-        // An extended selection follows the moves of the current item.
+        // An extended selection's range follows the moves of the current item (with Shift).
         if (ExtendsSelection && (_currentKind != kind || ResolveCurrent() != index))
             SelectAfterMove(key.Modifiers, kind == CurrentKind.Item ? index : -1);
         return true;
@@ -248,8 +250,8 @@ public partial class SkUiCollectionView : ISkUiKeyHandler, ISkUiItemFocusTarget
 
     /// <summary>
     /// Space / Enter: activates the current item as a tap would, or expands / collapses the current group. In an extended
-    /// selection Space adds or removes the current item (Shift+Space: the range from the anchor), as a Ctrl+click, and Enter
-    /// taps it without changing the selection.
+    /// selection Space adds or removes the current item (Shift+Space: toggles the range from the anchor) without tapping it, and
+    /// Enter taps it (opens it) without changing the selection.
     /// </summary>
     private bool Activate(in SkUiKeyEvent key)
     {
@@ -266,11 +268,36 @@ public partial class SkUiCollectionView : ISkUiKeyHandler, ISkUiItemFocusTarget
         }
         if (!WantsItemTaps)
             return false;
-        var gesture = !ExtendsSelection ? SelectionGesture.Tap
-            : key.Key == SkUiKey.Enter ? SelectionGesture.None
-            : (key.Modifiers & SkUiKeyModifiers.Shift) != 0 ? SelectionGesture.Range
-            : SelectionGesture.Toggle;
-        ActivateItem(current.Group, current.Start + slot, gesture);
+        if (ExtendsSelection && key.Key == SkUiKey.Space)
+            SelectByKey(current.Group, current.Start + slot, extendRange: (key.Modifiers & SkUiKeyModifiers.Shift) != 0);
+        else
+            ActivateItem(current.Group, current.Start + slot, ExtendsSelection ? SelectionGesture.None : SelectionGesture.Tap);
+        return true;
+    }
+
+    /// <summary>
+    /// Insert in an extended selection: adds or removes the current item, then moves on to the next stop (held down, it
+    /// toggles item after item). On a group header it only moves on.
+    /// </summary>
+    private bool ToggleAndMoveOn()
+    {
+        if (CurrentRow(out var slot) is not (>= 0 and var row))
+            return false;
+        var current = Model.RowAt(row);
+        if (current.Kind == RowKind.Items)
+            SelectByKey(current.Group, current.Start + slot, extendRange: false);
+        // On to the next item: across a grid row first, then to the next row's first item.
+        if (_currentKind != CurrentKind.None && CurrentRow(out slot) is >= 0 and var at)
+        {
+            var moved = Model.Span > 1 && Model.RowAt(at).Kind == RowKind.Items && slot + 1 < Model.RowAt(at).Count
+                ? MoveTo(at, slot + 1)
+                : NextStop(at, 1) is >= 0 and var next && MoveTo(next, 0);
+            if (moved && _currentKind == CurrentKind.Item && ResolveCurrent() is >= 0 and var index)
+            {
+                var (group, inGroup) = Model.Locate(index);
+                SetAnchor(group, inGroup);
+            }
+        }
         return true;
     }
 

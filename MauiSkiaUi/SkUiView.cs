@@ -247,9 +247,13 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
     protected override void ChangeVisualState()
     {
         var enabled = IsVisualStateEnabled;
-        VisualStateManager.GoToState(this, !enabled ? VisualStateManager.CommonStates.Disabled
+        var state = !enabled ? VisualStateManager.CommonStates.Disabled
             : _isSelectedItem ? VisualStateManager.CommonStates.Selected
-            : IsPointerOver ? VisualStateManager.CommonStates.PointerOver : VisualStateManager.CommonStates.Normal);
+            : IsPointerOver ? VisualStateManager.CommonStates.PointerOver : VisualStateManager.CommonStates.Normal;
+        // A group without the state stays in the one it was in (MAUI's VSM): an item deselected under the pointer would keep
+        // its Selected look, a view enabled under it its Disabled look. Normal stands in for a missing PointerOver.
+        if (!VisualStateManager.GoToState(this, state) && IsPointerOver && state == VisualStateManager.CommonStates.PointerOver)
+            VisualStateManager.GoToState(this, VisualStateManager.CommonStates.Normal);
         if (enabled)
             VisualStateManager.GoToState(this, IsFocused ? VisualStateManager.CommonStates.Focused : UnfocusedState);
     }

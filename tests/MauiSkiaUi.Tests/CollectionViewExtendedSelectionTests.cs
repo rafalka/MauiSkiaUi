@@ -146,7 +146,7 @@ public class CollectionViewExtendedSelectionTests
     }
 
     [Fact]
-    public void KeysMoveTheSelectionShiftExtendsItAndCtrlMovesWithoutSelecting()
+    public void ArrowsMoveOnlyTheCurrentItemSpaceTogglesAndShiftAddsTheRange()
     {
         var list = List(Rows(20));
         var tapped = new List<int>();
@@ -157,41 +157,64 @@ public class CollectionViewExtendedSelectionTests
         Assert.True(list.Focus());
         Assert.Equal(0, list.CurrentItemIndex);
 
-        Assert.True(focus.KeyDown(SkUiKey.Down));
-        Assert.Equal([1], Selected(list));
-        counter.AssertOne();
-        focus.KeyDown(SkUiKey.Down, SkUiKeyModifiers.Shift);
-        focus.KeyDown(SkUiKey.Down, SkUiKeyModifiers.Shift);
-        Assert.Equal([1, 2, 3], Selected(list));
+        // Clicks select several; the arrow keys move the current item and keep them.
+        Click(list, 2);
+        Click(list, 4, SkUiKeyModifiers.Command);
         counter.AssertOne(2, 2);
-        Keys(focus, SkUiKey.Up, SkUiKeyModifiers.Shift, 3);
-        Assert.Equal([0, 1], Selected(list)); // from the anchor, the other way
+        Assert.True(focus.KeyDown(SkUiKey.Down));
+        Assert.True(focus.KeyDown(SkUiKey.Down));
+        Assert.Equal(6, list.CurrentItemIndex);
+        Assert.True(focus.KeyDown(SkUiKey.End));
+        Assert.True(focus.KeyDown(SkUiKey.Up, SkUiKeyModifiers.Command)); // Ctrl / Command change nothing
+        Assert.Equal(18, list.CurrentItemIndex);
+        Assert.Equal([2, 4], Selected(list));
+        counter.AssertOne(0, 0);
+
+        // Space adds or removes the current item, without tapping it.
+        Keys(focus, SkUiKey.Up, SkUiKeyModifiers.None, 10);
+        Assert.True(focus.KeyDown(SkUiKey.Space));
+        Assert.Equal([2, 4, 8], Selected(list));
+        Assert.True(focus.KeyDown(SkUiKey.Space, isRepeat: true)); // held: once
+        Assert.Equal([2, 4, 8], Selected(list));
+        Keys(focus, SkUiKey.Up, SkUiKeyModifiers.None, 4);
+        Assert.True(focus.KeyDown(SkUiKey.Space));
+        Assert.Equal([2, 8], Selected(list));
+        counter.AssertOne(2, 2);
+
+        // Shift+arrows toggle the range from where the current item was when Shift was first pressed, in what was selected;
+        // moving back shrinks it, past the start it runs the other way.
+        Keys(focus, SkUiKey.Down, SkUiKeyModifiers.None, 6);
+        Keys(focus, SkUiKey.Down, SkUiKeyModifiers.Shift, 3);
+        Assert.Equal([2, 8, 10, 11, 12, 13], Selected(list));
+        counter.AssertOne(3, 3); // one change per key
+        Keys(focus, SkUiKey.Up, SkUiKeyModifiers.Shift, 4);
+        Assert.Equal([2, 8, 9, 10], Selected(list));
+        Assert.True(focus.KeyDown(SkUiKey.Home, SkUiKeyModifiers.Shift));
+        Assert.Equal([0, 1, 3, 4, 5, 6, 7, 9, 10], Selected(list)); // 2 and 8 were selected: toggled off
         counter.Changing = counter.Changed = counter.Commands = 0;
 
-        // Ctrl moves the current item alone; Ctrl+Space adds it and anchors there.
-        Keys(focus, SkUiKey.Down, SkUiKeyModifiers.Control, 3);
-        Assert.Equal(3, list.CurrentItemIndex);
-        Assert.Equal([0, 1], Selected(list));
-        counter.AssertOne(0, 0);
-        Assert.True(focus.KeyDown(SkUiKey.Space, SkUiKeyModifiers.Control));
-        Assert.Equal([0, 1, 3], Selected(list));
-        Assert.True(focus.KeyDown(SkUiKey.End, SkUiKeyModifiers.Shift));
-        Assert.Equal(Enumerable.Range(3, 17), Selected(list));
-        Assert.True(focus.KeyDown(SkUiKey.Home, SkUiKeyModifiers.Shift));
-        Assert.Equal([0, 1, 2, 3], Selected(list));
-        counter.AssertOne(3, 3);
-
-        // Space adds or removes the current item; Shift+Space selects the range to it; Enter taps without selecting.
-        Assert.True(focus.KeyDown(SkUiKey.Space));
-        Assert.Equal([1, 2, 3], Selected(list));
-        Keys(focus, SkUiKey.Down, SkUiKeyModifiers.Control, 5);
+        // A plain move starts the next range where it ends; a selection change by anything else is kept by the next range.
+        list.SelectedItems.Clear();
+        Keys(focus, SkUiKey.Down, SkUiKeyModifiers.None, 15);
+        list.SelectedItems.Add(list.ItemsSource!.Cast<Row>().ElementAt(1));
+        Assert.True(focus.KeyDown(SkUiKey.Down, SkUiKeyModifiers.Shift));
+        Assert.Equal([1, 15, 16], Selected(list));
+        // Shift+Space toggles the range from the anchor too.
+        Keys(focus, SkUiKey.Down, SkUiKeyModifiers.None, 2);
+        Keys(focus, SkUiKey.Up, SkUiKeyModifiers.Command, 1);
+        Assert.Equal(17, list.CurrentItemIndex);
+        Assert.True(focus.KeyDown(SkUiKey.Space)); // toggles 17 and anchors there
+        Keys(focus, SkUiKey.Down, SkUiKeyModifiers.Command, 2);
+        // A plain (or Ctrl) move anchors at the item it reaches: Shift+Space from 19 selects only 19 more.
         Assert.True(focus.KeyDown(SkUiKey.Space, SkUiKeyModifiers.Shift));
-        Assert.Equal([0, 1, 2, 3, 4, 5], Selected(list)); // from the anchor Space left at item 0
-        counter.AssertOne(2, 2);
+        Assert.Equal([1, 15, 16, 17, 19], Selected(list));
+
+        // Enter taps (opens) the current item without selecting; Space never tapped.
+        counter.Changing = counter.Changed = counter.Commands = 0;
         Assert.True(focus.KeyDown(SkUiKey.Enter));
-        Assert.Equal([0, 1, 2, 3, 4, 5], Selected(list));
+        Assert.Equal([1, 15, 16, 17, 19], Selected(list));
         counter.AssertOne(0, 0);
-        Assert.Equal([3, 0, 5, 5], tapped); // Space (with Ctrl or Shift too) and Enter tap as clicks do
+        Assert.Equal([19], tapped.Skip(2)); // the two clicks tapped as well
 
         // Ctrl / Command+A selects every item, once.
         Assert.True(focus.KeyDown(SkUiKey.Character, SkUiKeyModifiers.Command, character: 'a'));
@@ -204,6 +227,76 @@ public class CollectionViewExtendedSelectionTests
         list.IsExtendedSelectionEnabled = false;
         Assert.False(focus.KeyDown(SkUiKey.Down, SkUiKeyModifiers.Control));
         Assert.False(focus.KeyDown(SkUiKey.Character, SkUiKeyModifiers.Control, character: 'a'));
+    }
+
+    [Fact]
+    public void ShiftArrowsDeselectSelectedItemsAndMovingBackRestoresThem()
+    {
+        var list = List(Rows(10));
+        var focus = list.FocusManager;
+        focus.KeyDown(SkUiKey.None);
+        Assert.True(list.Focus());
+        Click(list, 2);
+        Click(list, 3, SkUiKeyModifiers.Command);
+        Click(list, 6, SkUiKeyModifiers.Command);
+        int[] Sorted() => [.. Selected(list).Order()];
+
+        focus.KeyDown(SkUiKey.Up);
+        focus.KeyDown(SkUiKey.Up);
+        focus.KeyDown(SkUiKey.Up); // at 3: the range starts here
+        focus.KeyDown(SkUiKey.Up, SkUiKeyModifiers.Shift);
+        Assert.Equal([6], Sorted()); // 2 and 3 were selected: off
+        focus.KeyDown(SkUiKey.Down, SkUiKeyModifiers.Shift);
+        Assert.Equal([2, 6], Sorted()); // back: 2 as it was, 3 (the start) still toggled
+        Keys(focus, SkUiKey.Down, SkUiKeyModifiers.Shift, 3);
+        Assert.Equal([2, 4, 5], Sorted()); // 3 and 6 off, 4 and 5 on
+        Keys(focus, SkUiKey.Up, SkUiKeyModifiers.Shift, 3);
+        Assert.Equal([2, 6], Sorted());
+    }
+
+    [Fact]
+    public void InsertTogglesTheCurrentItemAndMovesOn()
+    {
+        var list = List(Rows(10));
+        var focus = list.FocusManager;
+        focus.KeyDown(SkUiKey.None);
+        Assert.True(list.Focus());
+
+        Assert.True(focus.KeyDown(SkUiKey.Insert));
+        Assert.True(focus.KeyDown(SkUiKey.Insert, isRepeat: true)); // held: item after item
+        Assert.Equal([0, 1], Selected(list));
+        Assert.Equal(2, list.CurrentItemIndex);
+        focus.KeyDown(SkUiKey.Up);
+        Assert.True(focus.KeyDown(SkUiKey.Insert));
+        Assert.Equal([0], Selected(list));
+        Assert.Equal(2, list.CurrentItemIndex);
+        // Shift+arrows range from where Insert left the current item.
+        focus.KeyDown(SkUiKey.Down, SkUiKeyModifiers.Shift);
+        Assert.Equal([0, 2, 3], Selected(list));
+        // At the end it toggles and stays.
+        focus.KeyDown(SkUiKey.End);
+        Assert.True(focus.KeyDown(SkUiKey.Insert));
+        Assert.Equal(9, list.CurrentItemIndex);
+        Assert.Equal([0, 2, 3, 9], Selected(list));
+
+        // Only in an extended selection.
+        list.IsExtendedSelectionEnabled = false;
+        Assert.False(focus.KeyDown(SkUiKey.Insert));
+    }
+
+    [Fact]
+    public void InsertMovesAcrossAGridRowThenToTheNextRow()
+    {
+        var list = List(Rows(7));
+        list.Span = 3;
+        SkUiTestHelpers.Arrange(list, 300, 1200);
+        var focus = list.FocusManager;
+        focus.KeyDown(SkUiKey.None);
+        Assert.True(list.Focus());
+        focus.KeyDown(SkUiKey.Right);
+        Keys(focus, SkUiKey.Insert, SkUiKeyModifiers.None, 3);
+        Assert.Equal([1, 2, 3], Selected(list));
+        Assert.Equal(4, list.CurrentItemIndex);
     }
 
     private static void Keys(SkUiFocusManager focus, SkUiKey key, SkUiKeyModifiers modifiers, int times)

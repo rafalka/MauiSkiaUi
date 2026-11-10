@@ -95,6 +95,8 @@ public partial class SkUiCollectionView
                 if (Model.ItemAt(-1, index) is { } item && changed.Contains(item))
                     rows.Add(Model.RowOfItem(-1, index));
         }
+        // With AnimatesItemChanges, the rows after a row that changed size glide to their new places.
+        BeforeRowsChange();
         foreach (var row in rows)
         {
             if (ItemsHost.GetRealizedView(row) is GridRowPart rowPart)

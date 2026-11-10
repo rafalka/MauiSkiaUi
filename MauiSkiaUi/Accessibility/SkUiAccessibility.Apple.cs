@@ -503,6 +503,7 @@ internal static class SkUiAppleKeys
         UIKeyboardHidUsage.KeyboardEnd => SkUiKey.End,
         UIKeyboardHidUsage.KeyboardDeleteOrBackspace => SkUiKey.Backspace,
         UIKeyboardHidUsage.KeyboardDeleteForward => SkUiKey.Delete,
+        UIKeyboardHidUsage.KeyboardInsert => SkUiKey.Insert,
         _ => SkUiKey.None
     };
 

@@ -475,6 +475,7 @@ internal static class SkUiAndroidKeys
         Android.Views.Keycode.MoveEnd => SkUiKey.End,
         Android.Views.Keycode.Del => SkUiKey.Backspace,
         Android.Views.Keycode.ForwardDel => SkUiKey.Delete,
+        Android.Views.Keycode.Insert => SkUiKey.Insert,
         _ => SkUiKey.None
     };
 

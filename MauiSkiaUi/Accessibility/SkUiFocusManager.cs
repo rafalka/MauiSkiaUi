@@ -22,6 +22,8 @@ internal enum SkUiKey
     Backspace,
     /// <summary>The forward Delete key.</summary>
     Delete,
+    /// <summary>Insert (not on Mac keyboards): toggles a list item's selection and moves on, in an extended selection.</summary>
+    Insert,
     /// <summary>A character key (a letter, a digit, punctuation): <see cref="SkUiKeyEvent.Character"/> (type-ahead in lists).</summary>
     Character
 }

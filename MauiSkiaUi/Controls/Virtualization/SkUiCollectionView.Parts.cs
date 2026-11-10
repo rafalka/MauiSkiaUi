@@ -238,6 +238,10 @@ public partial class SkUiCollectionView
         /// <summary>The template (or default-label key) its view comes from.</summary>
         public object TemplateKey { get; } = templateKey;
 
+        // A row or grid cell shows only what fits it (native list cells clip too): content wider or taller than its slot
+        // does not spill over the neighbors, which are drawn after it.
+        private protected override bool DefaultClipToBounds => true;
+
         public bool IsSelected
         {
             get => _selected;
@@ -397,6 +401,8 @@ public partial class SkUiCollectionView
 
         /// <summary>The group the sticky header shows, or -1 (a header in the list, found by its row).</summary>
         public int StickyGroup { get; set; } = -1;
+
+        private protected override bool DefaultClipToBounds => true; // as the item rows
 
         public void SetExpanded(bool expanded)
         {

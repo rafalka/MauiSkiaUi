@@ -1,9 +1,10 @@
 namespace MauiSkiaUi;
 
 // Extended selection (desktop lists): with IsExtendedSelectionEnabled and SelectionMode Multiple, a click selects only its
-// item, Ctrl / Command+click toggles one, Shift+click selects the range from the anchor; the keyboard moves the selection
-// with the current item, Shift extends it, Ctrl / Command moves without selecting. Each gesture is one change of
-// SelectedItems: one cancelable SelectionChanging, one SelectionChanged, one command run.
+// item, Ctrl / Command+click toggles one, Shift+click selects the range from the anchor. The keyboard never drops the
+// selection by moving: the arrow keys move the current item (the focus ring) alone, Space / Insert toggle it, Shift+arrows
+// toggle the range from where the current item was when the range started. Each gesture is one change of SelectedItems: one
+// cancelable SelectionChanging, one SelectionChanged, one command run.
 public partial class SkUiCollectionView
 {
     /// <summary>How a gesture changes the selection.</summary>
@@ -28,6 +29,10 @@ public partial class SkUiCollectionView
     private object? _anchorItem;
     private object? _anchorGroup;
     private int _anchorIndex = -1;
+    // A range the keyboard is extending (Shift+arrows, Shift+Space): the selection it toggles, taken when it started, and
+    // the selection it left (a change of the selection by anything else starts the next range from what is selected then).
+    private IReadOnlyList<object>? _rangeBase;
+    private IReadOnlyList<object>? _rangeResult;
 
     /// <summary>Bindable property for <see cref="IsExtendedSelectionEnabled"/>.</summary>
     public static readonly BindableProperty IsExtendedSelectionEnabledProperty = BindableProperty.Create(nameof(IsExtendedSelectionEnabled),
@@ -38,9 +43,11 @@ public partial class SkUiCollectionView
     /// Desktop selection with <see cref="SelectionMode"/> <see cref="SkUiSelectionMode.Multiple"/> (default <c>false</c>):
     /// a click selects only its item, Ctrl+click (Command+click on Apple) adds or removes one, Shift+click selects the
     /// items from the last clicked one (Ctrl+Shift+click adds them). With the keyboard, the arrow, Home / End and page keys
-    /// select the item they move to, with Shift the range from the anchor, with Ctrl / Command they move without
-    /// selecting; Space adds or removes the current item, Ctrl / Command+A selects all. Touch keeps the multiple selection's
-    /// toggling tap. Ranges run in source order across groups; items of collapsed groups are left out.
+    /// move the current item (the focus ring) and leave the selection as it is; Space adds or removes the current item,
+    /// Insert does and moves on to the next one, Shift with the arrows (or Space) toggles the items from where the current
+    /// item was when Shift was first pressed (selected ones are deselected), Ctrl / Command+A selects all, and Enter taps the item
+    /// (<see cref="ItemTapped"/>: opens it) without selecting. Touch keeps the multiple selection's toggling tap. Ranges
+    /// run in source order across groups; items of collapsed groups are left out.
     /// </summary>
     public bool IsExtendedSelectionEnabled
     {
@@ -72,6 +79,7 @@ public partial class SkUiCollectionView
         _anchorItem = Model.ItemAt(group, index);
         _anchorGroup = group < 0 ? null : Model.Groups[group].Value;
         _anchorIndex = Model.GlobalIndex(group, index);
+        _rangeBase = null; // a range from here toggles what is selected when it starts
     }
 
     /// <summary>The anchor's global index, or -1 (none, or it left the list).</summary>
@@ -169,30 +177,73 @@ public partial class SkUiCollectionView
     }
 
     /// <summary>
-    /// The current item moved by a key in an extended selection: without modifiers it is selected alone (and anchors), with
-    /// Shift the range from the anchor (from where the move started when there is none) is, with Ctrl / Command nothing changes.
+    /// The current item moved by a key in an extended selection: without Shift the selection stays and the range anchor moves
+    /// with it; with Shift the items of the range from the anchor (from where the move started when there is none) are
+    /// toggled in the selection the range started from (moving back gives the items left their state again).
     /// </summary>
     private void SelectAfterMove(SkUiKeyModifiers modifiers, int startedAt)
     {
-        if (HasToggleModifier(modifiers) || _currentKind != CurrentKind.Item || ResolveCurrent() is not (>= 0 and var current))
+        if (_currentKind != CurrentKind.Item || ResolveCurrent() is not (>= 0 and var current))
             return;
         var (group, index) = Model.Locate(current);
-        var shift = (modifiers & SkUiKeyModifiers.Shift) != 0;
-        if (shift && ResolveAnchor() < 0 && startedAt >= 0)
+        if ((modifiers & SkUiKeyModifiers.Shift) == 0)
+        {
+            SetAnchor(group, index);
+            return;
+        }
+        if (ResolveAnchor() < 0 && startedAt >= 0)
         {
             var (anchorGroup, anchorIndex) = Model.Locate(startedAt);
             SetAnchor(anchorGroup, anchorIndex);
         }
-        var item = Model.ItemAt(group, index);
-        _tapSelecting = item; // the selection's focus, for KeepSelectionVisible
-        _tapSelectingIndex = current;
+        SelectByKey(group, index, extendRange: true);
+    }
+
+    /// <summary>
+    /// Space / Insert on the item at <paramref name="index"/> of <paramref name="group"/> in an extended selection: toggles
+    /// it (and anchors there), or with <paramref name="extendRange"/> toggles the range from the anchor. Selects only: the item
+    /// is not tapped (Enter is).
+    /// </summary>
+    private void SelectByKey(int group, int index, bool extendRange)
+    {
+        _tapSelecting = Model.ItemAt(group, index); // the selection's focus, for KeepSelectionVisible
+        _tapSelectingIndex = Model.GlobalIndex(group, index);
         try
         {
-            SelectByGesture(group, index, shift ? SelectionGesture.Range : SelectionGesture.Only);
+            if (extendRange)
+                ExtendRange(group, index);
+            else
+                SelectByGesture(group, index, SelectionGesture.Toggle);
         }
         finally
         {
             _tapSelecting = null;
         }
+    }
+
+    /// <summary>
+    /// The keyboard's range: what was selected when it started with the items from the anchor to the item toggled (selected
+    /// ones deselected, the others selected), so the range can grow and shrink without losing the rest of the selection.
+    /// </summary>
+    private void ExtendRange(int group, int index)
+    {
+        var anchor = ResolveAnchor();
+        if (anchor < 0)
+            SetAnchor(group, index);
+        // Started now, or the selection changed since this range left it: the range toggles what is selected now.
+        if (_rangeBase is null || !ReferenceEquals(_rangeResult, _selectedSnapshot))
+            _rangeBase = _selectedSnapshot;
+        var range = ItemsBetween(anchor < 0 ? Model.GlobalIndex(group, index) : anchor, Model.GlobalIndex(group, index));
+        var inRange = new HashSet<object>(range);
+        var inBase = new HashSet<object>(_rangeBase);
+        var selection = new List<object>(_rangeBase.Count + range.Count);
+        foreach (var item in _rangeBase)
+            if (!inRange.Contains(item))
+                selection.Add(item);
+        foreach (var item in range)
+            if (!inBase.Contains(item))
+                selection.Add(item);
+        ChangeSelectionByGesture(selection);
+        _rangeResult = _selectedSnapshot;
     }
 }

@@ -1,3 +1,4 @@
+using SkiaSharp;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
@@ -1009,6 +1010,32 @@ public class CollectionViewGroupsAndLayoutsTests
     }
 
     #endregion
+
+    [Fact]
+    public void ACellClipsContentWiderThanItself()
+    {
+        // Item 0 shows a 160 wide box in a 100 wide grid cell: the box stops at the cell's edge, not over item 1.
+        var list = new SkUiCollectionView
+        {
+            ItemsSource = new ObservableCollection<Row>(Enumerable.Range(0, 2).Select(index => new Row(index))),
+            ItemTemplate = new DataTemplate(() =>
+            {
+                var stack = new SkUiHorizontalStackLayout { HeightRequest = 50 };
+                stack.BindingContextChanged += (_, _) =>
+                {
+                    if (stack.BindingContext is Row { Index: 0 } && stack.Children.Count == 0)
+                        stack.Children.Add(new SkUiBox { WidthRequest = 160, Color = Colors.Red });
+                };
+                return stack;
+            }),
+            Span = 2,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Never
+        };
+        using var surface = new SkUiTestSurface(list, 200, 100);
+        var bitmap = surface.Frame();
+        Assert.Equal(SKColors.Red, bitmap.GetPixel(90, 25));
+        Assert.NotEqual(SKColors.Red, bitmap.GetPixel(130, 25));
+    }
 }
 
 internal static class RectRounding

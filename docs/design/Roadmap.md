@@ -109,7 +109,7 @@ Moved from 1.6, then from 1.8. Built on the branch `1.9-implementation`. Steps, 
 Built on the branch `1.10-implementation`. Steps, order and open decisions: [ImplementationPlan-1.10.md](ImplementationPlan-1.10.md).
 
 - **Community Toolkit layouts** in `SkiaUi.Maui.CommunityToolkit`: drawn `SkUiDockLayout` and `SkUiUniformItemsLayout` on the toolkit's layout managers, with the toolkit's attached `DockPosition`; `SkUiLayout.AffectsChildLayout` and `OnChildrenChanged` made public for them (and for app layouts on other managers) (done: [SkUiDockLayout](../controls/SkUiDockLayout.md), [SkUiUniformItemsLayout](../controls/SkUiUniformItemsLayout.md)).
-- **Collection view parity:** keyboard item navigation (the list as one tab stop with a current item), extended (Shift / Ctrl) selection, a selected-item template, and animated inserts, removes and moves (opt-in in 1.x).
+- **Collection view parity:** keyboard item navigation (the list as one tab stop with a current item), extended (Shift / Ctrl) selection, a selected-item template, and animated inserts, removes and moves (opt-in in 1.x) (done: [Keyboard](../controls/SkUiCollectionView.md#keyboard), [Animated changes](../controls/SkUiCollectionView.md#animated-changes), `SelectedItemTemplate`; device checks in the [verification backlog](#verification-backlog)).
 
 ## Backlog (1.x)
 
@@ -181,6 +181,7 @@ Device runs that are still open. How to run them: [Testing.md](Testing.md#device
 - **Hosted controls:** the manual checklist (soft keyboard, IME, WebView nesting) on devices and Windows.
 - **Controls:** feel and frame time on devices for the collection view (fling at 10k items, memory), virtual stack, swipe view, refresh view, carousel, expander, avatar view, shimmer (a scrolling list of shimmering rows), scroll bars and overscroll; the pickers' presenters on Windows (the toolkit's anchored list was checked on 29 October 2026: frame, keyboard, dismissal), in landscape, on rotation and window resize, with screen readers; tooltips on Windows and iPad.
 - **Demo gallery:** a full pass on Android and an Apple device.
+- **Collection view keyboard, extended selection and item animations (1.10):** keyboard navigation and the focus ring on Windows, Mac Catalyst, an iPad and an Android device with a hardware keyboard; Ctrl / Command and Shift clicks there (the pointer's modifier keys from each platform; Command+A on Mac Catalyst, where the app's Edit menu may take it first); the feel of the item animations on the Galaxy S9 and the iPhone 8, with the gallery's "keyboard and extended selection", "selected item template" and "animated changes" pages.
 - **MAUI gesture recognizers on drawn views (1.2):** swipe, pan, pinch, pointer, secondary-button and triple taps on Android, iOS, Mac Catalyst and Windows, against the native view on the gallery's "MAUI gesture recognizers" page.
 - **Snap points on lists (1.2):** flings and drags ending on rows on a phone (Android and iOS), with the gallery's "Items layouts and snap points" page.
 - **Reordering collection view items (1.3):** a long press and drag on Android and iOS, a mouse drag on Mac Catalyst and Windows, auto-scroll near the ends, grids and grouped lists, the lift's look; the "Move up" / "Move down" actions with TalkBack and VoiceOver; on the gallery's reordering page.

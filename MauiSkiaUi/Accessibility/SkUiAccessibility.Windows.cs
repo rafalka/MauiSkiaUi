@@ -500,6 +500,7 @@ internal static class SkUiWindowsKeys
         Windows.System.VirtualKey.End => SkUiKey.End,
         Windows.System.VirtualKey.Back => SkUiKey.Backspace,
         Windows.System.VirtualKey.Delete => SkUiKey.Delete,
+        Windows.System.VirtualKey.Insert => SkUiKey.Insert,
         _ => SkUiKey.None
     };
 
