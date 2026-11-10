@@ -61,6 +61,7 @@ A plain list (items and a template only) can also use the lighter **`SkUiVirtual
 | Sticky header / footer | Not available | `IsStickyHeader` / `IsStickyFooter`, and sticky group headers |
 | Layout | An `ItemsLayout` object | The same object (it wins when set), or `Orientation`, `Span`, `ItemSpacing`, `SpanSpacing` on the list |
 | Expandable groups | Not available | Built in |
+| Desktop (Ctrl / Shift) selection | WinUI only (`SelectionMode` Extended through platform code) | `SelectionMode="Multiple"` + `IsExtendedSelectionEnabled="True"`, every platform; touch keeps toggling |
 | Keyboard | The platform list's own (differs per platform) | The same on every platform: one tab stop, arrow keys / Home / End / page keys move a current item with the focus ring, Space / Enter select and tap it, arrows expand and collapse group headers; drop key handlers written for native list items |
 | Pull to refresh | A separate `RefreshView` | Built in; works also on short lists and without overscroll; the look's indicator (overlay badge or inline, the platform's); mouse drags pull only with `IsMousePullEnabled`; `RefreshCompletion="Automatic"` ends it when an async command is done |
 | Height | Fills its slot; in a `StackLayout` / `ScrollView` it may create every cell | Same rule: give it a bounded height (grid row, page) |

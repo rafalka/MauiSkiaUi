@@ -23,10 +23,13 @@ Publishing (the NuGet publish workflow, [docs/Releasing.md](docs/Releasing.md)) 
   - Arrow keys move it (in grids also across, keeping the column; mirrored right to left), Home / End to the ends, Page Up / Page Down by the part of the viewport sticky parts leave uncovered; each move scrolls it into view.
   - Space / Enter select and tap it as a tap would (`SelectionChanging`, `ItemTapped`, `ItemTappedCommand`); with `AllowGroupExpandCollapse`, group headers are stops that the arrows and Enter expand and collapse.
   - The focus ring is drawn on the current item while focus came from the keyboard; the item is kept across collection changes and recycling, and passes to its neighbor when removed.
+- **Extended selection in collection views:** `IsExtendedSelectionEnabled` with `SelectionMode="Multiple"` selects as desktop lists: a click selects only its item, Ctrl+click (Command+click on Apple) toggles one, Shift+click selects the range from the anchor; Shift+arrows extend with the keyboard, Ctrl / Command+arrows move without selecting, Space toggles, Ctrl / Command+A selects all. Touch keeps the toggling tap. Each gesture is one cancelable change ([Keyboard](docs/controls/SkUiCollectionView.md#keyboard)).
+- **Modifier keys on pointer samples:** `SkUiTouchEvent.Modifiers` and `SkUiPointer.Modifiers` (`SkUiKeyModifiers`, now public) report Shift, Control, Alt and Command held during a press, move or release, from Android (GPU surfaces), UIKit (iOS 13.4+, Mac Catalyst) and Windows ([EventMechanism.md](docs/design/EventMechanism.md)).
 - **Layouts of your own on other layout managers:** `SkUiLayout.AffectsChildLayout` (a child's attached property that re-lays the layout out) and `OnChildrenChanged` are now protected virtuals, so a layout outside SkiaUi can run another library's `ILayoutManager` ([SkUiLayout.md](docs/controls/SkUiLayout.md#layouts-of-your-own)).
 
 ### Other
 
+- Control / Command with a letter now reaches drawn key handlers on Apple and Windows too (as on Android), as `SkUiKey.Character` with the lowercase letter; pickers' type-ahead ignores it.
 - Collection view items are no longer tab stops one by one: the list is one stop and the arrow keys move between its items (above). Buttons inside items stay tab stops.
 
 ## 1.9.0

@@ -295,19 +295,22 @@ public partial class SkUiCollectionView
     }
 
     /// <summary>A tap on an item: it becomes the current item, see <see cref="ActivateItem"/>.</summary>
-    private void OnItemHostTapped(ItemHost host)
+    private void OnItemHostTapped(ItemHost host, SkUiTappedEventArgs args)
     {
         if (LocateHost(host) is not { } location)
             return;
         SetCurrentItem(location.Group, location.Index);
-        ActivateItem(location.Group, location.Index);
+        // Extended selection: clicks select by their modifier keys; a touch keeps the multiple selection's toggling tap.
+        ActivateItem(location.Group, location.Index,
+            ExtendsSelection && args.Device != SkUiPointerDevice.Touch ? ClickGesture(args.Modifiers) : SelectionGesture.Tap);
     }
 
     /// <summary>
     /// A tap on the item at <paramref name="index"/> of <paramref name="group"/>, or Space / Enter on the current item: the
-    /// selection first (cancelable), then <see cref="ItemTapped"/> and its command.
+    /// selection first (cancelable; <paramref name="gesture"/>: how an extended selection changes), then
+    /// <see cref="ItemTapped"/> and its command.
     /// </summary>
-    private void ActivateItem(int group, int index)
+    private void ActivateItem(int group, int index, SelectionGesture gesture = SelectionGesture.Tap)
     {
         var item = Model.ItemAt(group, index);
         var global = Model.GlobalIndex(group, index);
@@ -315,7 +318,15 @@ public partial class SkUiCollectionView
         _tapSelectingIndex = global; // the appearance tapped (an item may show in several groups)
         try
         {
-            SelectByTap(item);
+            if (gesture == SelectionGesture.Tap)
+            {
+                SetAnchor(group, index); // first: a selection handler may change the items
+                SelectByTap(item);
+            }
+            else
+            {
+                SelectByGesture(group, index, gesture);
+            }
         }
         finally
         {

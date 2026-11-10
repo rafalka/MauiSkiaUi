@@ -235,7 +235,7 @@ public partial class SkUiCollectionView
         protected override void OnTapped(SkUiTappedEventArgs args)
         {
             RaiseTapped(args);
-            owner.OnItemHostTapped(this);
+            owner.OnItemHostTapped(this, args);
         }
 
         protected override void OnPaintBackground(SKCanvas canvas)

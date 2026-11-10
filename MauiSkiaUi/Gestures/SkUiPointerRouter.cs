@@ -312,7 +312,7 @@ internal sealed class SkUiPointerRouter(ISkUiInputNode root)
             EndArena(arena, cancelled: true);
             return handled;
         }
-        var pointer = new SkUiPointer(touch.Id, touch.Position, arena.Start, time, this, arena.Device, arena.Buttons);
+        var pointer = new SkUiPointer(touch.Id, touch.Position, arena.Start, time, this, arena.Device, arena.Buttons, touch.Modifiers);
         var slop = SkUiGestureSettings.TouchSlop;
         if (!arena.SlopExceeded && (Math.Pow(pointer.TotalX, 2) + Math.Pow(pointer.TotalY, 2)) > slop * slop)
         {
@@ -641,7 +641,7 @@ internal sealed class SkUiPointerRouter(ISkUiInputNode root)
     {
         _arenas[touch.Id] = arena;
         ActiveArenas++;
-        var pointer = new SkUiPointer(touch.Id, touch.Position, touch.Position, time, this, arena.Device, arena.Buttons);
+        var pointer = new SkUiPointer(touch.Id, touch.Position, touch.Position, time, this, arena.Device, arena.Buttons, touch.Modifiers);
         foreach (var member in arena.Members.ToArray())
             if (arena.Members.Contains(member) && !member.OnPointerPressed(pointer))
                 arena.Remove(member, rejected: false);

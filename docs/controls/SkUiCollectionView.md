@@ -125,6 +125,7 @@ An interactive list (a selection mode, an `ItemTapped` handler or command, or `A
 - When the list gets focus with no current item, it starts at the selected item (single selection), the item a tap last selected (multiple), else the first item in view. A tap or click makes its item current, also while the list has no focus.
 - The look's focus ring is drawn on the current item while focus came from the keyboard (a pointer press hides it, as for other controls); an empty list draws it on itself. On Windows a press on an item focuses the list with that item current, without the ring.
 - Views that take taps inside an item (buttons) stay tab stops after the list. Arrow keys, Home / End and the page keys pressed on one of them move on from its item and give the list focus; Space and Enter stay the view's own.
+- **Extended selection** (`IsExtendedSelectionEnabled` with `SelectionMode="Multiple"`, as desktop lists): a click selects only its item, Ctrl+click (Command+click on Apple) adds or removes one, Shift+click selects the items from the anchor (the item last clicked, toggled or moved to without Shift), Ctrl+Shift+click adds them. The arrow, Home / End and page keys select the item they move to (with Shift: the range from the anchor; with Ctrl / Command: they move without selecting); Space adds or removes the current item (Shift+Space: the range to it), Enter taps it without changing the selection, Ctrl / Command+A selects all. A touch keeps `Multiple`'s toggling tap. Ranges run in source order across groups, each item once, without the items of collapsed groups. Each gesture is one change: one cancelable `SelectionChanging`, one `SelectionChanged`, one `SelectionChangedCommand` run. Modifier keys come from the platform's pointer events (not on Android's software surfaces).
 - Screen readers keep their own navigation of the items; the current item is not a second accessibility focus. A UI Automation client that focuses an item (Narrator does before acting on it) focuses the list with that item current.
 
 ## Key properties
@@ -153,6 +154,7 @@ An interactive list (a selection mode, an `ItemTapped` handler or command, or `A
 | `SelectionMode` | `None` | `None`, `Single`, `SingleDeselect` (tapping the selected item clears it), `Multiple` |
 | `SelectedItem` | `null` | Two-way; the selection of `Single` / `SingleDeselect` |
 | `SelectedItems` | a new `ObservableCollection<object>` | The selection of `Multiple`; set a list of yours to share it |
+| `IsExtendedSelectionEnabled` | `false` | With `Multiple`: clicks and keys select as desktop lists (click, Ctrl / Command+click, Shift+click; [Keyboard](#keyboard)); touch keeps toggling. `SetIsExtendedSelectionEnabled(value)` |
 | `KeepSelectionVisible` | `false` | Scrolls the selection into view on selection and size changes (see above) |
 | `SelectionChangedCommand` (+ `…Parameter`) | `null` | Runs when the selection changes, before `SelectionChanged` |
 | `SelectionBackground` | `null` | A brush (in XAML a color) behind selected items; `null`: the accent at 12 %; `Transparent`: none (style the item with the `Selected` state) |
@@ -186,7 +188,7 @@ An interactive list (a selection mode, an `ItemTapped` handler or command, or `A
 
 | Event | Arguments | When |
 | --- | --- | --- |
-| `SelectionChanging` | `SkUiSelectionChangingEventArgs` (`PreviousItem`, `CurrentItem`, `PreviousSelection`, `CurrentSelection`, `Cancel`) | A tap is about to change the selection (taps only) |
+| `SelectionChanging` | `SkUiSelectionChangingEventArgs` (`PreviousItem`, `CurrentItem`, `PreviousSelection`, `CurrentSelection`, `Cancel`) | A tap, click or key is about to change the selection (user gestures only; once per gesture) |
 | `SelectionChanged` | `SkUiSelectionChangedEventArgs` (`PreviousItem`, `CurrentItem`, `PreviousSelection`, `CurrentSelection`) | The selection changed (tap, app, `SelectAll` / `ClearSelection`, items removed) |
 | `ItemTapped` | `SkUiItemTappedEventArgs` (`Item`, `Index`, `Group`) | An item was tapped outside views that take taps themselves |
 | `GroupExpanding`, `GroupCollapsing` | `SkUiGroupChangingEventArgs` (`Group`, `GroupIndex`, `Cancel`) | A tap or the API is about to expand / collapse a group |

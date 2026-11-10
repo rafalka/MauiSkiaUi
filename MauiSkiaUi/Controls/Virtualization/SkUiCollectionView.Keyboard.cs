@@ -76,7 +76,8 @@ public partial class SkUiCollectionView : ISkUiKeyHandler, ISkUiItemFocusTarget
 
     bool ISkUiKeyHandler.OnKeyDown(in SkUiKeyEvent key)
     {
-        if (key.HasCommandModifier || !IsVisualStateEnabled)
+        // Ctrl / Command take part in an extended selection's keys (move without selecting, toggle, select all); Alt never.
+        if (!IsVisualStateEnabled || (key.HasCommandModifier && ((key.Modifiers & SkUiKeyModifiers.Alt) != 0 || !ExtendsSelection)))
             return false;
         if (!IsFocused)
             return key.Key is not (SkUiKey.Enter or SkUiKey.Space or SkUiKey.Tab or SkUiKey.Escape or SkUiKey.Character or SkUiKey.None)
@@ -115,7 +116,25 @@ public partial class SkUiCollectionView : ISkUiKeyHandler, ISkUiItemFocusTarget
     private bool Navigate(in SkUiKeyEvent key)
     {
         if (key.Key is SkUiKey.Enter or SkUiKey.Space)
-            return Activate(key.IsRepeat);
+            return Activate(key);
+        if (key.Key == SkUiKey.Character && ExtendsSelection && HasToggleModifier(key.Modifiers) && char.ToLowerInvariant(key.Character) == 'a')
+        {
+            if (!key.IsRepeat)
+                SelectAllByGesture();
+            return true;
+        }
+        var (kind, index) = (_currentKind, ResolveCurrent());
+        if (!Move(key))
+            return false;
+        // An extended selection follows the moves of the current item.
+        if (ExtendsSelection && (_currentKind != kind || ResolveCurrent() != index))
+            SelectAfterMove(key.Modifiers, kind == CurrentKind.Item ? index : -1);
+        return true;
+    }
+
+    /// <summary>The arrow, Home / End and page keys: moves the current stop; returns whether the key was used.</summary>
+    private bool Move(in SkUiKeyEvent key)
+    {
         if (key.Key is not (SkUiKey.Left or SkUiKey.Right or SkUiKey.Up or SkUiKey.Down or SkUiKey.Home or SkUiKey.End
             or SkUiKey.PageUp or SkUiKey.PageDown))
             return false;
@@ -227,13 +246,17 @@ public partial class SkUiCollectionView : ISkUiKeyHandler, ISkUiItemFocusTarget
         return NextStop(from, forward ? 1 : -1);
     }
 
-    /// <summary>Space / Enter: activates the current item as a tap would, or expands / collapses the current group.</summary>
-    private bool Activate(bool repeat)
+    /// <summary>
+    /// Space / Enter: activates the current item as a tap would, or expands / collapses the current group. In an extended
+    /// selection Space adds or removes the current item (Shift+Space: the range from the anchor), as a Ctrl+click, and Enter
+    /// taps it without changing the selection.
+    /// </summary>
+    private bool Activate(in SkUiKeyEvent key)
     {
         if (CurrentRow(out var slot) is not (>= 0 and var row))
             return false;
         // A held key is used without activating again (a held Enter would select and tap many times).
-        if (repeat)
+        if (key.IsRepeat)
             return true;
         var current = Model.RowAt(row);
         if (current.Kind == RowKind.GroupHeader)
@@ -243,7 +266,11 @@ public partial class SkUiCollectionView : ISkUiKeyHandler, ISkUiItemFocusTarget
         }
         if (!WantsItemTaps)
             return false;
-        ActivateItem(current.Group, current.Start + slot);
+        var gesture = !ExtendsSelection ? SelectionGesture.Tap
+            : key.Key == SkUiKey.Enter ? SelectionGesture.None
+            : (key.Modifiers & SkUiKeyModifiers.Shift) != 0 ? SelectionGesture.Range
+            : SelectionGesture.Toggle;
+        ActivateItem(current.Group, current.Start + slot, gesture);
         return true;
     }
 
@@ -331,40 +358,50 @@ public partial class SkUiCollectionView : ISkUiKeyHandler, ISkUiItemFocusTarget
                 return found;
             }
             case CurrentKind.Item:
-            {
-                // Where it was, then a few places around it (items inserted or removed before it move it by a few), before a
-                // search of the whole list: a stream of single inserts at the start must not search the list for each one.
-                for (var distance = 0; distance <= NearbyProbe; distance++)
-                {
-                    if (IsCurrentAt(_currentIndex + distance))
-                        return _currentIndex += distance;
-                    if (distance > 0 && IsCurrentAt(_currentIndex - distance))
-                        return _currentIndex -= distance;
-                }
-                var found = Model.Grouped && Model.IndexOfGroup(_currentGroup) is >= 0 and var inGroup ? Model.IndexOfItem(_currentItem, inGroup) : -1;
-                if (found < 0)
-                    found = Model.IndexOfItem(_currentItem);
-                if (found >= 0)
-                    _currentIndex = found;
-                return found;
-            }
+                return ResolveItem(_currentItem, _currentGroup, ref _currentIndex);
             default:
                 return -1;
         }
     }
 
-    // How far around its last place the current item is looked for before the whole list is searched.
+    // How far around its last place an item is looked for before the whole list is searched.
     private const int NearbyProbe = 4;
 
-    private bool IsCurrentAt(int index)
+    /// <summary>
+    /// Where <paramref name="item"/> of the group <paramref name="group"/> (its value; <c>null</c> in a flat list) is now, as a
+    /// global index: at <paramref name="index"/>, where it was last found, then a few places around it (items inserted or
+    /// removed before it move it by a few), before a search of the whole list, so a stream of single inserts at the start
+    /// never searches the list for each one. Updates <paramref name="index"/> when found; -1 when it left the list
+    /// (<paramref name="index"/> then still holds where it was).
+    /// </summary>
+    private int ResolveItem(object? item, object? group, ref int index)
+    {
+        for (var distance = 0; distance <= NearbyProbe; distance++)
+        {
+            if (IsItemAt(index + distance, item, group))
+                return index += distance;
+            if (distance > 0 && IsItemAt(index - distance, item, group))
+                return index -= distance;
+        }
+        var found = Model.Grouped && Model.IndexOfGroup(group) is >= 0 and var inGroup ? Model.IndexOfItem(item, inGroup) : -1;
+        if (found < 0)
+            found = Model.IndexOfItem(item);
+        if (found >= 0)
+            index = found;
+        return found;
+    }
+
+    private bool IsItemAt(int index, object? item, object? group)
     {
         if ((uint)index >= (uint)Model.ItemCount)
             return false;
-        var (group, inGroup) = Model.Locate(index);
-        return Equals(Model.ItemAt(group, inGroup), _currentItem) && (group < 0 || SameGroup(Model.Groups[group].Value));
+        var (at, inGroup) = Model.Locate(index);
+        return Equals(Model.ItemAt(at, inGroup), item) && (at < 0 || IsGroup(Model.Groups[at].Value, group));
     }
 
-    private bool SameGroup(object? value) => ReferenceEquals(value, _currentGroup) || Equals(value, _currentGroup);
+    private static bool IsGroup(object? value, object? group) => ReferenceEquals(value, group) || Equals(value, group);
+
+    private bool SameGroup(object? value) => IsGroup(value, _currentGroup);
 
     /// <summary>The row of the current stop and the slot of its item in the row, or -1 (none, or its group is collapsed).</summary>
     private int CurrentRow(out int slot)

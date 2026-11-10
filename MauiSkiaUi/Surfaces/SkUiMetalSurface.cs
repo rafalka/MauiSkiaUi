@@ -106,6 +106,7 @@ internal sealed class SkUiMetalView : UIView
                       && evt.ButtonMask.HasFlag(UIEventButtonMask.Secondary)
             ? SkUiPointerButtons.Secondary
             : SkUiPointerButtons.None;
+        var modifiers = SkUiPointerDevices.ModifiersFrom(evt);
         // Before a release: afterwards the pointer's arena is gone.
         var taps = NativeTapState?.Invoke() ?? SkUiNativeTapState.None;
         foreach (var item in touches)
@@ -120,7 +121,8 @@ internal sealed class SkUiMetalView : UIView
             var location = touch.LocationInView(this);
             TouchHandler?.Invoke(new SkUiTouchEvent(id, action, new Point(location.X, location.Y), TimeSpan.FromSeconds(touch.Timestamp), Device: SkUiPointerDevices.From(touch))
             {
-                Buttons = buttons
+                Buttons = buttons,
+                Modifiers = modifiers
             });
         }
         var ended = _touchIds.Count == 0;
@@ -386,7 +388,7 @@ internal sealed class SkUiTouchDeliverer : UIGestureRecognizer
     public override void TouchesBegan(NSSet touches, UIEvent evt)
     {
         base.TouchesBegan(touches, evt);
-        Deliver(touches, SkUiTouchAction.Pressed);
+        Deliver(touches, SkUiTouchAction.Pressed, evt);
     }
 
     public override void TouchesMoved(NSSet touches, UIEvent evt)
@@ -397,25 +399,26 @@ internal sealed class SkUiTouchDeliverer : UIGestureRecognizer
             CancelAll(); // the native scroll view owns this touch now
             return;
         }
-        Deliver(touches, SkUiTouchAction.Moved);
+        Deliver(touches, SkUiTouchAction.Moved, evt);
     }
 
     public override void TouchesEnded(NSSet touches, UIEvent evt)
     {
         base.TouchesEnded(touches, evt);
-        Deliver(touches, SkUiTouchAction.Released);
+        Deliver(touches, SkUiTouchAction.Released, evt);
     }
 
     public override void TouchesCancelled(NSSet touches, UIEvent evt)
     {
         base.TouchesCancelled(touches, evt);
-        Deliver(touches, SkUiTouchAction.Cancelled);
+        Deliver(touches, SkUiTouchAction.Cancelled, evt);
     }
 
-    private void Deliver(NSSet touches, SkUiTouchAction action)
+    private void Deliver(NSSet touches, SkUiTouchAction action, UIEvent? evt)
     {
         if (TouchHandler is not { } handler || View is not { } view)
             return;
+        var modifiers = SkUiPointerDevices.ModifiersFrom(evt);
         // Before a release: afterwards the pointer's arena is gone.
         var taps = NativeTapState?.Invoke() ?? SkUiNativeTapState.None;
         foreach (var item in touches)
@@ -439,7 +442,10 @@ internal sealed class SkUiTouchDeliverer : UIGestureRecognizer
             if (action is SkUiTouchAction.Released or SkUiTouchAction.Cancelled)
                 _touchIds.Remove(key);
             var location = touch.LocationInView(view);
-            handler(new SkUiTouchEvent(id, action, new Point(location.X, location.Y), TimeSpan.FromSeconds(touch.Timestamp), Device: SkUiPointerDevices.From(touch)));
+            handler(new SkUiTouchEvent(id, action, new Point(location.X, location.Y), TimeSpan.FromSeconds(touch.Timestamp), Device: SkUiPointerDevices.From(touch))
+            {
+                Modifiers = modifiers
+            });
         }
         var ended = _touchIds.Count == 0;
         _gate.Sync(NativeGestureState?.Invoke() ?? SkUiNativeGestureState.None, ended);

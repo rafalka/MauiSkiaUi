@@ -22,6 +22,8 @@ public class SkUiTapGestureRecognizer : SkUiGestureRecognizer
     private int _pendingCount;
     private Point _pendingLocal;
     private SkUiPointerButtons _pendingButtons;
+    private SkUiKeyModifiers _pendingModifiers;
+    private SkUiPointerDevice _pendingDevice;
     private TimeSpan _pendingTime;
     private Point _pendingPosition;
 
@@ -124,7 +126,7 @@ public class SkUiTapGestureRecognizer : SkUiGestureRecognizer
         var wanted = TapsWanted;
         if (wanted <= 1)
         {
-            RaiseTaps(local, 1, release.Buttons);
+            RaiseTaps(local, 1, release.Buttons, release.Modifiers, release.Device);
             return;
         }
         var dx = release.Position.X - _pendingPosition.X;
@@ -141,17 +143,19 @@ public class SkUiTapGestureRecognizer : SkUiGestureRecognizer
         {
             // Another button, or too far from the last tap: that sequence ends with its own count and button.
             _pendingCount = 0;
-            RaiseTaps(_pendingLocal, unfinished, _pendingButtons);
+            RaiseTaps(_pendingLocal, unfinished, _pendingButtons, _pendingModifiers, _pendingDevice);
         }
         if (count >= wanted)
         {
             _pendingCount = 0;
-            RaiseTaps(local, count, release.Buttons);
+            RaiseTaps(local, count, release.Buttons, release.Modifiers, release.Device);
             return;
         }
         _pendingCount = count;
         _pendingLocal = local;
         _pendingButtons = release.Buttons;
+        _pendingModifiers = release.Modifiers;
+        _pendingDevice = release.Device;
         _pendingTime = release.Timestamp;
         _pendingPosition = release.Position;
         _singleTimer = SkUiGestureSettings.Schedule(SkUiGestureSettings.DoubleTapTimeout, () =>
@@ -159,17 +163,17 @@ public class SkUiTapGestureRecognizer : SkUiGestureRecognizer
             if (_pendingCount is var pending and > 0)
             {
                 _pendingCount = 0;
-                RaiseTaps(_pendingLocal, pending, _pendingButtons);
+                RaiseTaps(_pendingLocal, pending, _pendingButtons, _pendingModifiers, _pendingDevice);
             }
         });
         // No timer source: the sequence cannot wait for a next tap; it is raised now and keeps counting.
         if (_singleTimer is null)
-            RaiseTaps(local, count, release.Buttons);
+            RaiseTaps(local, count, release.Buttons, release.Modifiers, release.Device);
     }
 
-    private void RaiseTaps(Point local, int count, SkUiPointerButtons buttons)
+    private void RaiseTaps(Point local, int count, SkUiPointerButtons buttons, SkUiKeyModifiers modifiers, SkUiPointerDevice device)
     {
-        var args = new SkUiTappedEventArgs(local, count) { Buttons = buttons };
+        var args = new SkUiTappedEventArgs(local, count) { Buttons = buttons, Modifiers = modifiers, Device = device };
         switch (count)
         {
             case 1:

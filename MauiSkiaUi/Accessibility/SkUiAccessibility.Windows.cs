@@ -466,8 +466,16 @@ internal static class SkUiWindowsKeys
     {
         character = '\0';
         var mapped = Map(key);
-        if (mapped != SkUiKey.None || (Modifiers() & SkUiKeyModifiers.Control) != 0)
+        if (mapped != SkUiKey.None)
             return mapped;
+        if ((Modifiers() & SkUiKeyModifiers.Control) != 0)
+        {
+            // Control with a letter: a shortcut by its lowercase letter (select all), as on Android.
+            if (key is not (>= Windows.System.VirtualKey.A and <= Windows.System.VirtualKey.Z))
+                return SkUiKey.None;
+            character = (char)('a' + (key - Windows.System.VirtualKey.A));
+            return SkUiKey.Character;
+        }
         if (key is >= Windows.System.VirtualKey.A and <= Windows.System.VirtualKey.Z or >= Windows.System.VirtualKey.Number0 and <= Windows.System.VirtualKey.Number9)
         {
             character = (char)key;

@@ -1395,7 +1395,10 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
                 SKMouseButton.Middle => SkUiPointerButtons.Middle,
                 SKMouseButton.Left => SkUiPointerButtons.Primary,
                 _ => SkUiPointerButtons.None
-            }
+            },
+#if WINDOWS
+            Modifiers = SkUiWindowsKeys.Modifiers() // SkiaSharp's touch events do not carry them: read while the event is dispatched
+#endif
         }) == true;
         if (SkUiDiagnostics.TraceOn)
             SkUiDiagnostics.Write($"touch {action} id={args.Id} {args.DeviceType} px={args.Location.X:F0},{args.Location.Y:F0} handled={args.Handled} native={GetNativeGestureState()} arenas={ConnectedView?.Router.ActiveArenaCount} root={ConnectedView?.AutomationId ?? ConnectedView?.GetType().Name}");

@@ -60,6 +60,7 @@ Recognizers raise events / commands on their owner (UI thread)
   - Recognizers live in a per-node gesture set that is allocated on first use. Passive Core nodes carry one null field.
 - **Validation per event:** members whose element was detached, hidden, made input-transparent or disabled are rejected. Detaching a subtree cancels its gestures, so press states never stick.
 - **Coordinates:** recognizers receive surface-root DIPs (`SkUiPointer.Position`). `GetPosition(element)` maps through the current transforms and scroll offsets.
+- **Modifier keys:** every sample carries the modifier keys held then (`SkUiTouchEvent.Modifiers`, `SkUiPointer.Modifiers`: `SkUiKeyModifiers` Shift, Control, Alt, Command), and a tap those of its last release (a collection view's extended selection). From Android's `MotionEvent.MetaState` (GPU surfaces; Meta is `Command`), UIKit's `UIEvent.ModifierFlags` (iOS 13.4+, Mac Catalyst) and, on Windows, the keyboard state read while SkiaSharp's pointer event is dispatched. Android's software surfaces (SkiaSharp's touch events) report none. Headless tests set them on the synthetic samples.
 - **Devices:** every sample says what produced it (`SkUiTouchEvent.Device`, `SkUiPointer.Device`: `Touch`, `Mouse`, `Pen`), from the platform's pointer kind (Android tool types, UIKit touch types: the iPad pointer and everything on Mac Catalyst are `Mouse`, the Apple Pencil `Pen`; WinUI and SkiaSharp device types). Pull-to-refresh uses it to leave mouse drags out unless allowed (`IsMousePullEnabled`).
 
 ### Recognizers

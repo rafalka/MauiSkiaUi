@@ -62,14 +62,19 @@ internal interface ISkUiItemFocusTarget
     void MakeCurrent(ISkUiRenderable inside);
 }
 
-/// <summary>Modifier keys held with a <see cref="SkUiKey"/>.</summary>
+/// <summary>Modifier keys held with a key press, or during a pointer sample (<see cref="SkUiTouchEvent.Modifiers"/>, <see cref="SkUiPointer.Modifiers"/>).</summary>
 [Flags]
-internal enum SkUiKeyModifiers
+public enum SkUiKeyModifiers
 {
+    /// <summary>None held, or the platform does not tell.</summary>
     None = 0,
+    /// <summary>Shift.</summary>
     Shift = 1,
+    /// <summary>Control (Ctrl).</summary>
     Control = 2,
+    /// <summary>Alt (Option on Apple keyboards).</summary>
     Alt = 4,
+    /// <summary>Command on Apple keyboards.</summary>
     Command = 8
 }
 
