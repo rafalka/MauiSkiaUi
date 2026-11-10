@@ -412,11 +412,21 @@ internal class SkUiAccessibilityElement : UIAccessibilityElement
         // the detached root and keep the old platform view alive.
         if (AccessibilityContainer is not UIView container || Bridge is not { IsAttached: true } bridge)
             return null;
-        var bounds = container.Bounds;
-        var screen = UIAccessibility.ConvertFrameToScreenCoordinates(bounds, container);
-        if (screen.Width <= 0 || screen.Height <= 0)
-            return null;
-        return bridge.HitTest(new CGPoint((point.X - screen.X) * bounds.Width / screen.Width, (point.Y - screen.Y) * bounds.Height / screen.Height));
+        return ScreenToLocal(container, point) is { } local ? bridge.HitTest(local) : null;
+    }
+
+    /// <summary>
+    /// A point in screen coordinates (as accessibility frames are) in <paramref name="view"/>'s coordinates. Accessibility's own
+    /// conversion first (it knows Mac Catalyst's scaling); where it gives nothing (no accessibility server runs: an element asked
+    /// directly) UIKit's screen coordinate space; <c>null</c> off screen.
+    /// </summary>
+    internal static CGPoint? ScreenToLocal(UIView view, CGPoint point)
+    {
+        var bounds = view.Bounds;
+        var screen = UIAccessibility.ConvertFrameToScreenCoordinates(bounds, view);
+        if (screen.Width > 0 && screen.Height > 0)
+            return new CGPoint((point.X - screen.X) * bounds.Width / screen.Width, (point.Y - screen.Y) * bounds.Height / screen.Height);
+        return view.Window?.Screen is { } display ? view.ConvertPointFromCoordinateSpace(point, display.CoordinateSpace) : null;
     }
 
     private string[]? _customActions;

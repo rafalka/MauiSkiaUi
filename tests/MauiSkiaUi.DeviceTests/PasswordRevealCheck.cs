@@ -244,12 +244,16 @@ internal static class PasswordRevealCheck
             problems.Add($"{step} hit test: no field element");
             return;
         }
+        // Accessibility's conversion gives nothing where no accessibility server runs (CI): then UIKit's screen space, as the elements do.
+        var screenBounds = UIKit.UIAccessibility.ConvertFrameToScreenCoordinates(container.Bounds, container);
+        var accessibilityConverts = screenBounds.Width > 0 && screenBounds.Height > 0;
+        CoreGraphics.CGPoint ToScreen(Point at) => accessibilityConverts
+            ? UIKit.UIAccessibility.ConvertFrameToScreenCoordinates(new CoreGraphics.CGRect(at.X, at.Y, 0, 0), container).Location
+            : container.ConvertPointToCoordinateSpace(new CoreGraphics.CGPoint(at.X, at.Y), window.Screen.CoordinateSpace);
         string? LabelAt(Point at)
         {
             // UIView's hit test takes its own coordinates, an element's the screen's.
-            var point = fromWindow
-                ? container.ConvertPointToView(new CoreGraphics.CGPoint(at.X, at.Y), window)
-                : UIKit.UIAccessibility.ConvertFrameToScreenCoordinates(new CoreGraphics.CGRect(at.X, at.Y, 0, 0), container).Location;
+            var point = fromWindow ? container.ConvertPointToView(new CoreGraphics.CGPoint(at.X, at.Y), window) : ToScreen(at);
             var hit = ObjCRuntime.Runtime.GetNSObject(SendHitTest(fromWindow ? window.Handle : fieldElement!.Handle, selector.Handle, point, IntPtr.Zero));
             return hit switch
             {
@@ -260,11 +264,14 @@ internal static class PasswordRevealCheck
         }
         var atButton = LabelAt(button.Bounds.Center);
         var atText = LabelAt(new Point(field.Bounds.Left + 24, field.Bounds.Center.Y));
-        notes.Add($"{step} hit test from the {(fromWindow ? "window" : "field element")}: button \"{atButton}\", text \"{atText}\"");
+        var via = fromWindow ? "window" : accessibilityConverts ? "field element" : "field element, UIKit screen space";
+        notes.Add($"{step} hit test from the {via}: button \"{atButton}\", text \"{atText}\"");
+        // Where it went wrong: the container in screen coordinates and the probe's point.
+        var where = $" (from the {via}; container {container.Bounds} on screen {screenBounds}, button at {ToScreen(button.Bounds.Center)})";
         if (atButton != button.Label)
-            problems.Add($"{step}: VoiceOver's hit test at the reveal button finds \"{atButton}\", not \"{button.Label}\"");
+            problems.Add($"{step}: VoiceOver's hit test at the reveal button finds \"{atButton}\", not \"{button.Label}\"{where}");
         if (atText != Placeholder)
-            problems.Add($"{step}: VoiceOver's hit test at the text finds \"{atText}\"");
+            problems.Add($"{step}: VoiceOver's hit test at the text finds \"{atText}\"{where}");
     }
 #else
     private static PlatformInput Platform(SkUiOverlayContainer container) => new(container, "", "(not checked on this platform)", null);
