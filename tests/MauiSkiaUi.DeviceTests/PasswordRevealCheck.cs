@@ -221,7 +221,8 @@ internal static class PasswordRevealCheck
     /// <summary>
     /// VoiceOver's explore by touch: the element UIKit finds at the reveal button is the button, at the text the field (UIKit
     /// alone picks the top-left of overlapping frames, the field). Asked from the window when UIKit's accessibility runtime is
-    /// loaded (an accessibility client ran), else from the field's element, which answers for the surface.
+    /// loaded (an accessibility client ran), and from the field's element, which answers for the surface, when the window does
+    /// not or finds nothing; either finding both passes, and a failure reports what each found.
     /// </summary>
     private static void CheckHitTest(SkUiOverlayContainer container, SkUiView root, string step, List<string> problems, List<string> notes)
     {
@@ -238,8 +239,11 @@ internal static class PasswordRevealCheck
             if (elements.GetItem<Foundation.NSObject>(index) is UIKit.UIAccessibilityElement element && element.AccessibilityLabel == Placeholder)
                 fieldElement = element;
         var selector = new ObjCRuntime.Selector("_accessibilityHitTest:withEvent:");
-        var fromWindow = window.RespondsToSelector(selector);
-        if (!fromWindow && fieldElement is null)
+        // The window answers while UIKit's accessibility runtime is loaded (an accessibility client ran); its walk asks the
+        // container. Where it finds nothing (a runner where no client explores), the field's element is asked: it answers for
+        // the surface the same way.
+        var asksWindow = window.RespondsToSelector(selector);
+        if (!asksWindow && fieldElement is null)
         {
             problems.Add($"{step} hit test: no field element");
             return;
@@ -250,28 +254,37 @@ internal static class PasswordRevealCheck
         CoreGraphics.CGPoint ToScreen(Point at) => accessibilityConverts
             ? UIKit.UIAccessibility.ConvertFrameToScreenCoordinates(new CoreGraphics.CGRect(at.X, at.Y, 0, 0), container).Location
             : container.ConvertPointToCoordinateSpace(new CoreGraphics.CGPoint(at.X, at.Y), window.Screen.CoordinateSpace);
-        string? LabelAt(Point at)
+        string LabelAt(bool fromWindow, Point at)
         {
             // UIView's hit test takes its own coordinates, an element's the screen's.
             var point = fromWindow ? container.ConvertPointToView(new CoreGraphics.CGPoint(at.X, at.Y), window) : ToScreen(at);
             var hit = ObjCRuntime.Runtime.GetNSObject(SendHitTest(fromWindow ? window.Handle : fieldElement!.Handle, selector.Handle, point, IntPtr.Zero));
             return hit switch
             {
-                UIKit.UIAccessibilityElement element => element.AccessibilityLabel,
-                null => null,
+                UIKit.UIAccessibilityElement element => element.AccessibilityLabel ?? $"{element.GetType().Name} without a label",
+                null => "nothing",
                 _ => hit.GetType().Name
             };
         }
-        var atButton = LabelAt(button.Bounds.Center);
-        var atText = LabelAt(new Point(field.Bounds.Left + 24, field.Bounds.Center.Y));
-        var via = fromWindow ? "window" : accessibilityConverts ? "field element" : "field element, UIKit screen space";
-        notes.Add($"{step} hit test from the {via}: button \"{atButton}\", text \"{atText}\"");
-        // Where it went wrong: the container in screen coordinates and the probe's point.
-        var where = $" (from the {via}; container {container.Bounds} on screen {screenBounds}, button at {ToScreen(button.Bounds.Center)})";
-        if (atButton != button.Label)
-            problems.Add($"{step}: VoiceOver's hit test at the reveal button finds \"{atButton}\", not \"{button.Label}\"{where}");
-        if (atText != Placeholder)
-            problems.Add($"{step}: VoiceOver's hit test at the text finds \"{atText}\"{where}");
+        var textPoint = new Point(field.Bounds.Left + 24, field.Bounds.Center.Y);
+        var tried = new List<string>();
+        foreach (var fromWindow in new[] { true, false })
+        {
+            if (fromWindow ? !asksWindow : fieldElement is null)
+                continue;
+            var atButton = LabelAt(fromWindow, button.Bounds.Center);
+            var atText = LabelAt(fromWindow, textPoint);
+            var via = fromWindow ? "window" : accessibilityConverts ? "field element" : "field element, UIKit screen space";
+            tried.Add($"from the {via}: button \"{atButton}\", text \"{atText}\"");
+            if (atButton == button.Label && atText == Placeholder)
+            {
+                notes.Add($"{step} hit test {string.Join("; ", tried)}");
+                return;
+            }
+        }
+        // Where it went wrong: what each receiver found, the container in screen coordinates and the probe's point.
+        problems.Add($"{step}: VoiceOver's hit test finds neither \"{button.Label}\" at the reveal button nor \"{Placeholder}\" at the text: "
+            + $"{string.Join("; ", tried)} (container {container.Bounds} on screen {screenBounds}, button at {ToScreen(button.Bounds.Center)})");
     }
 #else
     private static PlatformInput Platform(SkUiOverlayContainer container) => new(container, "", "(not checked on this platform)", null);
