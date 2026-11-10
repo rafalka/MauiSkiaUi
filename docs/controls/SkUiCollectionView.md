@@ -4,7 +4,7 @@ A drawn, virtualized list or grid with selection (single or multiple), item taps
 
 **MAUI counterpart:** `CollectionView` (and a `RefreshView` around it), with **SkiaUi's own API**: familiar names where they fit (`ItemsSource`, `ItemTemplate`, `SelectedItem`, `SelectedItems`, `SelectionChangedCommand`, `IsGrouped`, `GroupHeaderTemplate`, `RemainingItemsThreshold`, `EmptyView`), MAUI's `ItemsLayout`, `ItemSizingStrategy`, `ScrollTo`, reordering and text headers too, and different ones where MAUI's do not fit the drawn, recycled model (`Orientation`, `Span` and spacings beside the `ItemsLayout` object; `ItemTapped` exists; `ScrollToIndex` returns a `Task`). Mapping from MAUI: [Migration.md](../Migration.md#lists-collectionview) and [collection-view.md](../../plugins/skiaui-migration/skills/skiaui-migrate/references/collection-view.md). Design: [ScrollingAndCollectionViews.md](../design/ScrollingAndCollectionViews.md#collection-view-implemented).
 
-Swipe actions on rows: put an [`SkUiSwipeView`](SkUiSwipeView.md) in the item template. Not available: keyboard item navigation. Plain lists without any of the features below can also use the lighter `SkUiVirtualScrollView`.
+Swipe actions on rows: put an [`SkUiSwipeView`](SkUiSwipeView.md) in the item template. Keyboards move a current item ([Keyboard](#keyboard)). Plain lists without any of the features below can also use the lighter `SkUiVirtualScrollView`.
 
 ## How it works
 
@@ -106,6 +106,26 @@ await list.ScrollToItem(orders[^1], ScrollToPosition.End);
 var carousel = new SkUiCollectionView { Orientation = ItemsLayoutOrientation.Horizontal, ItemsSource = cards, HeightRequest = 180 }
     .SetSpan(2, spacing: 8);
 ```
+
+## Keyboard
+
+An interactive list (a selection mode, an `ItemTapped` handler or command, or `AllowGroupExpandCollapse`) is one tab stop, as native lists are: Tab moves into it and on out of it, not through its items. It keeps a *current item*, which the keys move:
+
+| Keys | What they do |
+| --- | --- |
+| Up / Down (a horizontal list: Left / Right) | The previous / next item; in a grid, the item in the same column of the row before / after (the column is kept through shorter rows) |
+| Left / Right (a horizontal list: Up / Down) | In a grid, the previous / next item, on into the next row at a row's end. On a group header: collapse / expand its group (an expanded group's header: on into its first item); from an item of a one-column grouped list: back to its group's header |
+| Home / End | The first / last item |
+| Page Up / Page Down | The item about a viewport away, so the item past what showed comes into view at the other edge (sticky parts and insets taken off the viewport) |
+| Space / Enter | As a tap: the selection (`SelectionChanging` first, cancelable), then `ItemTapped` and `ItemTappedCommand`; a group header expands or collapses. A held key does not repeat it |
+
+- Left and Right swap right to left. Group headers are stops while `AllowGroupExpandCollapse` is on; group footers never are.
+- Each move scrolls the item into view at once, in the part sticky parts and `ViewportInsets` leave uncovered.
+- The current item is kept by item, not by index or row view: it stays across inserts, moves, recycling and scrolling it out of view. Removed, it passes to the item that takes its place; a reset forgets it. A collapsed group's current item passes to its header.
+- When the list gets focus with no current item, it starts at the selected item (single selection), the item a tap last selected (multiple), else the first item in view. A tap or click makes its item current, also while the list has no focus.
+- The look's focus ring is drawn on the current item while focus came from the keyboard (a pointer press hides it, as for other controls); an empty list draws it on itself. On Windows a press on an item focuses the list with that item current, without the ring.
+- Views that take taps inside an item (buttons) stay tab stops after the list. Arrow keys, Home / End and the page keys pressed on one of them move on from its item and give the list focus; Space and Enter stay the view's own.
+- Screen readers keep their own navigation of the items; the current item is not a second accessibility focus. A UI Automation client that focuses an item (Narrator does before acting on it) focuses the list with that item current.
 
 ## Key properties
 

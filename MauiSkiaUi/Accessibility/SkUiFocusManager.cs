@@ -51,6 +51,17 @@ internal interface ISkUiKeyHandler
     bool OnKeyDown(in SkUiKeyEvent key);
 }
 
+/// <summary>
+/// A focusable node whose parts are not focusable themselves (a collection view's items): focus asked for inside it (a press
+/// with <see cref="SkUiFocusManager.PointerPressFocuses"/>, a UI Automation client focusing an item) focuses the node with
+/// that part as its current one.
+/// </summary>
+internal interface ISkUiItemFocusTarget
+{
+    /// <summary>Focus is about to come to the node for <paramref name="inside"/>, a node inside it: its part becomes current.</summary>
+    void MakeCurrent(ISkUiRenderable inside);
+}
+
 /// <summary>Modifier keys held with a <see cref="SkUiKey"/>.</summary>
 [Flags]
 internal enum SkUiKeyModifiers
@@ -153,8 +164,29 @@ internal sealed class SkUiFocusManager(SkUiView root)
             if (target is null && current is ISkUiAccessibleNode { IsKeyboardFocusable: true } node)
                 target = node;
         }
-        if (target is not null)
-            Focus(target, ring: false);
+        if (target is null)
+            return;
+        // A list focused by a press on one of its items makes that item its current one first.
+        if (target is ISkUiItemFocusTarget pressed)
+            pressed.MakeCurrent(leaf);
+        Focus(target, ring: false);
+    }
+
+    /// <summary>
+    /// Focuses <paramref name="node"/>, or, when it takes no focus itself, the nearest node around it whose parts take focus
+    /// through it (a collection view for one of its items, which becomes current); returns whether either is focused.
+    /// </summary>
+    public bool FocusOrOwner(ISkUiAccessibleNode node)
+    {
+        if (Focus(node))
+            return true;
+        for (var current = node.RenderParent; current is not null; current = current.RenderParent)
+            if (current is ISkUiItemFocusTarget owner and ISkUiAccessibleNode { IsKeyboardFocusable: true } focusable)
+            {
+                owner.MakeCurrent(node);
+                return Focus(focusable);
+            }
+        return false;
     }
 
     /// <summary>Raised after the focused node changed (the platform bridge moves the screen reader's keyboard focus).</summary>

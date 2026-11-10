@@ -192,6 +192,7 @@ public partial class SkUiCollectionView
     private void OnSelectionModeChanged(SkUiSelectionMode value)
     {
         _selectionMode = value;
+        RevalidateFocus(); // a list without item taps takes no keyboard focus
         if (value is SkUiSelectionMode.None or SkUiSelectionMode.Multiple && _selectedItem is not null)
             SelectedItem = null;
         if (value != SkUiSelectionMode.Multiple && _selectedSet.Count > 0)
@@ -293,12 +294,21 @@ public partial class SkUiCollectionView
                     cell.ShowsPressEffect = value;
     }
 
-    /// <summary>A tap on an item: the selection first (cancelable), then <see cref="ItemTapped"/> and its command.</summary>
+    /// <summary>A tap on an item: it becomes the current item, see <see cref="ActivateItem"/>.</summary>
     private void OnItemHostTapped(ItemHost host)
     {
         if (LocateHost(host) is not { } location)
             return;
-        var (group, index) = location;
+        SetCurrentItem(location.Group, location.Index);
+        ActivateItem(location.Group, location.Index);
+    }
+
+    /// <summary>
+    /// A tap on the item at <paramref name="index"/> of <paramref name="group"/>, or Space / Enter on the current item: the
+    /// selection first (cancelable), then <see cref="ItemTapped"/> and its command.
+    /// </summary>
+    private void ActivateItem(int group, int index)
+    {
         var item = Model.ItemAt(group, index);
         var global = Model.GlobalIndex(group, index);
         _tapSelecting = item;

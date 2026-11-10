@@ -377,6 +377,7 @@ public partial class SkUiCollectionView : SkUiView, ISkUiItemsView, ISkUiRefresh
         // A reorder takes the item out and puts it back: it stays selected.
         if (!_committingReorder)
             OnSelectionSourceChanged(removed, reset);
+        OnItemsChangedKeepCurrent(reset);
         OnVisibleRowsChanged();
         UpdateStickyGroupHeader();
         CheckLoadMore();

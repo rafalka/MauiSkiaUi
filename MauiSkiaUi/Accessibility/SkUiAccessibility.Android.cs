@@ -397,7 +397,7 @@ internal sealed class SkUiAccessibilityHelper : ExploreByTouchHelper
     {
         // An accessibility service moved keyboard focus (ACTION_FOCUS): focus the drawn node.
         if (!_syncingKeyboardFocus && hasFocus && _owner?.Tree.Find(virtualViewId)?.Source is { } source)
-            _root.FocusManager.Focus(source);
+            _root.FocusManager.FocusOrOwner(source);
     }
 
     /// <summary>What TalkBack reads for a mixed (indeterminate) check box before Android 16 (English; a control's own value wins).</summary>

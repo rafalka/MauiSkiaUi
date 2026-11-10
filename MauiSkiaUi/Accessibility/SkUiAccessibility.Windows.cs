@@ -340,7 +340,7 @@ internal sealed partial class SkUiElementAutomationPeer(SkUiAccessibilityBridge 
     protected override void SetFocusCore()
     {
         if (Node?.Source is { } source)
-            bridge.Root.FocusManager.Focus(source);
+            bridge.Root.FocusManager.FocusOrOwner(source); // an item of a list focuses the list, the item current
     }
 
     /// <inheritdoc />

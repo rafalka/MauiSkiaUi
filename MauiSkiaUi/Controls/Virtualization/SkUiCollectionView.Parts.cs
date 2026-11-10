@@ -75,6 +75,7 @@ public partial class SkUiCollectionView
 
     private void ReturnCell(ItemHost cell)
     {
+        RingAfterUnbind(cell);
         if (!_cellPool.TryGetValue(cell.TemplateKey, out var pooled))
             _cellPool[cell.TemplateKey] = pooled = new Stack<ItemHost>();
         if (pooled.Count < 64)
@@ -143,9 +144,14 @@ public partial class SkUiCollectionView
         {
             owner.BindRow(index, view, recycleKey);
             owner.OnRowBound(index, view);
+            owner.RingAfterBind(index, view);
         }
 
-        protected override void UnbindItemView(int index, ISkUiView view) => owner.OnRowUnbound(view);
+        protected override void UnbindItemView(int index, ISkUiView view)
+        {
+            owner.OnRowUnbound(view);
+            owner.RingAfterUnbind(view);
+        }
 
         protected override object? GetItem(int index) => owner.RowItem(index);
 
@@ -217,6 +223,9 @@ public partial class SkUiCollectionView
         }
 
         protected override bool HandlesTap => owner.WantsItemTaps;
+
+        // The list is one tab stop; arrow keys move its current item (SkUiCollectionView.Keyboard).
+        internal override bool TakesKeyboardFocus => false;
 
         internal override bool OnSemanticsCustomAction(int index) => owner.PerformReorderAction(this, index);
 
@@ -373,6 +382,8 @@ public partial class SkUiCollectionView
         }
 
         protected override bool HandlesTap => owner.AllowGroupExpandCollapse && Content is not null;
+
+        internal override bool TakesKeyboardFocus => false; // a stop of the list's arrow keys, not a tab stop
 
         protected override void OnTapped(SkUiTappedEventArgs args)
         {

@@ -26,7 +26,8 @@ public partial class SkUiCollectionView
         propertyChanged: (view, _, _) => ((SkUiCollectionView)view).UpdateStickyGroupHeader());
 
     /// <summary>Bindable property for <see cref="AllowGroupExpandCollapse"/>.</summary>
-    public static readonly BindableProperty AllowGroupExpandCollapseProperty = BindableProperty.Create(nameof(AllowGroupExpandCollapse), typeof(bool), typeof(SkUiCollectionView), false);
+    public static readonly BindableProperty AllowGroupExpandCollapseProperty = BindableProperty.Create(nameof(AllowGroupExpandCollapse), typeof(bool), typeof(SkUiCollectionView), false,
+        propertyChanged: (view, _, _) => ((SkUiCollectionView)view).OnCurrentStopsChanged());
 
     /// <summary>Bindable property for <see cref="AutoExpandGroups"/>.</summary>
     public static readonly BindableProperty AutoExpandGroupsProperty = BindableProperty.Create(nameof(AutoExpandGroups), typeof(bool), typeof(SkUiCollectionView), true);
@@ -152,6 +153,8 @@ public partial class SkUiCollectionView
         if (group.Value is ISkUiExpandableGroup expandable && expandable.IsExpanded != expanded)
             expandable.IsExpanded = expanded;
         RefreshGroupHeader(index);
+        if (!expanded)
+            OnGroupCollapsedKeepCurrent(index);
         if (wasSticky && Model.HeaderRowOf(index) is >= 0 and var header)
             ItemsHost.ScrollToIndex(header, ScrollToPosition.Start, animated: false);
         (expanded ? GroupExpanded : GroupCollapsed)?.Invoke(this, new SkUiGroupEventArgs(group.Value, index));
@@ -175,8 +178,10 @@ public partial class SkUiCollectionView
         var index = host.StickyGroup;
         if (index < 0 && ItemsHost.IndexOfRealizedView(host) is >= 0 and var row)
             index = Model.RowAt(row).Group;
-        if (index >= 0 && index < Model.Groups.Count)
-            ChangeGroupExpanded(index, !Model.Groups[index].Expanded, fromGroup: false);
+        if (index < 0 || index >= Model.Groups.Count)
+            return;
+        SetCurrentHeader(index);
+        ChangeGroupExpanded(index, !Model.Groups[index].Expanded, fromGroup: false);
     }
 
     /// <summary>Room a sticky group header takes before an item scrolled to (none for group headers themselves).</summary>
@@ -254,6 +259,7 @@ public partial class SkUiCollectionView
             }
             header.BindingContext = group.Value;
             header.SetExpanded(group.Expanded);
+            header.SetFocusRingVisible(ShowsRingOnHeader(index));
         }
         if (!host.IsVisible)
             host.IsVisible = true;

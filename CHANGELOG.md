@@ -19,7 +19,15 @@ Publishing (the NuGet publish workflow, [docs/Releasing.md](docs/Releasing.md)) 
   - `SkUiDockLayout`: `ShouldExpandLastChild`, `HorizontalSpacing`, `VerticalSpacing`, `Add(view, position)`; children keep the toolkit's attached `DockLayout.DockPosition`, and changing it re-lays the dock out.
   - `SkUiUniformItemsLayout`: `MaxRows`, `MaxColumns`. Unlike the toolkit's layout, cells follow the first child when it changes size, and children past `MaxRows` × `MaxColumns` are hidden instead of keeping an old frame.
   - The migration checker suggests them for the toolkit's layouts in drawn trees; the gallery shows each beside the toolkit's own.
+- **Keyboard navigation in collection views:** an interactive `SkUiCollectionView` is one tab stop with a current item, as native lists are: [Keyboard](docs/controls/SkUiCollectionView.md#keyboard).
+  - Arrow keys move it (in grids also across, keeping the column; mirrored right to left), Home / End to the ends, Page Up / Page Down by the part of the viewport sticky parts leave uncovered; each move scrolls it into view.
+  - Space / Enter select and tap it as a tap would (`SelectionChanging`, `ItemTapped`, `ItemTappedCommand`); with `AllowGroupExpandCollapse`, group headers are stops that the arrows and Enter expand and collapse.
+  - The focus ring is drawn on the current item while focus came from the keyboard; the item is kept across collection changes and recycling, and passes to its neighbor when removed.
 - **Layouts of your own on other layout managers:** `SkUiLayout.AffectsChildLayout` (a child's attached property that re-lays the layout out) and `OnChildrenChanged` are now protected virtuals, so a layout outside SkiaUi can run another library's `ILayoutManager` ([SkUiLayout.md](docs/controls/SkUiLayout.md#layouts-of-your-own)).
+
+### Other
+
+- Collection view items are no longer tab stops one by one: the list is one stop and the arrow keys move between its items (above). Buttons inside items stay tab stops.
 
 ## 1.9.0
 

@@ -217,10 +217,27 @@ public partial class SkUiView : ISkUiAccessibleNode
     {
         if (IsFocused != focused)
             ((IView)this).IsFocused = focused; // raises Focused / Unfocused and moves to the Focused / Unfocused visual state
-        var ring = focused && ringVisible && ShowsFocusRing;
-        if (_focusRingVisible == ring)
+        OnKeyboardFocusChanged(focused, focused && ringVisible);
+        // A view that shows no ring of its own may draw one elsewhere (a list's current item) or on itself by other rules.
+        if (ShowsFocusRing)
+            SetFocusRingVisible(focused && ringVisible);
+    }
+
+    /// <summary>
+    /// The view's keyboard focus, or whether it came from the keyboard (<paramref name="ringVisible"/>), changed; called
+    /// before the ring is drawn or hidden. A collection view draws the ring on its current item instead of itself.
+    /// </summary>
+    private protected virtual void OnKeyboardFocusChanged(bool focused, bool ringVisible) { }
+
+    /// <summary>
+    /// Draws or hides the look's focus ring over the view, also without keyboard focus: the current item of a focused
+    /// collection view.
+    /// </summary>
+    internal void SetFocusRingVisible(bool visible)
+    {
+        if (_focusRingVisible == visible)
             return;
-        _focusRingVisible = ring;
+        _focusRingVisible = visible;
         InvalidatePaint();
     }
 
