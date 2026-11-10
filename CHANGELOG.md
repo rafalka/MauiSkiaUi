@@ -13,6 +13,8 @@ Publishing (the NuGet publish workflow, [docs/Releasing.md](docs/Releasing.md)) 
 
 ## Unreleased
 
+## 1.9.0
+
 ### New features
 
 - **Tile layout:** `SkUiTileLayout` and `SkUiCoreTileLayout` lay out equal tiles for galleries and attachment strips: as many columns of at most `TileSize` as the width takes, stretched to fill the row but never past it, a column dropped below `MinimumTileSize`, `TileAspectRatio`, `ColumnSpacing` / `RowSpacing`: [SkUiTileLayout.md](docs/controls/SkUiTileLayout.md).
