@@ -331,6 +331,25 @@ public class PipelineTests
     }
 
     [Fact]
+    public void ASurfaceRootArrangedInTheSlotItAskedForStillGrowsInAWiderMeasure()
+    {
+        // A parent that measures wider than it arranges (MAUI's FlexLayout: measured at its width, arranged at the child's):
+        // the slot holds what the root asked for, so the wider constraint is kept and the root can ask for more.
+        var box = new SkUiBox { WidthRequest = 150, HeightRequest = 20, HorizontalOptions = LayoutOptions.Start };
+        var root = new SkUiVerticalStackLayout { Children = { box } };
+        using var surface = new SkUiTestSurface(root, 400, 100);
+        IView view = root;
+        view.Measure(400, 100);
+        view.Arrange(new Rect(0, 0, 150, 100));
+        surface.Frame();
+
+        box.WidthRequest = 250;
+        view.Arrange(new Rect(0, 0, 150, 100));
+
+        Assert.Equal(250, view.DesiredSize.Width);
+    }
+
+    [Fact]
     public void ZeroSizedRootCanRenderAfterLayoutInvalidation()
     {
         var root = new SkUiBox();

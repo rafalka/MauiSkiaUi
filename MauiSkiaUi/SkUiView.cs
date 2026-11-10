@@ -680,12 +680,13 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
     /// <summary>
     /// A surface root arranged without a current measure for <paramref name="size"/>. When the tree changed since the native
     /// layout measured it, and that constraint still holds (a native stack's unbounded height), it is measured with that
-    /// constraint on each axis where it was unbounded or the arranged size, as <see cref="RelayoutIfNeeded"/> does, and the
-    /// native layout is asked when its size changed. Measured at the arranged size instead, a root sized by its content could
-    /// never grow: its height would be capped at the old one, and no later relayout would see a change to report (a native
-    /// layout pass for something else between a nested list gaining items and the next frame). An axis arranged smaller than
-    /// its old finite constraint (a window resized narrower) is measured at the arranged size, so text wraps for the width the
-    /// root has; so is everything when the old constraint does not hold.
+    /// constraint on each axis where it was unbounded or the arranged size still holds what the root last asked for, as
+    /// <see cref="RelayoutIfNeeded"/> does, and the native layout is asked when its size changed. Measured at the arranged size
+    /// instead, a root sized by its content could never grow: its height would be capped at the old one (or its width, in a
+    /// parent that measures wider than it arranges, as MAUI's FlexLayout), and no later relayout would see a change to report (a
+    /// native layout pass for something else between a nested list gaining items and the next frame). An axis arranged smaller
+    /// than the root last asked for (a window resized narrower) is measured at the arranged size, so text wraps for the width
+    /// the root has; so is everything when the old constraint does not hold.
     /// </summary>
     private void MeasureRootForArrange(Size size)
     {
@@ -696,13 +697,13 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
             return;
         }
         var previous = view.DesiredSize;
-        var width = KeepsConstraint(_lastConstraint.Width, size.Width) ? _lastConstraint.Width : size.Width;
-        var height = KeepsConstraint(_lastConstraint.Height, size.Height) ? _lastConstraint.Height : size.Height;
+        var width = KeepsConstraint(_lastConstraint.Width, size.Width, previous.Width) ? _lastConstraint.Width : size.Width;
+        var height = KeepsConstraint(_lastConstraint.Height, size.Height, previous.Height) ? _lastConstraint.Height : size.Height;
         if (view.Measure(width, height) != previous)
             base.InvalidateMeasureOverride(); // the native layout sizes the root again
 
-        static bool KeepsConstraint(double constraint, double arranged) =>
-            double.IsPositiveInfinity(constraint) || Math.Abs(constraint - arranged) <= MeasureConstraintTolerance;
+        static bool KeepsConstraint(double constraint, double arranged, double desired) =>
+            double.IsPositiveInfinity(constraint) || arranged >= desired - MeasureConstraintTolerance;
     }
 
     /// <summary>DIPs by which an arranged size may exceed the measure constraint before the root is measured again.</summary>
