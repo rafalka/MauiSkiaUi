@@ -16,7 +16,8 @@ What the next releases bring, and the work after them. What has shipped is in th
 | **1.6.0** | 10.0.120 | 27 | 10.0.402 | As 1.1.0 | `master`, released 4 November 2026 |
 | **1.7.0** | 10.0.120 | 27 | 10.0.402 | As 1.1.0 | `master`, released 5 November 2026 |
 | **1.8.0** | 10.0.120 | 27 | 10.0.402 | As 1.1.0 | `master`, released 6 November 2026 |
-| **1.9.0** | 10.0.120 or a later 10.0.x | 27 | 10.0.402 | As 1.1.0 | Planned |
+| **1.9.0** | 10.0.120 | 27 | 10.0.402 | As 1.1.0 | `master`, released 10 November 2026 |
+| **1.10.0** | 10.0.120 or a later 10.0.x | 27 | 10.0.402 | As 1.1.0 | Planned |
 
 SkiaUi stays on MAUI 10.x. Development happens on `devel`; `master` holds stable releases ([Releasing.md](../Releasing.md#branches-and-versions)).
 
@@ -64,7 +65,7 @@ Searchable picker lists (`IsSearchEnabled`), the pickers' chevron (`IsChevronVis
 
 ### 1.6.0: viewport insets (shipped)
 
-Steps and decisions: [ImplementationPlan-1.6.md](ImplementationPlan-1.6.md). The rest of what was planned for 1.6 moved to [1.9.0](#190-performance-tiles-core-containers-and-password-reveal-planned).
+Steps and decisions: [ImplementationPlan-1.6.md](ImplementationPlan-1.6.md). The rest of what was planned for 1.6 moved to [1.9.0](#190-performance-tiles-core-containers-and-password-reveal-shipped).
 
 - **Viewport insets (device checks in the [verification backlog](#verification-backlog)):** `ViewportInsets` on the scroll views and the collection view (the virtual stack follows its scroller's), so edge-to-edge pages scroll content under drawn top and bottom bars while scroll bars, `ScrollTo`, snap points, the refresh indicator, sticky headers and keyboard reveal work in the uncovered band; the surface root's `SafeAreaInsets` readable for binding.
 - **Fix:** hosted native views follow a resize of what clips them ([#81](https://github.com/rafalka/MauiSkiaUi/issues/81), fixed in [#82](https://github.com/rafalka/MauiSkiaUi/pull/82)).
@@ -91,7 +92,7 @@ One feature: a drawn Markdown view on both layers, in new optional packages, wit
 - **Math:** block and inline LaTeX in `SkiaUi.Maui.Markdown.Math` on CSharpMath.
 - **In `SkiaUi.Maui`:** inline objects in text, a baseline shift on spans (real superscript and subscript) and a zoom view.
 
-### 1.9.0: performance, tiles, Core containers and password reveal (planned)
+### 1.9.0: performance, tiles, Core containers and password reveal (shipped)
 
 Moved from 1.6, then from 1.8. Built on the branch `1.9-implementation`. Steps, order and open decisions: [ImplementationPlan-1.9.md](ImplementationPlan-1.9.md).
 
@@ -102,6 +103,13 @@ Moved from 1.6, then from 1.8. Built on the branch `1.9-implementation`. Steps, 
 - **Text input:** password reveal (show / hide) in drawn password fields (done: `IsPasswordRevealed`, `ShowsPasswordRevealButton`, `HidesPasswordOnUnfocus`, `PasswordRevealMode` (toggle or hold) on both entries; device checks in the [verification backlog](#verification-backlog)).
 
 .NET 11 / MAUI 11 waits until it is released.
+
+### 1.10.0: Community Toolkit layouts and collection view parity (planned)
+
+Built on the branch `1.10-implementation`. Steps, order and open decisions: [ImplementationPlan-1.10.md](ImplementationPlan-1.10.md).
+
+- **Community Toolkit layouts** in `SkiaUi.Maui.CommunityToolkit`: drawn `SkUiDockLayout` and `SkUiUniformItemsLayout` on the toolkit's layout managers, with the toolkit's attached `DockPosition`; `SkUiLayout.AffectsChildLayout` and `OnChildrenChanged` made public for them (and for app layouts on other managers).
+- **Collection view parity:** keyboard item navigation (the list as one tab stop with a current item), extended (Shift / Ctrl) selection, a selected-item template, and animated inserts, removes and moves (opt-in in 1.x).
 
 ## Backlog (1.x)
 
@@ -120,11 +128,9 @@ Multi-target the one `SkiaUi.Maui` package (`net10.0-*` plus `net11.0-*`) so app
 
 - **Calendar** (`SkUiCalendar` + `SkUiCoreCalendar`, [FR-33](Requirements.md#functional-requirements)): one drawn node per month, render-thread swiping on the carousel's engine, year / decade / century views, single, multiple and range selection, per-day styles; then a calendar popup for the date pickers and a date range picker. Steps F1–F7 in the [archived plan](../archive/ImplementationPlan-1.0.md#phase-f--calendar-skuicalendar).
 - **Full SVG** in an optional `SkiaUi.Maui.Svg` package on Svg.Skia, for what [1.7's icon reader](ImplementationPlan-1.7.md) leaves out: gradients, `<use>`, filters and CSS in downloaded files and rich illustrations. Needs a vector entry in the image cache and protection against hostile files (design and a spike's findings: [the full SVG plan](ImplementationPlan-FullSvg.md)).
-- **Community Toolkit layouts** in `SkiaUi.Maui.CommunityToolkit`: drawn `UniformItemsLayout` and `DockLayout` on the toolkit's layout managers; needs `SkUiLayout.AffectsChildLayout` and `OnChildrenChanged` made public ([Popups.md](Popups.md#integration-packages)).
 
 ### MAUI parity
 
-- **CollectionView:** a selected-item template, extended selection, keyboard item navigation, animated insert and remove.
 - **CarouselView / IndicatorView:** `VisibleViews`; autoplay, several items per snap point, a Core carousel.
 - **Gesture recognizers on drawn views:** `PanGestureRecognizer` with `TouchPoints` other than 1 (reported and not run since 1.2).
 - **Labels:** span press feedback, HTML images, block indents; one fitted size for a group of labels.
