@@ -45,6 +45,9 @@ public class IosSkUiLook : DefaultSkUiLook
         SkUiTransitionKind.IndicatorPosition => SkUiTransition.FromMilliseconds(300, SkUiEasings.IosStandard),
         SkUiTransitionKind.PickerOpen => SkUiTransition.FromMilliseconds(350, SkUiEasings.IosStandard),
         SkUiTransitionKind.Release => SkUiTransition.FromMilliseconds(250, Easing.CubicOut),
+        // UITableView's row animations: about 0.3 s, fades and moves together.
+        SkUiTransitionKind.ItemInsert or SkUiTransitionKind.ItemRemove => SkUiTransition.FromMilliseconds(300, Easing.CubicInOut),
+        SkUiTransitionKind.ItemMove => SkUiTransition.FromMilliseconds(300, SkUiEasings.IosStandard),
         _ => base.GetTransitionCore(kind)
     };
 

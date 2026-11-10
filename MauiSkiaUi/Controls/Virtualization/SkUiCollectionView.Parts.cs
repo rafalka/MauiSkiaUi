@@ -129,13 +129,41 @@ public partial class SkUiCollectionView
     {
         public void Reset(int count) => ResetItems(count);
 
-        public void InsertRows(int row, int count) => InsertItems(row, count);
+        // Each change notes what the item animations need first (AnimatesItemChanges): where the items show, what was inserted,
+        // the views of removed items to fade out.
+        public void InsertRows(int row, int count)
+        {
+            owner.BeforeRowsChange();
+            InsertItems(row, count);
+            owner.NoteInsertedRows(row, count);
+        }
 
-        public void RemoveRows(int row, int count) => RemoveItems(row, count);
+        public void RemoveRows(int row, int count)
+        {
+            owner.BeforeRowsChange();
+            TakesReleasedView = owner.FadesRemovedRows ? owner.TakeRemovedView : null;
+            try
+            {
+                RemoveItems(row, count);
+            }
+            finally
+            {
+                TakesReleasedView = null;
+            }
+        }
 
-        public void ReplaceRows(int row, int count) => ReplaceItems(row, count);
+        public void ReplaceRows(int row, int count)
+        {
+            owner.BeforeRowsChange();
+            ReplaceItems(row, count);
+            owner.NoteInsertedRows(row, count);
+        }
 
-        public void MoveRows(int row, int count, int newRow) => MoveItems(row, count, newRow);
+        public void MoveRows(int row, int count, int newRow)
+        {
+            owner.BeforeRowsChange();
+            MoveItems(row, count, newRow);
+        }
 
         public void DropRecycled() => ClearRecycledViews();
 
@@ -479,6 +507,9 @@ public partial class SkUiCollectionView
         /// <summary>The placeholder items of an empty list in a skeleton made from content, created the first time they show.</summary>
         public PlaceholderPart? PlaceholderHost;
 
+        /// <summary>Removed items fading out, under the items (created the first time an item fades out).</summary>
+        public GhostPart? GhostHost;
+
         public bool LoadMoreAtStart
         {
             get => _loadMoreAtStart;
@@ -519,6 +550,8 @@ public partial class SkUiCollectionView
         {
             get
             {
+                if (GhostHost is not null)
+                    yield return GhostHost; // first: drawn under the items moving over it
                 if (HeaderHost is not null)
                     yield return HeaderHost;
                 if (LoadMoreHost is not null && _loadMoreAtStart)
@@ -537,9 +570,10 @@ public partial class SkUiCollectionView
         protected override Size MeasureContent(double widthConstraint, double heightConstraint)
         {
             var (along, across) = (0d, 0d);
+            ((IView?)GhostHost)?.Measure(widthConstraint, heightConstraint);
             foreach (var part in SkiaChildren)
             {
-                if (part is not SkUiView { IsVisible: true } view)
+                if (part is not SkUiView { IsVisible: true } view || part is GhostPart)
                     continue;
                 var size = _owner.MeasurePart(view, widthConstraint, heightConstraint);
                 along += _owner.Along(size);
@@ -553,11 +587,13 @@ public partial class SkUiCollectionView
             // The empty view fills what the viewport has left besides the other parts.
             var others = 0d;
             foreach (var part in SkiaChildren)
-                if (!ReferenceEquals(part, EmptyHost))
+                if (!ReferenceEquals(part, EmptyHost) && part is not GhostPart)
                     others += _owner.AlongOf((SkUiView)part);
             var position = 0d;
             foreach (var part in SkiaChildren)
             {
+                if (part is GhostPart)
+                    continue;
                 var view = (SkUiView)part;
                 var length = ReferenceEquals(view, EmptyHost) && view.IsVisible
                     ? Math.Max(_owner.AlongOf(view), _owner.Along(size) - others)
@@ -565,6 +601,8 @@ public partial class SkUiCollectionView
                 ((IView)view).Arrange(_owner.Slot(position, length, new Rect(Point.Zero, size)));
                 position += length;
             }
+            // Over the items' own place: the fading views keep the places they had in it.
+            ((IView?)GhostHost)?.Arrange(_owner.ItemsHost.Frame);
         }
     }
 }

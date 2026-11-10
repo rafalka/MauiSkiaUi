@@ -128,10 +128,16 @@ internal sealed class SkUiRenderTween : SkUiRenderAnimation
 
     internal override int PropertyMask => _mask;
 
+    /// <summary>
+    /// Start values in property order, instead of the values the node shows when the tween starts: the node is drawn from
+    /// them while the UI keeps its own (final) values (a collection view's items moving to their new place).
+    /// </summary>
+    internal float[]? From { get; init; }
+
     internal override void OnStart(in SkUiRenderProps props)
     {
         for (var index = 0; index < _properties.Length; index++)
-            _starts[index] = props.Get(_properties[index]);
+            _starts[index] = From is { } from ? from[index] : props.Get(_properties[index]);
     }
 
     internal override bool Advance(TimeSpan elapsed, ref SkUiRenderProps props)

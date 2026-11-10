@@ -1277,6 +1277,42 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
         return completion.Task;
     }
 
+    /// <summary>
+    /// Draws <paramref name="property"/> (opacity or a translation) from <paramref name="from"/> back to the view's own value
+    /// on the render thread, while the view keeps its value (layout and hit-testing see the end state from the start): a
+    /// collection view's items moving to their new place or fading in. A later animation of the property, or setting it,
+    /// replaces this one. Returns <c>true</c> when it ran to completion.
+    /// </summary>
+    /// <param name="property">Opacity, TranslationX or TranslationY.</param>
+    /// <param name="from">Where the drawing starts.</param>
+    /// <param name="length">Milliseconds.</param>
+    /// <param name="easing">The curve.</param>
+    /// <param name="finished">Runs on the UI thread when it ends (<c>true</c>: ran to completion).</param>
+    internal Task<bool> AnimateFromAsync(SkUiAnimatableProperty property, double from, uint length, Easing? easing, Action<bool>? finished = null)
+    {
+        var (renderProperty, to) = property switch
+        {
+            SkUiAnimatableProperty.Opacity => (SkUiRenderProperty.Opacity, Opacity),
+            SkUiAnimatableProperty.TranslationX => (SkUiRenderProperty.TranslationX, TranslationX),
+            SkUiAnimatableProperty.TranslationY => (SkUiRenderProperty.TranslationY, TranslationY),
+            _ => throw new ArgumentOutOfRangeException(nameof(property))
+        };
+        var completion = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var tween = new SkUiRenderTween([renderProperty], [(float)to], TimeSpan.FromMilliseconds(Math.Max(1, length)), easing)
+        {
+            From = [(float)from],
+            Finished = (animation, completed) =>
+            {
+                RenderState.ActiveAnimations?.Remove(animation);
+                // It ends where the view's own value is: nothing to write back.
+                finished?.Invoke(completed);
+                completion.TrySetResult(completed);
+            }
+        };
+        SkUiRenderInvalidation.Enqueue(this, tween);
+        return completion.Task;
+    }
+
     private void ApplyAnimatedValues(SkUiAnimatableProperty property, SkUiRenderTween tween, float[] values)
     {
         for (var index = 0; index < values.Length; index++)

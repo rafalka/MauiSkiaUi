@@ -128,6 +128,15 @@ An interactive list (a selection mode, an `ItemTapped` handler or command, or `A
 - **Extended selection** (`IsExtendedSelectionEnabled` with `SelectionMode="Multiple"`, as desktop lists): a click selects only its item, Ctrl+click (Command+click on Apple) adds or removes one, Shift+click selects the items from the anchor (the item last clicked, toggled or moved to without Shift), Ctrl+Shift+click adds them. The arrow, Home / End and page keys select the item they move to (with Shift: the range from the anchor; with Ctrl / Command: they move without selecting); Space adds or removes the current item (Shift+Space: the range to it), Enter taps it without changing the selection, Ctrl / Command+A selects all. A touch keeps `Multiple`'s toggling tap. Ranges run in source order across groups, each item once, without the items of collapsed groups. Each gesture is one change: one cancelable `SelectionChanging`, one `SelectionChanged`, one `SelectionChangedCommand` run. Modifier keys come from the platform's pointer events (not on Android's software surfaces).
 - Screen readers keep their own navigation of the items; the current item is not a second accessibility focus. A UI Automation client that focuses an item (Narrator does before acting on it) focuses the list with that item current.
 
+## Animated changes
+
+`AnimatesItemChanges="True"` animates inserts, removes and moves as native lists do (UIKit and RecyclerView animate by default; in 1.x SkiaUi's lists do not unless asked, or a look's `CollectionViewAnimatesItemChanges` turns it on everywhere): items that move glide from their old places to their new ones, inserted items fade in, removed items fade out where they were while the others move over them. Grid cells glide to their new cells. Expanding and collapsing a group animates its rows the same way.
+
+- The changes of one frame (a burst of inserts and removes) animate together, from where things showed before the first one, after the layout that follows them. A change while items still glide starts from where they are drawn.
+- Everything runs on the render thread: the views keep their final layout, so nothing re-records (a removed item is recorded once more where it fades out) and taps hit where items end up.
+- Only items in view animate: changes outside it, resets, changes during a fling or an animated scroll, a reorder's drop (animated already) and Reduce Motion skip the animation.
+- Durations and curves come from the look: `ItemInsert`, `ItemRemove`, `ItemMove` ([ControlLook.md](../design/ControlLook.md)).
+
 ## Key properties
 
 | Member | Default | Notes |
@@ -161,6 +170,7 @@ An interactive list (a selection mode, an `ItemTapped` handler or command, or `A
 | `SelectionBackground` | `null` | A brush (in XAML a color) behind selected items; `null`: the accent at 12 %; `Transparent`: none (style the item with the `Selected` state) |
 | `ItemTappedCommand` (+ `…Parameter`) | `null` | Runs on an item tap, with the parameter when set, else the item |
 | `ShowsItemPressEffect` | `false` | Item containers show the press effect while pressed |
+| `AnimatesItemChanges` | `null` (the look's: off in 1.x) | Animates inserts, removes and moves ([Animated changes](#animated-changes)). `SetAnimatesItemChanges(value)` |
 | `CanReorderItems` | `false` | MAUI's: a long press (touch) or a press and drag (mouse) lifts an item to move it (see above). `SetCanReorderItems(value)` |
 | `SkUiCollectionView.IsReorderHandle` (attached) | `false` | On a view in the item template: the item's drag handle. A press on it lifts the item at once; the rest of the item keeps its taps and long presses (see above). `SetIsReorderHandle(view, value)` |
 | `CanMixGroups` | `false` | MAUI's: in a grouped list, items move to other (expanded) groups too. `SetCanMixGroups(value)` |
@@ -201,4 +211,4 @@ An interactive list (a selection mode, an `ItemTapped` handler or command, or `A
 
 ## Demo and tests
 
-Demo: **Components → Scrolling → SkUiCollectionView** (next to MAUI's `CollectionView` in a `RefreshView`) , **CollectionView (groups, grid, horizontal)** and **CollectionView (reordering)** (next to MAUI's reorderable `CollectionView`, on the same tasks). Samples: **Order list (collection view)**, **Contacts** (live grouped list, tiles, selection mode, adaptive preview). Tests: `CollectionViewTests`, `CollectionViewGroupsAndLayoutsTests`, `CollectionViewReorderTests`; `CollectionViewKeyboardTests`, `CollectionViewExtendedSelectionTests`, `CollectionViewSelectedTemplateTests`; leak scenarios `CollectionViewUsed`, `CollectionViewGrouped`, `CollectionViewReordered`, `CollectionViewSelectedTemplate`.
+Demo: **Components → Scrolling → SkUiCollectionView** (next to MAUI's `CollectionView` in a `RefreshView`) , **CollectionView (groups, grid, horizontal)** and **CollectionView (reordering)** (next to MAUI's reorderable `CollectionView`, on the same tasks). Samples: **Order list (collection view)**, **Contacts** (live grouped list, tiles, selection mode, adaptive preview). Tests: `CollectionViewTests`, `CollectionViewGroupsAndLayoutsTests`, `CollectionViewReorderTests`; `CollectionViewKeyboardTests`, `CollectionViewExtendedSelectionTests`, `CollectionViewSelectedTemplateTests`; `CollectionViewItemAnimationTests`; leak scenarios `CollectionViewUsed`, `CollectionViewGrouped`, `CollectionViewReordered`, `CollectionViewSelectedTemplate`, `CollectionViewItemsAnimated`; bench scenarios `collection-changes`, `collection-changes-animated`.
