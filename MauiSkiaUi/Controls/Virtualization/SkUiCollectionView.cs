@@ -921,6 +921,7 @@ public partial class SkUiCollectionView : SkUiView, ISkUiItemsView, ISkUiRefresh
         if (EmptyView is null && !EmptySlot.IsSetting && _isEmpty && Parent is not null)
             EmptySlot.Ensure();
         Body.EmptyHost.Content = EmptyView;
+        UpdateEmpty(); // the empty host shows only with a view
     }
 
     private void OnTemplateChanged(SkUiContentSlot slot)
@@ -963,14 +964,16 @@ public partial class SkUiCollectionView : SkUiView, ISkUiItemsView, ISkUiRefresh
         var empty = Model.RowCount == 0;
         // In a skeleton made from content, an empty list shows placeholder items instead of its empty view.
         var placeholders = empty && WantsPlaceholders();
-        var showsEmptyView = empty && !placeholders;
-        if (empty == _isEmpty && placeholders == _showsPlaceholders && Body.EmptyHost.IsVisible == showsEmptyView)
+        var wantsEmptyView = empty && !placeholders;
+        // Only an empty view that exists takes space (it fills what the other parts leave): without one, the footer follows
+        // the header as it follows the last item.
+        if (empty == _isEmpty && placeholders == _showsPlaceholders && Body.EmptyHost.IsVisible == (wantsEmptyView && EmptyView is not null))
             return;
         _isEmpty = empty;
         SetPlaceholders(placeholders);
-        Body.EmptyHost.IsVisible = showsEmptyView;
-        if (showsEmptyView && Parent is not null)
-            EmptySlot.Ensure();
+        if (wantsEmptyView && Parent is not null)
+            EmptySlot.Ensure(); // template content: setting EmptyView comes back here first
+        Body.EmptyHost.IsVisible = wantsEmptyView && EmptyView is not null;
         Body.InvalidateBody();
     }
 

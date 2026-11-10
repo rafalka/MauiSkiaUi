@@ -248,6 +248,45 @@ public class CollectionViewTests
     }
 
     [Fact]
+    public void WithoutAnEmptyViewTheFooterFollowsTheHeaderOfAnEmptyList()
+    {
+        // Issue #87: an empty list with no empty view took the leftover height and pushed the footer to the bottom.
+        var list = List(new ObservableCollection<Row>());
+        list.Header = new SkUiBox { HeightRequest = 50 };
+        var footer = new SkUiBox { HeightRequest = 40 };
+        list.Footer = footer;
+        var page = new SkUiContentView { Content = list };
+        SkUiTestHelpers.Arrange(page, 300, 500);
+
+        Assert.True(list.IsEmpty);
+        Assert.False(list.ShowsEmptyView);
+        Assert.Equal(new Rect(0, 50, 300, 40), OnScreen(list, footer));
+
+        // An empty view set later fills the space between them; cleared, the footer comes back up.
+        list.EmptyView = new SkUiLabel { Text = "Nothing here" };
+        SkUiTestHelpers.Arrange(page, 300, 500);
+        Assert.True(list.ShowsEmptyView);
+        Assert.Equal(new Rect(0, 460, 300, 40), OnScreen(list, footer));
+
+        list.EmptyView = null;
+        SkUiTestHelpers.Arrange(page, 300, 500);
+        Assert.False(list.ShowsEmptyView);
+        Assert.Equal(new Rect(0, 50, 300, 40), OnScreen(list, footer));
+
+        // A template selector that picks no template makes no empty view either.
+        list.EmptyViewTemplate = new NoTemplateSelector();
+        SkUiTestHelpers.Arrange(page, 300, 500);
+        Assert.Null(list.EmptyView);
+        Assert.False(list.ShowsEmptyView);
+        Assert.Equal(new Rect(0, 50, 300, 40), OnScreen(list, footer));
+    }
+
+    private sealed class NoTemplateSelector : DataTemplateSelector
+    {
+        protected override DataTemplate OnSelectTemplate(object item, BindableObject container) => null!;
+    }
+
+    [Fact]
     public void HeaderTemplatesBindToTheListsContext()
     {
         var list = List(Rows(3));

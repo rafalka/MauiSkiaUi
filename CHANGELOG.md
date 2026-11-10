@@ -32,6 +32,7 @@ Publishing (the NuGet publish workflow, [docs/Releasing.md](docs/Releasing.md)) 
 
 ### Fixes
 
+- **An empty `SkUiCollectionView` without an empty view no longer pushes the footer down:** with no `EmptyView` (or an `EmptyViewTemplate` that makes no view), the empty state took the height the list had left, so the `Footer` sat at the bottom of the list instead of after the header. Nothing shows for it now, and the footer follows the header as it follows the last item.
 - **VoiceOver finds buttons inside drawn controls by touch:** explore by touch (and Accessibility Inspector's pointer) on iOS and Mac Catalyst picks the front-most, innermost drawn element, as TalkBack and Narrator do; UIKit picked the top-left of overlapping elements, so a text field's clear and password reveal buttons and actions inside a described group were reached only by swiping.
 - **A drawn root sized by its content grows with it again:** a surface root in a MAUI layout (a drawn stack in a `VerticalStackLayout` in a `ScrollView`) kept its old height when a nested `BindableLayout` list gained items while the page was shown, cutting off what was below the list until the page laid out again. A native layout pass that arranged the root after the change and before its next frame measured it at its old bounds, capping its height, so its relayout found no change to report. It is now measured with the constraint the native layout gave it, which is asked again when the root's size changed.
 
