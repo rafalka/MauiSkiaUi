@@ -222,6 +222,55 @@ public class TileLayoutTests
     }
 
     [Fact]
+    public void CoreChildrenLeftOutAndShownAgainAreDrawnAgain()
+    {
+        var core = CoreTiles(6);
+        ((SkUiCoreBox)core.Children[5]).SetColor(Colors.Blue);
+        var host = new SkUiCoreHost().SetContent(core);
+        using var surface = new SkUiTestSurface(host, 300, 300);
+        surface.Frame();
+        Assert.Equal(SKColors.Blue, surface.Bitmap.GetPixel(250, 150));
+
+        core.SetMaximumRows(1);
+        surface.Frame();
+        Assert.Equal(new SKColor(0, 0, 0, 0), surface.Bitmap.GetPixel(250, 150));
+
+        core.SetMaximumRows(-1);
+        surface.Frame();
+        Assert.Equal(SKColors.Blue, surface.Bitmap.GetPixel(250, 150));
+    }
+
+    [Fact]
+    public void CoreChildrenPastTheRowLimitFollowTheEnabledState()
+    {
+        // Attached but not drawn: the enabled cascade still reaches them, so they come back disabled.
+        var core = CoreTiles(6).SetMaximumRows(1);
+        var host = new SkUiCoreHost().SetContent(core);
+        using var surface = new SkUiTestSurface(host, 300, 300);
+        surface.Frame();
+        core.SetIsEnabled(false);
+        Assert.False(((SkUiCoreNode)core.Children[5]).IsEnabled);
+        core.SetMaximumRows(-1);
+        surface.Frame();
+        Assert.False(((SkUiCoreNode)core.Children[5]).IsEnabled);
+        core.SetIsEnabled(true);
+        Assert.True(((SkUiCoreNode)core.Children[5]).IsEnabled);
+    }
+
+    [Theory]
+    [InlineData(double.PositiveInfinity)] // measured in one row (a horizontal scroller's pass), arranged in a column
+    [InlineData(150)] // measured narrower than arranged
+    public void ArrangedAtAnotherWidthThanMeasuredLaysOutForTheArrangedWidth(double measuredWidth)
+    {
+        var layout = Tiles(8);
+        ((IView)layout).Measure(measuredWidth, double.PositiveInfinity);
+        ((IView)layout).Arrange(new Rect(0, 0, 300, 1000));
+        Assert.Equal(3, layout.Columns);
+        Assert.Equal(new Rect(0, 100, 100, 100), layout.Children[3].Frame);
+        Assert.Equal(new Rect(100, 200, 100, 100), layout.Children[7].Frame);
+    }
+
+    [Fact]
     public void CoreOverflowTileComesFromItsFactory()
     {
         var core = CoreTiles(5).SetMaximumRows(1);
@@ -233,6 +282,8 @@ public class TileLayoutTests
             return new SkUiCoreBox().SetColor(Colors.Blue);
         });
         core.OverflowTapped += (_, _) => tapped++;
+        var commanded = new List<object?>();
+        core.SetOverflowCommand(new Command<object?>(commanded.Add));
         var host = new SkUiCoreHost().SetContent(core);
         using var surface = new SkUiTestSurface(host, 300, 300);
         surface.Frame();
@@ -242,6 +293,9 @@ public class TileLayoutTests
         Assert.Equal(4, RenderChildren(core).Count); // three tiles and the overflow tile
         Tap(host, new Point(250, 50));
         Assert.Equal(1, tapped);
+        core.SetOverflowCommandParameter("all photos");
+        Tap(host, new Point(250, 50));
+        Assert.Equal([core.Overflow, "all photos"], commanded); // the parameter, by default Overflow
 
         core.SetMaximumRows(-1);
         SkUiTestHelpers.Arrange(host, 300, 300);

@@ -132,6 +132,9 @@ public class SkUiTileLayout : SkUiLayout
     /// <summary>Sets <see cref="OverflowCommand"/>.</summary>
     public SkUiTileLayout SetOverflowCommand(ICommand? value) { OverflowCommand = value; return this; }
 
+    /// <summary>Sets <see cref="OverflowCommandParameter"/>.</summary>
+    public SkUiTileLayout SetOverflowCommandParameter(object? value) { OverflowCommandParameter = value; return this; }
+
     private SkUiTileOptions Options => new(_tileSize, _minimumTileSize, _aspectRatio, _columnSpacing, _rowSpacing, _maximumRows, EffectivePadding);
 
     private void OnOptionChanged(ref double field, double value)
@@ -220,16 +223,25 @@ public class SkUiTileLayout : SkUiLayout
     internal override void AddRenderChildren(List<ISkUiRenderable> children)
     {
         var start = children.Count;
-        if (!_state.Measured || _state.ShownEnd >= Children.Count)
+        // What is sent: every child until the next layout tells which have a tile (as the Core twin records it).
+        var shown = _state.Measured ? Math.Min(_state.ShownEnd, Children.Count) : Children.Count;
+        if (shown >= Children.Count)
             base.AddRenderChildren(children);
+        else if (PaintOrder is var order && order[0].ZIndex == order[^1].ZIndex)
+        {
+            // One ZIndex (sorted stably, so the paint order is the children's): the first ones, without a search per child.
+            for (var index = 0; index < shown; index++)
+                if (Children[index] is ISkUiRenderable renderable)
+                    children.Add(renderable);
+        }
         else
         {
-            foreach (var child in PaintOrder)
+            foreach (var child in order)
                 if (child is ISkUiRenderable renderable && _state.IsShown(Children.IndexOf(child)))
                     children.Add(renderable);
         }
         if (ShowsOverflow)
             children.Add(_overflowHost!);
-        _rendered.Update(this, children, start, _state.ShownEnd, ShowsOverflow, Children.Count);
+        _rendered.Update(this, children, start, shown, ShowsOverflow, Children.Count);
     }
 }

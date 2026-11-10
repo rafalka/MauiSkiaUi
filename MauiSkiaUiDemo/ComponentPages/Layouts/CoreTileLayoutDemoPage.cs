@@ -25,8 +25,7 @@ public sealed class CoreTileLayoutDemoPage : ComponentDemoPage
         Number(nameof(SkUiCoreTileLayout.TileAspectRatio), 0.5, 2, 1, value => tiles.TileAspectRatio = value, () => tiles.TileAspectRatio);
         Number(nameof(SkUiCoreTileLayout.ColumnSpacing), 0, 16, 4, value => tiles.ColumnSpacing = value, () => tiles.ColumnSpacing);
         Number(nameof(SkUiCoreTileLayout.RowSpacing), 0, 16, 4, value => tiles.RowSpacing = value, () => tiles.RowSpacing);
-        Number("MaximumRows (-1: no limit)", -1, 4, 2, value => tiles.MaximumRows = value is > -1 and < 1 ? 1 : (int)value,
-            () => tiles.MaximumRows, whole: true);
+        Choice("MaximumRows (-1: no limit)", TileLayoutDemoPage.RowLimits, 2, value => tiles.MaximumRows = value, () => tiles.MaximumRows);
         Toggle("OverflowTile", true, value => tiles.OverflowTemplate = value ? Overflow : null, () => tiles.OverflowTemplate is not null);
         ActionButton("Add photo", () => AddPhotos(tiles, 1));
         ActionButton("Remove photo", () => { if (tiles.Children.Count > 1) tiles.Remove(tiles.Children[^1]); });
@@ -68,12 +67,31 @@ public sealed class CoreTileLayoutDemoPage : ComponentDemoPage
     /// <summary>"+5" over the last photo, dimming it; follows the count.</summary>
     private static SkUiCoreNode Overflow(SkUiTileOverflow overflow)
     {
-        var count = new SkUiCoreLabel().SetText($"+{overflow.HiddenCount}").SetTextColor(Colors.White).SetFontSize(22)
-            .SetFontAttributes(FontAttributes.Bold);
+        var count = new OverflowCount(overflow).SetTextColor(Colors.White).SetFontSize(22).SetFontAttributes(FontAttributes.Bold);
         count.SetHorizontalAlignment(LayoutAlignment.Center).SetVerticalAlignment(LayoutAlignment.Center);
-        overflow.PropertyChanged += (_, _) => count.SetText($"+{overflow.HiddenCount}");
         var dim = new SkUiCoreBorder().SetStrokeThickness(0).SetCornerRadius(6).SetContent(count);
         dim.SetBackground(Color.FromRgba(0, 0, 0, 0.55));
         return dim;
+    }
+
+    /// <summary>
+    /// "+N", following <see cref="SkUiTileOverflow.HiddenCount"/> weakly: the overflow lives as long as the layout, and a template
+    /// runs again whenever it is set, so a plain subscription would keep every replaced label alive.
+    /// </summary>
+    private sealed class OverflowCount : SkUiCoreLabel
+    {
+        // Held by the label: the overflow holds its listeners weakly.
+        private readonly SkUiWeakListener<OverflowCount> _listener;
+        private readonly SkUiTileOverflow _overflow;
+
+        public OverflowCount(SkUiTileOverflow overflow)
+        {
+            _overflow = overflow;
+            _listener = new SkUiWeakListener<OverflowCount>(this, static (label, _) => label.Update());
+            _listener.Listen(overflow);
+            Update();
+        }
+
+        private void Update() => SetText($"+{_overflow.HiddenCount}");
     }
 }

@@ -22,6 +22,24 @@ public class CoreStateContainerTests
     }
 
     [Fact]
+    public void ANodeGivenAnotherParentWhileNotShownFailsBeforeTheStateChanges()
+    {
+        // Not shown, a state's node (and the content while a state shows) has no parent, so nothing stopped another panel
+        // taking it: showing it fails before CurrentState changes, and the shown node stays.
+        var (container, content, loading, error) = Container();
+        new SkUiCoreVerticalStackLayout().Add(loading);
+        Assert.Throws<InvalidOperationException>(() => container.SetCurrentState(Loading));
+        Assert.Null(container.CurrentState);
+        Assert.Same(content, container.ShownChild);
+
+        container.SetCurrentState(Error);
+        new SkUiCoreVerticalStackLayout().Add(content);
+        Assert.Throws<InvalidOperationException>(() => container.SetCurrentState(null));
+        Assert.Equal(Error, container.CurrentState);
+        Assert.Same(error, container.ShownChild);
+    }
+
+    [Fact]
     public void AStateReplacesTheContentUntilItIsCleared()
     {
         var (container, content, loading, error) = Container();
@@ -110,7 +128,7 @@ public class CoreStateContainerTests
     [Fact]
     public void TheShownStateFollowsItsNodeWhenReplacedRemovedAndAddedAgain()
     {
-        var (container, _, loading, _) = Container();
+        var (container, content, loading, _) = Container();
         container.SetCurrentState(Loading);
         var replacement = new SkUiCoreBox();
         container.States[Loading] = replacement;
@@ -129,7 +147,7 @@ public class CoreStateContainerTests
         container.States.Clear();
         Assert.Null(container.ShownChild);
         container.SetCurrentState(null);
-        Assert.NotNull(container.ShownChild);
+        Assert.Same(content, container.ShownChild);
     }
 
     [Fact]
@@ -249,7 +267,11 @@ public class CoreStateContainerTests
         // A state set while the new node animates in follows it.
         container.SetCurrentState(null);
         Drive(ui, surface, () => ReferenceEquals(container.ShownChild, content));
+        Assert.False(container.CanStateChange); // the content still animates in
         container.SetCurrentState(Loading);
+        Assert.Equal(Loading, container.CurrentState);
+        Assert.Null(container.ShownState); // the running change follows it once the content is in
+        Assert.Same(content, container.ShownChild);
         Drive(ui, surface, () => container.CanStateChange);
         Assert.Same(loading, container.ShownChild);
         Assert.Equal((1d, 1d, 1d), (error.Opacity, content.Opacity, loading.Opacity));
@@ -257,7 +279,59 @@ public class CoreStateContainerTests
     }
 
     [Fact]
-    public void AnimationsScaleOneAxisAndFreezeWhenUsed()
+    public async Task ExplicitChangesWaitForAutomaticOnes()
+    {
+        using var ui = TestUiContext.Install();
+        var (container, _, _, error) = Container();
+        container.SetBeforeStateChangeAnimation(SkUiViewAnimation.FadeOut(100)).SetAfterStateChangeAnimation(SkUiViewAnimation.FadeIn(100));
+        using var surface = new SkUiTestSurface(new SkUiCoreHost().SetContent(container), 100, 100);
+        surface.Frame(_time += 16);
+
+        container.SetCurrentState(Loading);
+        await Assert.ThrowsAsync<SkUiStateContainerException>(() => container.ChangeStateWithAnimation(Error));
+        Drive(ui, surface, () => container.CanStateChange);
+        var change = container.ChangeStateWithAnimation(Error);
+        Drive(ui, surface, () => change.IsCompleted);
+        await change;
+        Assert.Equal(Error, container.CurrentState);
+        Assert.Same(error, container.ShownChild);
+    }
+
+    [Fact]
+    public async Task ViewAnimationsRunOnTheLeavingAndTheNewNodesAndEndExactly()
+    {
+        using var ui = TestUiContext.Install();
+        var (container, content, loading, _) = Container();
+        content.SetTranslationX(5);
+        using var surface = new SkUiTestSurface(new SkUiCoreHost().SetContent(container), 100, 100);
+        surface.Frame(_time += 16);
+        var shrink = new SkUiViewAnimation([new(SkUiAnimatableProperty.Scale, to: 0.8), new(SkUiAnimatableProperty.Opacity, to: 0)], 100, Easing.CubicIn);
+        var slideIn = new SkUiViewAnimation([new(SkUiAnimatableProperty.TranslationY, from: 24), new(SkUiAnimatableProperty.ScaleY, from: 0)], 100,
+            Easing.CubicOut);
+
+        var change = container.ChangeStateWithAnimation(Loading, shrink, slideIn);
+        Drive(ui, surface, () => change.IsCompleted);
+        await change;
+        Assert.Same(loading, container.ShownChild);
+        Assert.Equal((0d, 1d, 1d, 1d), (loading.TranslationY, loading.ScaleY, loading.ScaleX, loading.Scale)); // its own values, exactly
+        Assert.Equal((1d, 1d, 5d), (content.Scale, content.Opacity, content.TranslationX)); // the leaving node gets its own back
+    }
+
+    [Fact]
+    public void AFactoryReturningANodeThatCannotBeShownFailsTheChange()
+    {
+        var (container, content, _, _) = Container();
+        var calls = 0;
+        container.States.Add("Taken", () => { calls++; return content; }); // the content: not also a state's node
+        Assert.Throws<SkUiStateContainerException>(() => container.SetCurrentState("Taken"));
+        Assert.Null(container.CurrentState);
+        Assert.Same(content, container.ShownChild);
+        Assert.Throws<SkUiStateContainerException>(() => container.SetCurrentState("Taken")); // the factory runs again
+        Assert.Equal(2, calls);
+    }
+
+    [Fact]
+    public void AnimationsFreezeWhenUsedAndAnOffScreenChangeDoesNotScale()
     {
         var (container, _, loading, _) = Container();
         var grow = new SkUiViewAnimation([new(SkUiAnimatableProperty.ScaleY, from: 0)]);

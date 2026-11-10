@@ -534,6 +534,24 @@ public class CoreLayerTests
     }
 
     [Fact]
+    public async Task CoreNode_AScaleAnimationEndsAtItsTargetWhenTheOtherFactorIsZero()
+    {
+        // The drawn factor is Scale × ScaleX (0 here): nothing to divide the drawn value by, so the target is kept.
+        var node = new SkUiCoreBox().SetColor(Colors.Red);
+        node.SetWidth(20).SetHeight(20);
+        node.SetScaleX(0);
+        var host = new SkUiCoreHost().SetContent(node);
+        using var surface = new SkUiTestSurface(host, 40, 40);
+        surface.Frame(0);
+
+        var scaled = node.AnimateAsync(SkUiAnimatableProperty.Scale, 2, 100);
+        surface.Frame(0);
+        surface.Frame(200);
+        Assert.True(await scaled.WaitAsync(TimeSpan.FromSeconds(5)));
+        Assert.Equal((2d, 0d, 1d), (node.Scale, node.ScaleX, node.ScaleY));
+    }
+
+    [Fact]
     public void CoreImage_ReplaceSameInstanceDoesNotDispose()
     {
         using var bitmap = new SKBitmap(8, 8);

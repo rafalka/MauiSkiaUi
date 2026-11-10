@@ -31,6 +31,9 @@ internal sealed class SkUiAccessibilityBridge
 
     private SkUiSemanticsTree Tree => (_owner ??= new SkUiSemanticsOwner(_root)).Tree;
 
+    /// <summary>Built and not detached: an element VoiceOver still holds after <see cref="Detach"/> must not build the tree again.</summary>
+    internal bool IsAttached => _owner is not null;
+
     /// <summary>
     /// Change reports (rebuilds while the drawn tree changes) only while VoiceOver runs, to tell it about new layouts; other
     /// clients (Switch Control, UI tests) get an up-to-date array whenever they ask.
@@ -405,13 +408,15 @@ internal class SkUiAccessibilityElement : UIAccessibilityElement
     [Export("_accessibilityHitTest:withEvent:")]
     public NSObject? AccessibilityHitTest(CGPoint point, UIEvent? uiEvent)
     {
-        if (AccessibilityContainer is not UIView container)
+        // A stale element (its bridge detached with the page's handler) answers nothing: building the tree again would subscribe
+        // the detached root and keep the old platform view alive.
+        if (AccessibilityContainer is not UIView container || Bridge is not { IsAttached: true } bridge)
             return null;
         var bounds = container.Bounds;
         var screen = UIAccessibility.ConvertFrameToScreenCoordinates(bounds, container);
         if (screen.Width <= 0 || screen.Height <= 0)
             return null;
-        return Bridge?.HitTest(new CGPoint((point.X - screen.X) * bounds.Width / screen.Width, (point.Y - screen.Y) * bounds.Height / screen.Height));
+        return bridge.HitTest(new CGPoint((point.X - screen.X) * bounds.Width / screen.Width, (point.Y - screen.Y) * bounds.Height / screen.Height));
     }
 
     private string[]? _customActions;

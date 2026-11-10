@@ -112,7 +112,9 @@ public class SkUiCoreStateContainer : SkUiCoreNode
     /// <summary>
     /// Shows the state <paramref name="value"/>, or the content for <c>null</c> / empty; animates with the state change
     /// animations once drawn. Throws <see cref="SkUiStateContainerException"/> for a state that is not in <see cref="States"/>
-    /// and while an explicit <see cref="ChangeStateWithAnimation(string?, CancellationToken)"/> runs, before anything changes.
+    /// and while an explicit <see cref="ChangeStateWithAnimation(string?, CancellationToken)"/> runs, and
+    /// <see cref="InvalidOperationException"/> when the node to show was given another parent while it was not shown, before
+    /// anything changes.
     /// </summary>
     public SkUiCoreStateContainer SetCurrentState(string? value)
     {
@@ -120,8 +122,7 @@ public class SkUiCoreStateContainer : SkUiCoreNode
         if (value == _currentState) return this;
         if (_explicitChange)
             ThrowIfCannotChange();
-        if (value is not null)
-            States.Resolve(value); // throws for an unknown state; builds a factory's node
+        ValidateTarget(value);
         _currentState = value;
         OnPropertyChanged(CurrentStateName);
         if (_animating)
@@ -172,8 +173,7 @@ public class SkUiCoreStateContainer : SkUiCoreNode
             throw new ArgumentException($"Animation required. Parameters {nameof(beforeStateChange)} and {nameof(afterStateChange)} cannot both be null");
         ThrowIfCannotChange();
         state = string.IsNullOrEmpty(state) ? null : state;
-        if (state is not null)
-            States.Resolve(state);
+        ValidateTarget(state);
         _explicitChange = true;
         SetCanStateChange(false);
         try
@@ -212,10 +212,18 @@ public class SkUiCoreStateContainer : SkUiCoreNode
         }
         catch (Exception exception)
         {
-            // The nodes must still follow CurrentState: switch without animating.
+            // The nodes must still follow CurrentState: switch without animating (nothing here observes the task, so a node
+            // that cannot be shown any more is traced, not thrown).
             Trace.WriteLine($"SkiaUi: {nameof(SkUiCoreStateContainer)} could not animate to state '{_currentState}': {exception.Message}");
             _animating = false;
-            Switch(_currentState);
+            try
+            {
+                Switch(_currentState);
+            }
+            catch (InvalidOperationException switchException)
+            {
+                Trace.WriteLine($"SkiaUi: {nameof(SkUiCoreStateContainer)} cannot show state '{_currentState}': {switchException.Message}");
+            }
         }
         finally
         {
@@ -241,6 +249,17 @@ public class SkUiCoreStateContainer : SkUiCoreNode
             Attach(States.TryResolve(key));
     }
 
+    /// <summary>
+    /// Throws before a change to <paramref name="state"/> when its node cannot be shown: an unknown state
+    /// (<see cref="SkUiStateContainerException"/>; a factory's node is built), or a node, or the content, given another parent
+    /// or placed around this container while it was not shown (it has no parent then, so nothing stopped that).
+    /// </summary>
+    private void ValidateTarget(string? state)
+    {
+        if ((state is null ? _content : States.Resolve(state)) is { } node)
+            ValidateNode(node);
+    }
+
     /// <summary>Throws when <paramref name="node"/> cannot be a child of this container.</summary>
     internal void ValidateNode(SkUiCoreNode node)
     {
@@ -258,6 +277,9 @@ public class SkUiCoreStateContainer : SkUiCoreNode
     {
         if (ReferenceEquals(_attached, value))
             return;
+        // Before anything is detached: a node that cannot be shown leaves the shown one in place.
+        if (value is not null)
+            ValidateNode(value);
         if (_attached is { } previous)
         {
             previous.AttachTo(null);
@@ -336,7 +358,11 @@ public sealed class SkUiCoreStates : IReadOnlyCollection<string>
     /// <summary>Adds state <paramref name="key"/> with its node; throws when the key is already there.</summary>
     public void Add(string key, SkUiCoreNode node) => Put(key, new Entry(Validate(key, node), null), replace: false);
 
-    /// <summary>Adds state <paramref name="key"/> with a factory called when the state is first named; throws when the key is already there.</summary>
+    /// <summary>
+    /// Adds state <paramref name="key"/> with a factory called when the state is first named; throws when the key is already there.
+    /// A factory that throws, returns <c>null</c> or a node that cannot be shown here (another node's child, the content, another
+    /// state's node) fails the change that named the state with <see cref="SkUiStateContainerException"/>, and runs again the next time.
+    /// </summary>
     public void Add(string key, Func<SkUiCoreNode> factory)
     {
         ArgumentNullException.ThrowIfNull(factory);
@@ -387,13 +413,13 @@ public sealed class SkUiCoreStates : IReadOnlyCollection<string>
         SkUiCoreNode built;
         try
         {
-            built = entry.Factory!() ?? throw new InvalidOperationException("The factory returned null.");
+            built = Validate(key, entry.Factory!() ?? throw new InvalidOperationException("The factory returned null."));
         }
         catch (Exception exception) when (exception is not SkUiStateContainerException)
         {
             throw new SkUiStateContainerException($"The factory of state {key} failed: {exception.Message}", exception);
         }
-        _entries[key] = new Entry(Validate(key, built), null);
+        _entries[key] = new Entry(built, null);
         return built;
     }
 

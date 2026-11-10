@@ -241,7 +241,16 @@ public class SkUiEntry : SkUiInputView
     }
 
     /// <inheritdoc />
-    private protected override void OnPasswordRevealEdited(bool revealed) => SetValue(IsPasswordRevealedProperty, revealed);
+    /// <remarks>
+    /// Only a change the property does not hold yet (the reveal button, a hold, unfocus, a screen reader) is set: the model also
+    /// follows the property, and setting it again from its own change would pin a style's, trigger's or one-way binding's value as
+    /// a manual one (MAUI applies the nested set at the manual specificity), so a trigger turning off would leave the text shown.
+    /// </remarks>
+    private protected override void OnPasswordRevealEdited(bool revealed)
+    {
+        if (IsPasswordRevealed != revealed)
+            SetValue(IsPasswordRevealedProperty, revealed);
+    }
 
     /// <inheritdoc />
     private protected override void OnReturnPressed()

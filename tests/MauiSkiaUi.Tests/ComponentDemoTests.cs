@@ -139,6 +139,35 @@ public class ComponentDemoTests
     }
 
     [Fact]
+    public void AClearedNumericValueStaysCleared()
+    {
+        var page = new NumericEntryDemoPage();
+        var skia = (SkUiNumericEntry)page.SkiaControl;
+        var value = Editor<SkUiSlider>(page, nameof(SkUiNumericEntry.Value));
+        skia.Value = null; // the user cleared the field (AllowNull)
+        Assert.Null(skia.Value);
+        Assert.Equal(25, value.Value);
+        skia.Value = 40;
+        Assert.Equal(40, value.Value);
+    }
+
+    [Fact]
+    public void TilePhotosRemovedThenResetKeepTheSecondPhotoEditor()
+    {
+        var page = new TileLayoutDemoPage();
+        var remove = Descendants(page.Editors).OfType<SkUiButton>().Single(button => button.AutomationId == "Removephoto");
+        SkUiTestHelpers.Arrange(remove, 200, 40);
+        for (var index = 0; index < 20; index++)
+        {
+            remove.Touch(new SkUiTouchEvent(2 * index + 1, SkUiTouchAction.Pressed, new Point(100, 20), TimeSpan.FromSeconds(index)));
+            remove.Touch(new SkUiTouchEvent(2 * index + 1, SkUiTouchAction.Released, new Point(100, 20), TimeSpan.FromSeconds(index + 0.05)));
+        }
+        Assert.Equal(2, ((SkUiTileLayout)page.SkiaControl).Children.Count);
+        page.ResetProperties();
+        AssertChecksPass(page, "reset after removing photos");
+    }
+
+    [Fact]
     public void EditorsDoNotApplyAnEffectiveIsEnabled()
     {
         var page = new ButtonDemoPage();

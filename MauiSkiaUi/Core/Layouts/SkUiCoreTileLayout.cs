@@ -20,7 +20,11 @@ public class SkUiCoreTileLayout : SkUiCorePanel
     private int _maximumRows = -1;
     private Func<SkUiTileOverflow, SkUiCoreNode>? _overflowTemplate;
     private ICommand? _overflowCommand;
+    private object? _overflowCommandParameter;
     private SkUiCoreContentView? _overflowHost;
+
+    /// <summary>The node holding the overflow template's node, attached outside <see cref="SkUiCorePanel.Children"/> (<c>null</c>: none).</summary>
+    internal SkUiCoreContentView? OverflowHost => _overflowHost;
     private SkUiTileState _state;
     private SkUiTileRenderSet _rendered;
 
@@ -49,8 +53,11 @@ public class SkUiCoreTileLayout : SkUiCorePanel
     /// </summary>
     public Func<SkUiTileOverflow, SkUiCoreNode>? OverflowTemplate { get => _overflowTemplate; set => SetOverflowTemplate(value); }
 
-    /// <summary>Executed with <see cref="Overflow"/> when the overflow tile is tapped.</summary>
+    /// <summary>Executed when the overflow tile is tapped, with <see cref="OverflowCommandParameter"/> (default: <see cref="Overflow"/>).</summary>
     public ICommand? OverflowCommand { get => _overflowCommand; set => SetOverflowCommand(value); }
+
+    /// <summary>The parameter of <see cref="OverflowCommand"/>; <c>null</c>: <see cref="Overflow"/>.</summary>
+    public object? OverflowCommandParameter { get => _overflowCommandParameter; set => SetOverflowCommandParameter(value); }
 
     /// <inheritdoc cref="SkUiTileLayout.Overflow" />
     public SkUiTileOverflow Overflow { get; } = new();
@@ -137,6 +144,13 @@ public class SkUiCoreTileLayout : SkUiCorePanel
         return this;
     }
 
+    /// <summary>Sets <see cref="OverflowCommandParameter"/>.</summary>
+    public SkUiCoreTileLayout SetOverflowCommandParameter(object? value)
+    {
+        SetProperty(ref _overflowCommandParameter, value, nameof(OverflowCommandParameter));
+        return this;
+    }
+
     /// <inheritdoc cref="SkUiCorePanel.Add" />
     public new SkUiCoreTileLayout Add(ISkUiCoreNode child)
     {
@@ -162,8 +176,9 @@ public class SkUiCoreTileLayout : SkUiCorePanel
     private void OnOverflowHostTapped(object? sender, SkUiTappedEventArgs e)
     {
         OverflowTapped?.Invoke(this, EventArgs.Empty);
-        if (_overflowCommand is { } command && command.CanExecute(Overflow))
-            command.Execute(Overflow);
+        var parameter = _overflowCommandParameter ?? Overflow;
+        if (_overflowCommand is { } command && command.CanExecute(parameter))
+            command.Execute(parameter);
     }
 
     private SkUiTileOptions Options => new(_tileSize, _minimumTileSize, _aspectRatio, _columnSpacing, _rowSpacing, _maximumRows, Padding);
@@ -202,6 +217,17 @@ public class SkUiCoreTileLayout : SkUiCorePanel
     /// <inheritdoc />
     internal override IReadOnlyList<IVisualTreeElement> VisualChildren =>
         _overflowHost is null ? base.VisualChildren : [.. base.VisualChildren, _overflowHost];
+
+    /// <inheritdoc />
+    /// <remarks>Every child, also those past the row limit, and the overflow tile also while everything fits.</remarks>
+    internal override void AddAttachedChildren(List<ISkUiRenderable> children)
+    {
+        foreach (var child in Children)
+            if (child is ISkUiRenderable renderable)
+                children.Add(renderable);
+        if (_overflowHost is { } overflow)
+            children.Add(overflow);
+    }
 
     /// <inheritdoc />
     /// <remarks>Only the children with a tile, then the overflow tile over them.</remarks>

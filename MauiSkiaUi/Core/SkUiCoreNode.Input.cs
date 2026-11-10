@@ -202,7 +202,7 @@ public partial class SkUiCoreNode
         OnPropertyChanged(nameof(IsEnabled));
         var children = _enabledWalk ??= [];
         var start = children.Count;
-        AddRenderChildren(children);
+        AddAttachedChildren(children);
         var end = children.Count;
         try
         {

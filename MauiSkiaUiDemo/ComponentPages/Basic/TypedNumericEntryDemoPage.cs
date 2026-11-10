@@ -20,7 +20,8 @@ public sealed class TypedNumericEntryDemoPage : ComponentDemoPage
     {
         var skia = (SkUiNumericEntry<decimal>)SkiaControl;
         skia.ValueChanged += (_, args) => Feedback($"Value {args.NewValue}m, text \"{skia.Text}\"");
-        Number(nameof(SkUiNumericEntry<decimal>.Value), 0, 100, 10, value => skia.Value = (decimal)value, () => (double)(skia.Value ?? 0), whole: true);
+        Number(nameof(SkUiNumericEntry<decimal>.Value), 0, 100, 10, value => skia.Value = (decimal)value, () => (double)(skia.Value ?? 0), whole: true,
+            follow: () => skia.Value is { } value ? (double)value : double.NaN);
         Choice(nameof(SkUiNumericEntry<decimal>.Increment), Increments, 0.25m, value => skia.Increment = value, () => skia.Increment);
         Choice(nameof(SkUiNumericEntry<decimal>.Culture), Cultures, "en-US", value => skia.Culture = CultureInfo.GetCultureInfo(value),
             () => skia.Culture?.Name ?? string.Empty);

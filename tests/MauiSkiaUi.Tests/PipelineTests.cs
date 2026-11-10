@@ -309,6 +309,28 @@ public class PipelineTests
     }
 
     [Fact]
+    public void ASurfaceRootArrangedNarrowerBeforeItsRelayoutIsMeasuredAtItsNewWidth()
+    {
+        // The tree changed, then the root is arranged narrower (a window resized) before being measured: its old height
+        // constraint (unbounded) is kept, its old wider width is not, so the content lays out for the width it has.
+        var tiles = new SkUiTileLayout { TileSize = 100 };
+        for (var index = 0; index < 7; index++)
+            tiles.Children.Add(new SkUiBox { Color = Colors.Red });
+        var root = new SkUiVerticalStackLayout { Children = { tiles } };
+        using var surface = new SkUiTestSurface(root, 300, 500);
+        IView view = root;
+        view.Measure(300, double.PositiveInfinity);
+        view.Arrange(new Rect(0, 0, 300, 300));
+        surface.Frame();
+
+        tiles.Children.Add(new SkUiBox { Color = Colors.Red }); // 8 tiles: 3 rows at 300 wide, 4 at 200
+        view.Arrange(new Rect(0, 0, 200, 300));
+
+        Assert.Equal(400, view.DesiredSize.Height);
+        Assert.Equal(400, tiles.Frame.Height);
+    }
+
+    [Fact]
     public void ZeroSizedRootCanRenderAfterLayoutInvalidation()
     {
         var root = new SkUiBox();

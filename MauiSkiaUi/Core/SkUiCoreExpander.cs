@@ -120,10 +120,7 @@ public class SkUiCoreExpander : SkUiCoreNode
         {
             if (ReferenceEquals(value, Header))
                 throw new InvalidOperationException("The header and the content must be different nodes.");
-            if (value.Parent is not null && !ReferenceEquals(value.Parent, _contentPart))
-                throw new InvalidOperationException("Child already has a parent.");
-            if (WouldCreateParentCycle(value))
-                throw new InvalidOperationException("Content cannot create a parent cycle.");
+            ValidateContent(value);
         }
         _content = value;
         OnPropertyChanged(nameof(Content));
@@ -134,6 +131,9 @@ public class SkUiCoreExpander : SkUiCoreNode
     /// <summary>Sets <see cref="IsExpanded"/>; runs <see cref="Command"/> and raises <see cref="ExpandedChanged"/> when it changes.</summary>
     public SkUiCoreExpander SetIsExpanded(bool value)
     {
+        // Lazy content is detached while collapsed: one given another parent meanwhile fails here, before anything changes.
+        if (value && _content is { } content && _expanded != value)
+            ValidateContent(content);
         if (!SetProperty(ref _expanded, value, nameof(IsExpanded))) return this;
         RefreshContent();
         var length = SkUiMotion.IsMotionReduced ? 0 : _animationLength;
@@ -187,6 +187,9 @@ public class SkUiCoreExpander : SkUiCoreNode
     /// <summary>Sets <see cref="LazyContentExpansion"/>; turning it on while collapsed removes the content at once.</summary>
     public SkUiCoreExpander SetLazyContentExpansion(bool value)
     {
+        // Turned off while collapsed, the detached content is attached again: checked before anything changes.
+        if (!value && _lazy && _content is { } content)
+            ValidateContent(content);
         if (SetProperty(ref _lazy, value, nameof(LazyContentExpansion))) RefreshContent();
         return this;
     }
@@ -210,6 +213,15 @@ public class SkUiCoreExpander : SkUiCoreNode
     {
         if (SetProperty(ref _padding, value, nameof(Padding))) InvalidateMeasure();
         return this;
+    }
+
+    /// <summary>Throws when <paramref name="value"/> cannot be the content's node: another node's child, or around this expander.</summary>
+    private void ValidateContent(SkUiCoreNode value)
+    {
+        if (value.Parent is not null && !ReferenceEquals(value.Parent, _contentPart))
+            throw new InvalidOperationException("Child already has a parent.");
+        if (WouldCreateParentCycle(value))
+            throw new InvalidOperationException("Content cannot create a parent cycle.");
     }
 
     /// <summary>Attaches or detaches the content and shows or hides its host for the current state.</summary>

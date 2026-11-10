@@ -28,6 +28,46 @@ public sealed class PasswordRevealTests : IDisposable
         public bool Revealed { get; set; }
     }
 
+    private sealed class ObservableCredentials : INotifyPropertyChanged
+    {
+        private static readonly PropertyChangedEventArgs RevealedChanged = new(nameof(Revealed));
+
+        public event PropertyChangedEventHandler? PropertyChanged;
+
+        public bool Revealed
+        {
+            get;
+            set
+            {
+                field = value;
+                PropertyChanged?.Invoke(this, RevealedChanged);
+            }
+        }
+    }
+
+    [Fact]
+    public void StylesTriggersAndOneWayBindingsKeepControlOfTheReveal()
+    {
+        using var dispatcher = SkUiTestHelpers.UseTestDispatcher(); // bindings dispatch source changes
+        // The model follows the property; writing the property back from its own change would pin the value as a manual one.
+        var styled = Password();
+        styled.Style = new Style(typeof(SkUiEntry)) { Setters = { new Setter { Property = SkUiEntry.IsPasswordRevealedProperty, Value = true } } };
+        Assert.True(styled.IsPasswordRevealed);
+        styled.Style = null;
+        Assert.False(styled.IsPasswordRevealed);
+
+        var credentials = new ObservableCredentials();
+        var bound = Password();
+        bound.BindingContext = credentials;
+        bound.SetBinding(SkUiEntry.IsPasswordRevealedProperty, new Binding(nameof(ObservableCredentials.Revealed), BindingMode.OneWay));
+        credentials.Revealed = true;
+        Assert.True(bound.IsPasswordRevealed);
+        credentials.Revealed = false;
+        Assert.False(bound.IsPasswordRevealed);
+        credentials.Revealed = true;
+        Assert.True(bound.IsPasswordRevealed);
+    }
+
     private static SkUiVerticalStackLayout Root(SkUiView view)
     {
         var root = new SkUiVerticalStackLayout { Padding = new Thickness(10, 20) };
@@ -160,6 +200,36 @@ public sealed class PasswordRevealTests : IDisposable
         Tap(root, new Point(button.Parent.Bounds.Left + 20, button.Bounds.Center.Y));
         Assert.True(entry.IsFocused);
         Assert.False(entry.IsPasswordRevealed);
+    }
+
+    [Fact]
+    public void ALongPressOrARightClickOnTheRevealButtonIsTheButtons()
+    {
+        using var _ = SkUiTestHelpers.UseBundledFont();
+        using var dispatcher = SkUiTestHelpers.UseTestDispatcher();
+        var entry = Password();
+        var root = Root(entry);
+        var button = Reveal(root)!.Bounds.Center;
+
+        // Held past the long press: no word selection or edit menu; released on the button, it toggles as a tap would.
+        var id = ++_pointer;
+        root.Touch(new SkUiTouchEvent(id, SkUiTouchAction.Pressed, button, TimeSpan.FromSeconds(id)));
+        TestDispatcherProvider.RunDelayed();
+        Assert.False(entry.Model.Editor.HasSelection);
+        root.Touch(new SkUiTouchEvent(id, SkUiTouchAction.Released, button, TimeSpan.FromSeconds(id + 1)));
+        Assert.True(entry.IsPasswordRevealed);
+        Assert.False(entry.IsFocused);
+        Assert.False(entry.Model.IsEditMenuShown);
+
+        // A right click on it neither focuses the field nor opens the edit menu.
+        id = ++_pointer;
+        root.Touch(new SkUiTouchEvent(id, SkUiTouchAction.Pressed, button, TimeSpan.FromSeconds(id), Device: SkUiPointerDevice.Mouse)
+            { Buttons = SkUiPointerButtons.Secondary });
+        root.Touch(new SkUiTouchEvent(id, SkUiTouchAction.Released, button, TimeSpan.FromSeconds(id) + TimeSpan.FromMilliseconds(30),
+            Device: SkUiPointerDevice.Mouse));
+        Assert.False(entry.IsFocused);
+        Assert.False(entry.Model.IsEditMenuShown);
+        Assert.True(entry.IsPasswordRevealed);
     }
 
     [Theory]

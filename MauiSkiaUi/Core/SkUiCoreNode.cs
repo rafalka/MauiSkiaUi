@@ -209,13 +209,21 @@ public partial class SkUiCoreNode : ISkUiCoreNode, INotifyPropertyChanged, ISkUi
         }
     }
 
+    /// <summary>
+    /// Adds every attached child, drawn or not, for the cascades that must reach them all (the effective enabled state and flow
+    /// direction): by default the drawn ones (<see cref="AddRenderChildren"/>). A container that keeps children attached but
+    /// undrawn (a tile layout's children past its row limit, its overflow tile while everything fits) adds them too, or they would
+    /// come back drawn with a stale state.
+    /// </summary>
+    internal virtual void AddAttachedChildren(List<ISkUiRenderable> children) => AddRenderChildren(children);
+
     /// <summary>Re-lays out this subtree after its effective direction changed (children that inherit follow).</summary>
     internal void NotifyFlowDirectionChanged()
     {
         InvalidateMeasure();
         OnEffectiveFlowDirectionChanged();
         var children = new List<ISkUiRenderable>();
-        AddRenderChildren(children);
+        AddAttachedChildren(children);
         foreach (var child in children)
             if (child is SkUiCoreNode { _flowDirection: FlowDirection.MatchParent } core)
                 core.NotifyFlowDirectionChanged();
@@ -364,10 +372,13 @@ public partial class SkUiCoreNode : ISkUiCoreNode, INotifyPropertyChanged, ISkUi
                         case SkUiAnimatableProperty.TranslationX: SetTranslationX(values[0]); break;
                         case SkUiAnimatableProperty.TranslationY: SetTranslationY(values[0]); break;
                         case SkUiAnimatableProperty.Rotation: SetRotation(values[0]); break;
-                        // Sentinel: a zero factor leaves nothing to divide by.
-                        case SkUiAnimatableProperty.ScaleX: SetScaleX(_scale == 0 ? 0 : values[0] / _scale); break;
-                        case SkUiAnimatableProperty.ScaleY: SetScaleY(_scale == 0 ? 0 : values[0] / _scale); break;
-                        case SkUiAnimatableProperty.Scale: SetScale(_scaleX == 0 ? 0 : values[0] / _scaleX); break;
+                        // The drawn factors are products (Scale × ScaleX): a completed run ends at its target; a cancelled one
+                        // divides by the other factor, unless it is 0 (sentinel: nothing to divide by), where the value stays.
+                        case SkUiAnimatableProperty.ScaleX: SetScaleX(completed ? to : _scale == 0 ? _scaleX : values[0] / _scale); break;
+                        case SkUiAnimatableProperty.ScaleY: SetScaleY(completed ? to : _scale == 0 ? _scaleY : values[0] / _scale); break;
+                        case SkUiAnimatableProperty.Scale:
+                            SetScale(completed ? to : _scaleX != 0 ? values[0] / _scaleX : _scaleY != 0 ? values[1] / _scaleY : _scale);
+                            break;
                     }
                 }
                 completion.TrySetResult(completed);
@@ -499,6 +510,12 @@ public partial class SkUiCoreNode : ISkUiCoreNode, INotifyPropertyChanged, ISkUi
             headerPart.PropagateAnimationRootChanged(subtreeDetached);
             contentPart.OnAnimationRootChanged(subtreeDetached);
             contentPart.PropagateAnimationRootChanged(subtreeDetached);
+        }
+        // A tile layout's overflow tile is attached outside its Children (the panel walk above).
+        if (this is SkUiCoreTileLayout { OverflowHost: { } overflow })
+        {
+            overflow.OnAnimationRootChanged(subtreeDetached);
+            overflow.PropagateAnimationRootChanged(subtreeDetached);
         }
     }
 
@@ -1627,8 +1644,13 @@ public partial class SkUiCoreNode : ISkUiCoreNode, INotifyPropertyChanged, ISkUi
         OnPropertyChanged(property.Name);
         if (property.AffectsParentMeasure)
         {
+            // The parent is laid out again without re-recording; this node moves or resizes (composite-time, or re-recorded when
+            // arranged at another size), and marking it requests the frame the layout runs in: nothing else here re-records.
             if (_parent is SkUiCoreNode coreParent)
+            {
                 coreParent.InvalidateMeasureFromChild();
+                InvalidateRender(SkUiRenderDirty.Props);
+            }
             else
                 _parent?.InvalidateMeasure();
         }

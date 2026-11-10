@@ -2,7 +2,7 @@
 
 **Goal:** the Core layer stops re-recording ancestors on a measure change and shaped borders stop costing seconds on the first frame; galleries of equal tiles lay out by themselves; the Core twins of the state container and the expander close the Core layer's container gaps; drawn password fields can show their text.
 
-**Scope:** moved from the 1.6 plan, whose [viewport insets](ImplementationPlan-1.6.md) ship alone; 1.7 brought [vector icons](Roadmap.md#170-vector-icons-shipped) and 1.8 [Markdown](ImplementationPlan-1.8.md). Started on `1.9-implementation` (9 November 2026): R1, R2, R3, T1–T3, S1–S3, E1 and E2 done (E1's device checks in the verification backlog).
+**Scope:** moved from the 1.6 plan, whose [viewport insets](ImplementationPlan-1.6.md) ship alone; 1.7 brought [vector icons](Roadmap.md#170-vector-icons-shipped) and 1.8 [Markdown](ImplementationPlan-1.8.md). Started on `1.9-implementation` (9 November 2026): R1, R2, R3, T1–T3, S1–S3 and E1–E3 done, with two fixes taken in from the issue tracker (#85, #86; below) (E1's device checks in the verification backlog).
 
 **Baseline:** .NET MAUI 10.0.120 (or the latest 10.0.x when 1.9 ships), SkiaSharp 4.154.0, branch `1.9-implementation` from `devel` after 1.8.0. .NET 11 / MAUI 11 waits until it is released ([roadmap](Roadmap.md#net-11--maui-11-support)). What has shipped is in the [changelog](../../CHANGELOG.md); the rest of the 1.x backlog stays in the [roadmap](Roadmap.md#backlog-1x).
 
@@ -56,7 +56,13 @@
   - The field stays a password field for the platform while revealed: Android keeps the password input type (only the drawing stops masking), iOS keeps `secureTextEntry`, Windows' proxy box keeps its mask; so the keyboard, autofill and password managers behave as before, and copy stays disabled. Screen readers read the text only while revealed.
   - Hidden again when the field loses focus (`HidesPasswordOnUnfocus`, default `true`).
   - Tests: drawing masked and revealed, the caret and selection staying put, the button's hit and semantics; device checks (autofill and password managers on a revealed field) in the [verification backlog](Roadmap.md#verification-backlog).
-- **E2 Docs.** [SkUiEntry.md](../controls/SkUiEntry.md), [TextInput.md](TextInput.md); the demo's sign-in form.
+- **E2 Docs.** **Done.** [SkUiEntry.md](../controls/SkUiEntry.md), [TextInput.md](TextInput.md); the demo's sign-in form.
+- **E3 Reveal mode and explore by touch.** Size: S. **Done.** `PasswordRevealMode` (`Toggle`, `WhilePressed`: the text shows only while the button is held; screen readers still toggle); a press, long press or right click on the reveal button is the button's (no word selection, menu or focus). VoiceOver's explore by touch on iOS and Mac Catalyst picks the front-most, innermost drawn element (`_accessibilityHitTest:withEvent:` on the overlay container and the elements), so the reveal and clear buttons inside a field are found by touch. The demo's property editors became two-way (the reveal button toggles the `IsPasswordRevealed` editor). Tests: `PasswordRevealTests`, `ComponentDemoTests`.
+
+## Taken in from the issue tracker
+
+- **#85 A drawn root sized by its content grows with it again.** **Done.** A surface root arranged before its pending relayout is measured with the constraint the native layout last gave it (on the axes where that constraint was unbounded or the arranged size) and asks the native layout again when its size changes. Tests: `PipelineTests`; checked on the Android emulator.
+- **#86 Reorder from a drag handle.** **Done.** `SkUiCollectionView.IsReorderHandle` (attached): a press on a marked view lifts its item at once, with any pointer; the rest of the item keeps its taps, long presses and scrolling; a hidden handle lifts nothing. Tests: `CollectionViewReorderTests`; the reordering demo page.
 
 ## Docs, migration and demo
 
@@ -72,7 +78,7 @@ Done with each step: the control pages named in the steps; [Migration.md](../Mig
 | 4 | T1, T2, T3 | M, S–M, S | Independent track |
 | 5 | S1 | M | Independent; the SkUi\* container's transitions |
 | 6 | S2 | M | Needs R2 and the new Core transforms |
-| 7 | E1, E2 | M | Independent; needs device time for the proxies |
+| 7 | E1, E2, E3 | M | Independent; needs device time for the proxies |
 
 T, S1 and E are independent of phase R and of each other.
 

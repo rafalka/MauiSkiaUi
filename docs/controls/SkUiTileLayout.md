@@ -21,7 +21,7 @@ One engine serves both layers (`SkUiTileEngine`), as the wrap layout's does.
 - `MaximumRows` (-1, the default: no limit) cuts the rows. The visible children past them get no tile: they are not measured, drawn, hit or read by screen readers, and stay the layout's children (removing one is cheap). When the limit lifts, they are measured and drawn again.
 - `Overflow` (an `SkUiTileOverflow`) holds `HiddenCount`, how many children did not fit, and raises `PropertyChanged` when it changes.
 - With an overflow template, the last tile shows its view over the child in it, sized to the tile: the template's binding context is `Overflow`, so `Text="{Binding HiddenCount, StringFormat='+{0}'}"` over a dimming background is the usual "+5". On Core, `OverflowTemplate` is a function that makes the node once, given `Overflow`.
-- A tap on the overflow tile raises `OverflowTapped` and runs `OverflowCommand` (with `OverflowCommandParameter`, by default `Overflow` on SkUi\*; `Overflow` on Core). Without a template, the rows are only cut.
+- A tap on the overflow tile raises `OverflowTapped` and runs `OverflowCommand` (with `OverflowCommandParameter`, by default `Overflow`). Without a template, the rows are only cut.
 
 ## How to use
 
@@ -45,14 +45,25 @@ One engine serves both layers (`SkUiTileEngine`), as the wrap layout's does.
 
 ```csharp
 var photos = new SkUiCoreTileLayout().SetTileSize(96).SetColumnSpacing(4).SetRowSpacing(4).SetMaximumRows(2)
-    .SetOverflowTemplate(overflow =>
-    {
-        var count = new SkUiCoreLabel().SetText($"+{overflow.HiddenCount}").SetTextColor(Colors.White);
-        overflow.PropertyChanged += (_, _) => count.SetText($"+{overflow.HiddenCount}");
-        return count;
-    });
+    .SetOverflowTemplate(overflow => new OverflowCount(overflow).SetTextColor(Colors.White));
 foreach (var photo in thumbnails)
     photos.Add(new SkUiCoreImage().SetSource(photo).SetAspect(Aspect.AspectFill));
+
+// "+N". Overflow lives as long as the layout and the function runs again each time it is set: the label listens weakly
+// (SkUiWeakListener), so a replaced one is not kept alive by the subscription.
+sealed class OverflowCount : SkUiCoreLabel
+{
+    private readonly SkUiWeakListener<OverflowCount> _listener;
+    private readonly SkUiTileOverflow _overflow;
+
+    public OverflowCount(SkUiTileOverflow overflow)
+    {
+        _overflow = overflow;
+        _listener = new(this, static (label, _) => label.SetText($"+{label._overflow.HiddenCount}"));
+        _listener.Listen(overflow);
+        SetText($"+{overflow.HiddenCount}");
+    }
+}
 ```
 
 ## Key properties
@@ -66,6 +77,7 @@ foreach (var photo in thumbnails)
 | `MaximumRows` | -1 | -1: no limit; else at least 1 |
 | `OverflowTemplate` | none | SkUi\*: a `DataTemplate` (or selector) of a drawn view; Core: `Func<SkUiTileOverflow, SkUiCoreNode>` |
 | `OverflowCommand` | none | Run when the overflow tile is tapped; also `OverflowTapped` |
+| `OverflowCommandParameter` | none | The command's parameter; none: `Overflow` |
 | `Overflow` | | Read only: `HiddenCount` |
 | `Columns` | | Read only: the columns at the last layout |
 | `Padding` | 0 | Shared layout padding |

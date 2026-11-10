@@ -90,4 +90,35 @@ public class CoreMeasureInvalidationTests
         // The cell, the table (its column background and separator moved) and the resized neighbor; not the host.
         Assert.Equal(3, surface.RecordedPictures - recorded);
     }
+    [Fact]
+    public void AnAttachedLayoutPropertyRequestsTheFrameItsLayoutRunsIn()
+    {
+        var cell = new SkUiCoreBox().SetColor(Colors.Red);
+        var grid = new SkUiCoreGrid().SetColumnDefinitions([new SkUiCoreColumnDefinition(), new SkUiCoreColumnDefinition()]);
+        grid.Add(cell);
+        var host = new SkUiCoreHost().SetContent(grid);
+        using var surface = new SkUiTestSurface(host, 200, 40);
+        surface.Frame();
+
+        cell.SetValue(SkUiCoreGrid.ColumnProperty, 1); // nothing re-records: only the parent's layout changes
+        surface.PumpUi(); // only a frame the change requested runs (no forced one)
+        Assert.Equal(100, cell.Frame.X);
+    }
+
+    [Fact]
+    public void AnInputFieldReRecordsWhenItsAdornmentResizes()
+    {
+        // The text area is laid out from the trailing view's size in the field's own picture.
+        var counter = new SkUiCoreBox().SetColor(Colors.Blue);
+        counter.SetWidth(20).SetHeight(10);
+        var entry = new SkUiCoreEntry().SetTrailingView(counter);
+        var host = new SkUiCoreHost().SetContent(entry);
+        using var surface = new SkUiTestSurface(host, 200, 60);
+        surface.Frame();
+        var recorded = surface.RecordedPictures;
+
+        counter.SetWidth(60);
+        surface.Frame();
+        Assert.Equal(2, surface.RecordedPictures - recorded); // the counter and the field around it
+    }
 }

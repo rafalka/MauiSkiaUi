@@ -220,6 +220,7 @@ run_ios() {
         timeout "$TIMEOUT" xcrun simctl launch --console --terminate-running-process "$DEVICE" "$APP_ID" "${app_args[@]}" 2>&1 | filter >"$LOG" || true
     elif [[ "$IOS_MLAUNCH" == true ]]; then
         # mlaunch directly (installs, then launches and waits): `dotnet build -t:Run` needs a build of the same invocation.
+        # ${sdk[@]+...}: an empty array is "unbound" under set -u in macOS's bash 3.2.
         local mlaunch stdout="$OUT/ios.stdout" sdk=() launch_args=()
         mlaunch="$(find /usr/local/share/dotnet/packs "$HOME/.dotnet/packs" -path "*Microsoft.iOS.Sdk.net10*/tools/bin/mlaunch" -type f 2>/dev/null | sort -V | tail -1)"
         [[ -n "$mlaunch" ]] || { echo "mlaunch not found (iOS workload)" >&2; exit 1; }
@@ -229,9 +230,9 @@ run_ios() {
         fi
         for arg in "${app_args[@]}"; do launch_args+=("--argument=$arg"); done
         : >"$stdout"
-        "$mlaunch" "${sdk[@]}" --installdev "$(output "ios-arm64/*.app")" --devname "$DEVICE" >>"$OUT/build.log" 2>&1 \
+        "$mlaunch" ${sdk[@]+"${sdk[@]}"} --installdev "$(output "ios-arm64/*.app")" --devname "$DEVICE" >>"$OUT/build.log" 2>&1 \
             || { echo "install failed ($OUT/build.log)" >&2; exit 1; }
-        timeout "$TIMEOUT" "$mlaunch" "${sdk[@]}" --launchdev "$(output "ios-arm64/*.app")" --devname "$DEVICE" --stdout "$stdout" \
+        timeout "$TIMEOUT" "$mlaunch" ${sdk[@]+"${sdk[@]}"} --launchdev "$(output "ios-arm64/*.app")" --devname "$DEVICE" --stdout "$stdout" \
             --wait-for-exit:true "${launch_args[@]}" >>"$OUT/build.log" 2>&1 || true
         grep -q "HE0032" "$OUT/build.log" && echo "mlaunch could not mount the developer image: pass --xcode with an older Xcode" >&2
         filter <"$stdout" >"$LOG" || true

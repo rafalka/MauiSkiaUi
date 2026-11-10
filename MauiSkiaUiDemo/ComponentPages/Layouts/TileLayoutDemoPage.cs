@@ -13,6 +13,9 @@ public sealed class TileLayoutDemoPage : ComponentDemoPage
         [Color.FromArgb("#22C55E"), Color.FromArgb("#0F766E")], [Color.FromArgb("#EC4899"), Color.FromArgb("#8B5CF6")],
     ];
 
+    /// <summary>The row limits offered (0 is not a valid limit).</summary>
+    internal static readonly int[] RowLimits = [-1, 1, 2, 3, 4];
+
     private int _taps;
 
     public TileLayoutDemoPage()
@@ -33,12 +36,12 @@ public sealed class TileLayoutDemoPage : ComponentDemoPage
         Number(nameof(SkUiTileLayout.ColumnSpacing), 0, 16, 4, value => tiles.ColumnSpacing = value, () => tiles.ColumnSpacing);
         Number(nameof(SkUiTileLayout.RowSpacing), 0, 16, 4, value => tiles.RowSpacing = value, () => tiles.RowSpacing);
         Number(nameof(SkUiTileLayout.Padding), 0, 24, 0, value => tiles.Padding = value, () => tiles.Padding.Left);
-        Number("MaximumRows (-1: no limit)", -1, 4, 2, value => tiles.MaximumRows = value is > -1 and < 1 ? 1 : (int)value,
-            () => tiles.MaximumRows, whole: true);
+        Choice("MaximumRows (-1: no limit)", RowLimits, 2, value => tiles.MaximumRows = value, () => tiles.MaximumRows);
         Toggle("OverflowTile", true, value => tiles.OverflowTemplate = value ? OverflowTemplate() : null, () => tiles.OverflowTemplate is not null);
         Toggle("SecondPhotoVisible", true, value => ((SkUiView)tiles.Children[1]).IsVisible = value, () => ((SkUiView)tiles.Children[1]).IsVisible);
         ActionButton("Add photo", () => AddPhotos(tiles, 1));
-        ActionButton("Remove photo", () => { if (tiles.Children.Count > 1) tiles.Children.RemoveAt(tiles.Children.Count - 1); });
+        // Down to two photos: the second one is SecondPhotoVisible's.
+        ActionButton("Remove photo", () => { if (tiles.Children.Count > 2) tiles.Children.RemoveAt(tiles.Children.Count - 1); });
         OnReset(() =>
         {
             while (tiles.Children.Count > InitialPhotos) tiles.Children.RemoveAt(tiles.Children.Count - 1);

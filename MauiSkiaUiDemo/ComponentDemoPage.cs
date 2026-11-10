@@ -472,14 +472,20 @@ public abstract class ComponentDemoPage : ContentPage
     }
 
     /// <param name="whole">Snaps the slider to whole numbers (for <c>int</c> properties such as a button's <c>CornerRadius</c>).</param>
-    protected void Number(string name, double minimum, double maximum, double initial, Action<double> apply, Func<double> skia, Func<double>? native = null, bool whole = false)
+    /// <param name="follow">
+    /// The value the editor follows when the property changes on the SkUi preview (default <paramref name="skia"/>, which the check
+    /// compares); <see cref="double.NaN"/> is not followed: a cleared nullable value stays cleared instead of becoming 0.
+    /// </param>
+    protected void Number(string name, double minimum, double maximum, double initial, Action<double> apply, Func<double> skia, Func<double>? native = null,
+        bool whole = false, Func<double>? follow = null)
     {
         var slider = new SkUiSlider { Minimum = minimum, Maximum = maximum, Value = initial, MinimumTrackColor = Accent, AutomationId = "Edit" + name };
         var valueLabel = Caption(initial.ToString("0.##"));
         Grid.SetColumn(valueLabel, 1);
         var row = new SkUiGrid { ColumnDefinitions = [new(GridLength.Star), new(new GridLength(48))], ColumnSpacing = 8, Children = { slider, valueLabel } };
         // Out of range or (whole) fractional values are not shown: the slider would clamp or round them and apply that.
-        apply = Synced(name, apply, skia, native, value =>
+        // NaN fails every comparison below: not shown.
+        apply = Synced(name, apply, follow ?? skia, native, value =>
         {
             if (Math.Abs(value - slider.Value) >= 0.001 && value >= slider.Minimum && value <= slider.Maximum
                 && (!whole || Math.Abs(value - Math.Round(value)) < 0.001))

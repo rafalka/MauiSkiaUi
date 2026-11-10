@@ -1298,9 +1298,14 @@ internal sealed class SkUiTextFieldModel : ISkUiTextInputClient, ISkUiTextEditor
     /// <summary>Whether the field asked for the edit menu and has not hidden it since (tests).</summary>
     internal bool IsEditMenuShown => _menuShown;
 
-    /// <summary>A secondary (right) click: the caret moves there unless it is in the selection, and the edit menu opens at the point.</summary>
+    /// <summary>
+    /// A secondary (right) click: the caret moves there unless it is in the selection, and the edit menu opens at the point. On the
+    /// reveal button it does nothing (the button does not move the focus).
+    /// </summary>
     internal void SecondaryClick(Point local)
     {
+        if (HitsRevealButton(local))
+            return;
         Focus();
         var (index, upstream) = CaretAt(local);
         if (!Editor.HasSelection || index < Editor.SelectionStart || index > Editor.SelectionEnd)
@@ -1640,8 +1645,11 @@ internal sealed class SkUiTextFieldModel : ISkUiTextInputClient, ISkUiTextEditor
     /// <summary>The reveal button: the password's text shows or hides again; the focus stays where it is (no keyboard comes up).</summary>
     internal void ToggleReveal() => SetPasswordRevealed(!IsPasswordRevealed);
 
-    /// <summary>Whether a press at <paramref name="local"/> holds the reveal button down (<see cref="SkUiPasswordRevealMode.WhilePressed"/>).</summary>
-    internal bool HoldsRevealAt(Point local) => PasswordRevealMode == SkUiPasswordRevealMode.WhilePressed && HitsRevealButton(local);
+    /// <summary>
+    /// Whether a press at <paramref name="local"/> presses the reveal button: held down as a mouse button is (released on it, it
+    /// toggles; <see cref="SkUiPasswordRevealMode.WhilePressed"/> shows the text while held), never the text's long press or menu.
+    /// </summary>
+    internal bool PressesRevealAt(Point local) => HitsRevealButton(local);
 
     private bool HoldsReveal => PasswordRevealMode == SkUiPasswordRevealMode.WhilePressed;
 
@@ -2478,9 +2486,10 @@ internal sealed class SkUiTextFieldGestures(SkUiTextFieldModel model) : SkUiGest
             model.MousePressed(_startLocal, _clicks);
             return true;
         }
-        if (model.HoldsRevealAt(_startLocal))
+        if (model.PressesRevealAt(_startLocal))
         {
-            // A finger holding the reveal button (WhilePressed): pressed and released as a mouse button is, never a tap or a scroll.
+            // A finger on the reveal button: pressed and released as a mouse button is (a release on it toggles, WhilePressed shows
+            // the text while held), never the text's long press (word selection and the edit menu), a tap or a scroll.
             _revealHold = true;
             Claim();
             model.MousePressed(_startLocal, 1);

@@ -146,6 +146,19 @@ public class CoreExpanderTests
     }
 
     [Fact]
+    public void LazyContentGivenAnotherParentWhileCollapsedFailsBeforeExpanding()
+    {
+        var content = Box(40);
+        var expander = new SkUiCoreExpander { Header = Box(20), Content = content, LazyContentExpansion = true };
+        Assert.Null(content.Parent); // detached while collapsed
+        new SkUiCoreVerticalStackLayout().Add(content);
+        Assert.Throws<InvalidOperationException>(() => expander.SetIsExpanded(true));
+        Assert.False(expander.IsExpanded);
+        Assert.Throws<InvalidOperationException>(() => expander.SetLazyContentExpansion(false));
+        Assert.True(expander.LazyContentExpansion);
+    }
+
+    [Fact]
     public void ContentIsInTheTreeFromTheStartAndHiddenWhileCollapsedOrOnlyWhileExpandedWhenLazy()
     {
         var content = Box(30);
@@ -282,10 +295,60 @@ public class CoreExpanderTests
             expander.SetIsExpanded(true);
             At(surface, 50);
             var recorded = surface.RecordedPictures;
+            var height = expander.Frame.Height;
             At(surface, 100);
+            Assert.True(expander.Frame.Height > height); // the reveal drives the layout
+            height = expander.Frame.Height;
             At(surface, 150);
+            Assert.True(expander.Frame.Height > height);
             Assert.Equal(0, ancestorPaints); // the stack and the border are not recorded again (R2)
-            Assert.True(surface.RecordedPictures - recorded <= 2, $"{surface.RecordedPictures - recorded} pictures in two frames"); // at most the expander, once per frame
+            Assert.Equal(2, surface.RecordedPictures - recorded); // the resized expander, once per frame
+        });
+    }
+
+    [Fact]
+    public void AnimationEasingShapesTheRevealAndOvershootNeverGoesBelowNothing()
+    {
+        WithMotion(() =>
+        {
+            var expander = new SkUiCoreExpander { Header = Box(20), Content = Box(40), AnimationLength = 200 };
+            Assert.Same(Easing.CubicInOut, expander.AnimationEasing);
+            var stack = new SkUiCoreVerticalStackLayout();
+            stack.Add(expander);
+            using var surface = new SkUiTestSurface(new SkUiCoreHost().SetContent(stack), 100, 200);
+            At(surface, 0);
+
+            expander.SetAnimationEasing(Easing.Linear).SetIsExpanded(true);
+            At(surface, 50);
+            Assert.Equal(0.25, expander.Reveal, 3);
+            Assert.Equal(30, expander.Frame.Height, 3);
+            At(surface, 200);
+
+            // SpringIn dips below its start: collapsing from expanded overshoots past 1 (stretched), and expanding
+            // starts below 0, which shows nothing instead of a flipped content or a height below the header's.
+            expander.SetAnimationEasing(Easing.SpringIn);
+            var reveals = new List<double>();
+            expander.SetIsExpanded(false);
+            for (var time = 210; time <= 400; time += 10)
+            {
+                At(surface, time);
+                reveals.Add(expander.Reveal);
+                Assert.True(expander.ContentHost.ScaleY >= 0);
+                Assert.True(expander.Frame.Height >= 20);
+            }
+            Assert.Contains(reveals, reveal => reveal > 1);
+            expander.SetIsExpanded(true);
+            for (var time = 410; time <= 600; time += 10)
+            {
+                At(surface, time);
+                Assert.True(expander.Reveal >= 0);
+                Assert.True(expander.Frame.Height >= 20);
+            }
+            Assert.Equal(60, expander.Frame.Height);
+
+            expander.SetAnimationEasing(null).SetIsExpanded(false); // linear
+            At(surface, 650);
+            Assert.Equal(0.75, expander.Reveal, 3);
         });
     }
 

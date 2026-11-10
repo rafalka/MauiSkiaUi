@@ -37,7 +37,7 @@ public partial class SkUiCollectionView
     /// <see cref="CanReorderItems"/>, a press on a shown handle lifts the item at once, with any pointer, and drags it; the
     /// rest of the item no longer lifts it, so its taps and long presses behave as they would without reordering. An item
     /// with no view marked lifts with a long press anywhere, as before. A hidden handle still marks its item, which then does
-    /// not lift by touch until the handle shows. Screen readers keep the moves on the item.
+    /// not lift with any pointer (touch, pen or mouse) until the handle shows. Screen readers keep the moves on the item.
     /// </summary>
     public static readonly BindableProperty IsReorderHandleProperty = BindableProperty.CreateAttached(
         "IsReorderHandle", typeof(bool), typeof(SkUiCollectionView), false);

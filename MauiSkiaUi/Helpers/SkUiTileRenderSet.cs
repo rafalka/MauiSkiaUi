@@ -20,10 +20,19 @@ internal struct SkUiTileRenderSet
     public readonly bool Differs(int shownEnd, bool overflow) => _sent && (shownEnd != _shownEnd || overflow != _overflow);
 
     /// <summary>Records what was sent (<paramref name="sent"/> from <paramref name="start"/>) and resets the children left out.</summary>
+    /// <remarks>
+    /// Hit tests, hover, semantics and focus collect the render children too, mostly with nothing changed since: the same children
+    /// as last time return without allocating.
+    /// </remarks>
     public void Update(ISkUiRenderable owner, List<ISkUiRenderable> sent, int start, int shownEnd, bool overflow, int childCount)
     {
         var partial = shownEnd < childCount || overflow;
         var previous = _previous ??= [];
+        if (_sent && SameAs(previous, sent, start))
+        {
+            (_shownEnd, _overflow, _partial) = (shownEnd, overflow, partial);
+            return;
+        }
         if ((partial || _partial) && previous.Count > 0)
         {
             var now = new HashSet<ISkUiRenderable>(ReferenceEqualityComparer.Instance);
@@ -37,5 +46,15 @@ internal struct SkUiTileRenderSet
         for (var index = start; index < sent.Count; index++)
             previous.Add(sent[index]);
         (_shownEnd, _overflow, _partial, _sent) = (shownEnd, overflow, partial, true);
+    }
+
+    private static bool SameAs(List<ISkUiRenderable> previous, List<ISkUiRenderable> sent, int start)
+    {
+        if (sent.Count - start != previous.Count)
+            return false;
+        for (var index = 0; index < previous.Count; index++)
+            if (!ReferenceEquals(previous[index], sent[start + index]))
+                return false;
+        return true;
     }
 }

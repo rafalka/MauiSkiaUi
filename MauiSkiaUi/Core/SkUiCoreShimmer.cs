@@ -259,7 +259,6 @@ public class SkUiCoreShimmer : SkUiCoreNode, ISkUiShimmer
         return this;
     }
 
-
     private SkUiCoreShimmer UpdateSettings(SkUiShimmerSettings value, string propertyName)
     {
         if (value == _settings) return this;
