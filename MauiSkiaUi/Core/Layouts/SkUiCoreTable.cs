@@ -273,6 +273,10 @@ public class SkUiCoreTable : SkUiCoreGrid
         return BuildColumnSeparatorSegments(boundaryAfterColumn);
     }
 
+    /// <inheritdoc />
+    /// <remarks>Track fills and separators follow the tracks, which follow the cells' measures.</remarks>
+    private protected override bool PaintsFromChildLayout => true;
+
     /// <summary>Draws track fills, then cell fills, then separators.</summary>
     protected void PaintTableBackground(SKCanvas canvas)
     {

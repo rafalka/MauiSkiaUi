@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using MauiSkiaUi;
 
 namespace MauiSkiaUiDemo;
@@ -7,6 +8,7 @@ namespace MauiSkiaUiDemo;
 /// SkiaUi surface below the previews); the previews stay apart: the SkiaUi preview is a surface of its own (its
 /// <see cref="SkUiView.HwAccelerated"/> is an editor) and the MAUI counterpart is a native control in a MAUI grid. An editor
 /// with a description (<see cref="EditorHelp"/>) has a (?) button that shows it (<see cref="EditorHelpBubble"/>).
+/// Editors are two-way: one named after a property follows it when it changes on a preview (<see cref="SyncFrom"/>).
 /// </summary>
 public abstract class ComponentDemoPage : ContentPage
 {
@@ -23,6 +25,12 @@ public abstract class ComponentDemoPage : ContentPage
     private bool _addingCommonEditors;
     private readonly List<Action> _resets = [];
     private readonly List<(string Name, Func<bool> Check)> _checks = [];
+    // Two-way editors by name (a nameof(...) editor's name is its property's): each shows the value read from the SkUi
+    // preview (false) or the MAUI one (true) when that property changes there.
+    private readonly Dictionary<string, List<Action<bool>>> _syncs = [];
+    // Properties whose getter gives an effective value instead of the one set: MAUI coerces IsEnabled to false while a
+    // command cannot execute or a parent is disabled, and applying that would keep the control disabled afterwards.
+    private static readonly HashSet<string> OneWay = [nameof(VisualElement.IsEnabled)];
     private readonly View? _nativePanel;
     private readonly Grid _skiaPanel;
     private readonly SkUiLabel _result;
@@ -48,8 +56,14 @@ public abstract class ComponentDemoPage : ContentPage
     /// <summary>Whether the preview host uses a GPU Skia surface (<see cref="SkUiView.HwAccelerated"/>).</summary>
     protected bool HwAccelerated => _hwAccelerated;
 
-    protected ComponentDemoPage(string name, SkUiView skia, View? native = null, (double Min, double Max, double Initial)? widthRange = null, (double Min, double Max, double Initial)? heightRange = null)
+    /// <param name="minimumWidth">
+    /// Without size ranges: the least initial <c>WidthRequest</c>, for controls whose natural width is too narrow to try them
+    /// (a text input sized to its short placeholder); the height stays natural.
+    /// </param>
+    protected ComponentDemoPage(string name, SkUiView skia, View? native = null, (double Min, double Max, double Initial)? widthRange = null,
+        (double Min, double Max, double Initial)? heightRange = null, double minimumWidth = 0)
     {
+        _minimumWidth = minimumWidth;
         // The gallery's title for the page (control and purpose), so the two never disagree.
         Title = ComponentDemos.All.FirstOrDefault(demo => demo.PageType == GetType())?.Title ?? name;
         Background = DemoColors.PageBackground;
@@ -130,6 +144,8 @@ public abstract class ComponentDemoPage : ContentPage
         UpdateComparisonLayout(0);
         skia.SizeChanged += (_, _) => UpdateBounds();
         if (native is not null) native.SizeChanged += (_, _) => UpdateBounds();
+        SyncFrom(skia);
+        if (native is not null) SyncFrom(native, native: true);
         _editors.Children.Add(_specificEditors);
         _editors.Children.Add(new SkUiLabel
         {
@@ -176,6 +192,7 @@ public abstract class ComponentDemoPage : ContentPage
     }
 
     private readonly bool _autoSize;
+    private readonly double _minimumWidth;
 
     /// <summary>Room above and below the control in the preview area.</summary>
     private const double AreaMargin = 24;
@@ -216,7 +233,7 @@ public abstract class ComponentDemoPage : ContentPage
         var natural = ((IView)SkiaControl).Measure(double.PositiveInfinity, double.PositiveInfinity);
         // Controls without a natural size (empty views, layouts) keep the old defaults. Scrollers measure to their whole
         // content, so their pages pass explicit size ranges instead.
-        var width = natural.Width >= 1 ? Math.Ceiling(natural.Width) : 220;
+        var width = Math.Max(natural.Width >= 1 ? Math.Ceiling(natural.Width) : 220, _minimumWidth);
         var height = natural.Height >= 1 ? Math.Ceiling(natural.Height) : 120;
         SetNumberInitial(nameof(View.WidthRequest), width, Math.Max(8, Math.Floor(width / 4)), Math.Max(width * 2, 320));
         SetNumberInitial(nameof(View.HeightRequest), height, Math.Max(8, Math.Floor(height / 4)), height * 2);
@@ -409,6 +426,45 @@ public abstract class ComponentDemoPage : ContentPage
     /// </summary>
     protected void DocumentTypes(params Type[] types) => _documentedTypes.InsertRange(1, types);
 
+    /// <summary>
+    /// Makes the editors named after a property of <paramref name="source"/> follow it when it changes there: the user types
+    /// in a preview, drags its slider, taps a password's reveal button. The previews themselves are watched already; call it
+    /// for the object the editors read when the preview is a container of it (a control in a layout, a hosted Core node).
+    /// The editor shows the value its getter reads (the SkUi one, or the MAUI one when <paramref name="native"/>) and applies
+    /// it as if the user had picked it, so the other preview follows too.
+    /// </summary>
+    protected void SyncFrom(INotifyPropertyChanged source, bool native = false) =>
+        source.PropertyChanged += (_, args) =>
+        {
+            if (args.PropertyName is { } name && !OneWay.Contains(name) && _syncs.TryGetValue(name, out var syncs))
+                foreach (var sync in syncs)
+                    sync(native);
+        };
+
+    /// <summary>
+    /// Registers an editor as two-way and returns its <paramref name="apply"/>, which the editor calls instead: <paramref name="show"/>
+    /// puts a value read from a preview into the editor (raising its change event, so it is applied), except while the editor's
+    /// own value is being applied (a formatted or clamped value never rewrites what the user is typing).
+    /// </summary>
+    private Action<T> Synced<T>(string name, Action<T> apply, Func<T> skia, Func<T>? native, Action<T> show)
+    {
+        var applying = false;
+        if (!_syncs.TryGetValue(name, out var syncs))
+            _syncs[name] = syncs = [];
+        syncs.Add(fromNative =>
+        {
+            if (applying || (fromNative ? native : skia) is not { } read)
+                return;
+            show(read());
+        });
+        return value =>
+        {
+            applying = true;
+            try { apply(value); }
+            finally { applying = false; }
+        };
+    }
+
     private void SetBoth(BindableProperty property, object value)
     {
         SkiaControl.SetValue(property, value);
@@ -416,12 +472,25 @@ public abstract class ComponentDemoPage : ContentPage
     }
 
     /// <param name="whole">Snaps the slider to whole numbers (for <c>int</c> properties such as a button's <c>CornerRadius</c>).</param>
-    protected void Number(string name, double minimum, double maximum, double initial, Action<double> apply, Func<double> skia, Func<double>? native = null, bool whole = false)
+    /// <param name="follow">
+    /// The value the editor follows when the property changes on the SkUi preview (default <paramref name="skia"/>, which the check
+    /// compares); <see cref="double.NaN"/> is not followed: a cleared nullable value stays cleared instead of becoming 0.
+    /// </param>
+    protected void Number(string name, double minimum, double maximum, double initial, Action<double> apply, Func<double> skia, Func<double>? native = null,
+        bool whole = false, Func<double>? follow = null)
     {
         var slider = new SkUiSlider { Minimum = minimum, Maximum = maximum, Value = initial, MinimumTrackColor = Accent, AutomationId = "Edit" + name };
         var valueLabel = Caption(initial.ToString("0.##"));
         Grid.SetColumn(valueLabel, 1);
         var row = new SkUiGrid { ColumnDefinitions = [new(GridLength.Star), new(new GridLength(48))], ColumnSpacing = 8, Children = { slider, valueLabel } };
+        // Out of range or (whole) fractional values are not shown: the slider would clamp or round them and apply that.
+        // NaN fails every comparison below: not shown.
+        apply = Synced(name, apply, follow ?? skia, native, value =>
+        {
+            if (Math.Abs(value - slider.Value) >= 0.001 && value >= slider.Minimum && value <= slider.Maximum
+                && (!whole || Math.Abs(value - Math.Round(value)) < 0.001))
+                slider.Value = value;
+        });
         void Apply(double value) { apply(value); valueLabel.Text = value.ToString("0.##"); }
         slider.ValueChanged += (_, args) =>
         {
@@ -485,6 +554,7 @@ public abstract class ComponentDemoPage : ContentPage
     protected void Toggle(string name, bool initial, Action<bool> apply, Func<bool> skia, Func<bool>? native = null)
     {
         var toggle = new SkUiSwitch { IsToggled = initial, OnColor = Accent, HorizontalOptions = LayoutOptions.Start, AutomationId = "Edit" + name };
+        apply = Synced(name, apply, skia, native, value => toggle.IsToggled = value);
         toggle.Toggled += (_, args) => apply(args.Value);
         AddEditor(name, toggle);
         _resets.Add(() =>
@@ -499,6 +569,7 @@ public abstract class ComponentDemoPage : ContentPage
     protected void Text(string name, string initial, Action<string> apply, Func<string> skia, Func<string>? native = null)
     {
         var entry = new SkUiEntry { Text = initial, FillColor = Colors.White, TextColor = Ink, PlaceholderColor = DemoColors.Caption, AutomationId = "Edit" + name };
+        apply = Synced(name, apply, skia, native, value => entry.Text = value);
         entry.TextChanged += (_, args) => apply(args.NewTextValue ?? string.Empty);
         AddEditor(name, entry);
         _resets.Add(() =>
@@ -518,6 +589,11 @@ public abstract class ComponentDemoPage : ContentPage
             Text = initial, FillColor = Colors.White, TextColor = Ink, PlaceholderColor = DemoColors.Caption,
             AutoSize = EditorAutoSizeOption.TextChanges, HeightRequest = 90, AutomationId = "Edit" + name
         };
+        apply = Synced(name, apply, skia, native, value =>
+        {
+            if (Lines(value) != Lines(editor.Text))
+                editor.Text = value;
+        });
         editor.TextChanged += (_, args) => apply(args.NewTextValue ?? string.Empty);
         AddEditor(name, editor);
         _resets.Add(() =>
@@ -538,6 +614,12 @@ public abstract class ComponentDemoPage : ContentPage
         var picker = new SkUiPicker { Title = name, FillColor = Colors.White, TextColor = Ink, TitleColor = DemoColors.Caption, AutomationId = "Edit" + name };
         foreach (var value in values) picker.Items.Add(value.ToString()!);
         picker.SelectedIndex = Array.IndexOf(values, initial);
+        // A value the editor does not offer is not shown.
+        apply = Synced(name, apply, skia, native, value =>
+        {
+            if (Array.IndexOf(values, value) is >= 0 and var index)
+                picker.SelectedIndex = index;
+        });
         picker.SelectedIndexChanged += (_, _) => { if (picker.SelectedIndex >= 0) apply(values[picker.SelectedIndex]); };
         AddEditor(name, picker);
         _choices[name] = (picker, values.Cast<object>().ToArray());
@@ -555,6 +637,13 @@ public abstract class ComponentDemoPage : ContentPage
     protected void ColorEditor(string name, Color initial, Action<Color> apply, Func<Color> skia, Func<Color>? native = null)
     {
         var selected = initial;
+        apply = Synced(name, apply, skia, native, value =>
+        {
+            if (selected.Equals(value))
+                return;
+            selected = value;
+            apply(value);
+        });
         var palette = new SkUiGrid { ColumnDefinitions = [new(GridLength.Star), new(GridLength.Star), new(GridLength.Star), new(GridLength.Star)], ColumnSpacing = 8 };
         var colors = new[] { initial, DemoColors.SampleA, DemoColors.SampleB, DemoColors.Ink };
         for (var index = 0; index < colors.Length; index++)

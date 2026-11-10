@@ -101,10 +101,10 @@ public class SkUiCoreShimmer : SkUiCoreNode, ISkUiShimmer
     /// <summary>The bones' opacity at the low point of a <see cref="SkUiShimmerEffect.Pulse"/>, 0–1 (default 0.4).</summary>
     public double PulseOpacity { get => _settings.PulseOpacity; set => SetPulseOpacity(value); }
 
-    /// <summary>Runs on the shown child before each switch (render thread; uniform <c>Scale</c> only). With either animation set, switches animate.</summary>
+    /// <summary>Runs on the shown child before each switch (render thread). With either animation set, switches animate.</summary>
     public SkUiViewAnimation? BeforeStateChangeAnimation { get => _beforeStateChangeAnimation; set => SetBeforeStateChangeAnimation(value); }
 
-    /// <summary>Runs on the new child after each switch (render thread; uniform <c>Scale</c> only).</summary>
+    /// <summary>Runs on the new child after each switch (render thread).</summary>
     public SkUiViewAnimation? AfterStateChangeAnimation { get => _afterStateChangeAnimation; set => SetAfterStateChangeAnimation(value); }
 
     /// <summary>Whether the skeleton is shown (it follows <see cref="IsLoading"/>, after a switch animation); raises <c>PropertyChanged</c>.</summary>
@@ -246,7 +246,7 @@ public class SkUiCoreShimmer : SkUiCoreNode, ISkUiShimmer
     /// <summary>Sets <see cref="BeforeStateChangeAnimation"/>.</summary>
     public SkUiCoreShimmer SetBeforeStateChangeAnimation(SkUiViewAnimation? value)
     {
-        ValidateAnimation(value, nameof(value));
+        value?.Freeze();
         SetProperty(ref _beforeStateChangeAnimation, value, nameof(BeforeStateChangeAnimation));
         return this;
     }
@@ -254,19 +254,9 @@ public class SkUiCoreShimmer : SkUiCoreNode, ISkUiShimmer
     /// <summary>Sets <see cref="AfterStateChangeAnimation"/>.</summary>
     public SkUiCoreShimmer SetAfterStateChangeAnimation(SkUiViewAnimation? value)
     {
-        ValidateAnimation(value, nameof(value));
+        value?.Freeze();
         SetProperty(ref _afterStateChangeAnimation, value, nameof(AfterStateChangeAnimation));
         return this;
-    }
-
-    private static void ValidateAnimation(SkUiViewAnimation? animation, string name)
-    {
-        if (animation is null)
-            return;
-        animation.Freeze();
-        foreach (var property in animation.Properties)
-            if (property.Property is SkUiAnimatableProperty.ScaleX or SkUiAnimatableProperty.ScaleY)
-                throw new ArgumentException($"Core nodes scale uniformly: animate {nameof(SkUiAnimatableProperty.Scale)} instead of {property.Property}.", name);
     }
 
     private SkUiCoreShimmer UpdateSettings(SkUiShimmerSettings value, string propertyName)

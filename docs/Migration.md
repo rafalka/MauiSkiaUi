@@ -41,8 +41,8 @@ Checked against .NET MAUI 10.0.120 (`MauiApiParityTests` compares every drawn co
 | ScrollView | SkUi* + Core | Done: scroll bars (draggable on desktop, `SkUiCoreScrollBar`), overscroll (bounce, stretch), scroll to element, both wheel axes, plus snap points |
 | Grid, VerticalStackLayout, HorizontalStackLayout, AbsoluteLayout, ContentView | SkUi* + Core | Done |
 | FlexLayout | `SkUiFlexLayout` (SkUi* only) | Done |
-| Toolkit Expander | `SkUiExpander` (SkUi* only) | Done, plus `ContentTemplate`, lazy content, animation |
-| Toolkit StateContainer | `SkUiStateContainer` / `SkUiStateView` attached properties on every drawn layout (SkUi* only) | Done, plus animations before and after each state change |
+| Toolkit Expander | `SkUiExpander`; Core: `SkUiCoreExpander` | Done, plus `ContentTemplate` (SkUi\*), lazy content, animation |
+| Toolkit StateContainer | `SkUiStateContainer` / `SkUiStateView` attached properties on every drawn layout; Core: `SkUiCoreStateContainer` with keyed states | Done, plus animations before and after each state change |
 | Toolkit AvatarView | `SkUiAvatarView` + Core | Done, plus initials of the text, colors by the text, a status badge |
 | StackLayout | Stacks | Map |
 | BindableLayout | Every `SkUiLayout` (grid, stacks, absolute, flex, wrap, shrink) | Done: MAUI's controller over `IBindableLayout`; templates and empty views must be drawn (a string `EmptyView` throws); no virtualization (use the collection view) |
@@ -209,6 +209,7 @@ Attached properties stay MAUI's (`Grid.Row`, `AbsoluteLayout.LayoutBounds`, `Fle
 | `StackLayout` | `SkUiVerticalStackLayout` / `SkUiHorizontalStackLayout` | Pick by `Orientation`; keep `Spacing` |
 | `AbsoluteLayout` | `SkUiAbsoluteLayout` | |
 | `FlexLayout` | `SkUiFlexLayout` | Also `SkUiWrapLayout` for chips and tags |
+| A `Grid` of equal tiles rebuilt in `SizeChanged` (photo galleries, attachment strips) | `SkUiTileLayout` | See [equal tiles](#equal-tiles) |
 | Toolkit `StateContainer` / `StateView` (attached properties) | `SkUiStateContainer` / `SkUiStateView` | Same properties and `ChangeStateWithAnimation` overloads, on any drawn layout ([SkUiStateContainer.md](controls/SkUiStateContainer.md)) |
 | Toolkit `Expander` | `SkUiExpander` | Same properties and `ExpandedChanged`; `Header` / `Content` must be drawn views. `ExpandDirection` → `SkUiExpandDirection`, `ExpandedChangedEventArgs` → `SkUiExpandedChangedEventArgs`; drop `HandleHeaderTapped` (a native list view workaround). `IsExpanded` is two-way by default. Plus `ContentTemplate`, `LazyContentExpansion`, `AnimationLength` / `AnimationEasing` ([SkUiExpander.md](controls/SkUiExpander.md)) |
 | Hand-made skeleton views (shapes with animations) | `SkUiShimmer` / `SkUiCoreShimmer` | Your skeleton as `SkeletonContent`, one shimmer around it: see [Shimmer](#shimmer) |
@@ -369,6 +370,8 @@ APIs that take a reusable animation take a `SkUiViewAnimation` (render thread) i
 | Parent `Animation` with children over the same span | One `SkUiViewAnimation` listing every property (they run together) |
 | Toolkit `StateContainer.ChangeStateWithAnimation(layout, state, before, after)` with `Animation`s | `SkUiStateContainer.ChangeStateWithAnimation(layout, state, before, after)` with `SkUiViewAnimation`s; `SkUiViewAnimation.FadeOut()` / `FadeIn()` cover the common case, no `to` ends at the view's own value. Or set `sk:SkUiStateContainer.BeforeStateChangeAnimation="FadeOut"` / `AfterStateChangeAnimation="FadeIn"` once and drop the call: every `CurrentState` change animates |
 
+**Core code from before 1.9 that animated one scale axis:** Core nodes now have `ScaleX` / `ScaleY` (multiplied by `Scale`, as in MAUI) and `AnchorX` / `AnchorY`. Before, setting `ScaleX` or `ScaleY` through an animation scaled both axes of a Core node; now it scales its own axis only. Animate `Scale` where both axes should follow.
+
 Animations of layout properties (`WidthRequest`, `HeightRequest`, `Margin`) and child animations with staggered spans have no render-thread form: keep them as MAUI or `SkUiAnimationClock` callbacks (they re-lay out every frame), or redesign them as transforms.
 
 ### 8. Verify
@@ -405,7 +408,7 @@ Animations of layout properties (`WidthRequest`, `HeightRequest`, `Margin`) and 
 - `SwipeView` rows → `SkUiSwipeView` in the item template ([SkUiSwipeView.md](controls/SkUiSwipeView.md)): rows swipe horizontally while the list scrolls vertically, a scroll closes an open row, and a recycled row shows closed.
 - The list needs a bounded size along its axis: in a stack layout or a `ScrollView` of the same axis it would create every item (as a native `CollectionView` there would).
 
-- `CanReorderItems`, `CanMixGroups` and `ReorderCompleted`: same, from 1.3. As on MAUI, the item leaves its list (`RemoveAt`) and goes to its new place (`Insert`), so the source (or the group) must be an `IList` that can change; `ReorderCompleted` follows. A touch lifts the item with a long press, the mouse with a press and drag, and screen readers (TalkBack, VoiceOver) offer "Move up" / "Move down" on each item. A long press handled inside the item template fires first and keeps the touch.
+- `CanReorderItems`, `CanMixGroups` and `ReorderCompleted`: same, from 1.3. As on MAUI, the item leaves its list (`RemoveAt`) and goes to its new place (`Insert`), so the source (or the group) must be an `IList` that can change; `ReorderCompleted` follows. A touch lifts the item with a long press, the mouse with a press and drag, and screen readers (TalkBack, VoiceOver) offer "Move up" / "Move down" on each item. A long press handled inside the item template fires first and keeps the touch. A hand-rolled drag handle (or a select mode on `LongPressedCommand` that reordering would take over) → mark the handle `sk:SkUiCollectionView.IsReorderHandle="True"` (1.9): a press on it lifts the item at once, and the rest of the item keeps its taps, long presses and scrolling.
 
 Plain lists can also use the lighter `SkUiVirtualScrollView` ([SkUiVirtualVerticalStackLayout.md](controls/SkUiVirtualVerticalStackLayout.md)).
 
@@ -457,6 +460,8 @@ Coming from other date and time pickers: a format that lists the columns → `Wh
 ## Text input (`Entry`, `Editor`, `SearchBar`)
 
 `SkUiEntry`, `SkUiEditor` and `SkUiSearchBar` ([SkUiEntry.md](controls/SkUiEntry.md), [SkUiEditor.md](controls/SkUiEditor.md), [SkUiSearchBar.md](controls/SkUiSearchBar.md)) keep MAUI's API: change the prefix. `Text` (two-way), `TextChanged`, `Placeholder`, `Keyboard`, `ReturnType`, `ReturnCommand` / `Completed`, `IsPassword`, `MaxLength`, `IsReadOnly`, `CursorPosition` / `SelectionLength`, `ClearButtonVisibility`, the editor's `AutoSize`, the search bar's `SearchCommand` / `SearchButtonPressed` stay. The text is drawn; the platform's keyboard, input methods, autocorrect, dictation, clipboard and edit menu still do the typing. A field moved out of `SkUiMauiContentView` loses the overlay limits: it clips and scrolls with the page (no snapshots), drawn popups cover it, and it works in collection view rows and Core trees.
+
+A show / hide password toggle (an eye `ImageButton` beside the entry that flips `IsPassword`, a component library's input layout with a password toggle) → `ShowsPasswordRevealButton="True"` on the field, the button and wrapper dropped (an eye that shows the password only while held, flipping `IsPassword` on `Pressed` / `Released`: add `PasswordRevealMode="WhilePressed"`); bind `IsPasswordRevealed` (two-way) where the app shows the password from elsewhere. Unlike flipping `IsPassword`, the field stays a password field for the keyboard and password managers, and the text is masked again when focus leaves (`HidesPasswordOnUnfocus`).
 
 What changes:
 
@@ -513,6 +518,19 @@ Styles now apply to everything the toolkit's constructor set (padding, stroke, s
 | A skeleton view that repeats the page's own layout (the same cards and rows, boxes where the texts go) | No skeleton: the drawn page in a shimmer without `SkeletonContent`, `Mode="Bones"`; texts become bars, cards keep their chrome; static texts `Skeleton="Keep"`; empty bound texts draw `SkeletonLines` placeholder lines; an empty collection view shows placeholder rows of its own template (no fake items in the view model). The page takes no input while loading |
 | A skeleton view swapped with the MAUI page (a state container) | The page stays; one `SkUiShimmer` with only `SkeletonContent` over it, hidden once faded (`IsVisible` bound to `IsShowingSkeleton`) |
 | Pausing on `Unloaded`, hardware layers, per-box animation names | Drop: a shimmer not drawn requests no frames; the bones are one recorded picture in one layer |
+
+## Equal tiles
+
+A page that lays out equal tiles (photos, attachments, cards) in a `Grid` and rebuilds its columns in `SizeChanged` (or a `FlexLayout` of fixed-size children) becomes an `SkUiTileLayout` ([SkUiTileLayout.md](controls/SkUiTileLayout.md)), and the handler goes:
+
+| Before | After |
+| --- | --- |
+| `columns = (int)(width / tileWidth)`, column definitions rebuilt, `Grid.SetRow` / `SetColumn` per child | `TileSize="{tileWidth}"`: the columns follow the width; children are added in order (`BindableLayout` works) |
+| Tile height set from its width in code | `TileAspectRatio` (width per unit of height) |
+| A smallest tile below which a column is removed | `MinimumTileSize` |
+| Children past the second row hidden, a "+5" label laid over the last one | `MaximumRows="2"` and an `OverflowTemplate` bound to `HiddenCount`; `OverflowCommand` for the tap |
+
+A gallery of many items (a whole library) stays a collection view with a `GridItemsLayout`, which virtualizes.
 
 ## Icons (`FontImageSource`, tint behaviors, `MauiImage` SVGs)
 

@@ -31,6 +31,9 @@ internal sealed class SkUiAccessibilityBridge
 
     private SkUiSemanticsTree Tree => (_owner ??= new SkUiSemanticsOwner(_root)).Tree;
 
+    /// <summary>Built and not detached: an element VoiceOver still holds after <see cref="Detach"/> must not build the tree again.</summary>
+    internal bool IsAttached => _owner is not null;
+
     /// <summary>
     /// Change reports (rebuilds while the drawn tree changes) only while VoiceOver runs, to tell it about new layouts; other
     /// clients (Switch Control, UI tests) get an up-to-date array whenever they ask.
@@ -333,6 +336,28 @@ internal sealed class SkUiAccessibilityBridge
             SkUiSemantics.BringIntoView(source);
     }
 
+    /// <summary>
+    /// The drawn element at <paramref name="local"/> (the container's coordinates) for VoiceOver's explore by touch: the front-most,
+    /// innermost one (<see cref="SkUiSemanticsTree.HitTest(Point)"/>), as on the other platforms. UIKit itself picks among the elements
+    /// whose frames hold the point (the top-left one on iOS 16+), so a part inside its control (a field's clear or reveal button)
+    /// or an action inside a described group would never be found. <c>null</c> over a hosted native view or nothing: UIKit's own
+    /// search answers.
+    /// </summary>
+    internal NSObject? HitTest(CGPoint local)
+    {
+        _ = Elements();
+        var point = new Point(local.X, local.Y);
+        // Not every node is an element (a scroller without a name, id-only nodes while VoiceOver runs): its element ancestor is.
+        for (var node = Tree.HitTest(point); node is not null; node = node.Parent)
+        {
+            if (node.IsNative)
+                return null;
+            if (_elements.TryGetValue(node.Id, out var element))
+                return element;
+        }
+        return null;
+    }
+
     private void RequestAccessibilityFocus(int id)
     {
         _ = Elements();
@@ -374,6 +399,35 @@ internal class SkUiAccessibilityElement : UIAccessibilityElement
     public override bool AccessibilityScroll(UIAccessibilityScrollDirection direction) => Bridge?.Scroll(Id, direction) == true;
 
     public override void AccessibilityElementDidBecomeFocused() => Bridge?.OnFocused(Id);
+
+    /// <summary>
+    /// An element asked for the element at a screen point (UIKit's private hit test, as Flutter's iOS engine overrides it): the
+    /// front-most, innermost drawn element there (<see cref="SkUiAccessibilityBridge.HitTest"/>). UIKit's search from the window
+    /// asks the container (<c>SkUiOverlayContainer</c>), which answers the same way.
+    /// </summary>
+    [Export("_accessibilityHitTest:withEvent:")]
+    public NSObject? AccessibilityHitTest(CGPoint point, UIEvent? uiEvent)
+    {
+        // A stale element (its bridge detached with the page's handler) answers nothing: building the tree again would subscribe
+        // the detached root and keep the old platform view alive.
+        if (AccessibilityContainer is not UIView container || Bridge is not { IsAttached: true } bridge)
+            return null;
+        return ScreenToLocal(container, point) is { } local ? bridge.HitTest(local) : null;
+    }
+
+    /// <summary>
+    /// A point in screen coordinates (as accessibility frames are) in <paramref name="view"/>'s coordinates. Accessibility's own
+    /// conversion first (it knows Mac Catalyst's scaling); where it gives nothing (no accessibility server runs: an element asked
+    /// directly) UIKit's screen coordinate space; <c>null</c> off screen.
+    /// </summary>
+    internal static CGPoint? ScreenToLocal(UIView view, CGPoint point)
+    {
+        var bounds = view.Bounds;
+        var screen = UIAccessibility.ConvertFrameToScreenCoordinates(bounds, view);
+        if (screen.Width > 0 && screen.Height > 0)
+            return new CGPoint((point.X - screen.X) * bounds.Width / screen.Width, (point.Y - screen.Y) * bounds.Height / screen.Height);
+        return view.Window?.Screen is { } display ? view.ConvertPointFromCoordinateSpace(point, display.CoordinateSpace) : null;
+    }
 
     private string[]? _customActions;
 

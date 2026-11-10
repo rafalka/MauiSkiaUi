@@ -106,6 +106,7 @@ public static class BenchReport
         ("composite", s => s.Composite),
         ("firstFrame", s => s.FirstFrame),
         ("update", s => s.Update),
+        ("updatePictures", s => s.UpdatePictures),
         ("motionFps", s => s.MotionFps),
         ("motionAvgRenderMs", s => s.MotionAvgRenderMs),
         ("motionMaxRenderMs", s => s.MotionMaxRenderMs),

@@ -264,6 +264,18 @@ public class SkUiCoreNumericEntry<T> : SkUiCoreNumericEntryBase, ISkUiNumericVal
     /// <inheritdoc cref="SkUiCoreEntry.SetIsPassword" />
     public new SkUiCoreNumericEntry<T> SetIsPassword(bool value) { base.SetIsPassword(value); return this; }
 
+    /// <inheritdoc cref="SkUiCoreEntry.SetIsPasswordRevealed" />
+    public new SkUiCoreNumericEntry<T> SetIsPasswordRevealed(bool value) { base.SetIsPasswordRevealed(value); return this; }
+
+    /// <inheritdoc cref="SkUiCoreEntry.SetShowsPasswordRevealButton" />
+    public new SkUiCoreNumericEntry<T> SetShowsPasswordRevealButton(bool value) { base.SetShowsPasswordRevealButton(value); return this; }
+
+    /// <inheritdoc cref="SkUiCoreEntry.SetHidesPasswordOnUnfocus" />
+    public new SkUiCoreNumericEntry<T> SetHidesPasswordOnUnfocus(bool value) { base.SetHidesPasswordOnUnfocus(value); return this; }
+
+    /// <inheritdoc cref="SkUiCoreEntry.SetPasswordRevealMode" />
+    public new SkUiCoreNumericEntry<T> SetPasswordRevealMode(SkUiPasswordRevealMode value) { base.SetPasswordRevealMode(value); return this; }
+
     /// <inheritdoc cref="SkUiCoreEntry.SetReturnType" />
     public new SkUiCoreNumericEntry<T> SetReturnType(ReturnType value) { base.SetReturnType(value); return this; }
 

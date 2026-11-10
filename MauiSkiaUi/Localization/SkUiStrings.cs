@@ -93,6 +93,12 @@ public class SkUiStrings
     /// <summary>A text field's clear button (<c>ClearButtonVisibility</c>, a search bar's) as screen readers read it, as iOS's. Default "Clear text".</summary>
     public virtual string ClearTextButtonText { get; set => Set(ref field, value); } = "Clear text";
 
+    /// <summary>A password field's reveal button (<c>ShowsPasswordRevealButton</c>) as screen readers read it while the text is masked. Default "Show password".</summary>
+    public virtual string ShowPasswordText { get; set => Set(ref field, value); } = "Show password";
+
+    /// <summary>A password field's reveal button as screen readers read it while the text shows. Default "Hide password".</summary>
+    public virtual string HidePasswordText { get; set => Set(ref field, value); } = "Hide password";
+
     /// <summary>
     /// The "Select all" row above a list with several choices (a picker's <c>IsSelectAllVisible</c>), unless the picker sets its own
     /// <c>SelectAllText</c>; and the item of a text field's edit menu where the platform's menu has no text of its own (Windows).

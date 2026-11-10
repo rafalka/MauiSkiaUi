@@ -1,3 +1,4 @@
+using System.Collections.ObjectModel;
 using SkiaSharp;
 using Xunit;
 
@@ -271,6 +272,81 @@ public class PipelineTests
         Assert.Equal(70, ((IView)root).DesiredSize.Height); // measured with its last constraint (the native layout is asked too)
         Assert.Equal(70, child.Frame.Height);
         Assert.Equal(40, root.Frame.Height); // the native parent decides the root's new bounds
+    }
+
+    [Fact]
+    public void ASurfaceRootArrangedBeforeItsRelayoutStillGrowsWithItsContent()
+    {
+        // #85: a nested list gains items, then a native layout pass for something else arranges the root in its old bounds
+        // (without measuring it) before the next frame. Measured at the arranged size, the root's height was capped at the
+        // old one, and the relayout saw no change to report, so the native layout never gave it the new height.
+        using var dispatcher = SkUiTestHelpers.UseTestDispatcher();
+        var items = new ObservableCollection<string> { "a" };
+        var list = new SkUiVerticalStackLayout();
+        BindableLayout.SetItemTemplate(list, new DataTemplate(() => new SkUiBox { HeightRequest = 40 }));
+        BindableLayout.SetItemsSource(list, items);
+        var below = new SkUiBox { HeightRequest = 50 };
+        var root = new SkUiVerticalStackLayout { Children = { list, below } };
+        using var surface = new SkUiTestSurface(root, 100, 90);
+        // Sized to its content, as in a native stack: measured with an unbounded height.
+        IView view = root;
+        view.Measure(100, double.PositiveInfinity);
+        view.Arrange(new Rect(0, 0, 100, 90));
+        surface.Frame();
+
+        items.Add("b");
+        items.Add("c");
+        view.Arrange(new Rect(0, 0, 100, 90));
+        surface.Frame();
+
+        Assert.Equal(170, view.DesiredSize.Height); // measured with the native layout's constraint, which is asked again
+        Assert.Equal(120, below.Frame.Y);
+        Assert.Equal(90, root.Frame.Height); // until the native layout gives it the new bounds
+        view.Measure(100, double.PositiveInfinity);
+        view.Arrange(new Rect(0, 0, 100, 170));
+        surface.Frame();
+        Assert.Equal(170, root.Frame.Height);
+    }
+
+    [Fact]
+    public void ASurfaceRootArrangedNarrowerBeforeItsRelayoutIsMeasuredAtItsNewWidth()
+    {
+        // The tree changed, then the root is arranged narrower (a window resized) before being measured: its old height
+        // constraint (unbounded) is kept, its old wider width is not, so the content lays out for the width it has.
+        var tiles = new SkUiTileLayout { TileSize = 100 };
+        for (var index = 0; index < 7; index++)
+            tiles.Children.Add(new SkUiBox { Color = Colors.Red });
+        var root = new SkUiVerticalStackLayout { Children = { tiles } };
+        using var surface = new SkUiTestSurface(root, 300, 500);
+        IView view = root;
+        view.Measure(300, double.PositiveInfinity);
+        view.Arrange(new Rect(0, 0, 300, 300));
+        surface.Frame();
+
+        tiles.Children.Add(new SkUiBox { Color = Colors.Red }); // 8 tiles: 3 rows at 300 wide, 4 at 200
+        view.Arrange(new Rect(0, 0, 200, 300));
+
+        Assert.Equal(400, view.DesiredSize.Height);
+        Assert.Equal(400, tiles.Frame.Height);
+    }
+
+    [Fact]
+    public void ASurfaceRootArrangedInTheSlotItAskedForStillGrowsInAWiderMeasure()
+    {
+        // A parent that measures wider than it arranges (MAUI's FlexLayout: measured at its width, arranged at the child's):
+        // the slot holds what the root asked for, so the wider constraint is kept and the root can ask for more.
+        var box = new SkUiBox { WidthRequest = 150, HeightRequest = 20, HorizontalOptions = LayoutOptions.Start };
+        var root = new SkUiVerticalStackLayout { Children = { box } };
+        using var surface = new SkUiTestSurface(root, 400, 100);
+        IView view = root;
+        view.Measure(400, 100);
+        view.Arrange(new Rect(0, 0, 150, 100));
+        surface.Frame();
+
+        box.WidthRequest = 250;
+        view.Arrange(new Rect(0, 0, 150, 100));
+
+        Assert.Equal(250, view.DesiredSize.Width);
     }
 
     [Fact]

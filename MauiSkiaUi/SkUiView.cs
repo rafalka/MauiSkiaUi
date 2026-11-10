@@ -607,7 +607,8 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
         // A native parent can arrange a surface root it did not measure for these bounds (Shell's flyout content on iOS
         // and Mac Catalyst is only arranged): measure it at the arranged size first, as MAUI's own layout views do in
         // LayoutSubviews. Otherwise the tree keeps a measure made for another width (or none: labels wrapped at width 0,
-        // one character per line), and RelayoutIfNeeded reuses that constraint.
+        // one character per line), and RelayoutIfNeeded reuses that constraint. A constraint that still holds is kept
+        // (MeasureRootForArrange).
         // A surface root keeps the window's insets clear per SafeAreaEdges: padding that changed measures it again, and
         // tells its native parent, which may size it by its content.
         if (SkiaParent is null)
@@ -622,7 +623,7 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
             }
         }
         if (SkiaParent is null && !IsMeasureValidFor(bounds.Size))
-            ((IView)this).Measure(bounds.Width, bounds.Height);
+            MeasureRootForArrange(bounds.Size);
         if (!_arrangeDirty && bounds == _lastArrangeBounds)
         {
 #if WINDOWS
@@ -669,10 +670,41 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
     /// Whether the last measure holds for arranging in <paramref name="size"/>: it is current and its constraint was at
     /// least that size (a parent that measured with an unbounded height and arranges in a finite one is the usual case).
     /// </summary>
-    private bool IsMeasureValidFor(Size size) =>
-        !_measureDirty
-        && _lastConstraint.Width >= size.Width - MeasureConstraintTolerance
+    private bool IsMeasureValidFor(Size size) => !_measureDirty && LastConstraintHolds(size);
+
+    /// <summary>Whether the last measure constraint was at least <paramref name="size"/>.</summary>
+    private bool LastConstraintHolds(Size size) =>
+        _lastConstraint.Width >= size.Width - MeasureConstraintTolerance
         && _lastConstraint.Height >= size.Height - MeasureConstraintTolerance;
+
+    /// <summary>
+    /// A surface root arranged without a current measure for <paramref name="size"/>. When the tree changed since the native
+    /// layout measured it, and that constraint still holds (a native stack's unbounded height), it is measured with that
+    /// constraint on each axis where it was unbounded or the arranged size still holds what the root last asked for, as
+    /// <see cref="RelayoutIfNeeded"/> does, and the native layout is asked when its size changed. Measured at the arranged size
+    /// instead, a root sized by its content could never grow: its height would be capped at the old one (or its width, in a
+    /// parent that measures wider than it arranges, as MAUI's FlexLayout), and no later relayout would see a change to report (a
+    /// native layout pass for something else between a nested list gaining items and the next frame). An axis arranged smaller
+    /// than the root last asked for (a window resized narrower) is measured at the arranged size, so text wraps for the width
+    /// the root has; so is everything when the old constraint does not hold.
+    /// </summary>
+    private void MeasureRootForArrange(Size size)
+    {
+        IView view = this;
+        if (!LastConstraintHolds(size))
+        {
+            view.Measure(size.Width, size.Height);
+            return;
+        }
+        var previous = view.DesiredSize;
+        var width = KeepsConstraint(_lastConstraint.Width, size.Width, previous.Width) ? _lastConstraint.Width : size.Width;
+        var height = KeepsConstraint(_lastConstraint.Height, size.Height, previous.Height) ? _lastConstraint.Height : size.Height;
+        if (view.Measure(width, height) != previous)
+            base.InvalidateMeasureOverride(); // the native layout sizes the root again
+
+        static bool KeepsConstraint(double constraint, double arranged, double desired) =>
+            double.IsPositiveInfinity(constraint) || arranged >= desired - MeasureConstraintTolerance;
+    }
 
     /// <summary>DIPs by which an arranged size may exceed the measure constraint before the root is measured again.</summary>
     private const double MeasureConstraintTolerance = 0.01;

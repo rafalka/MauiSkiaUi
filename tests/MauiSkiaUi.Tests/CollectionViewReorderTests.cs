@@ -50,6 +50,37 @@ public class CollectionViewReorderTests
 
     private static int[] Order(IEnumerable<Row> rows) => rows.Select(row => row.Index).ToArray();
 
+    /// <summary>A row with a 40 wide reorder handle at its start; it counts its long presses.</summary>
+    private sealed class HandleRowView : SkUiGrid
+    {
+        public HandleRowView()
+        {
+            ColumnDefinitions = new ColumnDefinitionCollection(new ColumnDefinition(40), new ColumnDefinition(GridLength.Star));
+            Handle = new SkUiBox { Color = Colors.Gray };
+            SkUiCollectionView.SetIsReorderHandle(Handle, true);
+            Children.Add(Handle);
+            LongPressed += (_, _) => LongPresses++;
+        }
+
+        public SkUiBox Handle { get; }
+
+        public int LongPresses { get; private set; }
+
+        protected override void OnBindingContextChanged()
+        {
+            base.OnBindingContextChanged();
+            if (BindingContext is Row row)
+                HeightRequest = row.Height;
+        }
+    }
+
+    private static SkUiCollectionView HandleList(System.Collections.IEnumerable rows)
+    {
+        var list = List(rows);
+        list.ItemTemplate = new DataTemplate(() => new HandleRowView());
+        return list;
+    }
+
     /// <summary>The container of the item at <paramref name="index"/> (its realized view's parent).</summary>
     private static View Host(SkUiCollectionView list, int index) => (View)((Element)list.GetRealizedView(index)!).Parent;
 
@@ -427,5 +458,84 @@ public class CollectionViewReorderTests
         var grid = List(Rows(6), span: 3);
         SkUiTestHelpers.Arrange(grid, 300, 500);
         Assert.Equal(["Move left", "Move right"], Actions(Host(grid, 1)));
+    }
+
+    [Fact]
+    public void AnItemWithAHandleLiftsAtOnceFromTheHandle()
+    {
+        using var clock = new ManualGestureClock();
+        var rows = Rows(50);
+        var list = HandleList(rows);
+        var completed = 0;
+        list.ReorderCompleted += (_, _) => completed++;
+        SkUiTestHelpers.Arrange(list, 300, 500);
+
+        // A touch on item 2's handle lifts it on the press, without the long press, and drags it rather than scrolling.
+        var id = Press(list, new Point(20, 125), SkUiPointerDevice.Touch);
+        Assert.Equal((-1, 2, -1, 2), list.ReorderState);
+        MoveTo(list, id, new Point(20, 125), new Point(20, 25), SkUiPointerDevice.Touch);
+        Assert.Equal((-1, 2, -1, 0), list.ReorderState);
+        Assert.Equal(0, list.ScrollY);
+        Release(list, id, new Point(20, 25), SkUiPointerDevice.Touch);
+        Assert.Equal([2, 0, 1, 3], Order(rows).Take(4));
+        Assert.Equal(1, completed);
+        SkUiTestHelpers.Arrange(list, 300, 500);
+
+        // A mouse press on a handle lifts at once too.
+        var mouse = Press(list, new Point(20, 75), SkUiPointerDevice.Mouse);
+        Assert.Equal((-1, 1, -1, 1), list.ReorderState);
+        Release(list, mouse, new Point(20, 75), SkUiPointerDevice.Mouse);
+        Assert.Null(list.ReorderState);
+        Assert.Equal(1, completed); // put back where it was
+    }
+
+    [Fact]
+    public void TheRestOfAnItemWithAHandleKeepsItsLongPressAndScrolls()
+    {
+        using var clock = new ManualGestureClock();
+        var rows = Rows(50);
+        var list = HandleList(rows);
+        SkUiTestHelpers.Arrange(list, 300, 500);
+        var row = (HandleRowView)list.GetRealizedView(2)!;
+
+        // A long press beside the handle is the row's own: nothing is lifted.
+        var hold = Press(list, new Point(150, 125), SkUiPointerDevice.Touch);
+        clock.Advance(SkUiGestureSettings.LongPressDuration);
+        Assert.Null(list.ReorderState);
+        Assert.Equal(1, row.LongPresses);
+        Release(list, hold, new Point(150, 125), SkUiPointerDevice.Touch);
+
+        // A mouse drag there does not lift either; a touch drag scrolls the list.
+        MouseDrag(list, new Point(150, 125), new Point(150, 25));
+        Assert.Null(list.ReorderState);
+        Assert.Equal(0, Order(rows)[0]);
+        var scroll = Press(list, new Point(150, 225), SkUiPointerDevice.Touch);
+        MoveTo(list, scroll, new Point(150, 225), new Point(150, 125), SkUiPointerDevice.Touch);
+        Assert.Null(list.ReorderState);
+        Assert.True(list.ScrollY > 0);
+        Release(list, scroll, new Point(150, 125), SkUiPointerDevice.Touch);
+    }
+
+    [Fact]
+    public void AHiddenHandleLiftsNothingAndScreenReadersStillMoveTheItem()
+    {
+        using var clock = new ManualGestureClock();
+        var rows = Rows(5);
+        var list = HandleList(rows);
+        SkUiTestHelpers.Arrange(list, 300, 500);
+        var row = (HandleRowView)list.GetRealizedView(1)!;
+        row.Handle.IsVisible = false;
+        SkUiTestHelpers.Arrange(list, 300, 500);
+
+        // Its place and the rest of the row: the item still has a handle, so neither lifts it.
+        var onHandle = Press(list, new Point(20, 75), SkUiPointerDevice.Touch);
+        Assert.Null(list.ReorderState);
+        clock.Advance(SkUiGestureSettings.LongPressDuration);
+        Assert.Null(list.ReorderState);
+        Release(list, onHandle, new Point(20, 75), SkUiPointerDevice.Touch);
+
+        var info = new SkUiSemanticsInfo();
+        ((ISkUiAccessibleNode)Host(list, 1)).GetSemantics(info);
+        Assert.Equal(["Move up", "Move down"], info.CustomActions);
     }
 }

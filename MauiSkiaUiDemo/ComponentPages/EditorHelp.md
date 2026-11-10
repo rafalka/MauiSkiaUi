@@ -281,6 +281,11 @@ Each column splitter spans every row (`RowSpan`), shows its line (`ShowsLine`) a
 (`GripAlignment` `Start`); the table's column separators are hidden, as the splitters' lines take their place. A splitter
 merges no cells: the table still draws its row separators across it.
 
+## CoreStateContainerDemoPage.Animation
+
+How the container switches between its content and a state: at once, fading, or growing (the new state scaled
+vertically from 0.6, a Core ScaleY animation).
+
 ## StateContainerDemoPage.Animation
 
 How the container switches between its content and a state view: at once, fading, or sliding (the state change
@@ -307,6 +312,20 @@ The third chip's text: as it grows or shrinks, its row re-wraps and later chips 
 ## WrapLayoutDemoPage.Chip3.Width
 
 The third chip's `WidthRequest`; 0 for its natural width.
+
+## TileLayoutDemoPage.OverflowTile
+
+Sets an `OverflowTemplate`: a dimmed "+N" over the last photo when the photos need more than `MaximumRows`; off, the rows
+are only cut. Tap it to see `OverflowTapped`.
+
+## TileLayoutDemoPage.SecondPhotoVisible
+
+The second photo's `IsVisible`: a hidden photo takes no tile, and the others move up one.
+
+## CoreTileLayoutDemoPage.OverflowTile
+
+Sets an `OverflowTemplate` (a function that makes the node): a dimmed "+N" over the last photo when the photos need more
+than `MaximumRows`; off, the rows are only cut. Tap it to see `OverflowTapped`.
 
 ## CoreWrapLayoutDemoPage.FirstChipVisible
 
@@ -434,6 +453,12 @@ The same tasks in two groups, "Today" and "Later". Group headers do not move.
 ## ReorderDemoPage.CanMixGroups
 
 In grouped lists, whether a task can move to the other group (off: it stays in its own).
+
+## ReorderDemoPage.Drag handles (SkiaUi)
+
+Gives the SkiaUi tasks a drag handle (≡, `SkUiCollectionView.IsReorderHandle`) at their end: a press on it lifts the task
+at once, with no long press. The rest of the row no longer lifts it: a long press there is the row's own (it shows the
+task under the lists), and a drag there scrolls.
 
 ## ReorderDemoPage.Reset the order
 

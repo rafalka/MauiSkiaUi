@@ -45,6 +45,12 @@ public static class SkUiAccessibility
     /// </summary>
     public const string ClearButtonAutomationIdSuffix = "_Clear";
 
+    /// <summary>
+    /// Appended to a password field's <c>AutomationId</c> for its reveal button's element (<c>ShowsPasswordRevealButton</c>): an entry
+    /// with <c>AutomationId="Password"</c> has its reveal button at <c>Password_Reveal</c>.
+    /// </summary>
+    public const string PasswordRevealButtonAutomationIdSuffix = "_Reveal";
+
     /// <summary>Raised after <see cref="IsEnabled"/> changes (live surfaces attach or remove their platform bridges). Subscribers are not kept alive.</summary>
     public static event EventHandler? Changed
     {

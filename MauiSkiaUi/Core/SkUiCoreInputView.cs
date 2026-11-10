@@ -487,6 +487,10 @@ public abstract class SkUiCoreInputView : SkUiCoreNode, ISkUiFontElement, ISkUiF
     #region Node
 
     /// <inheritdoc />
+    /// <remarks>The text area is laid out from the leading and trailing views' sizes, in the field's own picture.</remarks>
+    private protected override bool PaintsFromChildLayout => true;
+
+    /// <inheritdoc />
     protected override Size MeasureContent(double widthConstraint, double heightConstraint)
     {
         Model.HasExplicitMinimumHeight = _minimumHeightExplicit;
@@ -669,6 +673,13 @@ public abstract class SkUiCoreInputView : SkUiCoreNode, ISkUiFontElement, ISkUiF
 
     bool ISkUiTextFieldOwner.AdornmentTakesPointer(Point local) =>
         SkUiTextFieldAdornments.TakesPointer(_leadingView, local) || SkUiTextFieldAdornments.TakesPointer(_trailingView, local);
+
+    void ISkUiTextFieldOwner.PasswordRevealEdited(bool revealed) => OnPasswordRevealEdited(revealed);
+
+    /// <summary>The user showed or hid a password's text (an entry's <c>IsPasswordRevealed</c> follows).</summary>
+    private protected virtual void OnPasswordRevealEdited(bool revealed)
+    {
+    }
 
     #endregion
 }

@@ -14,8 +14,8 @@ What the next releases bring, and the work after them. What has shipped is in th
 | **1.5.0** | 10.0.120 | 27 | 10.0.402 | As 1.1.0 | `master`, released 3 November 2026 |
 | **1.5.1** | 10.0.120 | 27 | 10.0.402 | As 1.1.0 | `master`, released 3 November 2026 |
 | **1.6.0** | 10.0.120 | 27 | 10.0.402 | As 1.1.0 | `master`, released 4 November 2026 |
-| **1.7.0** | 10.0.120 or a later 10.0.x | 27 | 10.0.402 | As 1.1.0 | Planned |
-| **1.8.0** | 10.0.120 or a later 10.0.x | 27 | 10.0.402 | As 1.1.0 | Planned |
+| **1.7.0** | 10.0.120 | 27 | 10.0.402 | As 1.1.0 | `master`, released 5 November 2026 |
+| **1.8.0** | 10.0.120 | 27 | 10.0.402 | As 1.1.0 | `master`, released 6 November 2026 |
 | **1.9.0** | 10.0.120 or a later 10.0.x | 27 | 10.0.402 | As 1.1.0 | Planned |
 
 SkiaUi stays on MAUI 10.x. Development happens on `devel`; `master` holds stable releases ([Releasing.md](../Releasing.md#branches-and-versions)).
@@ -69,9 +69,9 @@ Steps and decisions: [ImplementationPlan-1.6.md](ImplementationPlan-1.6.md). The
 - **Viewport insets (device checks in the [verification backlog](#verification-backlog)):** `ViewportInsets` on the scroll views and the collection view (the virtual stack follows its scroller's), so edge-to-edge pages scroll content under drawn top and bottom bars while scroll bars, `ScrollTo`, snap points, the refresh indicator, sticky headers and keyboard reveal work in the uncovered band; the surface root's `SafeAreaInsets` readable for binding.
 - **Fix:** hosted native views follow a resize of what clips them ([#81](https://github.com/rafalka/MauiSkiaUi/issues/81), fixed in [#82](https://github.com/rafalka/MauiSkiaUi/pull/82)).
 
-### 1.7.0: vector icons (planned)
+### 1.7.0: vector icons (shipped)
 
-Built on the branch `1.7-implementation`, not released: [what it costs](../Performance.md#vector-icons), [how to use it](../controls/SkUiImage.md#vector-icons).
+From [#83](https://github.com/rafalka/MauiSkiaUi/pull/83): [what it costs](../Performance.md#vector-icons), [how to use it](../controls/SkUiImage.md#vector-icons).
 
 One feature: an app's `.svg` icons drawn at runtime on both layers, through a small SVG reader in `SkiaUi.Maui`, with no new dependency or package. A `MauiImage` keeps working as today, and an app can use both. Steps and decisions: [ImplementationPlan-1.7.md](ImplementationPlan-1.7.md).
 
@@ -80,11 +80,11 @@ One feature: an app's `.svg` icons drawn at runtime on both layers, through a sm
 - **Recoloring:** `SkUiVectorImageSource`, shaped like `FontImageSource`, whose `Color` is the starting value of `currentColor`.
 - **Loading:** in the image decoder, so every source gets it, along with the caches, progress and load events. Files ship as `MauiAsset`.
 
-### 1.8.0: Markdown (planned)
+### 1.8.0: Markdown (shipped)
 
-Built on the branch `1.8-implementation`, not released: [how to use it](../controls/SkUiMarkdownView.md), [what it costs](../Performance.md#markdown).
+From [#84](https://github.com/rafalka/MauiSkiaUi/pull/84): [how to use it](../controls/SkUiMarkdownView.md), [what it costs](../Performance.md#markdown).
 
-One feature: a drawn Markdown view on both layers, in new optional packages, with no new dependency in `SkiaUi.Maui`. Steps, order, a spike's findings and open decisions: [ImplementationPlan-1.8.md](ImplementationPlan-1.8.md).
+One feature: a drawn Markdown view on both layers, in new optional packages, with no new dependency in `SkiaUi.Maui`. Steps, order, a spike's findings and decisions: [ImplementationPlan-1.8.md](ImplementationPlan-1.8.md).
 
 - **View:** `SkUiMarkdownView` + `SkUiCoreMarkdown` in `SkiaUi.Maui.Markdown` on Markdig: text, quotes, alerts, code, lists, tables, images and links, styled by one style object over the color scheme; a growing text only rebuilds its tail.
 - **Untrusted documents:** nothing opens by itself, remote images stay off until an app allows them, a document cannot read a local file, and hostile input cannot take the app down.
@@ -93,11 +93,13 @@ One feature: a drawn Markdown view on both layers, in new optional packages, wit
 
 ### 1.9.0: performance, tiles, Core containers and password reveal (planned)
 
-Moved from 1.6, then from 1.8. Steps, order and open decisions: [ImplementationPlan-1.9.md](ImplementationPlan-1.9.md).
+Moved from 1.6, then from 1.8. Built on the branch `1.9-implementation`. Steps, order and open decisions: [ImplementationPlan-1.9.md](ImplementationPlan-1.9.md).
 
-- **Performance:** the device results measured again on the current toolchain; Core measure invalidation without re-recording ancestors; shaped borders sharing their outlines and clips.
-- **Layouts and containers:** a tile layout for galleries of equal tiles (with an overflow tile); Core twins of the state container and the expander (with independent `ScaleX` / `ScaleY` and `AnchorX` / `AnchorY` on Core nodes; animating one scale axis of a Core node no longer scales both).
-- **Text input:** password reveal (show / hide) in drawn password fields.
+- **Fixes taken in:** reorder from a drag handle (#86, `IsReorderHandle`), a drawn root sized by its content grows with it again (#85), VoiceOver's explore by touch finds buttons inside drawn controls (done).
+
+- **Performance:** the device results measured again on the current toolchain (done: Core's first frame is faster, the stress page's first-frame column was the wrong measure); Core measure invalidation without re-recording ancestors (done); shaped borders sharing their content clips (done).
+- **Layouts and containers:** a tile layout for galleries of equal tiles, with an overflow tile (done: [SkUiTileLayout](../controls/SkUiTileLayout.md)); Core twins of the state container and the expander (done: `SkUiCoreStateContainer`, `SkUiCoreExpander`; with independent `ScaleX` / `ScaleY` and `AnchorX` / `AnchorY` on Core nodes, so animating one scale axis of a Core node no longer scales both).
+- **Text input:** password reveal (show / hide) in drawn password fields (done: `IsPasswordRevealed`, `ShowsPasswordRevealButton`, `HidesPasswordOnUnfocus`, `PasswordRevealMode` (toggle or hold) on both entries; device checks in the [verification backlog](#verification-backlog)).
 
 .NET 11 / MAUI 11 waits until it is released.
 
@@ -159,7 +161,6 @@ Multi-target the one `SkiaUi.Maui` package (`net10.0-*` plus `net11.0-*`) so app
 - Scheme defaults resolved at paint time on the Core layer: Core controls copy `SkUiColors.Accent`, `TrackOff`, `Muted` and so on into fields when they are created, so a Core tree made before `SkUiColorScheme.Current` changes (dark mode) keeps the old colors.
 - Text shadows on mid-range Android: they are cast from the glyphs and rasterized on the CPU once per item, which holds a scrolling list on the S9 at 45 fps; cast them on the GPU as outline shadows are.
 - Relayout boundaries below the surface root (the root is one); raster cache of stable subtrees with a per-frame budget, for what is expensive to composite every frame (dashed strokes of complex paths: 33 fps on the S9).
-- Core's first frame is no faster than SkUi\*'s on devices (1,000 buttons: S9 169 vs 167 ms, iPhone 8 35 vs 37 ms) although Core builds its tree three times faster; `scripts/bench.sh` `core-buttons` `firstFrame` on the S9 went from 110 to 140 ms (Release) with gradient backgrounds (MAUI parity P7). Measured again in 1.9 first ([plan, R1](ImplementationPlan-1.9.md#phase-r--performance-backed-by-measurements)).
 - Recording Core-only subtrees off the UI thread (the look, the color scheme and the text and image caches would have to be safe to read from it); hit-testing against render-thread transforms while animations run.
 - Overlay masks, so drawn popups can cover hosted native controls (mostly WebView, media and maps now that text fields are drawn); cheaper overlay bookkeeping on Android.
 - Windows GPU surfaces can still flash the window's backdrop for a frame when their swap chain panel changes size (rare since `SkUiSurfaceSlack`). `SKSwapChainPanel` handles a size change by presenting an empty buffer before the real frame (`pendingSizeChange` in SkiaSharp's `AngleSwapChainPanel`), and that blank can reach the screen. The fix needs a way around that swap: our own ANGLE panel, or a SkiaSharp change.
@@ -169,7 +170,7 @@ Multi-target the one `SkiaUi.Maui` package (`net10.0-*` plus `net11.0-*`) so app
 
 Device runs that are still open. How to run them: [Testing.md](Testing.md#device-acceptance-checklists-still-open).
 
-- **Text input:** dictation, Google / iOS / third-party password managers on devices; drawn popups over a focused field. (CJK and Korean composition, Android autofill on devices, Windows runs, VoiceOver text navigation on a device and the Windows touch keyboard: verified, reported 29 October 2026.)
+- **Text input:** dictation, Google / iOS / third-party password managers on devices; drawn popups over a focused field. Password reveal (1.9): checked 9 November 2026 on the Galaxy S9 (Android 10, Samsung Keyboard, Samsung Pass) and the iPhone 8 (iOS 16.7) by the device tests' password reveal check, and on the S9 by hand on the samples' sign-in form (see [TextInput.md](TextInput.md#text-fields-d3)); still open: Google and third-party autofill services and iOS Passwords on a revealed field, TalkBack and VoiceOver themselves speaking it, Windows' masked box and Narrator. (CJK and Korean composition, Android autofill on devices, Windows runs, VoiceOver text navigation on a device and the Windows touch keyboard: verified, reported 29 October 2026.)
 - **Accessibility:** TalkBack, VoiceOver (iOS) and Narrator on devices; keyboards on Android and Windows; an Appium run with `ExposeAutomationIds`.
 - **Hosted controls:** the manual checklist (soft keyboard, IME, WebView nesting) on devices and Windows.
 - **Controls:** feel and frame time on devices for the collection view (fling at 10k items, memory), virtual stack, swipe view, refresh view, carousel, expander, avatar view, shimmer (a scrolling list of shimmering rows), scroll bars and overscroll; the pickers' presenters on Windows (the toolkit's anchored list was checked on 29 October 2026: frame, keyboard, dismissal), in landscape, on rotation and window resize, with screen readers; tooltips on Windows and iPad.

@@ -48,7 +48,8 @@ public class SkUiLayout : SkUiView, ILayout, IBindableLayout
 
     private Thickness _padding;
     private ISkUiView[]? _paintOrder;
-    private ISkUiView[] PaintOrder => _paintOrder ??= Children.OrderBy(child => child.ZIndex).ToArray();
+    /// <summary>Children in paint order (by <c>ZIndex</c>, then insertion order).</summary>
+    private protected ISkUiView[] PaintOrder => _paintOrder ??= Children.OrderBy(child => child.ZIndex).ToArray();
 
     /// <summary>Bindable space inside the layout.</summary>
     public static readonly BindableProperty PaddingProperty = BindableProperty.Create(

@@ -460,6 +460,10 @@ public abstract class SkUiCorePickerBase : SkUiCoreNode, ISkUiFontElement, ISkUi
     internal SkUiPopupRequest? PopupRequest => Model.Request;
 
     /// <inheritdoc />
+    /// <remarks>The text is laid out after the leading view's size, in the picker's own picture.</remarks>
+    private protected override bool PaintsFromChildLayout => true;
+
+    /// <inheritdoc />
     protected override Size MeasureContent(double widthConstraint, double heightConstraint)
     {
         Model.HasExplicitMinimumHeight = _minimumHeightExplicit;

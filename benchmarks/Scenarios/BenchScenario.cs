@@ -57,6 +57,7 @@ public abstract class BenchScenario
 /// Timings of one scenario iteration in milliseconds (null = not measured by this runner / scenario).
 /// <c>Record</c> = UI-thread recording of the first frame; <c>Composite</c> = compositing it (headless, offscreen);
 /// <c>FirstFrame</c> = device time from attach to the first composited frame (includes layout).
+/// <c>UpdatePictures</c> = pictures the update's frame recorded (headless).
 /// </summary>
 public sealed record BenchSample(
     string Scenario,
@@ -76,4 +77,8 @@ public sealed record BenchSample(
     long? AllocatedBytes,
     double? MotionUiFps = null,
     double? MotionAvgUiMs = null,
-    double? MotionMaxUiMs = null);
+    double? MotionMaxUiMs = null)
+{
+    /// <summary>Headless: pictures recorded by <see cref="BenchScenario.Update"/>'s frame (what a change re-records).</summary>
+    public double? UpdatePictures { get; init; }
+}

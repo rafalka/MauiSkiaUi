@@ -73,6 +73,8 @@ public sealed class CarouselViewDemoPage : ComponentDemoPage
         _native.PositionChanged += (_, _) => Status();
         _native.CurrentItemChanged += (_, _) => Status();
         _skia.RemainingItemsThresholdReached += (_, _) => LoadMore();
+        SyncFrom(_skia);
+        SyncFrom(_native, native: true);
         Status();
 
         Toggle(nameof(SkUiCarouselView.Loop), true, value => { _skia.Loop = value; _native.Loop = value; }, () => _skia.Loop, () => _native.Loop);

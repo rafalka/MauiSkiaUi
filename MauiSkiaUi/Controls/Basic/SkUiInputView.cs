@@ -940,5 +940,12 @@ public abstract class SkUiInputView : SkUiView, ISkUiFontElement, ISkUiFieldChro
         SkUiTextFieldAdornments.TakesPointer(LeadingView as ISkUiRenderable, local)
         || SkUiTextFieldAdornments.TakesPointer(TrailingView as ISkUiRenderable, local);
 
+    void ISkUiTextFieldOwner.PasswordRevealEdited(bool revealed) => OnPasswordRevealEdited(revealed);
+
+    /// <summary>The user showed or hid a password's text (an entry's <c>IsPasswordRevealed</c> follows).</summary>
+    private protected virtual void OnPasswordRevealEdited(bool revealed)
+    {
+    }
+
     #endregion
 }

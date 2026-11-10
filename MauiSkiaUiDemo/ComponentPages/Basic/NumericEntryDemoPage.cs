@@ -31,7 +31,8 @@ public sealed class NumericEntryDemoPage : ComponentDemoPage
         native.TextChanged += (_, args) => Feedback($"Value {Show(skia.Value)}", $"Text \"{args.NewTextValue}\"");
         Number(nameof(SkUiNumericEntry.Minimum), -100, 0, -100, value => skia.Minimum = value, () => skia.Minimum, whole: true);
         Number(nameof(SkUiNumericEntry.Maximum), 0, 100, 100, value => skia.Maximum = value, () => skia.Maximum, whole: true);
-        Number(nameof(SkUiNumericEntry.Value), -100, 100, 25, value => skia.Value = value, () => skia.Value ?? 0, whole: true);
+        Number(nameof(SkUiNumericEntry.Value), -100, 100, 25, value => skia.Value = value, () => skia.Value ?? 0, whole: true,
+            follow: () => skia.Value ?? double.NaN);
         Choice(nameof(SkUiNumericEntry.Increment), Increments, 1, value => skia.Increment = value, () => skia.Increment);
         Choice(nameof(SkUiNumericEntry.ButtonPlacement), Enum.GetValues<SkUiStepButtonPlacement>(), SkUiStepButtonPlacement.End,
             value => skia.ButtonPlacement = value, () => skia.ButtonPlacement);

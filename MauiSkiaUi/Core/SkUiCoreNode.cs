@@ -23,6 +23,10 @@ public partial class SkUiCoreNode : ISkUiCoreNode, INotifyPropertyChanged, ISkUi
     private double _translationY;
     private double _rotation;
     private double _scale = 1;
+    private double _scaleX = 1;
+    private double _scaleY = 1;
+    private double _anchorX = 0.5;
+    private double _anchorY = 0.5;
     private bool _clipToBounds = true;
     private FlowDirection _flowDirection = FlowDirection.MatchParent;
     private SkUiRenderDirty _renderPending;
@@ -143,11 +147,23 @@ public partial class SkUiCoreNode : ISkUiCoreNode, INotifyPropertyChanged, ISkUi
     /// <summary>Render-time vertical translation in DIPs (no layout).</summary>
     public double TranslationY { get => _translationY; set => SetTranslationY(value); }
 
-    /// <summary>Render-time rotation in degrees about the center.</summary>
+    /// <summary>Render-time rotation in degrees about the anchor (<see cref="AnchorX"/>, <see cref="AnchorY"/>; the center by default).</summary>
     public double Rotation { get => _rotation; set => SetRotation(value); }
 
-    /// <summary>Render-time uniform scale about the center.</summary>
+    /// <summary>Render-time scale of both axes about the anchor; multiplies <see cref="ScaleX"/> and <see cref="ScaleY"/>, as in MAUI.</summary>
     public double Scale { get => _scale; set => SetScale(value); }
+
+    /// <summary>Render-time horizontal scale about the anchor, applied with <see cref="Scale"/> (default 1).</summary>
+    public double ScaleX { get => _scaleX; set => SetScaleX(value); }
+
+    /// <summary>Render-time vertical scale about the anchor, applied with <see cref="Scale"/> (default 1).</summary>
+    public double ScaleY { get => _scaleY; set => SetScaleY(value); }
+
+    /// <summary>The fixed point of scale and rotation across the node's width: 0 its left edge, 1 its right edge (default 0.5).</summary>
+    public double AnchorX { get => _anchorX; set => SetAnchorX(value); }
+
+    /// <summary>The fixed point of scale and rotation down the node's height: 0 its top edge, 1 its bottom edge (default 0.5).</summary>
+    public double AnchorY { get => _anchorY; set => SetAnchorY(value); }
 
     /// <summary>
     /// Clips own content and children to the arranged rectangle. Defaults to <c>true</c> for leaves and
@@ -193,13 +209,21 @@ public partial class SkUiCoreNode : ISkUiCoreNode, INotifyPropertyChanged, ISkUi
         }
     }
 
+    /// <summary>
+    /// Adds every attached child, drawn or not, for the cascades that must reach them all (the effective enabled state and flow
+    /// direction): by default the drawn ones (<see cref="AddRenderChildren"/>). A container that keeps children attached but
+    /// undrawn (a tile layout's children past its row limit, its overflow tile while everything fits) adds them too, or they would
+    /// come back drawn with a stale state.
+    /// </summary>
+    internal virtual void AddAttachedChildren(List<ISkUiRenderable> children) => AddRenderChildren(children);
+
     /// <summary>Re-lays out this subtree after its effective direction changed (children that inherit follow).</summary>
     internal void NotifyFlowDirectionChanged()
     {
         InvalidateMeasure();
         OnEffectiveFlowDirectionChanged();
         var children = new List<ISkUiRenderable>();
-        AddRenderChildren(children);
+        AddAttachedChildren(children);
         foreach (var child in children)
             if (child is SkUiCoreNode { _flowDirection: FlowDirection.MatchParent } core)
                 core.NotifyFlowDirectionChanged();
@@ -244,6 +268,34 @@ public partial class SkUiCoreNode : ISkUiCoreNode, INotifyPropertyChanged, ISkUi
         return this;
     }
 
+    /// <summary>Sets <see cref="ScaleX"/>.</summary>
+    public SkUiCoreNode SetScaleX(double value)
+    {
+        if (SetProperty(ref _scaleX, value, nameof(ScaleX))) InvalidateRender(SkUiRenderDirty.Props);
+        return this;
+    }
+
+    /// <summary>Sets <see cref="ScaleY"/>.</summary>
+    public SkUiCoreNode SetScaleY(double value)
+    {
+        if (SetProperty(ref _scaleY, value, nameof(ScaleY))) InvalidateRender(SkUiRenderDirty.Props);
+        return this;
+    }
+
+    /// <summary>Sets <see cref="AnchorX"/>.</summary>
+    public SkUiCoreNode SetAnchorX(double value)
+    {
+        if (SetProperty(ref _anchorX, value, nameof(AnchorX))) InvalidateRender(SkUiRenderDirty.Props);
+        return this;
+    }
+
+    /// <summary>Sets <see cref="AnchorY"/>.</summary>
+    public SkUiCoreNode SetAnchorY(double value)
+    {
+        if (SetProperty(ref _anchorY, value, nameof(AnchorY))) InvalidateRender(SkUiRenderDirty.Props);
+        return this;
+    }
+
     /// <summary>Sets <see cref="ClipToBounds"/>.</summary>
     public SkUiCoreNode SetClipToBounds(bool value)
     {
@@ -256,14 +308,15 @@ public partial class SkUiCoreNode : ISkUiCoreNode, INotifyPropertyChanged, ISkUi
 
     private const string IsClippedToBoundsName = "IsClippedToBounds";
 
-    // Core nodes scale uniformly: ScaleX / ScaleY read and write the one scale.
     double ISkUiAnimationTarget.GetAnimatable(SkUiAnimatableProperty property) => property switch
     {
         SkUiAnimatableProperty.Opacity => _opacity,
         SkUiAnimatableProperty.TranslationX => _translationX,
         SkUiAnimatableProperty.TranslationY => _translationY,
         SkUiAnimatableProperty.Rotation => _rotation,
-        SkUiAnimatableProperty.Scale or SkUiAnimatableProperty.ScaleX or SkUiAnimatableProperty.ScaleY => _scale,
+        SkUiAnimatableProperty.Scale => _scale,
+        SkUiAnimatableProperty.ScaleX => _scaleX,
+        SkUiAnimatableProperty.ScaleY => _scaleY,
         _ => throw new ArgumentOutOfRangeException(nameof(property))
     };
 
@@ -275,29 +328,34 @@ public partial class SkUiCoreNode : ISkUiCoreNode, INotifyPropertyChanged, ISkUi
             case SkUiAnimatableProperty.TranslationX: SetTranslationX(value); break;
             case SkUiAnimatableProperty.TranslationY: SetTranslationY(value); break;
             case SkUiAnimatableProperty.Rotation: SetRotation(value); break;
-            case SkUiAnimatableProperty.Scale or SkUiAnimatableProperty.ScaleX or SkUiAnimatableProperty.ScaleY: SetScale(value); break;
+            case SkUiAnimatableProperty.Scale: SetScale(value); break;
+            case SkUiAnimatableProperty.ScaleX: SetScaleX(value); break;
+            case SkUiAnimatableProperty.ScaleY: SetScaleY(value); break;
             default: throw new ArgumentOutOfRangeException(nameof(property));
         }
     }
 
     /// <summary>
-    /// Animates <see cref="Opacity"/>, translation, <see cref="Rotation"/> or <see cref="Scale"/> on the render thread;
-    /// the property is updated to the final (or last shown, if cancelled) value when it ends.
+    /// Animates <see cref="Opacity"/>, translation, <see cref="Rotation"/>, <see cref="Scale"/>, <see cref="ScaleX"/> or
+    /// <see cref="ScaleY"/> on the render thread; the property is updated to the final (or last shown, if cancelled) value
+    /// when it ends.
     /// </summary>
     public Task<bool> AnimateAsync(SkUiAnimatableProperty property, double to, uint length = 250, Easing? easing = null)
     {
         if (!double.IsFinite(to)) throw new ArgumentOutOfRangeException(nameof(to));
-        SkUiRenderProperty[] properties = property switch
+        // The render props hold the product of Scale and ScaleX / ScaleY, as SkUiView's do.
+        var (properties, targets) = property switch
         {
-            SkUiAnimatableProperty.Opacity => [SkUiRenderProperty.Opacity],
-            SkUiAnimatableProperty.TranslationX => [SkUiRenderProperty.TranslationX],
-            SkUiAnimatableProperty.TranslationY => [SkUiRenderProperty.TranslationY],
-            SkUiAnimatableProperty.Rotation => [SkUiRenderProperty.Rotation],
-            SkUiAnimatableProperty.Scale => [SkUiRenderProperty.ScaleX, SkUiRenderProperty.ScaleY],
-            _ => throw new ArgumentOutOfRangeException(nameof(property), "Core nodes support uniform Scale only.")
+            SkUiAnimatableProperty.Opacity => (new[] { SkUiRenderProperty.Opacity }, new[] { (float)Math.Clamp(to, 0, 1) }),
+            SkUiAnimatableProperty.TranslationX => ([SkUiRenderProperty.TranslationX], [(float)to]),
+            SkUiAnimatableProperty.TranslationY => ([SkUiRenderProperty.TranslationY], [(float)to]),
+            SkUiAnimatableProperty.Rotation => ([SkUiRenderProperty.Rotation], [(float)to]),
+            SkUiAnimatableProperty.ScaleX => ([SkUiRenderProperty.ScaleX], [(float)(_scale * to)]),
+            SkUiAnimatableProperty.ScaleY => ([SkUiRenderProperty.ScaleY], [(float)(_scale * to)]),
+            SkUiAnimatableProperty.Scale => (new[] { SkUiRenderProperty.ScaleX, SkUiRenderProperty.ScaleY },
+                new[] { (float)(to * _scaleX), (float)(to * _scaleY) }),
+            _ => throw new ArgumentOutOfRangeException(nameof(property))
         };
-        var target = (float)(property == SkUiAnimatableProperty.Opacity ? Math.Clamp(to, 0, 1) : to);
-        var targets = properties.Length == 2 ? new[] { target, target } : new[] { target };
         var completion = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
         var tween = new SkUiRenderTween(properties, targets, TimeSpan.FromMilliseconds(Math.Max(1, length)), easing)
         {
@@ -314,7 +372,13 @@ public partial class SkUiCoreNode : ISkUiCoreNode, INotifyPropertyChanged, ISkUi
                         case SkUiAnimatableProperty.TranslationX: SetTranslationX(values[0]); break;
                         case SkUiAnimatableProperty.TranslationY: SetTranslationY(values[0]); break;
                         case SkUiAnimatableProperty.Rotation: SetRotation(values[0]); break;
-                        case SkUiAnimatableProperty.Scale: SetScale(values[0]); break;
+                        // The drawn factors are products (Scale × ScaleX): a completed run ends at its target; a cancelled one
+                        // divides by the other factor, unless it is 0 (sentinel: nothing to divide by), where the value stays.
+                        case SkUiAnimatableProperty.ScaleX: SetScaleX(completed ? to : _scale == 0 ? _scaleX : values[0] / _scale); break;
+                        case SkUiAnimatableProperty.ScaleY: SetScaleY(completed ? to : _scale == 0 ? _scaleY : values[0] / _scale); break;
+                        case SkUiAnimatableProperty.Scale:
+                            SetScale(completed ? to : _scaleX != 0 ? values[0] / _scaleX : _scaleY != 0 ? values[1] / _scaleY : _scale);
+                            break;
                     }
                 }
                 completion.TrySetResult(completed);
@@ -433,6 +497,25 @@ public partial class SkUiCoreNode : ISkUiCoreNode, INotifyPropertyChanged, ISkUi
         {
             shown.OnAnimationRootChanged(subtreeDetached);
             shown.PropagateAnimationRootChanged(subtreeDetached);
+        }
+        else if (this is SkUiCoreStateContainer { ShownChild: { } state })
+        {
+            state.OnAnimationRootChanged(subtreeDetached);
+            state.PropagateAnimationRootChanged(subtreeDetached);
+        }
+        else if (this is SkUiCoreExpander expander)
+        {
+            var (headerPart, contentPart) = expander.Parts;
+            headerPart.OnAnimationRootChanged(subtreeDetached);
+            headerPart.PropagateAnimationRootChanged(subtreeDetached);
+            contentPart.OnAnimationRootChanged(subtreeDetached);
+            contentPart.PropagateAnimationRootChanged(subtreeDetached);
+        }
+        // A tile layout's overflow tile is attached outside its Children (the panel walk above).
+        if (this is SkUiCoreTileLayout { OverflowHost: { } overflow })
+        {
+            overflow.OnAnimationRootChanged(subtreeDetached);
+            overflow.PropagateAnimationRootChanged(subtreeDetached);
         }
     }
 
@@ -617,6 +700,29 @@ public partial class SkUiCoreNode : ISkUiCoreNode, INotifyPropertyChanged, ISkUi
         InvalidatePaint();
     }
 
+    /// <summary>
+    /// Measures and arranges this node again without re-recording its own content: a child's measure changed. The node's
+    /// picture (background, border, chrome) depends on its frame, which re-records it when arranged at another size, and
+    /// moved children are composite-time; so one label's new text re-records the label alone, not every container up to
+    /// the host. Containers that draw from their children's layout opt out with <see cref="PaintsFromChildLayout"/>.
+    /// </summary>
+    internal void InvalidateMeasureFromChild()
+    {
+        _measureDirty = true;
+        _arrangeDirty = true;
+        _layoutPending = true;
+        if (PaintsFromChildLayout)
+            _paintPending = true;
+        if (_updateDepth == 0)
+            FlushInvalidation();
+    }
+
+    /// <summary>
+    /// Whether this node's own picture depends on its children's layout (a table's track backgrounds and separators), so a
+    /// child's measure change re-records it as well (<see cref="InvalidateMeasureFromChild"/>). Default <see langword="false"/>.
+    /// </summary>
+    private protected virtual bool PaintsFromChildLayout => false;
+
     /// <inheritdoc />
     public void InvalidatePaint()
     {
@@ -643,7 +749,7 @@ public partial class SkUiCoreNode : ISkUiCoreNode, INotifyPropertyChanged, ISkUi
         if (layout)
         {
             if (_parent is SkUiCoreNode coreParent)
-                coreParent.InvalidateMeasure();
+                coreParent.InvalidateMeasureFromChild();
             else
                 MeasureInvalidated?.Invoke(this, EventArgs.Empty);
         }
@@ -824,7 +930,10 @@ public partial class SkUiCoreNode : ISkUiCoreNode, INotifyPropertyChanged, ISkUi
         props.TranslationX = (float)_translationX;
         props.TranslationY = (float)_translationY;
         props.Rotation = (float)_rotation;
-        props.ScaleX = props.ScaleY = (float)_scale;
+        props.ScaleX = (float)(_scale * _scaleX);
+        props.ScaleY = (float)(_scale * _scaleY);
+        props.AnchorX = (float)_anchorX;
+        props.AnchorY = (float)_anchorY;
         props.Opacity = (float)_opacity;
         props.PressOpacity = PressOpacity;
         props.IsVisible = _isVisible;
@@ -984,18 +1093,19 @@ public partial class SkUiCoreNode : ISkUiCoreNode, INotifyPropertyChanged, ISkUi
             PaintInvalidated?.Invoke(this, EventArgs.Empty);
     }
 
-    /// <summary>Render transform (translation, rotation, scale about the center) excluding the frame offset.</summary>
+    /// <summary>Render transform (translation, rotation, scale about the anchor) excluding the frame offset.</summary>
     internal SKMatrix RenderMatrix
     {
         get
         {
-            if (_translationX == 0 && _translationY == 0 && _rotation == 0 && _scale == 1)
+            // Sentinels: the identity transform needs no matrix.
+            if (_translationX == 0 && _translationY == 0 && _rotation == 0 && _scale == 1 && _scaleX == 1 && _scaleY == 1)
                 return SKMatrix.Identity;
-            var anchorX = (float)(_frame.Width / 2);
-            var anchorY = (float)(_frame.Height / 2);
+            var anchorX = (float)(_frame.Width * _anchorX);
+            var anchorY = (float)(_frame.Height * _anchorY);
             return SKMatrix.CreateTranslation((float)_translationX + anchorX, (float)_translationY + anchorY)
                 .PreConcat(SKMatrix.CreateRotationDegrees((float)_rotation))
-                .PreConcat(SKMatrix.CreateScale((float)_scale, (float)_scale))
+                .PreConcat(SKMatrix.CreateScale((float)(_scale * _scaleX), (float)(_scale * _scaleY)))
                 .PreConcat(SKMatrix.CreateTranslation(-anchorX, -anchorY));
         }
     }
@@ -1533,7 +1643,17 @@ public partial class SkUiCoreNode : ISkUiCoreNode, INotifyPropertyChanged, ISkUi
             OnSkeletonChanged();
         OnPropertyChanged(property.Name);
         if (property.AffectsParentMeasure)
-            _parent?.InvalidateMeasure();
+        {
+            // The parent is laid out again without re-recording; this node moves or resizes (composite-time, or re-recorded when
+            // arranged at another size), and marking it requests the frame the layout runs in: nothing else here re-records.
+            if (_parent is SkUiCoreNode coreParent)
+            {
+                coreParent.InvalidateMeasureFromChild();
+                InvalidateRender(SkUiRenderDirty.Props);
+            }
+            else
+                _parent?.InvalidateMeasure();
+        }
     }
 
     private void OnSkeletonValueChanged()

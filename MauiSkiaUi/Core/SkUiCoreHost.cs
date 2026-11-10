@@ -66,7 +66,8 @@ public class SkUiCoreHost : SkUiView, IVisualTreeElement
             _content?.BindAnimationClock(AnimationClock);
     }
 
-    private void OnContentMeasureInvalidated(object? sender, EventArgs e) => InvalidateMeasureOverride();
+    // The host draws nothing from its content's layout: laid out again without re-recording itself.
+    private void OnContentMeasureInvalidated(object? sender, EventArgs e) => InvalidateMeasureFromChild();
 
     /// <inheritdoc />
     internal override void OnEffectiveFlowDirectionChanged() => _content?.NotifyFlowDirectionChanged();

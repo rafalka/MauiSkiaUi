@@ -2,7 +2,7 @@
 
 **Goal:** the Core layer stops re-recording ancestors on a measure change and shaped borders stop costing seconds on the first frame; galleries of equal tiles lay out by themselves; the Core twins of the state container and the expander close the Core layer's container gaps; drawn password fields can show their text.
 
-**Scope:** moved from the 1.6 plan, whose [viewport insets](ImplementationPlan-1.6.md) ship alone; 1.7 brings [vector icons](Roadmap.md#170-vector-icons-planned) and 1.8 [Markdown](ImplementationPlan-1.8.md). Nothing here is started.
+**Scope:** moved from the 1.6 plan, whose [viewport insets](ImplementationPlan-1.6.md) ship alone; 1.7 brought [vector icons](Roadmap.md#170-vector-icons-shipped) and 1.8 [Markdown](ImplementationPlan-1.8.md). Started on `1.9-implementation` (9 November 2026): R1, R2, R3, T1–T3, S1–S3 and E1–E3 done, with two fixes taken in from the issue tracker (#85, #86; below) (E1's device checks in the verification backlog).
 
 **Baseline:** .NET MAUI 10.0.120 (or the latest 10.0.x when 1.9 ships), SkiaSharp 4.154.0, branch `1.9-implementation` from `devel` after 1.8.0. .NET 11 / MAUI 11 waits until it is released ([roadmap](Roadmap.md#net-11--maui-11-support)). What has shipped is in the [changelog](../../CHANGELOG.md); the rest of the 1.x backlog stays in the [roadmap](Roadmap.md#backlog-1x).
 
@@ -14,14 +14,14 @@
 
 ## Phase R — Performance backed by measurements
 
-- **R1 Device results measured again** (needs the Galaxy S9 and the iPhone 8). Size: S, device time.
+- **R1 Device results measured again** (needs the Galaxy S9 and the iPhone 8). Size: S, device time. **Done** (9 November 2026, commit `525ba6e`): [Performance.md](../Performance.md) updated. R3 shows on the devices: 400 shaped cards reach their first frame in 0.6 s instead of 1.9 s (S9, SkUi\*) and 0.17 s instead of 1.0 s (iPhone 8). Core's first frame *is* faster: the stress page's first-frame column is a wall-clock window that ends one dispatcher turn after the scroll view is sized, not at the first composited frame, and put Core behind SkUi\* on the S9 (186 against 147 ms); the bench app, which waits for that frame, gives 155 against 200 ms on the S9 (`core-buttons`, `skui-buttons`; new `core-stress-buttons` for the page's exact buttons: 158 against 194 ms). No frame trace was needed.
   - The stress (1,000 buttons) and effects (400 cards) pages in Release on both devices, on the current toolchain; [Performance.md](../Performance.md) updated with the commit and toolchain. `scripts/bench.sh` `core-buttons` and `skui-buttons` on the S9 for the first-frame question below.
   - Done first: R2 and R3 are judged against these numbers. If Core's first frame is still no faster than SkUi\*'s although Core builds three times faster, find where it goes (frame trace) before R2.
-- **R2 Core measure invalidation without re-recording ancestors** (done for SkUi\* views). Size: M.
+- **R2 Core measure invalidation without re-recording ancestors** (done for SkUi\* views). Size: M. **Done:** `SkUiCoreNode.InvalidateMeasureFromChild`, `PaintsFromChildLayout` (the table), the host; `CoreMeasureInvalidationTests`, bench `core-deep-update`. Done before R1, since the devices were not at hand; judged headless.
   - Today `SkUiCoreNode.InvalidateMeasure` calls the parent's `InvalidateMeasure`, which invalidates its paint, so one label's new text re-records every container up to the host. A container's own picture (background, border, chrome) depends on its frame, not on its children's layout: a child's measure change marks the ancestors' layout dirty only, and a container re-records when its arranged size changes or it opts in (containers that paint from their children's layout, such as the Core table's track backgrounds and grid splitters).
   - Bench: a new scenario changing one label's text in a deep Core tree (counting recorded pictures), next to `skel-tax-on` / `skel-tax-off` and `core-labels-update`; set through `TrySetOption` so `--baseline v1.8.0` still builds. Tests: recorded pictures per change; containers that paint from children still update.
   - Needed by S2: the Core expander relays out every frame of its animation.
-- **R3 Shaped borders' first frame.** Size: S–M.
+- **R3 Shaped borders' first frame.** Size: S–M. **Done:** the time was the content clip's path operation (about 1.5 ms per card on a desktop CPU; the outline about 30 µs). `SkUiStrokedOutlines` shares it, and the shadow silhouette's, between borders whose outlines have the same points (keyed by the points, so cards with their own shape objects share; it owns the shared paths, each border commits a copy, so the compositor's ownership is unchanged). Bench `skui-shaped-cards` / `core-shaped-cards` (with `-plain-` baselines): first-frame recording 588 → 25 ms (SkUi\*) and 570 → 8 ms (Core) headless; on the devices (R1), first frame 1,886 → 635 ms (S9, SkUi\*), 1,454 → 232 ms (S9, Core), 999 → 167 ms (iPhone 8, SkUi\*). A content clip equal to the inset outline was not needed. Leak scenario `ShapedBordersReshaped`.
   - 400 ticket-shaped cards take 1–2 s to their first frame (iPhone 8 and S9) because each card computes its outline and its content clip (a path operation) when it is first laid out. Borders of one shape and size share them (a small cache keyed by the shape's geometry, size and stroke), and a content clip that equals the inset outline skips the path operation.
   - Ownership: shared outlines are disposed by the cache, not by the compositor ([RenderingPipeline.md](RenderingPipeline.md)); leak scenario for borders that change shape.
   - Measured with R1's effects page; headless: a bench scenario of 400 shaped cards (first frame).
@@ -29,34 +29,40 @@
 
 ## Phase T — Tile layout
 
-- **T1 `SkUiTileLayout` + `SkUiCoreTileLayout`** ([D1](#decisions)). Size: M.
+- **T1 `SkUiTileLayout` + `SkUiCoreTileLayout`** ([D1](#decisions)). Size: M. **Done** (`SkUiTileEngine`; `TileLayoutTests`). The column count is the fewest columns whose tiles are at most `TileSize`; the layout's desired width is what its tiles take.
   - Equal tiles for galleries and attachment strips: `TileSize` (the largest tile), `MinimumTileSize`, `TileAspectRatio` (1 by default), `ColumnSpacing`, `RowSpacing`, `Padding`. The column count is the most tiles of at most `TileSize` that fit the width; tiles stretch to fill the row, never past `TileSize` (the width left over stays at the row's end), and drop a column when they would be smaller than `MinimumTileSize`.
   - One engine for both layers (as `SkUiWrapEngine`); children arranged in the tiles in order; the column count is measured per width and cached with the measure.
   - Tests: column counts and sizes across widths, spacing, padding, RTL, aspect ratio, hidden children; Core / SkUi\* frames equal.
-- **T2 Overflow tile.** Size: S–M.
+- **T2 Overflow tile.** Size: S–M. **Done.** `MaximumRows` is -1 for no limit. Core's `OverflowTemplate` is a `Func<SkUiTileOverflow, SkUiCoreNode>` called once (Core nodes are not bindable; `SkUiTileOverflow` raises `PropertyChanged`). Children past the limit leave the render list and are reset (`SkUiTileRenderSet`), so they are neither drawn, hit nor read by screen readers. Leak scenario `TilesOverflowed`.
   - `MaximumRows` (default unlimited): when the children need more rows, the last visible tile shows `OverflowTemplate` (bound to an `SkUiTileOverflow` with the hidden count, so a "+5" over the last image), and the rest are not measured or drawn. `OverflowTapped` / `OverflowCommand`.
   - Tests: counts, the template's binding, children added and removed.
-- **T3 Docs and demo.** Size: S. A new `docs/controls/SkUiTileLayout.md` page, the controls index, a gallery page (photos with an overflow tile, a resizable preview area); [Migration.md](../Migration.md): grids rebuilt in `SizeChanged` to fit equal tiles become a tile layout. Virtualized galleries stay on the collection view's `GridItemsLayout`.
+- **T3 Docs and demo.** Size: S. **Done** (`TileLayoutDemoPage`, `CoreTileLayoutDemoPage`; the migration guide's [equal tiles](../Migration.md#equal-tiles) and the migration skill). A new `docs/controls/SkUiTileLayout.md` page, the controls index, a gallery page (photos with an overflow tile, a resizable preview area); [Migration.md](../Migration.md): grids rebuilt in `SizeChanged` to fit equal tiles become a tile layout. Virtualized galleries stay on the collection view's `GridItemsLayout`.
 
 ## Phase S — Core containers
 
-- **S1 Core state container.** Size: M.
+- **S1 Core state container.** Size: M. **Done** (`SkUiCoreStateContainer`, `SkUiCoreStates`; `CoreStateContainerTests`, leak scenario `CoreStatesSwitched`). `States` is a keyed collection (`Add(key, node)`, `Add(key, factory)`, the indexer, `Remove`) with collection initializers; a factory's node is kept once built. `ShownState` reports the state on screen. A shown state removed from `States` shows nothing until its key is back (as a state view that left `StateViews`).
   - Core nodes are not bindable, so a node with keyed states instead of attached properties: `SkUiCoreStateContainer` with `States` (key → node or factory), `CurrentState` (`string?`, `null` shows the children), `CanStateChange`, and the SkUi\* container's before / after animations on the render thread (the shared `SkUiStateTransition`). Shimmer and skeleton states work as on the SkUi\* layer.
   - Tests and a leak scenario as `StatesSwitched`, on Core.
-- **S2 Core expander** (after R2). Size: M.
+- **S2 Core expander** (after R2). Size: M. **Done** (`SkUiCoreExpander`; `CoreExpanderTests`, leak scenario `CoreExpanderToggled`; Core `ScaleX` / `ScaleY` / `AnchorX` / `AnchorY` in `CoreLayerTests`). An animation frame records at most the resized expander: the stack and border around it are not recorded again. No `ContentTemplate` on Core (content is built in code).
   - First `ScaleX` / `ScaleY` and `AnchorX` / `AnchorY` on Core nodes ([D2](#decisions)): composite-time render props, as SkUi\* views have them.
   - `SkUiCoreExpander`: `Header`, `Content`, `IsExpanded`, `Direction`, `Command`, `ExpandedChanged`, `LazyContentExpansion`, `AnimationLength` / `AnimationEasing`, on the SkUi\* expander's engine (content scaled from the header's side while the height follows on the UI clock). The header is a button for screen readers and the keyboard.
   - Tests: as `ExpanderTests` on Core; recorded pictures per animation frame (R2's win); leak scenario.
-- **S3 Docs and demo.** Size: S. [SkUiStateContainer.md](../controls/SkUiStateContainer.md), [SkUiExpander.md](../controls/SkUiExpander.md), [SkUiCore.md](../controls/SkUiCore.md); gallery rows on the Core layer; [Migration.md](../Migration.md): Core code that animated one scale axis.
+- **S3 Docs and demo.** Size: S. **Done** (`CoreStateContainerDemoPage`, `CoreExpanderDemoPage`; Core sections in the control pages; the breaking change in the migration guide's animations). [SkUiStateContainer.md](../controls/SkUiStateContainer.md), [SkUiExpander.md](../controls/SkUiExpander.md), [SkUiCore.md](../controls/SkUiCore.md); gallery rows on the Core layer; [Migration.md](../Migration.md): Core code that animated one scale axis.
 
 ## Phase E — Password reveal
 
-- **E1 Show / hide in drawn password fields** ([D3](#decisions)). Size: M.
+- **E1 Show / hide in drawn password fields** ([D3](#decisions)). Size: M. **Done** (headless: `PasswordRevealTests`; on devices, the device tests' `PasswordRevealCheck` passed on the Galaxy S9 and the iPhone 8 and the S9 was checked by hand on 9 November 2026; what is still open is in the [verification backlog](Roadmap.md#verification-backlog)). The model's `Masks` (a password, not revealed) drives the drawing and the semantics, `IsPassword` the platform's options and the edit actions; the button sits between the clear button and the trailing view, and a tap on it does not focus the field.
   - On `SkUiEntry` and `SkUiCoreEntry`: `IsPasswordRevealed` (two-way) and `ShowsPasswordRevealButton` (`bool`, default `false`). The button is a trailing icon drawn by the look (new virtual members for its glyphs and size), a toggle for screen readers ("Show password" / "Hide password" in `SkUiStrings`).
   - The field stays a password field for the platform while revealed: Android keeps the password input type (only the drawing stops masking), iOS keeps `secureTextEntry`, Windows' proxy box keeps its mask; so the keyboard, autofill and password managers behave as before, and copy stays disabled. Screen readers read the text only while revealed.
   - Hidden again when the field loses focus (`HidesPasswordOnUnfocus`, default `true`).
   - Tests: drawing masked and revealed, the caret and selection staying put, the button's hit and semantics; device checks (autofill and password managers on a revealed field) in the [verification backlog](Roadmap.md#verification-backlog).
-- **E2 Docs.** [SkUiEntry.md](../controls/SkUiEntry.md), [TextInput.md](TextInput.md); the demo's sign-in form.
+- **E2 Docs.** **Done.** [SkUiEntry.md](../controls/SkUiEntry.md), [TextInput.md](TextInput.md); the demo's sign-in form.
+- **E3 Reveal mode and explore by touch.** Size: S. **Done.** `PasswordRevealMode` (`Toggle`, `WhilePressed`: the text shows only while the button is held; screen readers still toggle); a press, long press or right click on the reveal button is the button's (no word selection, menu or focus). VoiceOver's explore by touch on iOS and Mac Catalyst picks the front-most, innermost drawn element (`_accessibilityHitTest:withEvent:` on the overlay container and the elements), so the reveal and clear buttons inside a field are found by touch. The demo's property editors became two-way (the reveal button toggles the `IsPasswordRevealed` editor). Tests: `PasswordRevealTests`, `ComponentDemoTests`.
+
+## Taken in from the issue tracker
+
+- **#85 A drawn root sized by its content grows with it again.** **Done.** A surface root arranged before its pending relayout is measured with the constraint the native layout last gave it (on the axes where that constraint was unbounded or the arranged slot still holds what the root last asked for) and asks the native layout again when its size changes. Tests: `PipelineTests`; checked on the Android emulator.
+- **#86 Reorder from a drag handle.** **Done.** `SkUiCollectionView.IsReorderHandle` (attached): a press on a marked view lifts its item at once, with any pointer; the rest of the item keeps its taps, long presses and scrolling; a hidden handle lifts nothing. Tests: `CollectionViewReorderTests`; the reordering demo page.
 
 ## Docs, migration and demo
 
@@ -72,15 +78,15 @@ Done with each step: the control pages named in the steps; [Migration.md](../Mig
 | 4 | T1, T2, T3 | M, S–M, S | Independent track |
 | 5 | S1 | M | Independent; the SkUi\* container's transitions |
 | 6 | S2 | M | Needs R2 and the new Core transforms |
-| 7 | E1, E2 | M | Independent; needs device time for the proxies |
+| 7 | E1, E2, E3 | M | Independent; needs device time for the proxies |
 
 T, S1 and E are independent of phase R and of each other.
 
 ## Decisions
 
-- **D1 The tile layout is a layout, not a virtualized list.** Galleries with many items use the collection view's grid; the tile layout is for a page's strip or block of tiles. **Proposed.**
-- **D2 Core `ScaleX` / `ScaleY` become independent.** Today Core nodes scale uniformly, and animating `ScaleX` or `ScaleY` on a Core node scales both. With separate scales an animation of `ScaleX` scales X only, as on SkUi\* views and in MAUI; `Scale` still sets both. A behavior change for Core code that animates one axis, so it goes under `### Breaking changes` in the changelog with the fix (animate `Scale`). **Decided:** independent.
-- **D3 Reveal names.** `IsPasswordRevealed` / `ShowsPasswordRevealButton` / `HidesPasswordOnUnfocus`: MAUI has no API to follow. **Proposed.**
+- **D1 The tile layout is a layout, not a virtualized list.** Galleries with many items use the collection view's grid; the tile layout is for a page's strip or block of tiles. **Decided** (built so in T1).
+- **D2 Core `ScaleX` / `ScaleY` become independent.** Today Core nodes scale uniformly, and animating `ScaleX` or `ScaleY` on a Core node scales both. With separate scales an animation of `ScaleX` scales X only, as on SkUi\* views and in MAUI; `Scale` still sets both. A behavior change for Core code that animates one axis, so it goes under `### Breaking changes` in the changelog with the fix (animate `Scale`). **Decided:** independent (done in S2).
+- **D3 Reveal names.** `IsPasswordRevealed` / `ShowsPasswordRevealButton` / `HidesPasswordOnUnfocus`: MAUI has no API to follow. **Decided** (built so in E1; look members `TextFieldPasswordRevealButtonWidth`, `DrawTextFieldPasswordRevealButton`, `DrawPasswordRevealGlyph`; strings `ShowPasswordText` / `HidePasswordText`).
 
 ## Acceptance
 

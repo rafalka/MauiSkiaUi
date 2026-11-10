@@ -78,11 +78,8 @@ internal sealed class SkUiBorderGeometry
             return _clip = SkUiLook.Current.CreateRoundRectPath(inner, Shrink(rounded, t / 2));
         }
         var outline = Outline(shape, radii, width, height, thickness);
-        if (t <= 0)
-            return _clip = new SKPath(outline);
-        using var paint = new SKPaint { Style = SKPaintStyle.Stroke, StrokeWidth = t, StrokeJoin = SKStrokeJoin.Round };
-        using var strokeArea = paint.GetFillPath(outline);
-        return _clip = outline.Op(strokeArea, SKPathOp.Difference) ?? new SKPath(outline);
+        // A path operation: shared by the borders with this outline (equal cards in a list).
+        return _clip = t <= 0 ? new SKPath(outline) : SkUiStrokedOutlines.Inside(outline, t);
     }
 
     /// <summary>
@@ -101,8 +98,7 @@ internal sealed class SkUiBorderGeometry
         using var paint = new SKPaint { Style = SKPaintStyle.Stroke, StrokeWidth = (float)thickness };
         if (SkUiShapePainter.GrownByStroke(outline, (float)thickness, paint.StrokeJoin, paint.StrokeMiter) is { } grown)
             return grown; // stays a rounded rectangle: blurred analytically, not rasterized
-        using var strokeArea = paint.GetFillPath(outline);
-        return outline.Op(strokeArea, SKPathOp.Union) ?? new SKPath(outline);
+        return SkUiStrokedOutlines.Grown(outline, (float)thickness);
     }
 
     private static SKPath Create(IShape? shape, CornerRadius radii, SKRect bounds)

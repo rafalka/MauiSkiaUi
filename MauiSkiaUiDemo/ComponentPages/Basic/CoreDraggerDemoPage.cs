@@ -17,6 +17,7 @@ public sealed class CoreDraggerDemoPage : ComponentDemoPage
     public CoreDraggerDemoPage()
         : base(nameof(SkUiCoreDragger), CreateHost(out var panel, out var dragger), native: null, widthRange: (240, 480, 320), heightRange: (160, 480, 260))
     {
+        SyncFrom(dragger);
         Choice(nameof(SkUiCoreDragger.DragAxis), [SkUiPanAxis.Both, SkUiPanAxis.Horizontal, SkUiPanAxis.Vertical], SkUiPanAxis.Both,
             value => dragger.DragAxis = value, () => dragger.DragAxis);
         ColorEditor(nameof(SkUiCoreDragger.GripColor), dragger.GripColor, value => dragger.GripColor = value, () => dragger.GripColor);

@@ -20,6 +20,25 @@ public class SkUiCoreEntry : SkUiCoreInputView
     /// <summary>Whether the text is masked (bullets).</summary>
     public bool IsPassword { get => Model.IsPassword; set => SetIsPassword(value); }
 
+    /// <summary>
+    /// Whether a password's text is drawn instead of bullets (the reveal button and <see cref="HidesPasswordOnUnfocus"/> change it,
+    /// raising <see cref="System.ComponentModel.INotifyPropertyChanged.PropertyChanged"/>). The field stays a password field for the
+    /// platform and copying stays off; screen readers read the text only while it shows. No effect unless <see cref="IsPassword"/>.
+    /// </summary>
+    public bool IsPasswordRevealed { get => Model.IsPasswordRevealed; set => SetIsPasswordRevealed(value); }
+
+    /// <summary>Whether a password field draws the look's reveal button at its end (default <c>false</c>).</summary>
+    public bool ShowsPasswordRevealButton { get => Model.ShowsPasswordRevealButton; set => SetShowsPasswordRevealButton(value); }
+
+    /// <summary>Whether a revealed password is masked again when the field loses focus (default <c>true</c>).</summary>
+    public bool HidesPasswordOnUnfocus { get => Model.HidesPasswordOnUnfocus; set => SetHidesPasswordOnUnfocus(value); }
+
+    /// <summary>
+    /// How the reveal button shows the text: a tap toggles it (<see cref="SkUiPasswordRevealMode.Toggle"/>, the default), or it shows
+    /// only while the button is held down (<see cref="SkUiPasswordRevealMode.WhilePressed"/>; screen readers still toggle it).
+    /// </summary>
+    public SkUiPasswordRevealMode PasswordRevealMode { get => Model.PasswordRevealMode; set => SetPasswordRevealMode(value); }
+
     /// <summary>The soft keyboard's return key.</summary>
     public ReturnType ReturnType { get => Model.ReturnType; set => SetReturnType(value); }
 
@@ -42,6 +61,39 @@ public class SkUiCoreEntry : SkUiCoreInputView
             return this;
         Model.TextChanged();
         Model.OptionsChanged();
+        return this;
+    }
+
+    /// <summary>Sets <see cref="IsPasswordRevealed"/>.</summary>
+    public SkUiCoreEntry SetIsPasswordRevealed(bool value)
+    {
+        // The model calls back (OnPasswordRevealEdited), which raises the change.
+        Model.SetPasswordRevealed(value);
+        return this;
+    }
+
+    /// <summary>Sets <see cref="ShowsPasswordRevealButton"/>.</summary>
+    public SkUiCoreEntry SetShowsPasswordRevealButton(bool value)
+    {
+        if (Model.ShowsPasswordRevealButton == value)
+            return this;
+        Model.SetShowsPasswordRevealButton(value);
+        OnPropertyChanged(nameof(ShowsPasswordRevealButton));
+        return this;
+    }
+
+    /// <summary>Sets <see cref="HidesPasswordOnUnfocus"/>.</summary>
+    public SkUiCoreEntry SetHidesPasswordOnUnfocus(bool value)
+    {
+        SetProperty(ref Model.HidesPasswordOnUnfocus, value, nameof(HidesPasswordOnUnfocus));
+        return this;
+    }
+
+    /// <summary>Sets <see cref="PasswordRevealMode"/>.</summary>
+    public SkUiCoreEntry SetPasswordRevealMode(SkUiPasswordRevealMode value)
+    {
+        ThrowIfUndefined(value);
+        SetProperty(ref Model.PasswordRevealMode, value, nameof(PasswordRevealMode));
         return this;
     }
 
@@ -186,6 +238,9 @@ public class SkUiCoreEntry : SkUiCoreInputView
 
     /// <inheritdoc cref="SkUiCoreInputView.SetCornerRadius" />
     public new SkUiCoreEntry SetCornerRadius(double? value) { base.SetCornerRadius(value); return this; }
+
+    /// <inheritdoc />
+    private protected override void OnPasswordRevealEdited(bool revealed) => OnPropertyChanged(nameof(IsPasswordRevealed));
 
     /// <inheritdoc />
     private protected override void OnReturnPressed()

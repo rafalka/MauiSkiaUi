@@ -14,7 +14,7 @@ Shared pipelines: [Architecture.md](../design/Architecture.md) · [LayoutSystem.
 | `SkUiCorePanel` / stacks / absolute / overlay / **grid** / **table** / **scroll view** | [SkUiCore.md](SkUiCore.md), [SkUiCoreGrid.md](SkUiCoreGrid.md), [SkUiCoreTable.md](SkUiCoreTable.md) | Core-only layouts; `SkUiCoreScrollView` shares the `SkUiScrollView` engine; `SkUiCoreScrollBar` is the scroll bar of both scroll views |
 | `SkUiCoreDragger` | [SkUiDragger.md](SkUiDragger.md) | A handle that reports drags for your own handling; same engine as `SkUiDragger` |
 | `SkUiCoreGridSplitter` | [SkUiGridSplitter.md](SkUiGridSplitter.md) | Resizes the rows or columns of a Core grid or table (column grips in a table header); same engine as `SkUiGridSplitter` |
-| `SkUiCoreWrapLayout` / `SkUiCoreHorizontalShrinkLayout` / `SkUiCoreVerticalShrinkLayout` / `SkUiCoreHorizontalAlignStackLayout` | [SkUiWrapLayout.md](SkUiWrapLayout.md), [SkUiShrinkLayout.md](SkUiShrinkLayout.md), [SkUiHorizontalAlignStackLayout.md](SkUiHorizontalAlignStackLayout.md) | Same engines as the SkUi* twins (no Core flex layout) |
+| `SkUiCoreWrapLayout` / `SkUiCoreTileLayout` / `SkUiCoreHorizontalShrinkLayout` / `SkUiCoreVerticalShrinkLayout` / `SkUiCoreHorizontalAlignStackLayout` | [SkUiWrapLayout.md](SkUiWrapLayout.md), [SkUiTileLayout.md](SkUiTileLayout.md), [SkUiShrinkLayout.md](SkUiShrinkLayout.md), [SkUiHorizontalAlignStackLayout.md](SkUiHorizontalAlignStackLayout.md) | Same engines as the SkUi* twins (no Core flex layout) |
 | `SkUiCoreLabel` / `Button` / toggles / `Slider` / `ProgressBar` / Image / shapes / … | [SkUiCore.md](SkUiCore.md) | Core primitives & basic controls |
 | `SkUiCoreHost` | [SkUiCore.md](SkUiCore.md) | `SkUiView` bridge for Core roots |
 | `SkUiWeakListener<T>` / `SkUiWeakEvent` | [SkUiCore.md](SkUiCore.md#listening-to-shared-sources-own-controls) | Weak listening to shared sources and weak app-wide events, for your own controls (both layers) |
@@ -70,6 +70,7 @@ Shared pipelines: [Architecture.md](../design/Architecture.md) · [LayoutSystem.
 | `SkUiAbsoluteLayout` | [SkUiAbsoluteLayout.md](SkUiAbsoluteLayout.md) | AbsoluteLayout |
 | `SkUiFlexLayout` | [SkUiFlexLayout.md](SkUiFlexLayout.md) | FlexLayout |
 | `SkUiWrapLayout` | [SkUiWrapLayout.md](SkUiWrapLayout.md) | — (chips / tags) |
+| `SkUiTileLayout` | [SkUiTileLayout.md](SkUiTileLayout.md) | — (galleries of equal tiles, an overflow tile) |
 | `SkUiHorizontalShrinkLayout` / `SkUiVerticalShrinkLayout` | [SkUiShrinkLayout.md](SkUiShrinkLayout.md) | — (stacks whose children shrink to fit) |
 | `SkUiHorizontalAlignStackLayout` | [SkUiHorizontalAlignStackLayout.md](SkUiHorizontalAlignStackLayout.md) | — (children placed by alignment: a bar's title stays centered) |
 | `SkUiStateContainer` / `SkUiStateView` (attached properties on any drawn layout) | [SkUiStateContainer.md](SkUiStateContainer.md) | Community Toolkit `StateContainer` / `StateView` |
