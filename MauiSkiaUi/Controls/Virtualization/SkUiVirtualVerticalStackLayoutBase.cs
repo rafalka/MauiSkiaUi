@@ -780,6 +780,33 @@ public abstract class SkUiVirtualVerticalStackLayoutBase : SkUiView, ISkUiScroll
     }
 
     /// <summary>
+    /// The item at <paramref name="index"/> wants another kind of view (its recycle key changed: a collection view's selected
+    /// item with a template of its own): a realized view of another key is released (recycled) and the item realized again
+    /// in its place, from the pool of its new key, and measured; what shows stays in place, as for a change of the items. An
+    /// item not realized forgets its size until it is.
+    /// </summary>
+    internal void RenewItem(int index)
+    {
+        if (index < 0 || index >= _sizes.Count)
+            throw new ArgumentOutOfRangeException(nameof(index), index, "The index is not an item of the layout.");
+        var position = PositionOf(index);
+        if (position < 0)
+        {
+            RemeasureItem(index);
+            return;
+        }
+        if (Equals(_realized[position].Key, GetRecycleKey(index)))
+            return;
+        ChangeItems(() =>
+        {
+            var anchor = CaptureAnchor();
+            ReleaseAt(position);
+            RealizeInside(index, position);
+            Reanchor(anchor.Index, anchor.Start);
+        });
+    }
+
+    /// <summary>
     /// Measures the item at <paramref name="index"/> again: its view when realized (as when its content changes size by
     /// itself), else its size is forgotten and estimated until it is realized. Items before the first visible one keep what
     /// shows in place.

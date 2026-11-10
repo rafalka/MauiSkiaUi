@@ -154,6 +154,7 @@ An interactive list (a selection mode, an `ItemTapped` handler or command, or `A
 | `SelectionMode` | `None` | `None`, `Single`, `SingleDeselect` (tapping the selected item clears it), `Multiple` |
 | `SelectedItem` | `null` | Two-way; the selection of `Single` / `SingleDeselect` |
 | `SelectedItems` | a new `ObservableCollection<object>` | The selection of `Multiple`; set a list of yours to share it |
+| `SelectedItemTemplate` | `null` | A selected item's row uses it instead of `ItemTemplate` (a `DataTemplate` or selector; a selector choosing none falls back): selected rows that show more or differ in size. A selection change swaps the row's view (recycled per template) and measures it again, what shows staying in place; grid cells too. For a look only, the `Selected` visual state is cheaper. Rows of another size need `ItemSizingStrategy="MeasureAllItems"` (the default). `SetSelectedItemTemplate(value)` |
 | `IsExtendedSelectionEnabled` | `false` | With `Multiple`: clicks and keys select as desktop lists (click, Ctrl / Command+click, Shift+click; [Keyboard](#keyboard)); touch keeps toggling. `SetIsExtendedSelectionEnabled(value)` |
 | `KeepSelectionVisible` | `false` | Scrolls the selection into view on selection and size changes (see above) |
 | `SelectionChangedCommand` (+ `…Parameter`) | `null` | Runs when the selection changes, before `SelectionChanged` |
@@ -200,4 +201,4 @@ An interactive list (a selection mode, an `ItemTapped` handler or command, or `A
 
 ## Demo and tests
 
-Demo: **Components → Scrolling → SkUiCollectionView** (next to MAUI's `CollectionView` in a `RefreshView`) , **CollectionView (groups, grid, horizontal)** and **CollectionView (reordering)** (next to MAUI's reorderable `CollectionView`, on the same tasks). Samples: **Order list (collection view)**, **Contacts** (live grouped list, tiles, selection mode, adaptive preview). Tests: `CollectionViewTests`, `CollectionViewGroupsAndLayoutsTests`, `CollectionViewReorderTests`; leak scenarios `CollectionViewUsed`, `CollectionViewGrouped`, `CollectionViewReordered`.
+Demo: **Components → Scrolling → SkUiCollectionView** (next to MAUI's `CollectionView` in a `RefreshView`) , **CollectionView (groups, grid, horizontal)** and **CollectionView (reordering)** (next to MAUI's reorderable `CollectionView`, on the same tasks). Samples: **Order list (collection view)**, **Contacts** (live grouped list, tiles, selection mode, adaptive preview). Tests: `CollectionViewTests`, `CollectionViewGroupsAndLayoutsTests`, `CollectionViewReorderTests`; `CollectionViewKeyboardTests`, `CollectionViewExtendedSelectionTests`, `CollectionViewSelectedTemplateTests`; leak scenarios `CollectionViewUsed`, `CollectionViewGrouped`, `CollectionViewReordered`, `CollectionViewSelectedTemplate`.

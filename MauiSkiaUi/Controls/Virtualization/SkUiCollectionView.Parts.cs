@@ -28,8 +28,11 @@ public partial class SkUiCollectionView
         template.CreateContent() as ISkUiView
         ?? throw new InvalidOperationException($"{property} of {nameof(SkUiCollectionView)} must create drawn (SkUi*) views; put native views inside an SkUiMauiContentView.");
 
-    /// <summary>The recycle key of an item: its (selected) template, or one key for default labels.</summary>
-    private object ItemKey(object? item) => (object?)SelectTemplate(_itemTemplate, item) ?? DefaultItemKey;
+    /// <summary>
+    /// The recycle key of an item: the selected item template's choice for a selected item, else its (selector-chosen)
+    /// item template, or one key for default labels.
+    /// </summary>
+    private object ItemKey(object? item) => (object?)SelectedTemplateOf(item) ?? (object?)SelectTemplate(_itemTemplate, item) ?? DefaultItemKey;
 
     private KindKey KindKeyOf(RowKind kind, DataTemplate template)
     {

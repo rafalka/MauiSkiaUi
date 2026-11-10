@@ -543,4 +543,23 @@ public class CollectionViewKeyboardTests
         Assert.True(list.IsFocused);
         AssertCurrent(list, 3);
     }
+
+    [Fact]
+    public void TheRingFollowsTheRowToItsSelectedTemplate()
+    {
+        var list = List(Rows(20));
+        list.SelectedItemTemplate = new DataTemplate(() => new SkUiBox { HeightRequest = 120 });
+        Focused(list);
+        Key(list, SkUiKey.Down);
+        var before = Host(list, 1);
+        AssertCurrent(list, 1);
+
+        Assert.True(Key(list, SkUiKey.Space)); // selects it: the row gets a container of the selected template
+        SkUiTestHelpers.Arrange(list, 300, 500);
+        Assert.NotSame(before, Host(list, 1));
+        AssertCurrent(list, 1);
+        Assert.Equal(120, Host(list, 1).Height);
+        Key(list, SkUiKey.Down);
+        AssertCurrent(list, 2);
+    }
 }

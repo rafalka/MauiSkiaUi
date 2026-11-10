@@ -261,6 +261,7 @@ public partial class SkUiCollectionView
     {
         foreach (var host in RealizedItemHosts())
             host.IsSelected = ShowsSelection(((BindableObject)host).BindingContext);
+        RenewSelectedTemplates();
     }
 
     /// <summary>The containers of the realized items (in grid rows too).</summary>
