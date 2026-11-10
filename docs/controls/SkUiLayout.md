@@ -90,6 +90,26 @@ MAUI's `BindableLayout` works on `SkUiLayout` and every layout built on it (`SkU
 - Templates can set attached properties (`Grid.Row`, `FlexLayout.Grow`, …); they re-lay out the layout like any child's.
 - Every item gets a view, as in MAUI: no virtualization. For long lists use [`SkUiCollectionView`](SkUiCollectionView.md) or [`SkUiVirtualScrollView`](SkUiVirtualVerticalStackLayout.md), which create items near the viewport only.
 
+## Layouts of your own
+
+Derive from `SkUiLayout` and override `MeasureContent` / `ArrangeContent`, often by running a MAUI `ILayoutManager` (MAUI's own, or another library's): `SkUiLayout` is an `ILayout`, and its `IPadding.Padding` includes the safe area on a surface root. Two protected virtuals (public since 1.10) cover what a manager needs:
+
+- `AffectsChildLayout(propertyName)`: return `true` for the attached properties your manager reads from children. MAUI's (and other libraries') attached-property callbacks only invalidate their own layout types, so without it a changed `DockLayout.DockPosition` would not re-lay out a drawn dock. Compare with each `BindableProperty.PropertyName`.
+- `OnChildrenChanged()`: after a child is added, replaced or removed, or the children are cleared, for state kept per child.
+
+```csharp
+public sealed class SkUiMyLayout : SkUiLayout, IMyLayout
+{
+    private readonly MyLayoutManager _manager;
+    public SkUiMyLayout() => _manager = new MyLayoutManager(this);
+    protected override Size MeasureContent(double width, double height) => _manager.Measure(width, height);
+    protected override void ArrangeContent(Size size) => _manager.ArrangeChildren(new Rect(Point.Zero, size));
+    protected override bool AffectsChildLayout(string? propertyName) => propertyName == MyLayout.SlotProperty.PropertyName;
+}
+```
+
+The Community Toolkit layouts ([`SkUiDockLayout`](SkUiDockLayout.md), [`SkUiUniformItemsLayout`](SkUiUniformItemsLayout.md)) are built this way, on public API only.
+
 ## Notes
 
 - Measure takes the max of children desired sizes.

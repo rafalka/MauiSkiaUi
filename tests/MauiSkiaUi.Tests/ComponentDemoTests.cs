@@ -14,6 +14,7 @@ public class ComponentDemoTests
     {
         // SkUiCoreHost is the Core↔MAUI bridge (Stress / Look / Core demos), not a gallery control.
         var controls = typeof(SkUiView).Assembly.GetTypes().Concat(typeof(Markdown.SkUiMarkdownView).Assembly.GetTypes())
+            .Concat(typeof(MauiSkiaUi.CommunityToolkit.SkUiDockLayout).Assembly.GetTypes())
             .Where(type => type.IsPublic && !type.IsAbstract && typeof(SkUiView).IsAssignableFrom(type))
             .Where(type => type != typeof(SkUiCoreHost))
             .OrderBy(type => type.Name);

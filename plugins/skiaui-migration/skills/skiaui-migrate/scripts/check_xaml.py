@@ -28,7 +28,8 @@ A drawn tree is everything inside a SkiaUi view (an element from the MauiSkiaUi 
   EmptyView becomes a MAUI Label), the Community Toolkit's StateContainer / StateView on drawn layouts (SkUiStateContainer /
   SkUiStateView; state views are checked like other drawn content), the Community Toolkit's Expander in a drawn tree
   (SkUiExpander; headers, content and content templates of drawn views are checked like other drawn content), the
-  Community Toolkit's AvatarView in a drawn tree (SkUiAvatarView), MAUI's
+  Community Toolkit's AvatarView in a drawn tree (SkUiAvatarView), the Community Toolkit's DockLayout and
+  UniformItemsLayout in a drawn tree (SkUiDockLayout / SkUiUniformItemsLayout, package SkiaUi.Maui.CommunityToolkit), MAUI's
   SwipeItemView in an SkUiSwipeView (SkUiSwipeItemView; MAUI's SwipeItems and SwipeItem are what it draws), an
   SkUiCollectionView with its own pull-to-refresh inside an SkUiRefreshView (both would refresh),
   TemplateBinding / RelativeSource TemplatedParent on drawn views (RelativeSource
@@ -153,7 +154,10 @@ DRAWN_VALUE_PROPERTIES = {"ControlTemplate", "ItemTemplate", "EmptyView", "Empty
 # surface of its own.
 REGION_ROOTS = {"SkUiContentView", "SkUiLayout", "SkUiGrid", "SkUiVerticalStackLayout", "SkUiHorizontalStackLayout",
                 "SkUiAbsoluteLayout", "SkUiFlexLayout", "SkUiWrapLayout", "SkUiTileLayout", "SkUiHorizontalShrinkLayout",
-                "SkUiVerticalShrinkLayout", "SkUiHorizontalAlignStackLayout", "SkUiScrollView", "SkUiBorder", "SkUiCoreHost"}
+                "SkUiVerticalShrinkLayout", "SkUiHorizontalAlignStackLayout", "SkUiScrollView", "SkUiBorder", "SkUiCoreHost",
+                "SkUiDockLayout", "SkUiUniformItemsLayout"}
+# Community Toolkit layouts with a drawn counterpart in SkiaUi.Maui.CommunityToolkit (namespace MauiSkiaUi.CommunityToolkit).
+TOOLKIT_LAYOUTS = {"DockLayout": "SkUiDockLayout", "UniformItemsLayout": "SkUiUniformItemsLayout"}
 
 
 class Node:
@@ -617,6 +621,8 @@ class Checker:
             self.report(path, node, "error", "Community Toolkit Expander inside a drawn tree: use sk:SkUiExpander (Header and Content become drawn views; ExpandDirection / ExpandedChangedEventArgs become SkUiExpandDirection / SkUiExpandedChangedEventArgs)")
         elif drawn and is_toolkit_uri(node.uri) and node.name == "AvatarView":
             self.report(path, node, "error", "Community Toolkit AvatarView inside a drawn tree: use sk:SkUiAvatarView (same properties; corners are fully rounded until CornerRadius is set, the background and text color come from the look until set)")
+        elif drawn and is_toolkit_uri(node.uri) and node.name in TOOLKIT_LAYOUTS:
+            self.report(path, node, "error", f"Community Toolkit {node.name} inside a drawn tree: use {TOOLKIT_LAYOUTS[node.name]} from the SkiaUi.Maui.CommunityToolkit package (xmlns:skct=\"clr-namespace:MauiSkiaUi.CommunityToolkit;assembly=MauiSkiaUi.CommunityToolkit\"); children stay drawn views and keep the toolkit's attached properties")
         elif drawn and clr_namespace(node.uri):
             kind = self.index.drawn(node.name)
             if kind is True:

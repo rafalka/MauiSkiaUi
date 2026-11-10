@@ -46,6 +46,8 @@ public class MauiApiParityTests
         (typeof(HorizontalStackLayout), typeof(SkUiHorizontalStackLayout), typeof(SkUiCoreHorizontalStackLayout)),
         (typeof(AbsoluteLayout), typeof(SkUiAbsoluteLayout), typeof(SkUiCoreAbsoluteLayout)),
         (typeof(FlexLayout), typeof(SkUiFlexLayout), null),
+        (typeof(global::CommunityToolkit.Maui.Layouts.DockLayout), typeof(MauiSkiaUi.CommunityToolkit.SkUiDockLayout), null),
+        (typeof(global::CommunityToolkit.Maui.Layouts.UniformItemsLayout), typeof(MauiSkiaUi.CommunityToolkit.SkUiUniformItemsLayout), null),
         (typeof(ContentView), typeof(SkUiContentView), typeof(SkUiCoreContentView)),
         (typeof(ContentPresenter), typeof(SkUiContentPresenter), null),
         (typeof(CollectionView), typeof(SkUiCollectionView), null),
@@ -93,7 +95,7 @@ public class MauiApiParityTests
     /// <summary>Differences kept on purpose, keyed by <c>DrawnType.Member</c>, with the reason.</summary>
     private static readonly Dictionary<string, string> Excluded = Entries(
         (DrawnContent, ["SkUiBorder", "SkUiContentPresenter", "SkUiContentView", "SkUiRefreshView", "SkUiScrollView", "SkUiSwipeItemView", "SkUiSwipeView"], ["Content"]),
-        (DrawnContent, ["SkUiAbsoluteLayout", "SkUiFlexLayout", "SkUiGrid", "SkUiHorizontalStackLayout", "SkUiVerticalStackLayout"], ["Children"]),
+        (DrawnContent, ["SkUiAbsoluteLayout", "SkUiDockLayout", "SkUiFlexLayout", "SkUiGrid", "SkUiHorizontalStackLayout", "SkUiUniformItemsLayout", "SkUiVerticalStackLayout"], ["Children"]),
         (MauiAttached, ["SkUiGrid"], ["RowProperty", "RowSpanProperty", "ColumnProperty", "ColumnSpanProperty"]),
         (MauiAttached, ["SkUiAbsoluteLayout"], ["LayoutBoundsProperty", "LayoutFlagsProperty", "GetLayoutBounds", "GetLayoutFlags", "SetLayoutBounds", "SetLayoutFlags"]),
         (MauiAttached, ["SkUiFlexLayout"], ["GetAlignSelf", "GetBasis", "GetGrow", "GetOrder", "GetShrink", "SetAlignSelf", "SetBasis", "SetGrow", "SetOrder", "SetShrink"]),

@@ -148,13 +148,13 @@ public class SkUiFlexLayout : SkUiLayout, IFlexLayout
     }
 
     /// <inheritdoc />
-    private protected override bool AffectsChildLayout(string? propertyName) =>
+    protected override bool AffectsChildLayout(string? propertyName) =>
         propertyName == FlexLayout.OrderProperty.PropertyName || propertyName == FlexLayout.GrowProperty.PropertyName
         || propertyName == FlexLayout.ShrinkProperty.PropertyName || propertyName == FlexLayout.AlignSelfProperty.PropertyName
         || propertyName == FlexLayout.BasisProperty.PropertyName;
 
     /// <inheritdoc />
-    private protected override void OnChildrenChanged() => _itemsDirty = true;
+    protected override void OnChildrenChanged() => _itemsDirty = true;
 
     /// <inheritdoc />
     protected override Size MeasureContent(double widthConstraint, double heightConstraint)

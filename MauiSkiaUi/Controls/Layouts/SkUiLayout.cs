@@ -211,12 +211,19 @@ public class SkUiLayout : SkUiView, ILayout, IBindableLayout
     /// Whether a child's property change (usually an attached property such as <c>Grid.Row</c>) changes this
     /// layout's measure. MAUI's own attached-property callbacks never invalidate SkiaUi layouts, because the
     /// child's parent is not the MAUI layout type, so each layout lists the attached properties it reads.
-    /// Compare against each <see cref="BindableProperty.PropertyName"/>, not a literal string.
+    /// Compare against each <see cref="BindableProperty.PropertyName"/>, not a literal string. A layout of your own that runs
+    /// a layout manager of another library (one whose children carry that library's attached properties) lists them here.
     /// </summary>
-    private protected virtual bool AffectsChildLayout(string? propertyName) => false;
+    /// <param name="propertyName">The name of the child's property that changed.</param>
+    /// <returns><see langword="true"/> to measure and arrange this layout again.</returns>
+    protected virtual bool AffectsChildLayout(string? propertyName) => false;
 
-    /// <summary>Called after a child is added, replaced or removed, or the children are cleared.</summary>
-    private protected virtual void OnChildrenChanged() { }
+    /// <summary>
+    /// Called after a child is added, replaced or removed, or the children are cleared, for layouts that keep state per
+    /// child. An added child becomes this layout's logical child right after this call; the change itself invalidates
+    /// the layout's measure.
+    /// </summary>
+    protected virtual void OnChildrenChanged() { }
 
     /// <summary>Creates a GPU-default layout with an owned child collection.</summary>
     public SkUiLayout()

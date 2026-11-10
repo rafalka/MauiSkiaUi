@@ -299,6 +299,45 @@ public class CheckXamlTests
     }
 
     [Fact]
+    public void SuggestsTheDrawnToolkitLayoutsForTheToolkitsLayouts()
+    {
+        var project = Directory.CreateTempSubdirectory("skiaui-check-xaml");
+        try
+        {
+            File.WriteAllText(Path.Combine(project.FullName, "Page.xaml"), """
+                <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+                             xmlns:sk="clr-namespace:MauiSkiaUi;assembly=MauiSkiaUi"
+                             xmlns:skct="clr-namespace:MauiSkiaUi.CommunityToolkit;assembly=MauiSkiaUi.CommunityToolkit"
+                             xmlns:mct="http://schemas.microsoft.com/dotnet/2022/maui/toolkit">
+                  <sk:SkUiVerticalStackLayout>
+                    <mct:DockLayout />
+                    <mct:UniformItemsLayout />
+                    <skct:SkUiDockLayout>
+                      <sk:SkUiLabel Text="Top" mct:DockLayout.DockPosition="Top" />
+                    </skct:SkUiDockLayout>
+                    <skct:SkUiUniformItemsLayout MaxColumns="3">
+                      <sk:SkUiLabel Text="1" />
+                    </skct:SkUiUniformItemsLayout>
+                  </sk:SkUiVerticalStackLayout>
+                  <mct:DockLayout />
+                </ContentPage>
+                """);
+            var (exitCode, output) = Run(project.FullName);
+            Assert.Equal(1, exitCode);
+            var errors = output.Split('\n').Where(line => line.Contains("error:")).ToArray();
+            Assert.Equal(2, errors.Length);
+            Assert.Contains("Page.xaml:6:", errors[0]);
+            Assert.Contains("SkUiDockLayout", errors[0]);
+            Assert.Contains("Page.xaml:7:", errors[1]);
+            Assert.Contains("SkUiUniformItemsLayout", errors[1]);
+        }
+        finally
+        {
+            project.Delete(recursive: true);
+        }
+    }
+
+    [Fact]
     public void FixRewritesTemplateBindingsOfDrawnControls()
     {
         var project = Directory.CreateTempSubdirectory("skiaui-check-xaml");

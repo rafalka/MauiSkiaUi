@@ -44,6 +44,7 @@ Checked against .NET MAUI 10.0.120 (`MauiApiParityTests` compares every drawn co
 | Toolkit Expander | `SkUiExpander`; Core: `SkUiCoreExpander` | Done, plus `ContentTemplate` (SkUi\*), lazy content, animation |
 | Toolkit StateContainer | `SkUiStateContainer` / `SkUiStateView` attached properties on every drawn layout; Core: `SkUiCoreStateContainer` with keyed states | Done, plus animations before and after each state change |
 | Toolkit AvatarView | `SkUiAvatarView` + Core | Done, plus initials of the text, colors by the text, a status badge |
+| Toolkit DockLayout, UniformItemsLayout | `SkUiDockLayout`, `SkUiUniformItemsLayout` (SkiaUi.Maui.CommunityToolkit; SkUi\* only) | Done, on the toolkit's layout managers |
 | StackLayout | Stacks | Map |
 | BindableLayout | Every `SkUiLayout` (grid, stacks, absolute, flex, wrap, shrink) | Done: MAUI's controller over `IBindableLayout`; templates and empty views must be drawn (a string `EmptyView` throws); no virtualization (use the collection view) |
 | Every view: visual states | MAUI's states per control, `PointerOver` from hover, `Focused` from keyboard focus, state triggers | Done; `Selected` on collection items |
@@ -210,6 +211,8 @@ Attached properties stay MAUI's (`Grid.Row`, `AbsoluteLayout.LayoutBounds`, `Fle
 | `AbsoluteLayout` | `SkUiAbsoluteLayout` | |
 | `FlexLayout` | `SkUiFlexLayout` | Also `SkUiWrapLayout` for chips and tags |
 | A `Grid` of equal tiles rebuilt in `SizeChanged` (photo galleries, attachment strips) | `SkUiTileLayout` | See [equal tiles](#equal-tiles) |
+| Toolkit `DockLayout` | `SkUiDockLayout` | Package SkiaUi.Maui.CommunityToolkit with `UseSkiaUiCommunityToolkit()`; prefix `xmlns:skct="clr-namespace:MauiSkiaUi.CommunityToolkit;assembly=MauiSkiaUi.CommunityToolkit"`. Same properties and `Add(view, position)`; children keep the toolkit's `DockLayout.DockPosition` ([SkUiDockLayout.md](controls/SkUiDockLayout.md)) |
+| Toolkit `UniformItemsLayout` | `SkUiUniformItemsLayout` | Same package and prefix; same `MaxRows` / `MaxColumns`. Cells follow the first child when it changes size, and children past `MaxRows` × `MaxColumns` are hidden instead of keeping an old frame ([SkUiUniformItemsLayout.md](controls/SkUiUniformItemsLayout.md)) |
 | Toolkit `StateContainer` / `StateView` (attached properties) | `SkUiStateContainer` / `SkUiStateView` | Same properties and `ChangeStateWithAnimation` overloads, on any drawn layout ([SkUiStateContainer.md](controls/SkUiStateContainer.md)) |
 | Toolkit `Expander` | `SkUiExpander` | Same properties and `ExpandedChanged`; `Header` / `Content` must be drawn views. `ExpandDirection` → `SkUiExpandDirection`, `ExpandedChangedEventArgs` → `SkUiExpandedChangedEventArgs`; drop `HandleHeaderTapped` (a native list view workaround). `IsExpanded` is two-way by default. Plus `ContentTemplate`, `LazyContentExpansion`, `AnimationLength` / `AnimationEasing` ([SkUiExpander.md](controls/SkUiExpander.md)) |
 | Hand-made skeleton views (shapes with animations) | `SkUiShimmer` / `SkUiCoreShimmer` | Your skeleton as `SkeletonContent`, one shimmer around it: see [Shimmer](#shimmer) |

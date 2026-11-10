@@ -13,6 +13,14 @@ Publishing (the NuGet publish workflow, [docs/Releasing.md](docs/Releasing.md)) 
 
 ## Unreleased
 
+### New features
+
+- **Community Toolkit layouts:** `SkUiDockLayout` and `SkUiUniformItemsLayout` in **SkiaUi.Maui.CommunityToolkit** (namespace `MauiSkiaUi.CommunityToolkit`), drawn counterparts of the toolkit's `DockLayout` and `UniformItemsLayout` laid out by the toolkit's own layout managers, so toolkit pages port by changing the prefix: [SkUiDockLayout.md](docs/controls/SkUiDockLayout.md), [SkUiUniformItemsLayout.md](docs/controls/SkUiUniformItemsLayout.md).
+  - `SkUiDockLayout`: `ShouldExpandLastChild`, `HorizontalSpacing`, `VerticalSpacing`, `Add(view, position)`; children keep the toolkit's attached `DockLayout.DockPosition`, and changing it re-lays the dock out.
+  - `SkUiUniformItemsLayout`: `MaxRows`, `MaxColumns`. Unlike the toolkit's layout, cells follow the first child when it changes size, and children past `MaxRows` × `MaxColumns` are hidden instead of keeping an old frame.
+  - The migration checker suggests them for the toolkit's layouts in drawn trees; the gallery shows each beside the toolkit's own.
+- **Layouts of your own on other layout managers:** `SkUiLayout.AffectsChildLayout` (a child's attached property that re-lays the layout out) and `OnChildrenChanged` are now protected virtuals, so a layout outside SkiaUi can run another library's `ILayoutManager` ([SkUiLayout.md](docs/controls/SkUiLayout.md#layouts-of-your-own)).
+
 ## 1.9.0
 
 ### New features

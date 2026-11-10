@@ -108,7 +108,7 @@ Moved from 1.6, then from 1.8. Built on the branch `1.9-implementation`. Steps, 
 
 Built on the branch `1.10-implementation`. Steps, order and open decisions: [ImplementationPlan-1.10.md](ImplementationPlan-1.10.md).
 
-- **Community Toolkit layouts** in `SkiaUi.Maui.CommunityToolkit`: drawn `SkUiDockLayout` and `SkUiUniformItemsLayout` on the toolkit's layout managers, with the toolkit's attached `DockPosition`; `SkUiLayout.AffectsChildLayout` and `OnChildrenChanged` made public for them (and for app layouts on other managers).
+- **Community Toolkit layouts** in `SkiaUi.Maui.CommunityToolkit`: drawn `SkUiDockLayout` and `SkUiUniformItemsLayout` on the toolkit's layout managers, with the toolkit's attached `DockPosition`; `SkUiLayout.AffectsChildLayout` and `OnChildrenChanged` made public for them (and for app layouts on other managers) (done: [SkUiDockLayout](../controls/SkUiDockLayout.md), [SkUiUniformItemsLayout](../controls/SkUiUniformItemsLayout.md)).
 - **Collection view parity:** keyboard item navigation (the list as one tab stop with a current item), extended (Shift / Ctrl) selection, a selected-item template, and animated inserts, removes and moves (opt-in in 1.x).
 
 ## Backlog (1.x)

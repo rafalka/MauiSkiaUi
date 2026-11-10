@@ -2,7 +2,7 @@
 
 **Goal:** pages that use the Community Toolkit's `DockLayout` and `UniformItemsLayout` port by changing the prefix, and the drawn collection view behaves like the platforms' lists where it does not yet: keyboard item navigation, extended (Shift / Ctrl) selection, a template for selected items, and animated inserts and removes.
 
-**Scope:** two items moved here from the roadmap's backlog: Community Toolkit layouts (from [New controls and packages](Roadmap.md#new-controls-and-packages)) and CollectionView (from [MAUI parity](Roadmap.md#maui-parity)). Started on `1.10-implementation` (10 November 2026), from `devel` after 1.9.0.
+**Scope:** two items moved here from the roadmap's backlog: Community Toolkit layouts (from [New controls and packages](Roadmap.md#new-controls-and-packages)) and CollectionView (from [MAUI parity](Roadmap.md#maui-parity)). Started on `1.10-implementation` (10 November 2026), from `devel` after 1.9.0: L1–L4 done.
 
 **Baseline:** .NET MAUI 10.0.120 (or the latest 10.0.x when 1.10 ships), SkiaSharp 4.154.0, CommunityToolkit.Maui 15.0.1. .NET 11 / MAUI 11 waits until it is released ([roadmap](Roadmap.md#net-11--maui-11-support)). What has shipped is in the [changelog](../../CHANGELOG.md); the rest of the 1.x backlog stays in the [roadmap](Roadmap.md#backlog-1x).
 
@@ -17,23 +17,23 @@
 
 In `SkiaUi.Maui.CommunityToolkit`, on the toolkit's public layout managers (`DockLayoutManager`, `UniformItemsLayoutManager` in `CommunityToolkit.Maui.Core.Layouts`), as `SkUiFlexLayout`, `SkUiGrid` and the stacks run MAUI's managers through `ILayout` / `IPadding` (padding includes the root's safe area).
 
-- **L1 Layout extension points made public** (in `SkiaUi.Maui`). Size: S.
+- **L1 Layout extension points made public** (in `SkiaUi.Maui`). Size: S. **Done** (`ToolkitLayoutTests`; documented in [SkUiLayout.md](../controls/SkUiLayout.md#layouts-of-your-own)).
   - `SkUiLayout.AffectsChildLayout(string?)` and `SkUiLayout.OnChildrenChanged()` go from `private protected virtual` to `protected virtual` (the built-in overrides in the grid, flex, absolute and shrink layouts follow). Additive: no caller can see them today. Their XML docs already describe the contract; add that a layout running a third-party manager lists the attached properties it reads.
   - Tests: a test subclass whose attached property re-measures the layout; children added, replaced, removed and cleared each reach `OnChildrenChanged`; the API parity test unchanged.
-- **L2 `SkUiDockLayout`.** Size: M.
+- **L2 `SkUiDockLayout`.** Size: M. **Done** (`ToolkitLayoutTests`; in the MAUI API parity test against the toolkit's `DockLayout`). The frames are checked against the manager's rules by hand: the toolkit's own layout cannot be measured headless (its MAUI children have no handlers).
   - Derives from `SkUiLayout`, implements the toolkit's `IDockLayout`, measures and arranges with `DockLayoutManager`.
   - Bindable `ShouldExpandLastChild` (default `true`), `HorizontalSpacing`, `VerticalSpacing` (≥ 0, `SkUiValidate`), with fluent `Set*`; `GetDockPosition(IView)` and `Add(IView, DockPosition)` as on the toolkit's layout.
   - The attached property stays the toolkit's: `SkUiDockLayout.DockPositionProperty = DockLayout.DockPositionProperty`, so `toolkit:DockLayout.DockPosition="Top"` on children ports unchanged (as `SkUiFlexLayout` reuses `FlexLayout.GrowProperty`); `AffectsChildLayout` lists it. The toolkit's own change callback only invalidates its `DockLayout` parent, so this is what re-measures the drawn one.
-  - Tests: each dock position, spacing, padding, `ShouldExpandLastChild` on and off, hidden children skipped, a child's `DockPosition` changed at runtime, right to left (frames mirrored as in the drawn grid and stacks), frames equal to the toolkit's `DockLayout` given the same children sizes (the manager is shared, so this guards the wrapper: padding, safe area, spacing).
-- **L3 `SkUiUniformItemsLayout`.** Size: S–M.
+  - Tests: each dock position, spacing, padding, `ShouldExpandLastChild` on and off, hidden children skipped, a child's `DockPosition` changed at runtime, right to left (frames mirrored as in the drawn grid and stacks).
+- **L3 `SkUiUniformItemsLayout`.** Size: S–M. **Done** (`ToolkitLayoutTests`; in the parity test against the toolkit's `UniformItemsLayout`).
   - Derives from `SkUiLayout`, implements `IUniformItemsLayout`, runs `UniformItemsLayoutManager`. Bindable `MaxRows`, `MaxColumns` (≥ 1, default `int.MaxValue` as the toolkit's) with `Set*`.
-  - The manager measures the first visible child once and keeps that size for its lifetime ([D2](#decisions)): the layout creates a new manager when its children change (`OnChildrenChanged`) or the first visible child's measure is invalidated, so a re-templated first item or a font change re-sizes the cells.
+  - The manager measures the first visible child once and keeps that size for its lifetime ([D2](#decisions)): the layout creates a new manager each time it measures (only when its measure is invalid: children, a child's measure, an option or the constraint changed; children cache their measure), so a re-templated first item or a font change re-sizes the cells.
   - Children past `MaxRows` × `MaxColumns` are not arranged by the manager: the layout arranges them empty (zero size) after it, so they neither draw nor take input, instead of keeping an old frame.
-  - Tests: columns across widths, `MaxRows` / `MaxColumns`, padding, hidden children, the first child's size changing, children past the limit, right to left; frames equal to the toolkit's layout.
-- **L4 Docs, migration and demo.** Size: S.
+  - Tests: columns across widths, `MaxRows` / `MaxColumns`, padding, hidden children, the first child's size changing, children past the limit, right to left.
+- **L4 Docs, migration and demo.** Size: S. **Done** (`DockLayoutDemoPage`, `UniformItemsLayoutDemoPage` beside the toolkit's layouts; the checker's `TOOLKIT_LAYOUTS` with `CheckXamlTests`; the editor help embeds the package's XML documentation).
   - Control pages `docs/controls/SkUiDockLayout.md` and `SkUiUniformItemsLayout.md`, the controls index; the package's README, `Description` and `PackageTags`; [Popups.md](Popups.md#integration-packages) (no longer "planned").
   - [Migration.md](../Migration.md): rows for the two toolkit layouts in the toolkit table and the mapping table (prefix swap; the package and `UseSkiaUiCommunityToolkit()`); the migration skills: `TOOLKIT_DRAWN` in `audit_maui_app.py` and the mapping in `skiaui-migrate`.
-  - XAML namespace for the package's types ([D3](#decisions)).
+  - XAML namespace for the package's types ([D3](#decisions)): `xmlns:skct="clr-namespace:MauiSkiaUi.CommunityToolkit;assembly=MauiSkiaUi.CommunityToolkit"`.
   - Gallery pages next to the toolkit's own layouts (the demo already references the toolkit), with a resizable preview area.
 
 ## Phase C — Collection view parity
@@ -88,9 +88,9 @@ Phase L and phase C are independent of each other.
 
 ## Decisions
 
-- **D1 The toolkit layouts are SkUi\* only.** They run the toolkit's managers, which take `IView`s, and exist so MAUI pages port by prefix. Core trees already have the grid, stacks, wrap and tile layouts; a Core dock waits for an app that needs one. **Proposed.**
-- **D2 The uniform items layout keeps the toolkit's manager.** It measures the first child once per manager instance; a new manager on child changes and on the first child's measure invalidation keeps the toolkit's rules (the same frames as its layout) without its stale size. The alternative, an engine of our own like `SkUiTileEngine`, would drift from the toolkit. **Proposed.**
-- **D3 The package's XAML namespace.** Either the package's types join SkiaUi's XAML namespace (an `XmlnsDefinition` to the same URI, so `sk:SkUiDockLayout` works and a page needs no second prefix), or the package gets its own (`skct:`). One prefix is simpler for migrations; check that MAUI's XAML source generator accepts a definition from a second assembly for the same URI. **Open.**
+- **D1 The toolkit layouts are SkUi\* only.** They run the toolkit's managers, which take `IView`s, and exist so MAUI pages port by prefix. Core trees already have the grid, stacks, wrap and tile layouts; a Core dock waits for an app that needs one. **Proposed; built so in L2 / L3.**
+- **D2 The uniform items layout keeps the toolkit's manager.** It measures the first child once per manager instance; a new manager per measure keeps the toolkit's rules (the same frames as its layout) without its stale size, at one small allocation per measure (measures run only when something changed, never per frame). The alternative, an engine of our own like `SkUiTileEngine`, would drift from the toolkit. **Proposed; built so in L3.**
+- **D3 The package's XAML namespace.** SkiaUi has no XAML URI (`xmlns:sk` is a `clr-namespace`), so one prefix for both assemblies would need an `XmlnsDefinition` URI for both, a change for every existing page. The types stay in the package's namespace `MauiSkiaUi.CommunityToolkit` with their own prefix (`skct:`), as the Markdown package's `MauiSkiaUi.Markdown`. **Proposed; built so in L4.**
 - **D4 Extended selection is a switch, not a selection mode.** `SkUiSelectionMode` moves to MAUI's `SelectionMode` in 2.0 ([held for 2.0](Roadmap.md#held-for-20)), which has no `Extended`; a new enum member would have to move again. `IsExtendedSelectionEnabled` works with `Multiple` and keeps working after 2.0. **Proposed.**
 - **D5 Item animations are opt-in in 1.x.** UIKit and RecyclerView animate by default, so MAUI parity says on; but turning them on for every 1.x app changes what existing lists show after an update (and headless tests that read frames right after a change). A nullable property with a look default lets an app turn them on everywhere with one look override; 2.0 can flip the default. **Proposed.**
 - **D6 Names.** `SkUiDockLayout`, `SkUiUniformItemsLayout` (the toolkit's names with the prefix); `IsExtendedSelectionEnabled`; `SelectedItemTemplate`; `AnimatesItemChanges`, `CollectionViewAnimatesItemChanges`; `SkUiTransitionKind.ItemInsert` / `ItemRemove` / `ItemMove`; `SkUiPointer.Modifiers`. **Proposed.**

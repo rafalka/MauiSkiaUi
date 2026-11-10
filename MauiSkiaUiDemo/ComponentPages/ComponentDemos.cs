@@ -1,4 +1,5 @@
 using MauiSkiaUi;
+using MauiSkiaUi.CommunityToolkit;
 using MauiSkiaUi.Core;
 
 namespace MauiSkiaUiDemo;
@@ -74,6 +75,9 @@ public static class ComponentDemos
         new(typeof(SkUiHorizontalStackLayout), typeof(HorizontalStackLayoutDemoPage), nameof(HorizontalStackLayout), ComponentCategory.Layouts, () => new HorizontalStackLayoutDemoPage()),
         new(typeof(SkUiAbsoluteLayout), typeof(AbsoluteLayoutDemoPage), nameof(AbsoluteLayout), ComponentCategory.Layouts, () => new AbsoluteLayoutDemoPage()),
         new(typeof(SkUiFlexLayout), typeof(FlexLayoutDemoPage), nameof(FlexLayout), ComponentCategory.Layouts, () => new FlexLayoutDemoPage()),
+        new(typeof(SkUiDockLayout), typeof(DockLayoutDemoPage), "Community Toolkit DockLayout", ComponentCategory.Layouts, () => new DockLayoutDemoPage()),
+        new(typeof(SkUiUniformItemsLayout), typeof(UniformItemsLayoutDemoPage), "Community Toolkit UniformItemsLayout", ComponentCategory.Layouts,
+            () => new UniformItemsLayoutDemoPage()),
         new(typeof(SkUiWrapLayout), typeof(WrapLayoutDemoPage), ComponentDemo.SkUiOnlyCounterpart, ComponentCategory.Layouts, () => new WrapLayoutDemoPage()),
         new(typeof(SkUiTileLayout), typeof(TileLayoutDemoPage), ComponentDemo.SkUiOnlyCounterpart, ComponentCategory.Layouts, () => new TileLayoutDemoPage()),
         new(typeof(SkUiHorizontalShrinkLayout), typeof(HorizontalShrinkLayoutDemoPage), ComponentDemo.SkUiOnlyCounterpart, ComponentCategory.Layouts, () => new HorizontalShrinkLayoutDemoPage()),
