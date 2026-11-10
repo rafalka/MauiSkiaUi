@@ -181,16 +181,16 @@ public class CollectionViewExtendedSelectionTests
         Assert.Equal([2, 8], Selected(list));
         counter.AssertOne(2, 2);
 
-        // Shift+arrows toggle the range from where the current item was when Shift was first pressed, in what was selected;
-        // moving back shrinks it, past the start it runs the other way.
+        // Shift+arrows toggle the items they move onto past where the current item was when Shift was first pressed (it keeps
+        // its state), in what was selected; moving back shrinks the range, past the start it runs the other way.
         Keys(focus, SkUiKey.Down, SkUiKeyModifiers.None, 6);
         Keys(focus, SkUiKey.Down, SkUiKeyModifiers.Shift, 3);
-        Assert.Equal([2, 8, 10, 11, 12, 13], Selected(list));
+        Assert.Equal([2, 8, 11, 12, 13], Selected(list));
         counter.AssertOne(3, 3); // one change per key
         Keys(focus, SkUiKey.Up, SkUiKeyModifiers.Shift, 4);
-        Assert.Equal([2, 8, 9, 10], Selected(list));
+        Assert.Equal([2, 8, 9], Selected(list));
         Assert.True(focus.KeyDown(SkUiKey.Home, SkUiKeyModifiers.Shift));
-        Assert.Equal([0, 1, 3, 4, 5, 6, 7, 9, 10], Selected(list)); // 2 and 8 were selected: toggled off
+        Assert.Equal([0, 1, 3, 4, 5, 6, 7, 9], Selected(list)); // 2 and 8 were selected: toggled off
         counter.Changing = counter.Changed = counter.Commands = 0;
 
         // A plain move starts the next range where it ends; a selection change by anything else is kept by the next range.
@@ -198,23 +198,23 @@ public class CollectionViewExtendedSelectionTests
         Keys(focus, SkUiKey.Down, SkUiKeyModifiers.None, 15);
         list.SelectedItems.Add(list.ItemsSource!.Cast<Row>().ElementAt(1));
         Assert.True(focus.KeyDown(SkUiKey.Down, SkUiKeyModifiers.Shift));
-        Assert.Equal([1, 15, 16], Selected(list));
-        // Shift+Space toggles the range from the anchor too.
+        Assert.Equal([1, 16], Selected(list));
+        // Shift+Space toggles the items past the anchor up to the current one; on the anchor, the current item alone.
         Keys(focus, SkUiKey.Down, SkUiKeyModifiers.None, 2);
         Keys(focus, SkUiKey.Up, SkUiKeyModifiers.Command, 1);
         Assert.Equal(17, list.CurrentItemIndex);
         Assert.True(focus.KeyDown(SkUiKey.Space)); // toggles 17 and anchors there
         Keys(focus, SkUiKey.Down, SkUiKeyModifiers.Command, 2);
-        // A plain (or Ctrl) move anchors at the item it reaches: Shift+Space from 19 selects only 19 more.
+        // A plain (or Ctrl) move anchors at the item it reaches: Shift+Space there toggles 19 alone.
         Assert.True(focus.KeyDown(SkUiKey.Space, SkUiKeyModifiers.Shift));
-        Assert.Equal([1, 15, 16, 17, 19], Selected(list));
+        Assert.Equal([1, 16, 17, 19], Selected(list));
 
         // Enter taps (opens) the current item without selecting; Space never tapped.
         counter.Changing = counter.Changed = counter.Commands = 0;
         Assert.True(focus.KeyDown(SkUiKey.Enter));
-        Assert.Equal([1, 15, 16, 17, 19], Selected(list));
+        Assert.Equal([1, 16, 17, 19], Selected(list));
         counter.AssertOne(0, 0);
-        Assert.Equal([19], tapped.Skip(2)); // the two clicks tapped as well
+        Assert.Equal([2, 19], tapped); // the plain click tapped too; the Command+click only selected
 
         // Ctrl / Command+A selects every item, once.
         Assert.True(focus.KeyDown(SkUiKey.Character, SkUiKeyModifiers.Command, character: 'a'));
@@ -245,13 +245,100 @@ public class CollectionViewExtendedSelectionTests
         focus.KeyDown(SkUiKey.Up);
         focus.KeyDown(SkUiKey.Up); // at 3: the range starts here
         focus.KeyDown(SkUiKey.Up, SkUiKeyModifiers.Shift);
-        Assert.Equal([6], Sorted()); // 2 and 3 were selected: off
+        Assert.Equal([3, 6], Sorted()); // 2 was selected: off; 3, where the range starts, keeps its state
         focus.KeyDown(SkUiKey.Down, SkUiKeyModifiers.Shift);
-        Assert.Equal([2, 6], Sorted()); // back: 2 as it was, 3 (the start) still toggled
+        Assert.Equal([2, 3, 6], Sorted()); // back at the start: as it was
         Keys(focus, SkUiKey.Down, SkUiKeyModifiers.Shift, 3);
-        Assert.Equal([2, 4, 5], Sorted()); // 3 and 6 off, 4 and 5 on
+        Assert.Equal([2, 3, 4, 5], Sorted()); // 6 off, 4 and 5 on
         Keys(focus, SkUiKey.Up, SkUiKeyModifiers.Shift, 3);
-        Assert.Equal([2, 6], Sorted());
+        Assert.Equal([2, 3, 6], Sorted());
+    }
+
+    [Fact]
+    public void AClickedOrToggledItemStartsTheRangeOfShiftArrowsSelected()
+    {
+        var list = List(Rows(12));
+        var focus = list.FocusManager;
+        focus.KeyDown(SkUiKey.None);
+        Assert.True(list.Focus());
+
+        Click(list, 2);
+        focus.KeyDown(SkUiKey.Down, SkUiKeyModifiers.Shift);
+        Assert.Equal([2, 3], Selected(list)); // as every desktop list
+        focus.KeyDown(SkUiKey.Down);
+        focus.KeyDown(SkUiKey.Down);
+        focus.KeyDown(SkUiKey.Space); // 5 on
+        focus.KeyDown(SkUiKey.Down, SkUiKeyModifiers.Shift);
+        Assert.Equal([2, 3, 5, 6], Selected(list));
+
+        // A Shift+click's range goes on with Shift+arrows, and shrinks back.
+        Click(list, 8);
+        Click(list, 10, SkUiKeyModifiers.Shift);
+        Assert.Equal([8, 9, 10], Selected(list));
+        focus.KeyDown(SkUiKey.Down, SkUiKeyModifiers.Shift);
+        Assert.Equal([8, 9, 10, 11], Selected(list));
+        focus.KeyDown(SkUiKey.Up, SkUiKeyModifiers.Shift);
+        focus.KeyDown(SkUiKey.Up, SkUiKeyModifiers.Shift);
+        Assert.Equal([8, 9], Selected(list));
+    }
+
+    [Fact]
+    public void ModifierClicksSelectWithoutTappingAndCtrlAKeepsTheCurrentItemInView()
+    {
+        var rows = Rows(200);
+        var list = List(rows);
+        var tapped = 0;
+        list.ItemTapped += (_, _) => tapped++;
+        Click(list, 1);
+        Click(list, 3, SkUiKeyModifiers.Control);
+        Click(list, 5, SkUiKeyModifiers.Shift);
+        Click(list, 7, SkUiKeyModifiers.Shift | SkUiKeyModifiers.Command);
+        Assert.Equal(1, tapped); // the plain click only
+        Assert.Equal([3, 4, 5, 6, 7], Selected(list));
+
+        // Ctrl+A far down the list: the current item stays in view, not the first selected one.
+        list.KeepSelectionVisible = true;
+        var focus = list.FocusManager;
+        focus.KeyDown(SkUiKey.None);
+        Assert.True(list.Focus());
+        Assert.True(focus.KeyDown(SkUiKey.End));
+        var offset = list.ScrollView.ScrollY;
+        Assert.True(offset > 1000);
+        Assert.True(focus.KeyDown(SkUiKey.Character, SkUiKeyModifiers.Control, character: 'a'));
+        Assert.Equal(200, list.SelectedItems.Count);
+        Assert.Equal(offset, list.ScrollView.ScrollY, 1);
+    }
+
+    [Fact]
+    public void AResetForgetsTheAnchor()
+    {
+        var list = List(new ObservableCollection<Row>(Enumerable.Range(0, 10).Select(index => new Row(index))));
+        Click(list, 2);
+        // A new source of equal items: Shift+click ranges from where it is clicked, not from the old source's anchor.
+        list.ItemsSource = new ObservableCollection<Row>(Enumerable.Range(0, 10).Select(index => new Row(index)));
+        SkUiTestHelpers.Arrange(list, 300, 1200);
+        list.SelectedItems.Clear();
+        Click(list, 6, SkUiKeyModifiers.Shift);
+        Assert.Equal([6], Selected(list));
+    }
+
+    [Fact]
+    public void ClearingTheTapCommandOfAListWithoutSelectionGivesUpFocus()
+    {
+        var list = List(Rows(5));
+        list.SelectionMode = SkUiSelectionMode.None;
+        list.ItemTappedCommand = new Command(() => { });
+        var focus = list.FocusManager;
+        focus.KeyDown(SkUiKey.None);
+        Assert.True(list.Focus());
+        list.ItemTappedCommand = null;
+        Assert.False(list.IsFocused);
+        // An ItemTapped handler makes it focusable again; removing it gives focus up.
+        EventHandler<SkUiItemTappedEventArgs> handler = (_, _) => { };
+        list.ItemTapped += handler;
+        Assert.True(list.Focus());
+        list.ItemTapped -= handler;
+        Assert.False(list.IsFocused);
     }
 
     [Fact]
@@ -270,14 +357,14 @@ public class CollectionViewExtendedSelectionTests
         Assert.True(focus.KeyDown(SkUiKey.Insert));
         Assert.Equal([0], Selected(list));
         Assert.Equal(2, list.CurrentItemIndex);
-        // Shift+arrows range from where Insert left the current item.
+        // Shift+arrows toggle from where Insert left the current item.
         focus.KeyDown(SkUiKey.Down, SkUiKeyModifiers.Shift);
-        Assert.Equal([0, 2, 3], Selected(list));
+        Assert.Equal([0, 3], Selected(list)); // 2, where the range starts, keeps its state
         // At the end it toggles and stays.
         focus.KeyDown(SkUiKey.End);
         Assert.True(focus.KeyDown(SkUiKey.Insert));
         Assert.Equal(9, list.CurrentItemIndex);
-        Assert.Equal([0, 2, 3, 9], Selected(list));
+        Assert.Equal([0, 3, 9], Selected(list));
 
         // Only in an extended selection.
         list.IsExtendedSelectionEnabled = false;

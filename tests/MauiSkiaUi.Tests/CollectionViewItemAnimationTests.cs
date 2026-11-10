@@ -305,6 +305,108 @@ public class CollectionViewItemAnimationTests
         Assert.Equal(new Point(0, -70), From(list, 3)); // the next one makes room: from 150 to 220
     }
 
+    [Fact]
+    public void ASelectedTemplateThatChangesNothingLeavesNoPlacesForALaterChange()
+    {
+        // The selector chooses no template of its own for odd items: selecting one renews nothing, so a later change must
+        // not glide the rows from where they showed before a scroll.
+        var rows = Rows(60);
+        var list = List(rows);
+        list.SelectionMode = SkUiSelectionMode.Single;
+        list.SelectedItemTemplate = new EvenOnly(new DataTemplate(() => new SkUiBox { HeightRequest = 120 }));
+        using var surface = new SkUiTestSurface(list, 300, 500);
+        surface.Frame(0);
+
+        list.SelectedItem = rows[3];
+        surface.Frame(16);
+        list.ScrollView.ScrollTo(0, 300);
+        surface.Frame(32);
+        rows.RemoveAt(59); // far out of view: nothing in view moves
+        surface.Frame(48);
+        foreach (var index in Enumerable.Range(list.FirstVisibleIndex, list.LastVisibleIndex - list.FirstVisibleIndex + 1))
+            Assert.Null(From(list, index));
+    }
+
+    private sealed class EvenOnly(DataTemplate template) : DataTemplateSelector
+    {
+        protected override DataTemplate? OnSelectTemplate(object item, BindableObject container) => item is Row { Index: var index } && index % 2 == 0 ? template : null;
+    }
+
+    [Fact]
+    public void EqualItemsAnimateFromTheirOwnPlaces()
+    {
+        // Rows 0 and 2 show equal items: the removed one fades out where it was, not where its twin is.
+        var rows = new ObservableCollection<Row>([new Row(7), new Row(1), new Row(7), new Row(3), new Row(4)]);
+        var list = List(rows);
+        using var surface = new SkUiTestSurface(list, 300, 500);
+        surface.Frame(0);
+        var removedView = Host(list, 2);
+
+        rows.RemoveAt(2);
+        surface.Frame(10);
+        surface.Frame(10);
+        Assert.Equal(new Rect(0, 100, 300, 50), removedView.Frame);
+        Assert.Null(From(list, 0)); // the twin stays
+        Assert.Equal(new Point(0, 50), From(list, 2)); // the row after came up from 150
+    }
+
+    [Fact]
+    public void GridCellsThatOnlyReflowGlideInsteadOfFadingIn()
+    {
+        // Removing items from a grid rebinds every row after them: the items pulled into view were not inserted.
+        var rows = Rows(200);
+        var list = List(rows);
+        list.Span = 2;
+        using var surface = new SkUiTestSurface(list, 300, 500);
+        surface.Frame(0);
+
+        for (var index = 0; index < 60; index++)
+            rows.RemoveAt(0);
+        surface.Frame(16);
+        foreach (var index in Enumerable.Range(list.FirstVisibleIndex, list.LastVisibleIndex - list.FirstVisibleIndex + 1))
+            Assert.False(list.IsFadingIn(Host(list, index)));
+
+        // An item put in fades in; the cells it pushes along glide.
+        rows.Insert(1, new Row(500));
+        surface.Frame(32);
+        Assert.True(list.IsFadingIn(Host(list, 1)));
+        Assert.False(list.IsFadingIn(Host(list, 2)));
+        Assert.Equal(new Point(150, -50), From(list, 2));
+    }
+
+    [Fact]
+    public void AResetEndsTheFadesOfRemovedRows()
+    {
+        var rows = Rows(30);
+        var list = List(rows);
+        using var surface = new SkUiTestSurface(list, 300, 500);
+        surface.Frame(0);
+        rows.RemoveAt(3);
+        surface.Frame(10);
+        Assert.Equal(1, list.FadingViewCount);
+
+        list.ItemsSource = Rows(5);
+        Assert.Equal(0, list.FadingViewCount); // not drawn over the new items
+    }
+
+    [Fact]
+    public void AViewBoundToAnotherItemStopsItsGlide()
+    {
+        var rows = Rows(100);
+        var list = List(rows);
+        using var surface = new SkUiTestSurface(list, 300, 500);
+        surface.Frame(0);
+        rows.Insert(0, new Row(500));
+        surface.Frame(16);
+        Assert.NotNull(From(list, 3));
+
+        // Scrolled far at once: the gliding views are recycled for other items, which do not glide.
+        list.ScrollView.ScrollTo(0, 3000);
+        surface.Frame(32);
+        foreach (var index in Enumerable.Range(list.FirstVisibleIndex, list.LastVisibleIndex - list.FirstVisibleIndex + 1))
+            Assert.Null(From(list, index));
+    }
+
     private sealed class AnimatingLook : DefaultSkUiLook
     {
         public override bool CollectionViewAnimatesItemChanges => true;

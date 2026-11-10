@@ -96,19 +96,26 @@ public partial class SkUiCollectionView
                     rows.Add(Model.RowOfItem(-1, index));
         }
         // With AnimatesItemChanges, the rows after a row that changed size glide to their new places.
+        var noted = _placesBefore is null;
         BeforeRowsChange();
+        var renewed = false;
         foreach (var row in rows)
         {
             if (ItemsHost.GetRealizedView(row) is GridRowPart rowPart)
             {
                 rowPart.Bind(Model.RowAt(row)); // cells of another template swap with the pool
                 rowPart.InvalidateMeasure();
+                renewed = true;
             }
             else
             {
-                ItemsHost.RenewItem(row);
+                renewed |= ItemsHost.RenewItem(row);
             }
         }
+        // Nothing changed (a selector chose the item template again): no layout follows to animate from what was noted, so a
+        // later change must not glide from these places.
+        if (noted && !renewed && _placesBefore is not null)
+            DropPendingItemAnimation();
         RefreshRing();
     }
 }

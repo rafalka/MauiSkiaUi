@@ -326,12 +326,12 @@ public partial class SkUiCollectionView
             {
                 case NotifyCollectionChangedAction.Add when args.NewItems is { } added && args.NewStartingIndex >= 0
                     && args.NewStartingIndex <= count && count + added.Count == list.Count:
-                    ApplyItems(group, args.NewStartingIndex, count, list.Count, () => Insert(ItemRowBase(group) + args.NewStartingIndex, added.Count));
+                    ApplyItems(group, args.NewStartingIndex, count, list.Count, () => Insert(ItemRowBase(group) + args.NewStartingIndex, added.Count), added);
                     _owner.OnItemsChanged(null, reset: false);
                     return;
                 case NotifyCollectionChangedAction.Remove when args.OldItems is { } removed && args.OldStartingIndex >= 0
                     && args.OldStartingIndex + removed.Count <= count && count - removed.Count == list.Count:
-                    ApplyItems(group, args.OldStartingIndex, count, list.Count, () => Remove(ItemRowBase(group) + args.OldStartingIndex, removed.Count));
+                    ApplyItems(group, args.OldStartingIndex, count, list.Count, () => Remove(ItemRowBase(group) + args.OldStartingIndex, removed.Count), null);
                     _owner.OnItemsChanged(removed, reset: false);
                     return;
                 case NotifyCollectionChangedAction.Replace when args.NewItems is { } replaced && args.NewStartingIndex >= 0
@@ -339,13 +339,13 @@ public partial class SkUiCollectionView
                 {
                     var first = args.NewStartingIndex;
                     if (Span == 1)
-                        ApplyItems(group, first, count, count, () => Replace(ItemRowBase(group) + first, replaced.Count));
+                        ApplyItems(group, first, count, count, () => Replace(ItemRowBase(group) + first, replaced.Count), replaced);
                     else
                         ApplyItems(group, first, count, count, () =>
                         {
                             var firstRow = first / Span;
                             Replace(ItemRowBase(group) + firstRow, (first + replaced.Count - 1) / Span - firstRow + 1);
-                        });
+                        }, replaced);
                     _owner.OnItemsChanged(args.OldItems, reset: false);
                     return;
                 }
@@ -353,7 +353,7 @@ public partial class SkUiCollectionView
                     && args.OldStartingIndex + moved.Count <= count && args.NewStartingIndex + moved.Count <= count && count == list.Count:
                     if (args.OldStartingIndex != args.NewStartingIndex)
                         ApplyItems(group, Math.Min(args.OldStartingIndex, args.NewStartingIndex), count, count,
-                            () => Move(ItemRowBase(group) + args.OldStartingIndex, moved.Count, ItemRowBase(group) + args.NewStartingIndex));
+                            () => Move(ItemRowBase(group) + args.OldStartingIndex, moved.Count, ItemRowBase(group) + args.NewStartingIndex), null);
                     _owner.OnItemsChanged(null, reset: false);
                     return;
             }
@@ -367,9 +367,10 @@ public partial class SkUiCollectionView
         /// <summary>
         /// Applies a change of items from <paramref name="first"/> (<paramref name="oldCount"/> → <paramref name="newCount"/>):
         /// one item per row runs <paramref name="singleRows"/> (the exact change); grid rows from the first changed one are
-        /// rebound, and rows added or removed at the end. Collapsed groups only count their items.
+        /// rebound, and rows added or removed at the end. Collapsed groups only count their items. <paramref name="inserted"/>:
+        /// the items the change put in (they fade in when item changes animate; rebound grid rows only reflow the others).
         /// </summary>
-        private void ApplyItems(int group, int first, int oldCount, int newCount, Action singleRows)
+        private void ApplyItems(int group, int first, int oldCount, int newCount, Action singleRows, IList? inserted)
         {
             var expanded = group < 0 || _groups[group].Expanded;
             if (group < 0)
@@ -396,12 +397,22 @@ public partial class SkUiCollectionView
             var firstRow = first / Span;
             var b = ItemRowBase(group);
             var common = Math.Min(rowsBefore, rowsAfter);
-            if (common > firstRow)
-                Replace(b + firstRow, common - firstRow);
-            if (rowsAfter > rowsBefore)
-                Insert(b + rowsBefore, rowsAfter - rowsBefore);
-            else if (rowsBefore > rowsAfter)
-                Remove(b + rowsAfter, rowsBefore - rowsAfter);
+            // The rows rebound or added at the end mostly show items that only moved along: only the inserted items are new.
+            _owner.ItemsHost.NotesInsertedRows = false;
+            try
+            {
+                if (common > firstRow)
+                    Replace(b + firstRow, common - firstRow);
+                if (rowsAfter > rowsBefore)
+                    Insert(b + rowsBefore, rowsAfter - rowsBefore);
+                else if (rowsBefore > rowsAfter)
+                    Remove(b + rowsAfter, rowsBefore - rowsAfter);
+            }
+            finally
+            {
+                _owner.ItemsHost.NotesInsertedRows = true;
+            }
+            _owner.NoteInsertedItems(inserted);
         }
 
         /// <summary>A group's items were replaced (a reset, or a snapshot read again): its item rows are new.</summary>

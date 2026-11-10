@@ -15,7 +15,7 @@ A drawn layout of equal cells with the Community Toolkit's `UniformItemsLayout` 
 
 Two things differ from the toolkit's layout, which keeps its manager for its lifetime:
 
-- **The first child's size is followed.** The toolkit's manager measures the first child once and keeps that size. The drawn layout uses a new manager each time its measure is invalid (children added or removed, a child's measure changed, an option or the constraint changed), so cells follow a first child that changes size (new text, a larger font). Children cache their measure, so nothing that has not changed is measured again.
+- **The first child's size is followed.** The toolkit's manager measures the first child once and keeps that size. The drawn layout uses a new manager each time its measure is invalid (children added or removed, a child's measure changed, an option or the constraint changed), so cells follow a first child that changes size (new text, a larger font). The cost: each such measure measures the first child once more without limits.
 - **Children past `MaxRows` × `MaxColumns` are hidden.** The toolkit's manager does not arrange them, so they keep an old frame. The drawn layout arranges them empty: they neither draw nor take input.
 
 For galleries of tiles that stretch to fill the row, with an overflow tile, see [SkUiTileLayout](SkUiTileLayout.md); for many items, the collection view's grid.

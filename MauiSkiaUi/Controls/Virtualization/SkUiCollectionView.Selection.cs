@@ -53,7 +53,8 @@ public partial class SkUiCollectionView
         propertyChanged: (bindable, _, value) => ((SkUiCollectionView)bindable).OnSelectionBackgroundChanged((Brush?)value));
 
     /// <summary>Bindable property for <see cref="ItemTappedCommand"/>.</summary>
-    public static readonly BindableProperty ItemTappedCommandProperty = BindableProperty.Create(nameof(ItemTappedCommand), typeof(ICommand), typeof(SkUiCollectionView));
+    public static readonly BindableProperty ItemTappedCommandProperty = BindableProperty.Create(nameof(ItemTappedCommand), typeof(ICommand), typeof(SkUiCollectionView),
+        propertyChanged: (view, _, _) => ((SkUiCollectionView)view).RevalidateFocus()); // a list without item taps takes no keyboard focus
 
     /// <summary>Bindable property for <see cref="ItemTappedCommandParameter"/>.</summary>
     public static readonly BindableProperty ItemTappedCommandParameterProperty = BindableProperty.Create(nameof(ItemTappedCommandParameter), typeof(object), typeof(SkUiCollectionView));
@@ -133,9 +134,25 @@ public partial class SkUiCollectionView
 
     /// <summary>
     /// An item was tapped (on the item outside views that take taps themselves, such as buttons), whatever the
-    /// <see cref="SelectionMode"/>; raised after the tap changed the selection.
+    /// <see cref="SelectionMode"/>; raised after the tap changed the selection. In an extended selection
+    /// (<see cref="IsExtendedSelectionEnabled"/>) a plain click and Enter tap; Ctrl / Command and Shift clicks, Space and
+    /// Insert only select.
     /// </summary>
-    public event EventHandler<SkUiItemTappedEventArgs>? ItemTapped;
+    public event EventHandler<SkUiItemTappedEventArgs>? ItemTapped
+    {
+        add
+        {
+            _itemTapped += value;
+            RevalidateFocus(); // a list without item taps takes no keyboard focus
+        }
+        remove
+        {
+            _itemTapped -= value;
+            RevalidateFocus();
+        }
+    }
+
+    private EventHandler<SkUiItemTappedEventArgs>? _itemTapped;
 
     /// <summary>Sets <see cref="SelectionMode"/> (same as the property setter).</summary>
     public SkUiCollectionView SetSelectionMode(SkUiSelectionMode value)
@@ -180,7 +197,7 @@ public partial class SkUiCollectionView
         ReplaceSelectedItems(newSelection is null ? [] : [.. newSelection]); // a copy: it may be SelectedItems itself
 
     /// <summary>Whether item containers take taps.</summary>
-    private bool WantsItemTaps => _selectionMode != SkUiSelectionMode.None || ItemTapped is not null || ItemTappedCommand is not null;
+    private bool WantsItemTaps => _selectionMode != SkUiSelectionMode.None || _itemTapped is not null || ItemTappedCommand is not null;
 
     private bool ShowsSelection(object? item) => _selectionMode switch
     {
@@ -333,7 +350,10 @@ public partial class SkUiCollectionView
         {
             _tapSelecting = null;
         }
-        ItemTapped?.Invoke(this, new SkUiItemTappedEventArgs(item, global, group < 0 ? null : Model.Groups[group].Value));
+        // Ctrl / Command and Shift clicks build a selection: they do not open the item as a tap does.
+        if (gesture is SelectionGesture.Toggle or SelectionGesture.Range or SelectionGesture.AddRange)
+            return;
+        _itemTapped?.Invoke(this, new SkUiItemTappedEventArgs(item, global, group < 0 ? null : Model.Groups[group].Value));
         if (ItemTappedCommand is { } command)
         {
             var parameter = IsSet(ItemTappedCommandParameterProperty) ? ItemTappedCommandParameter : item;

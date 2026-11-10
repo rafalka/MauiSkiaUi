@@ -19,6 +19,45 @@ public partial class SkUiCollectionView
     /// <summary>Grid cells waiting for reuse, per item template (a grid row whose items need other templates swaps cells).</summary>
     private readonly Dictionary<object, Stack<ItemHost>> _cellPool = [];
 
+    private bool _clipItems = true;
+
+    /// <summary>Bindable property for <see cref="ClipItemsToBounds"/>.</summary>
+    public static readonly BindableProperty ClipItemsToBoundsProperty = BindableProperty.Create(nameof(ClipItemsToBounds), typeof(bool),
+        typeof(SkUiCollectionView), true, propertyChanged: (view, _, value) => ((SkUiCollectionView)view).OnClipItemsToBoundsChanged((bool)value));
+
+    /// <summary>
+    /// Whether each item and group header shows only what fits its slot (default <c>true</c>, as Android's list cells): content
+    /// larger than the slot does not cover the neighbors, and native views hosted in items are clipped too. <c>false</c>
+    /// lets an item draw past its edges (a shadow into <see cref="ItemsLayout"/>'s spacing, a part that overlaps the next row,
+    /// content scaled up on press); items are drawn in order, so a later one covers what an earlier one drew past its edge.
+    /// </summary>
+    public bool ClipItemsToBounds { get => (bool)GetValue(ClipItemsToBoundsProperty); set => SetValue(ClipItemsToBoundsProperty, value); }
+
+    /// <summary>Sets <see cref="ClipItemsToBounds"/> (same as the property setter).</summary>
+    public SkUiCollectionView SetClipItemsToBounds(bool value)
+    {
+        ClipItemsToBounds = value;
+        return this;
+    }
+
+    private void OnClipItemsToBoundsChanged(bool value)
+    {
+        _clipItems = value;
+        // Containers made from now on take it as their default; the ones that exist (shown, pooled, fading out) are set.
+        foreach (var view in ItemsHost.RealizedViews.Concat(ItemsHost.RecycledViews))
+            if (view is GridRowPart row)
+                foreach (var cell in row.Cells)
+                    cell.ClipToBounds = value;
+            else if (view is ItemHost or GroupHeaderHost)
+                ((SkUiView)view).ClipToBounds = value;
+        foreach (var cell in _cellPool.Values.SelectMany(static cells => cells))
+            cell.ClipToBounds = value;
+        foreach (var ghost in _removedViews is { } pending ? _ghosts.Concat(pending) : _ghosts)
+            ghost.View.ClipToBounds = value;
+        if (_stickyGroupHeader is { } sticky)
+            sticky.ClipToBounds = value;
+    }
+
     #region Rows
 
     private DataTemplate? SelectTemplate(DataTemplate? template, object? item) =>
@@ -98,10 +137,13 @@ public partial class SkUiCollectionView
                 break;
             case GroupHeaderHost header:
                 header.StickyGroup = -1;
+                StopItemMotion(header, Model.Groups[row.Group].Value);
                 header.BindingContext = Model.Groups[row.Group].Value;
                 header.SetExpanded(Model.Groups[row.Group].Expanded);
                 break;
             default:
+                if (view is SkUiView footer)
+                    StopItemMotion(footer, Model.Groups[row.Group].Value);
                 ((BindableObject)view).BindingContext = Model.Groups[row.Group].Value;
                 break;
         }
@@ -110,6 +152,7 @@ public partial class SkUiCollectionView
     /// <summary>Shows an item in its container: binding context, default label text, selected state.</summary>
     private void BindItemHost(ItemHost host, object? item)
     {
+        StopItemMotion(host, item);
         ((BindableObject)host).BindingContext = item;
         if (ReferenceEquals(host.TemplateKey, DefaultItemKey) && host.Content is SkUiLabel label)
             label.Text = item?.ToString() ?? string.Empty;
@@ -129,13 +172,17 @@ public partial class SkUiCollectionView
     {
         public void Reset(int count) => ResetItems(count);
 
+        /// <summary>Whether inserted and replaced rows are new parts (<c>false</c> while grid rows only reflow their items).</summary>
+        public bool NotesInsertedRows { get; set; } = true;
+
         // Each change notes what the item animations need first (AnimatesItemChanges): where the items show, what was inserted,
         // the views of removed items to fade out.
         public void InsertRows(int row, int count)
         {
             owner.BeforeRowsChange();
             InsertItems(row, count);
-            owner.NoteInsertedRows(row, count);
+            if (NotesInsertedRows)
+                owner.NoteInsertedRows(row, count);
         }
 
         public void RemoveRows(int row, int count)
@@ -156,7 +203,8 @@ public partial class SkUiCollectionView
         {
             owner.BeforeRowsChange();
             ReplaceItems(row, count);
-            owner.NoteInsertedRows(row, count);
+            if (NotesInsertedRows)
+                owner.NoteInsertedRows(row, count);
         }
 
         public void MoveRows(int row, int count, int newRow)
@@ -238,9 +286,9 @@ public partial class SkUiCollectionView
         /// <summary>The template (or default-label key) its view comes from.</summary>
         public object TemplateKey { get; } = templateKey;
 
-        // A row or grid cell shows only what fits it (native list cells clip too): content wider or taller than its slot
-        // does not spill over the neighbors, which are drawn after it.
-        private protected override bool DefaultClipToBounds => true;
+        // A row or grid cell shows only what fits it (ClipItemsToBounds): content wider or taller than its slot does not
+        // spill over the neighbors, which are drawn after it.
+        private protected override bool DefaultClipToBounds => owner._clipItems;
 
         public bool IsSelected
         {
@@ -402,7 +450,7 @@ public partial class SkUiCollectionView
         /// <summary>The group the sticky header shows, or -1 (a header in the list, found by its row).</summary>
         public int StickyGroup { get; set; } = -1;
 
-        private protected override bool DefaultClipToBounds => true; // as the item rows
+        private protected override bool DefaultClipToBounds => owner._clipItems; // as the item rows
 
         public void SetExpanded(bool expanded)
         {

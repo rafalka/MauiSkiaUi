@@ -59,8 +59,8 @@ public class SkUiUniformItemsLayout : SkUiLayout, IUniformItemsLayout
         // The toolkit's manager measures the first visible child once and keeps its size for as long as it lives, so a
         // first child that changes size (new text, a font scale) would keep the old cells. This runs only when the
         // layout's measure is invalid (its children, a child's measure, an option or the constraint changed), so a new
-        // manager per measure follows the first child without re-measuring anything that has not changed: children
-        // cache their measure per constraint.
+        // manager per measure follows the first child. The cost: each such measure measures the first child once more
+        // without limits (children keep only their last measure, which arranging at the cell size replaces).
         return MeasureWithNewManager(widthConstraint, heightConstraint);
     }
 

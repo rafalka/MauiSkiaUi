@@ -1035,6 +1035,15 @@ public class CollectionViewGroupsAndLayoutsTests
         var bitmap = surface.Frame();
         Assert.Equal(SKColors.Red, bitmap.GetPixel(90, 25));
         Assert.NotEqual(SKColors.Red, bitmap.GetPixel(130, 25));
+
+        // ClipItemsToBounds off: the cells that exist draw past their edges (item 1's cell is transparent over it).
+        list.ClipItemsToBounds = false;
+        Assert.Equal(SKColors.Red, surface.Frame().GetPixel(130, 25));
+        // Cells made after it (a new template) do too; on again, they clip.
+        list.ItemTemplate = new DataTemplate(((DataTemplate)list.ItemTemplate!).LoadTemplate);
+        Assert.Equal(SKColors.Red, surface.Frame().GetPixel(130, 25));
+        list.ClipItemsToBounds = true;
+        Assert.NotEqual(SKColors.Red, surface.Frame().GetPixel(130, 25));
     }
 }
 

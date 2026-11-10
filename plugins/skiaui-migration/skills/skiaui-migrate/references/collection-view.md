@@ -63,6 +63,7 @@ A plain list (items and a template only) can also use the lighter **`SkUiVirtual
 | Expandable groups | Not available | Built in |
 | A selected row's own template | A `DataTrigger` on a selected flag, or a template swapped in the view model | `SelectedItemTemplate` (selected rows that show more or differ in size; the row is measured again) |
 | Desktop (Ctrl / Shift) selection | WinUI only (`SelectionMode` Extended through platform code) | `SelectionMode="Multiple"` + `IsExtendedSelectionEnabled="True"`, every platform; touch keeps toggling |
+| Content past an item's edge | iOS draws it (cells do not clip), Android clips it | Clipped (`ClipItemsToBounds="True"`); `ClipItemsToBounds="False"` for card shadows meant to show in the item spacing |
 | Item animations | The platform list's (inserts, removes, moves animate) | Off in 1.x; `AnimatesItemChanges="True"` per list, or a look's `CollectionViewAnimatesItemChanges` for every list |
 | Keyboard | The platform list's own (differs per platform) | The same on every platform: one tab stop, arrow keys / Home / End / page keys move a current item with the focus ring, Space / Enter select and tap it, arrows expand and collapse group headers; drop key handlers written for native list items |
 | Pull to refresh | A separate `RefreshView` | Built in; works also on short lists and without overscroll; the look's indicator (overlay badge or inline, the platform's); mouse drags pull only with `IsMousePullEnabled`; `RefreshCompletion="Automatic"` ends it when an async command is done |

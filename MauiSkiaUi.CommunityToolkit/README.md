@@ -22,6 +22,7 @@ Drawn counterparts of the toolkit's layouts, laid out by the toolkit's own layou
 
 ```xml
 <ContentPage ...
+             xmlns:sk="clr-namespace:MauiSkiaUi;assembly=MauiSkiaUi"
              xmlns:skct="clr-namespace:MauiSkiaUi.CommunityToolkit;assembly=MauiSkiaUi.CommunityToolkit"
              xmlns:mct="http://schemas.microsoft.com/dotnet/2022/maui/toolkit">
   <skct:SkUiDockLayout>

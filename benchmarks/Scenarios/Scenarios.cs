@@ -1262,12 +1262,15 @@ public sealed class CollectionChanges(bool animated) : BenchScenario
         return list;
     }
 
+    // Inserted values never repeat: equal items in one list would be a case of their own.
+    private int _nextValue = 10_000;
+
     public override Action<View>? Update => root =>
     {
         var items = (System.Collections.ObjectModel.ObservableCollection<int>)((SkUiCollectionView)root).ItemsSource!;
         for (var index = 0; index < 10; index++)
         {
-            items.Insert(2 + index, 10_000 + index);
+            items.Insert(2 + index, _nextValue++);
             items.RemoveAt(20);
         }
         items.Move(3, 12);

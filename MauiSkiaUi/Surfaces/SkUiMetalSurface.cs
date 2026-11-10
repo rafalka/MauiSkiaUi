@@ -510,14 +510,14 @@ internal sealed class SkUiOverlayDragRecognizer : UIGestureRecognizer
             return;
         _touch = touch;
         _pointer = ++_nextPointer;
-        Update(Forward(SkUiTouchAction.Pressed), ended: false);
+        Update(Forward(SkUiTouchAction.Pressed, evt), ended: false);
     }
 
     public override void TouchesMoved(NSSet touches, UIEvent evt)
     {
         base.TouchesMoved(touches, evt);
         if (_touch is not null && touches.Contains(_touch))
-            Update(Forward(SkUiTouchAction.Moved), ended: false);
+            Update(Forward(SkUiTouchAction.Moved, evt), ended: false);
     }
 
     public override void TouchesEnded(NSSet touches, UIEvent evt)
@@ -525,7 +525,7 @@ internal sealed class SkUiOverlayDragRecognizer : UIGestureRecognizer
         base.TouchesEnded(touches, evt);
         if (_touch is null || !touches.Contains(_touch))
             return;
-        Forward(SkUiTouchAction.Released);
+        Forward(SkUiTouchAction.Released, evt);
         _touch = null;
         Update(SkUiNativeGestureState.None, ended: true);
     }
@@ -570,12 +570,16 @@ internal sealed class SkUiOverlayDragRecognizer : UIGestureRecognizer
         }
     }
 
-    private SkUiNativeGestureState Forward(SkUiTouchAction action)
+    private SkUiNativeGestureState Forward(SkUiTouchAction action, UIEvent? evt = null)
     {
         if (_touch is not { } touch)
             return SkUiNativeGestureState.None;
         var location = touch.LocationInView(_space);
-        return _overlayTouch(new SkUiTouchEvent(_pointer, action, new Point(location.X, location.Y), TimeSpan.FromSeconds(touch.Timestamp), Device: SkUiPointerDevices.From(touch)));
+        // The modifier keys, as on the surface (a Ctrl / Shift click on a native view in an item selects as one).
+        return _overlayTouch(new SkUiTouchEvent(_pointer, action, new Point(location.X, location.Y), TimeSpan.FromSeconds(touch.Timestamp), Device: SkUiPointerDevices.From(touch))
+        {
+            Modifiers = SkUiPointerDevices.ModifiersFrom(evt)
+        });
     }
 }
 

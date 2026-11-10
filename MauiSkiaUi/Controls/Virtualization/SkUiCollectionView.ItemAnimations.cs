@@ -22,8 +22,10 @@ public partial class SkUiCollectionView
     private sealed record Ghost(SkUiView View, object Key, Rect Place, int Generation);
 
     private bool? _animatesItemChanges;
-    // While a change runs: the realized parts' places in the viewport before it, the parts it inserted, the removed views.
+    // While a change runs: the realized parts' places in the viewport before it (by view: a list row keeps its item, so equal
+    // items keep apart; and by what they show, for grid cells rebound to other items), the parts it inserted, the removed views.
     private Dictionary<MotionKey, Rect>? _placesBefore;
+    private Dictionary<SkUiView, (MotionKey Key, Rect Place)>? _viewPlacesBefore;
     private HashSet<MotionKey>? _insertedParts;
     private List<Ghost>? _removedViews;
     private readonly Dictionary<SkUiView, Motion> _motions = [];
@@ -78,10 +80,16 @@ public partial class SkUiCollectionView
         if (_placesBefore is not null || !AnimatesChangeNow)
             return;
         var places = new Dictionary<MotionKey, Rect>();
+        var viewPlaces = new Dictionary<SkUiView, (MotionKey, Rect)>();
         foreach (var (view, key) in RealizedParts())
             if (PlaceOf(view) is { } place)
-                places.TryAdd(key, Offset(view) is { } offset ? place.Offset(offset.X, offset.Y) : place);
+            {
+                var shown = Offset(view) is { } offset ? place.Offset(offset.X, offset.Y) : place;
+                places.TryAdd(key, shown);
+                viewPlaces[view] = (key, shown);
+            }
         _placesBefore = places;
+        _viewPlacesBefore = viewPlaces;
         _insertedParts = [];
     }
 
@@ -109,11 +117,20 @@ public partial class SkUiCollectionView
         }
     }
 
+    /// <summary>Items were put in where grid rows only reflowed: they fade in, the items the rows moved along glide.</summary>
+    private void NoteInsertedItems(System.Collections.IList? items)
+    {
+        if (_insertedParts is not { } inserted || items is null)
+            return;
+        foreach (var item in items)
+            inserted.Add(new MotionKey(MotionPart.Item, item));
+    }
+
     /// <summary>The engine releases a removed row's view: one that showed (a list row, not a grid row) is kept to fade out.</summary>
     private bool TakeRemovedView(ISkUiView view, object? key)
     {
         if (key is null || view is GridRowPart || view is not SkUiView drawn || _placesBefore is not { } places
-            || !places.TryGetValue(KeyOf(drawn), out var place))
+            || OldPlace(drawn, KeyOf(drawn), places, _viewPlacesBefore, inserted: null) is not { } place)
             return false;
         (_removedViews ??= []).Add(new Ghost(drawn, key, place, _viewsGeneration));
         return true;
@@ -121,18 +138,32 @@ public partial class SkUiCollectionView
 
     /// <summary>
     /// A change of the items ended (<see cref="OnItemsChanged"/>). The animation waits for the next layout, so the changes of
-    /// one frame (a burst of inserts and removes) animate together from where things showed before the first; a reset drops it.
+    /// one frame (a burst of inserts and removes) animate together from where things showed before the first; a reset drops
+    /// it, and the removed views still fading out go at once (they showed items of what was there before).
     /// </summary>
     private void ItemChangeEnded(bool reset)
     {
-        if (reset && _placesBefore is not null)
+        if (!reset)
+            return;
+        if (_placesBefore is not null)
             DropPendingItemAnimation();
+        if (_ghosts.Count == 0)
+            return;
+        // Copied first: hiding a view ends its fade, whose end handler looks for it in the list.
+        Ghost[] fading = [.. _ghosts];
+        _ghosts.Clear();
+        foreach (var ghost in fading)
+        {
+            Body.GhostHost?.Hide(ghost.View);
+            Recycle(ghost);
+        }
     }
 
     private void DropPendingItemAnimation()
     {
         var removed = _removedViews;
         _placesBefore = null;
+        _viewPlacesBefore = null;
         _insertedParts = null;
         _removedViews = null;
         if (removed is not null)
@@ -147,9 +178,11 @@ public partial class SkUiCollectionView
     private void AnimateItemChanges()
     {
         var before = _placesBefore;
+        var viewsBefore = _viewPlacesBefore;
         var inserted = _insertedParts;
         var removed = _removedViews;
         _placesBefore = null;
+        _viewPlacesBefore = null;
         _insertedParts = null;
         _removedViews = null;
         if (before is null)
@@ -163,7 +196,7 @@ public partial class SkUiCollectionView
         {
             if (PlaceOf(view) is not { } place)
                 continue;
-            if (before.TryGetValue(key, out var old))
+            if (OldPlace(view, key, before, viewsBefore, inserted) is { } old)
             {
                 var shift = new Point(old.X - place.X, old.Y - place.Y);
                 Glide(view, shift, move);
@@ -191,6 +224,21 @@ public partial class SkUiCollectionView
             FadeOut(removed, look.GetTransition(SkUiTransitionKind.ItemRemove));
     }
 
+    /// <summary>
+    /// Where the part <paramref name="view"/> shows (<paramref name="key"/>) was before the change: the view's own place while
+    /// it showed the same (a list row keeps its item, so equal items keep apart), else, unless the change inserted it, where
+    /// a part showing the same was (a grid cell rebound to an item that moved along).
+    /// </summary>
+    private static Rect? OldPlace(SkUiView view, MotionKey key, Dictionary<MotionKey, Rect> places,
+        Dictionary<SkUiView, (MotionKey Key, Rect Place)>? views, HashSet<MotionKey>? inserted)
+    {
+        if (views is not null && views.TryGetValue(view, out var own) && own.Key == key)
+            return own.Place;
+        if (inserted?.Contains(key) == true)
+            return null;
+        return places.TryGetValue(key, out var place) ? place : null;
+    }
+
     /// <summary>Draws <paramref name="view"/> from <paramref name="shift"/> back to its place (both axes: grid cells move across too).</summary>
     private void Glide(SkUiView view, Point shift, SkUiTransition transition)
     {
@@ -209,6 +257,24 @@ public partial class SkUiCollectionView
             if (_motions.TryGetValue(view, out var current) && current == motion)
                 _motions.Remove(view);
         });
+    }
+
+    /// <summary>
+    /// <paramref name="view"/> is bound to <paramref name="item"/> (recycled, or a grid cell rebound): a glide or fade it ran
+    /// for the item it showed before stops, so it is not drawn from that item's offset and a later change does not take it
+    /// for the new item's place.
+    /// </summary>
+    private void StopItemMotion(SkUiView view, object? item)
+    {
+        if (Equals(((BindableObject)view).BindingContext, item))
+            return;
+        if (_motions.Remove(view))
+        {
+            view.StopAnimations(SkUiAnimatableProperty.TranslationX);
+            view.StopAnimations(SkUiAnimatableProperty.TranslationY);
+        }
+        if (_fadingIn.Remove(view))
+            view.StopAnimations(SkUiAnimatableProperty.Opacity);
     }
 
     private void FadeIn(SkUiView view, SkUiTransition transition)

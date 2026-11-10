@@ -250,8 +250,8 @@ public partial class SkUiCollectionView : ISkUiKeyHandler, ISkUiItemFocusTarget
 
     /// <summary>
     /// Space / Enter: activates the current item as a tap would, or expands / collapses the current group. In an extended
-    /// selection Space adds or removes the current item (Shift+Space: toggles the range from the anchor) without tapping it, and
-    /// Enter taps it (opens it) without changing the selection.
+    /// selection Space adds or removes the current item (Shift+Space: toggles the items past the anchor up to it; on the
+    /// anchor, it alone) without tapping it, and Enter taps it (opens it) without changing the selection.
     /// </summary>
     private bool Activate(in SkUiKeyEvent key)
     {
@@ -269,7 +269,13 @@ public partial class SkUiCollectionView : ISkUiKeyHandler, ISkUiItemFocusTarget
         if (!WantsItemTaps)
             return false;
         if (ExtendsSelection && key.Key == SkUiKey.Space)
-            SelectByKey(current.Group, current.Start + slot, extendRange: (key.Modifiers & SkUiKeyModifiers.Shift) != 0);
+        {
+            // Shift+Space on the anchor (just after a move, which anchors there) toggles the item, as Space does.
+            var index = current.Start + slot;
+            var shift = (key.Modifiers & SkUiKeyModifiers.Shift) != 0;
+            SelectByKey(current.Group, index, extendRange: shift && ResolveAnchor() is >= 0 and var anchor
+                && anchor != Model.GlobalIndex(current.Group, index));
+        }
         else
             ActivateItem(current.Group, current.Start + slot, ExtendsSelection ? SelectionGesture.None : SelectionGesture.Tap);
         return true;
@@ -500,6 +506,8 @@ public partial class SkUiCollectionView : ISkUiKeyHandler, ISkUiItemFocusTarget
     /// <summary>The items changed: a removed current item passes to its neighbor (the item now at its place); a reset forgets it.</summary>
     private void OnItemsChangedKeepCurrent(bool reset)
     {
+        if (reset)
+            ForgetAnchor(); // ranges do not start from an item of what was there before
         if (_currentKind == CurrentKind.None || ResolveCurrent() >= 0)
         {
             RefreshRing();
