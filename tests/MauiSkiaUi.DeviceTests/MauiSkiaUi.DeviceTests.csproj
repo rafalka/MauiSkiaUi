@@ -6,8 +6,7 @@
     Rerun failed, per-scenario Run). Release by default: no debugger, Hot Reload or DevFlow agent holding references.
   -->
   <PropertyGroup>
-    <TargetFrameworks>net10.0-android</TargetFrameworks>
-    <TargetFrameworks Condition="!$([MSBuild]::IsOSPlatform('linux'))">$(TargetFrameworks);net10.0-ios;net10.0-maccatalyst</TargetFrameworks>
+    <TargetFrameworks>$(SkUiDeviceTfms)</TargetFrameworks>
     <OutputType>Exe</OutputType>
     <RootNamespace>MauiSkiaUi.DeviceTests</RootNamespace>
     <UseMaui>true</UseMaui>
@@ -18,9 +17,6 @@
     <IsPackable>false</IsPackable>
     <ApplicationTitle>SkiaUi Device Tests</ApplicationTitle>
     <ApplicationId>com.rkdevel.skiauidevicetests</ApplicationId>
-    <SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'ios'">15.0</SupportedOSPlatformVersion>
-    <SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'maccatalyst'">17.0</SupportedOSPlatformVersion>
-    <SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">21.0</SupportedOSPlatformVersion>
   </PropertyGroup>
   <ItemGroup>
     <!-- A launch screen is required: without UILaunchStoryboardName iOS runs the app letterboxed (legacy mode). -->

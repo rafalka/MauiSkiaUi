@@ -17,6 +17,7 @@ APP_ID="com.rkdevel.skiauibench"
 ACTIVITY="$APP_ID/skiauibench.MainActivity"
 
 TARGET="headless"
+NET="${SKUI_NET:-10}"
 DEVICE=""
 RUNS=6
 WARMUP=1
@@ -34,6 +35,8 @@ usage() {
 Usage: scripts/bench.sh [options]
 
   -t TARGET        headless (default) | android | ios | maccatalyst
+  --net 10|11      .NET line to build and run (default 10, or $SKUI_NET): net10.0 / net11.0 and their platform TFMs;
+                   a baseline commit older than 1.11 has only 10
   -s DEVICE        adb serial (android) or simulator / device UDID (ios); default: the only connected one
   -n RUNS          measured iterations per scenario (default 6)
   -w WARMUP        warm-up iterations per scenario (default 1)
@@ -57,6 +60,7 @@ EOF
 while [[ $# -gt 0 ]]; do
     case "$1" in
         -t) TARGET="$2"; shift 2 ;;
+        --net) NET="$2"; shift 2 ;;
         -s) DEVICE="$2"; shift 2 ;;
         -n) RUNS="$2"; shift 2 ;;
         -w) WARMUP="$2"; shift 2 ;;
@@ -67,7 +71,7 @@ while [[ $# -gt 0 ]]; do
         --quiet-gc) QUIET_GC=1; shift ;;
         --look) LOOK="$2"; shift 2 ;;
         -o) OUT="$2"; shift 2 ;;
-        -l|--list) exec dotnet run -c Release --project "$REPO_ROOT/benchmarks/MauiSkiaUi.Benchmarks" -- --list ;;
+        -l|--list) exec dotnet run -c Release -f "net$NET.0" --project "$REPO_ROOT/benchmarks/MauiSkiaUi.Benchmarks" -- --list ;;
         -h|--help) usage; exit 0 ;;
         *) echo "unknown option $1" >&2; usage; exit 2 ;;
     esac
@@ -132,7 +136,7 @@ BUILT=" "
 bench_app_dir() { echo "$1/benchmarks/MauiSkiaUiBench"; } # repo dir → bench app project folder
 
 tfm_for() { # repo dir, platform suffix (android / ios / maccatalyst) → target framework from the project itself
-    dotnet msbuild "$(bench_app_dir "$1")/MauiSkiaUiBench.csproj" -getProperty:TargetFrameworks | tr ';' '\n' | grep -- "-$2\$" | head -1
+    dotnet msbuild "$(bench_app_dir "$1")/MauiSkiaUiBench.csproj" -getProperty:TargetFrameworks | tr ';' '\n' | grep -x -- "net$NET\.0-$2" | head -1
 }
 
 build() { # label dir
@@ -143,12 +147,12 @@ build() { # label dir
     log "building $label ($TARGET)"
     if [[ "$TARGET" != headless ]]; then
         tfm="$(tfm_for "$dir" "$TARGET")"
-        [[ -n "$tfm" ]] || { echo "no $TARGET target framework in $project" >&2; exit 1; }
+        [[ -n "$tfm" ]] || { echo "no net$NET.0-$TARGET target framework in $project" >&2; exit 1; }
         # Clean output so the artifact lookup below can only find this build.
         rm -rf "$app/bin"
     fi
     case "$TARGET" in
-        headless) dotnet build -c Release "$dir/benchmarks/MauiSkiaUi.Benchmarks" -v q -nologo >"$OUT/$label.build.log" 2>&1 ;;
+        headless) dotnet build -c Release -f "net$NET.0" "$dir/benchmarks/MauiSkiaUi.Benchmarks" -v q -nologo >"$OUT/$label.build.log" 2>&1 ;;
         android) dotnet build -c Release -f "$tfm" -t:SignAndroidPackage "$project" -v q -nologo >"$OUT/$label.build.log" 2>&1 ;;
         ios)
             # Incremental iOS (AOT) builds after a library change can crash at launch ("Failed to load AOT module").
@@ -235,7 +239,7 @@ run_headless() { # label dir round
     # --quiet-gc: no collection inside an iteration (each starts after a full one).
     local gc=""
     [[ "$QUIET_GC" == 1 ]] && gc="DOTNET_GCgen0size=0x40000000"
-    env $gc DOTNET_TieredCompilation=0 DOTNET_TieredPGO=0 dotnet run -c Release --no-build --project "$dir/benchmarks/MauiSkiaUi.Benchmarks" -- "${args[@]}" --json "$json" >"$OUT/$label.round$round.log"
+    env $gc DOTNET_TieredCompilation=0 DOTNET_TieredPGO=0 dotnet run -c Release -f "net$NET.0" --no-build --project "$dir/benchmarks/MauiSkiaUi.Benchmarks" -- "${args[@]}" --json "$json" >"$OUT/$label.round$round.log"
     echo "$json"
 }
 

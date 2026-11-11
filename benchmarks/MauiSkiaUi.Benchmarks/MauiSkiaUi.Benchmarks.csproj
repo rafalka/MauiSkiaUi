@@ -6,7 +6,9 @@
   -->
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <TargetFramework>net10.0</TargetFramework>
+    <TargetFrameworks>$(SkUiHeadlessTfms)</TargetFrameworks>
+    <!-- scripts/bench.sh copies benchmarks/ into a worktree of the baseline commit, whose Directory.Build.props may predate the lists. -->
+    <TargetFrameworks Condition="'$(TargetFrameworks)' == ''">net10.0</TargetFrameworks>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>

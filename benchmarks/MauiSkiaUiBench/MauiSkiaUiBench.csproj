@@ -5,8 +5,7 @@
     Humans can also launch it normally and press Run. See docs/design/Benchmarks.md; scripts/bench.sh drives it.
   -->
   <PropertyGroup>
-    <TargetFrameworks>net10.0-android</TargetFrameworks>
-    <TargetFrameworks Condition="!$([MSBuild]::IsOSPlatform('linux'))">$(TargetFrameworks);net10.0-ios;net10.0-maccatalyst</TargetFrameworks>
+    <TargetFrameworks>$(SkUiDeviceTfms)</TargetFrameworks>
     <OutputType>Exe</OutputType>
     <RootNamespace>MauiSkiaUiBench</RootNamespace>
     <UseMaui>true</UseMaui>
@@ -16,6 +15,12 @@
     <NoWarn>$(NoWarn);CS1591</NoWarn>
     <ApplicationTitle>SkiaUi Bench</ApplicationTitle>
     <ApplicationId>com.rkdevel.skiauibench</ApplicationId>
+  </PropertyGroup>
+  <!-- scripts/bench.sh copies benchmarks/ into a worktree of the baseline commit, whose Directory.Build.props may predate the
+       shared target framework lists and minimum OS versions (1.10 and older): use that commit's. -->
+  <PropertyGroup Condition="'$(SkUiDeviceTfms)' == ''">
+    <TargetFrameworks>net10.0-android</TargetFrameworks>
+    <TargetFrameworks Condition="!$([MSBuild]::IsOSPlatform('linux'))">$(TargetFrameworks);net10.0-ios;net10.0-maccatalyst</TargetFrameworks>
     <SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'ios'">15.0</SupportedOSPlatformVersion>
     <SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'maccatalyst'">17.0</SupportedOSPlatformVersion>
     <SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">21.0</SupportedOSPlatformVersion>

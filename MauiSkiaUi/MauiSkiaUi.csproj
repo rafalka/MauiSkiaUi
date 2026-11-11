@@ -3,9 +3,7 @@
 	<Import Project="TrimAnalysis.props" />
 
 	<PropertyGroup>
-		<TargetFrameworks>net10.0;net10.0-android</TargetFrameworks>
-		<TargetFrameworks Condition="!$([MSBuild]::IsOSPlatform('linux'))">$(TargetFrameworks);net10.0-ios;net10.0-maccatalyst</TargetFrameworks>
-		<TargetFrameworks Condition="$([MSBuild]::IsOSPlatform('windows'))">$(TargetFrameworks);net10.0-windows10.0.19041.0</TargetFrameworks>
+		<TargetFrameworks>$(SkUiLibraryTfms)</TargetFrameworks>
 
 		<UseMaui>true</UseMaui>
 		<SingleProject>true</SingleProject>
@@ -30,12 +28,6 @@
 		<!-- CsWinRT generates unsafe vtable code for types that implement generic WinRT interfaces (e.g. arrays exposed as
 		     IReadOnlyList<T>) so they stay trim / AOT safe across the WinRT ABI; without unsafe blocks it reports CsWinRT1030. -->
 		<AllowUnsafeBlocks Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">true</AllowUnsafeBlocks>
-
-		<SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'ios'">15.0</SupportedOSPlatformVersion>
-		<SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'maccatalyst'">17.0</SupportedOSPlatformVersion>
-		<SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">21.0</SupportedOSPlatformVersion>
-		<SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">10.0.17763.0</SupportedOSPlatformVersion>
-		<TargetPlatformMinVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">10.0.17763.0</TargetPlatformMinVersion>
 
 		<!-- NuGet (Version / ApplicationDisplayVersion come from Directory.Build.props) -->
 		<IsPackable>true</IsPackable>
@@ -83,7 +75,7 @@
 		<PackageReference Include="SkiaSharp" Version="$(SkiaSharpVersion)" />
 		<!-- Text shaping (complex scripts, ligatures, RTL) via HarfBuzz. -->
 		<PackageReference Include="SkiaSharp.HarfBuzz" Version="$(SkiaSharpVersion)" />
-		<PackageReference Include="SkiaSharp.Views.Maui.Controls" Version="$(SkiaSharpVersion)" Condition="'$(TargetFramework)' != 'net10.0'" />
+		<PackageReference Include="SkiaSharp.Views.Maui.Controls" Version="$(SkiaSharpVersion)" Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) != ''" />
 	</ItemGroup>
 
 	<!--

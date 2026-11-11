@@ -1,12 +1,24 @@
 <Project>
   <PropertyGroup>
-    <!-- Pin Microsoft.Maui.Controls and related package versions used via $(MauiVersion). -->
-    <MauiVersion>10.0.120</MauiVersion>
+    <!--
+      Two .NET lines (net10.0-* with MAUI 10, net11.0-* with MAUI 11) in every package. The per-line pins below are picked for
+      each target framework further down ($(MauiVersion), $(CommunityToolkitMauiVersion), $(MicrosoftExtensionsVersion)).
+      Inner builds get $(TargetFramework) as a global property, so it is known here; the outer build gets the net10 values.
+    -->
+    <!-- Microsoft.Maui.Controls (and the MAUI workload's implicit packages). net10 stays at its floor: apps may use any later 10.x. -->
+    <Maui10Version>10.0.120</Maui10Version>
+    <Maui11Version>11.0.0</Maui11Version>
 
-    <!-- Pin SkiaSharp and its companion packages (HarfBuzz, Views, native assets) via $(SkiaSharpVersion); keep them in lockstep. -->
+    <!-- Pin SkiaSharp and its companion packages (HarfBuzz, Views, native assets) via $(SkiaSharpVersion); keep them in lockstep. One
+         version for both lines: SkiaSharp.Views.Maui.Controls has net10 assets only, which net11 builds use on MAUI 11. -->
     <SkiaSharpVersion>4.154.0</SkiaSharpVersion>
-    <!-- CommunityToolkit.Maui for SkiaUi.Maui.CommunityToolkit, the demo, the samples and the tests (needs MAUI $(MauiVersion) or newer). -->
-    <CommunityToolkitMauiVersion>15.0.1</CommunityToolkitMauiVersion>
+    <!-- CommunityToolkit.Maui for SkiaUi.Maui.CommunityToolkit, the demo, the samples and the tests: 15.x is the last net10 line,
+         17.x targets net11 only. -->
+    <CommunityToolkitMaui10Version>15.0.1</CommunityToolkitMaui10Version>
+    <CommunityToolkitMaui11Version>17.0.0</CommunityToolkitMaui11Version>
+    <!-- Microsoft.Extensions.* packages the apps reference directly (the demo's Logging.Debug). -->
+    <MicrosoftExtensions10Version>10.0.13</MicrosoftExtensions10Version>
+    <MicrosoftExtensions11Version>11.0.0</MicrosoftExtensions11Version>
     <!-- Markdig for SkiaUi.Maui.Markdown; CSharpMath.Rendering for SkiaUi.Maui.Markdown.Math. -->
     <MarkdigVersion>1.6.0</MarkdigVersion>
     <CSharpMathVersion>0.5.1</CSharpMathVersion>
@@ -22,5 +34,56 @@
     <ApplicationDisplayVersion>$(Version.Split('-')[0])</ApplicationDisplayVersion>
     <!-- Android versionCode / iOS CFBundleVersion (integer); bump when shipping store builds. -->
     <ApplicationVersion>1</ApplicationVersion>
+  </PropertyGroup>
+
+  <!--
+    Target frameworks, used by every project instead of its own list:
+      SkUiLibraryTfms   the packages: netX.0 (headless tests) plus the platform TFMs
+      SkUiAppTfms       app heads with a Windows build (demo, samples)
+      SkUiDeviceTfms    app heads without one (device tests, on-device bench)
+      SkUiHeadlessTfms  plain netX.0 projects (headless tests, benchmark runner)
+    Each list has net11 first, so a tool that picks the first TFM runs .NET 11. iOS and Mac Catalyst are left out on Linux, Windows
+    is only built on Windows. -p:SkUiNet=10 or -p:SkUiNet=11 builds one line only (CI jobs on SDK 10, which can't build net11.0).
+  -->
+  <PropertyGroup>
+    <_SkUiNet11 Condition="'$(SkUiNet)' != '10'">true</_SkUiNet11>
+    <_SkUiNet10 Condition="'$(SkUiNet)' != '11'">true</_SkUiNet10>
+    <_SkUiApple Condition="!$([MSBuild]::IsOSPlatform('linux'))">true</_SkUiApple>
+    <_SkUiWindows Condition="$([MSBuild]::IsOSPlatform('windows'))">true</_SkUiWindows>
+
+    <_SkUiDevice11 Condition="'$(_SkUiNet11)' == 'true'">net11.0-android</_SkUiDevice11>
+    <_SkUiDevice11 Condition="'$(_SkUiNet11)' == 'true' and '$(_SkUiApple)' == 'true'">$(_SkUiDevice11);net11.0-ios;net11.0-maccatalyst</_SkUiDevice11>
+    <_SkUiDevice10 Condition="'$(_SkUiNet10)' == 'true'">net10.0-android</_SkUiDevice10>
+    <_SkUiDevice10 Condition="'$(_SkUiNet10)' == 'true' and '$(_SkUiApple)' == 'true'">$(_SkUiDevice10);net10.0-ios;net10.0-maccatalyst</_SkUiDevice10>
+    <_SkUiWin11 Condition="'$(_SkUiNet11)' == 'true' and '$(_SkUiWindows)' == 'true'">net11.0-windows10.0.19041.0</_SkUiWin11>
+    <_SkUiWin10 Condition="'$(_SkUiNet10)' == 'true' and '$(_SkUiWindows)' == 'true'">net10.0-windows10.0.19041.0</_SkUiWin10>
+    <_SkUiHeadless11 Condition="'$(_SkUiNet11)' == 'true'">net11.0</_SkUiHeadless11>
+    <_SkUiHeadless10 Condition="'$(_SkUiNet10)' == 'true'">net10.0</_SkUiHeadless10>
+
+    <!-- Joined with ';' and trimmed (empty segments dropped); unescaped, as MSBuild escapes the ';' in a property function's result. -->
+    <SkUiHeadlessTfms>$([MSBuild]::Unescape($([System.Text.RegularExpressions.Regex]::Replace('$(_SkUiHeadless11);$(_SkUiHeadless10)', ';{2,}', ';').Trim(';'))))</SkUiHeadlessTfms>
+    <SkUiDeviceTfms>$([MSBuild]::Unescape($([System.Text.RegularExpressions.Regex]::Replace('$(_SkUiDevice11);$(_SkUiDevice10)', ';{2,}', ';').Trim(';'))))</SkUiDeviceTfms>
+    <SkUiAppTfms>$([MSBuild]::Unescape($([System.Text.RegularExpressions.Regex]::Replace('$(_SkUiDevice11);$(_SkUiWin11);$(_SkUiDevice10);$(_SkUiWin10)', ';{2,}', ';').Trim(';'))))</SkUiAppTfms>
+    <SkUiLibraryTfms>$([MSBuild]::Unescape($([System.Text.RegularExpressions.Regex]::Replace('$(SkUiHeadlessTfms);$(SkUiAppTfms)', ';{2,}', ';').Trim(';'))))</SkUiLibraryTfms>
+  </PropertyGroup>
+
+  <!-- Per-TFM pins and minimum OS versions (MAUI 11 raised Android to API 24; the others are the same on both lines). -->
+  <PropertyGroup>
+    <_SkUiTfmVersion Condition="'$(TargetFramework)' != ''">$([MSBuild]::GetTargetFrameworkVersion('$(TargetFramework)', 2))</_SkUiTfmVersion>
+    <_SkUiTfmPlatform Condition="'$(TargetFramework)' != ''">$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)'))</_SkUiTfmPlatform>
+
+    <MauiVersion>$(Maui10Version)</MauiVersion>
+    <CommunityToolkitMauiVersion>$(CommunityToolkitMaui10Version)</CommunityToolkitMauiVersion>
+    <MicrosoftExtensionsVersion>$(MicrosoftExtensions10Version)</MicrosoftExtensionsVersion>
+    <MauiVersion Condition="'$(_SkUiTfmVersion)' == '11.0'">$(Maui11Version)</MauiVersion>
+    <CommunityToolkitMauiVersion Condition="'$(_SkUiTfmVersion)' == '11.0'">$(CommunityToolkitMaui11Version)</CommunityToolkitMauiVersion>
+    <MicrosoftExtensionsVersion Condition="'$(_SkUiTfmVersion)' == '11.0'">$(MicrosoftExtensions11Version)</MicrosoftExtensionsVersion>
+
+    <SupportedOSPlatformVersion Condition="'$(_SkUiTfmPlatform)' == 'ios'">15.0</SupportedOSPlatformVersion>
+    <SupportedOSPlatformVersion Condition="'$(_SkUiTfmPlatform)' == 'maccatalyst'">17.0</SupportedOSPlatformVersion>
+    <SupportedOSPlatformVersion Condition="'$(_SkUiTfmPlatform)' == 'android'">21.0</SupportedOSPlatformVersion>
+    <SupportedOSPlatformVersion Condition="'$(_SkUiTfmPlatform)' == 'android' and '$(_SkUiTfmVersion)' == '11.0'">24.0</SupportedOSPlatformVersion>
+    <SupportedOSPlatformVersion Condition="'$(_SkUiTfmPlatform)' == 'windows'">10.0.17763.0</SupportedOSPlatformVersion>
+    <TargetPlatformMinVersion Condition="'$(_SkUiTfmPlatform)' == 'windows'">10.0.17763.0</TargetPlatformMinVersion>
   </PropertyGroup>
 </Project>
