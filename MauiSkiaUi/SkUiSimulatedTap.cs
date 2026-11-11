@@ -10,8 +10,8 @@ namespace MauiSkiaUi;
 /// When the press was released, the recognizer that won it. When it was cancelled, the one that would have taken a release
 /// without movement: the arena's winner, else its innermost member that stays for the sweep (pans, scrollers, swipes and long
 /// presses that have not claimed give such a release up), else the one leading the press (a scroller around a label). From
-/// <see cref="SkUiDiagnostics.SimulateTap(object, bool)"/> it can be another element's tap recognizer that would have taken
-/// the press. <c>null</c> when no drawn recognizer took part (a disabled control, plain drawn content, a native view) or,
+/// <see cref="SkUiDiagnostics.SimulateTap(object, bool)"/> it can be another element's recognizer that would have taken the
+/// press. <c>null</c> when no drawn recognizer took part (a disabled control, plain drawn content, a native view) or,
 /// after a release, every one gave up.
 /// </param>
 /// <param name="IsTap">

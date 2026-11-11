@@ -174,6 +174,26 @@ public class SimulatedTapTests
         Assert.Equal(1, taps);
     }
 
+    [Fact]
+    public void AForcedPressAnotherElementsRecognizerWouldTakeIsCancelled()
+    {
+        var target = new SkUiButton { Text = "Row" };
+        var cover = new SkUiContentView();
+        var events = new List<SkUiTouchAction>();
+        var pointer = new SkUiPointerGestureRecognizer(); // claims on press: the arena's winner, not a tap
+        pointer.Pointer += (_, args) => events.Add(args.Action);
+        cover.Gestures.Add(pointer);
+        var root = Surface(new SkUiGrid { Children = { target, cover } });
+
+        var result = SkUiDiagnostics.SimulateTap(target, releaseOnlyIfTap: false); // released on request, but not into another element
+
+        Assert.Same(pointer, result.Winner);
+        Assert.False(result.Released);
+        Assert.False(result.IsTap);
+        Assert.DoesNotContain(SkUiTouchAction.Released, events);
+        Assert.Equal(0, root.Router.ActiveArenaCount);
+    }
+
     [Theory]
     [InlineData(true)]
     [InlineData(false)]

@@ -110,9 +110,9 @@ public static class SkUiDiagnostics
 
     /// <summary>
     /// Taps the center of <paramref name="element"/>'s bounds, as <see cref="SimulateTapAt"/> does at a point; nothing is
-    /// pressed (an empty result) when the element is not on a surface or the point is clipped away. A press that a tap
-    /// recognizer of another element would take is cancelled, whatever <paramref name="releaseOnlyIfTap"/> says: something
-    /// drawn over the element, or what lies at its center while it is scrolled out of its scroller's viewport. Its
+    /// pressed (an empty result) when the element is not on a surface or the point is clipped away. A press that a recognizer
+    /// of another element would take (a tap or any other) is cancelled, whatever <paramref name="releaseOnlyIfTap"/> says:
+    /// something drawn over the element, or what lies at its center while it is scrolled out of its scroller's viewport. Its
     /// <see cref="SkUiSimulatedTap.Winner"/> then names that recognizer (its owner is outside the element, its descendants
     /// and its ancestors), with <see cref="SkUiSimulatedTap.IsTap"/> and <see cref="SkUiSimulatedTap.Released"/>
     /// <c>false</c>. Passive content drawn over the element (no recognizers, or input-transparent) lets the press through,
@@ -139,7 +139,7 @@ public static class SkUiDiagnostics
     public static SkUiSimulatedTap SimulateTapAt(SkUiView root, Point rootPoint, bool releaseOnlyIfTap = true) =>
         PressAndRelease(root, rootPoint, releaseOnlyIfTap, target: null);
 
-    /// <summary><see cref="SimulateTapAt"/>; with <paramref name="target"/>, also cancels a press a tap recognizer outside its chain would take.</summary>
+    /// <summary><see cref="SimulateTapAt"/>; with <paramref name="target"/>, also cancels a press a recognizer outside its chain would take.</summary>
     private static SkUiSimulatedTap PressAndRelease(SkUiView root, Point rootPoint, bool releaseOnlyIfTap, ISkUiRenderable? target)
     {
         ArgumentNullException.ThrowIfNull(root);
@@ -160,7 +160,7 @@ public static class SkUiDiagnostics
         var passedToNative = NativeTapGate && SkUiPointerRouter.TapStateOf(arena) < SkUiNativeTapState.Tapping;
         var predicted = arena.PredictedWinner;
         if ((releaseOnlyIfTap && predicted is not { IsDiscrete: true })
-            || (target is not null && predicted is { IsDiscrete: true } && !IsInChainOf(predicted.Node, target)))
+            || (target is not null && predicted is not null && !IsInChainOf(predicted.Node, target)))
         {
             root.Touch(new SkUiTouchEvent(id, SkUiTouchAction.Cancelled, rootPoint, now));
             return new SkUiSimulatedTap(hit, predicted, IsTap: false, passedToNative, Released: false);
