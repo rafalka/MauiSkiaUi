@@ -151,7 +151,8 @@ public class SkUiStepper : SkUiStepperBase
         _recoercing = true;
         try
         {
-            Value = _userSetValue ? _requestedValue : Math.Clamp(Value, Minimum, Maximum);
+            // Coerced first: the value can equal the one held while the new range moves it.
+            WriteBack(ValueProperty, Coerce(_userSetValue ? _requestedValue : Math.Clamp(Value, Minimum, Maximum)));
         }
         finally
         {
@@ -169,13 +170,14 @@ public class SkUiStepper : SkUiStepperBase
     private protected override bool CanStep(int direction) => direction < 0 ? Value > Minimum : Value < Maximum;
 
     // As MAUI's: the next value is coerced to the range.
-    private protected override void Step(int direction) => Value += direction * Increment;
+    private protected override void Step(int direction) => WriteBack(ValueProperty, Value + direction * Increment);
 
     private protected override SkUiSemanticsRange SemanticsRange => new(Minimum, Maximum, Value);
 
     private protected override string ValueText => Value.ToString("G", CultureInfo.CurrentCulture);
 
-    private protected override void SetValueFromSemantics(double value) => Value = value;
+    // Coerced first: it records the requested value even when the stepper already holds the coerced one.
+    private protected override void SetValueFromSemantics(double value) => WriteBack(ValueProperty, Coerce(value));
 
     #endregion
 }

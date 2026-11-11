@@ -244,7 +244,7 @@ public class SkUiMultiColumnPicker : SkUiPickerBase
     private protected override void ClearChoice()
     {
         foreach (var column in Columns)
-            column.SelectedIndex = -1;
+            column.Choose(-1);
     }
 
     /// <summary>Adds <paramref name="column"/> after the others.</summary>

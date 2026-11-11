@@ -46,6 +46,13 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
     /// </summary>
     private protected T StyledOr<T>(BindableProperty property, T defaultValue) => IsSet(property) ? (T)GetValue(property) : defaultValue;
 
+    /// <summary>
+    /// Writes a value the control produced itself (a drag, a tap, typing, a picker choice, a value it clamped or derived)
+    /// to one of its own bindable properties as a handler value, so one-way bindings keep applying
+    /// (<see cref="SkUiWriteBack.WriteBack"/>). Skipped when the property already holds <paramref name="value"/>.
+    /// </summary>
+    private protected void WriteBack(BindableProperty property, object? value) => SkUiWriteBack.WriteBack(this, property, value);
+
     /// <summary>Bindable opt-in tap command.</summary>
     public static readonly BindableProperty TappedCommandProperty = BindableProperty.Create(
         nameof(TappedCommand), typeof(ICommand), typeof(SkUiView), null,

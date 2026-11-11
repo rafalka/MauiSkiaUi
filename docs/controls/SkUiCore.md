@@ -361,7 +361,7 @@ Core labels and buttons follow the system text size like SkUi* ones (`FontAutoSc
 - **`SkUiDiagnostics`:** locates drawn elements, which have no platform view:
   - `GetRootBounds` / `GetWindowBounds`: bounds after transforms and scroll offsets;
   - `HitTest` / `HitTestWindow`: the deepest element at a point;
-  - `SimulateTap`: press and release through the surface, as a real touch.
+  - `SimulateTap` / `SimulateTapAt`: press and release through the surface, as a real touch; the `SkUiSimulatedTap` overloads also report which recognizer took the tap, whether it is a tap and whether a real touch would reach native ancestors, and can cancel a press that would not end in a tap.
 
 ## Stress comparison
 

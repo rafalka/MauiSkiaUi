@@ -13,12 +13,12 @@ on:
         type: string
         default: ""
       macos-runner:
-        description: Runner label for the macOS pack; it must have the Xcode the workload set needs (27.1 is only on xcode-27)
+        description: Runner label for the macOS pack; it must have the Xcode the workload set needs (27.2 is only on xcode-27)
         required: false
         type: string
         default: xcode-27
       workload-version:
-        description: Workload set for the macOS pack (empty = 10.0.402.1, Xcode 27.1; 10.0.401 = Xcode 26.6, e.g. on macos-26)
+        description: Workload set for the macOS pack (empty = 10.0.404, Xcode 27.2; 10.0.402.1 = Xcode 27.1 on xcode-27; 10.0.401 = Xcode 26.6, e.g. on macos-26)
         required: false
         type: string
         default: ""

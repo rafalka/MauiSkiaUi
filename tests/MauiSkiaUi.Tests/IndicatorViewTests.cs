@@ -169,6 +169,24 @@ public class IndicatorViewTests
     }
 
     [Fact]
+    public void AnIndicatorTakenByAnotherCarouselStaysUnlinkedFromTheFirst()
+    {
+        var indicator = new SkUiIndicatorView();
+        var first = new SkUiCarouselView { ItemsSource = Items(3), IndicatorView = indicator };
+        var second = new SkUiCarouselView { ItemsSource = Items(5) };
+
+        second.IndicatorView = indicator; // the first carousel lets it go
+        Assert.Null(first.IndicatorView);
+        Assert.Same(second, indicator.Carousel);
+
+        // A later write of a lower rank (a style setter) must not bring the first link back.
+        first.Style = new Style(typeof(SkUiCarouselView)) { Setters = { new Setter { Property = SkUiCarouselView.IndicatorViewProperty, Value = null } } };
+        Assert.Null(first.IndicatorView);
+        Assert.Same(second, indicator.Carousel);
+        Assert.Equal(5, indicator.Count);
+    }
+
+    [Fact]
     public void TheWindowOfAWrappingSelectionWrapsToo()
     {
         SkUiIndicatorPaint? drawn = null;

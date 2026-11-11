@@ -381,7 +381,7 @@ public partial class SkUiCarouselView : SkUiView, ISkUiScrollStepper
         try
         {
             if (Position != index)
-                Position = index;
+                WriteBack(PositionProperty, index); // as a scroll: a one-way binding keeps applying
             else
                 ScrollToCurrent(animated);
         }
@@ -427,7 +427,7 @@ public partial class SkUiCarouselView : SkUiView, ISkUiScrollStepper
         var count = ItemCount;
         if (count > 0 && value >= count)
         {
-            Position = count - 1;
+            WriteBack(PositionProperty, count - 1);
             return;
         }
         ApplyPosition(previous, value, fromScroll: false);
@@ -446,7 +446,7 @@ public partial class SkUiCarouselView : SkUiView, ISkUiScrollStepper
         }
         RaiseCurrentItemChanged(previous, value);
         if (index != Position)
-            Position = index;
+            WriteBack(PositionProperty, index);
     }
 
     /// <summary>
@@ -460,7 +460,7 @@ public partial class SkUiCarouselView : SkUiView, ISkUiScrollStepper
         if (Position != value)
         {
             _syncing = true;
-            try { Position = value; }
+            try { WriteBack(PositionProperty, value); }
             finally { _syncing = false; }
         }
         var previousItem = CurrentItem;
@@ -472,8 +472,7 @@ public partial class SkUiCarouselView : SkUiView, ISkUiScrollStepper
         }
         if (previous != value)
             RaisePositionChanged(previous, value);
-        if (_indicator is { } indicator && indicator.Position != value)
-            indicator.Position = value;
+        _indicator?.FollowCarousel(value);
         Panel.UpdateVisualStates();
         if (!fromScroll)
             ScrollToCurrent(_requestedAnimation ?? _scrollAnimated);
@@ -489,7 +488,7 @@ public partial class SkUiCarouselView : SkUiView, ISkUiScrollStepper
         if (Equals(CurrentItem, item))
             return;
         _syncing = true;
-        try { CurrentItem = item; }
+        try { WriteBack(CurrentItemProperty, item); }
         finally { _syncing = false; }
     }
 
@@ -1025,7 +1024,7 @@ public partial class SkUiCarouselView : SkUiView, ISkUiScrollStepper
         value.Link(this);
         value.CarouselItemsChanged(ItemCount);
         value.Orientation = _horizontal ? StackOrientation.Horizontal : StackOrientation.Vertical;
-        value.Position = _position;
+        value.FollowCarousel(_position);
         FollowWithIndicator();
     }
 
@@ -1036,6 +1035,9 @@ public partial class SkUiCarouselView : SkUiView, ISkUiScrollStepper
             return;
         _indicator = null;
         IndicatorListener.Listen(null);
+        // A plain set, not WriteBack: this ends a link (usually set by {x:Reference} or code, a manual value), it does not
+        // report a value. A handler value would sit on top of the manual one, which would come back as soon as anything else
+        // wrote the property, with the indicator linked to the other carousel.
         IndicatorView = null;
     }
 
@@ -1044,7 +1046,7 @@ public partial class SkUiCarouselView : SkUiView, ISkUiScrollStepper
     {
         if (!ReferenceEquals(indicator, _indicator) || indicator.Position == _position || ItemCount == 0)
             return;
-        Position = Math.Min(indicator.Position, ItemCount - 1);
+        WriteBack(PositionProperty, Math.Min(indicator.Position, ItemCount - 1));
     }
 
     /// <summary>The indicator draws the scroll position while the carousel moves, and the position once it rests.</summary>

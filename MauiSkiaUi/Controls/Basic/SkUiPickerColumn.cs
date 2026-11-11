@@ -18,9 +18,10 @@ namespace MauiSkiaUi;
 /// <para>
 /// The selection follows the rules of <see cref="SkUiPicker"/> where they fit: an index beyond the items is clamped to the last
 /// item, an index set before the items applies when they come, and a selected item that moves in a changing source stays selected.
+/// A choice in the popup is written as a handler value (as MAUI's controls write user changes), so a one-way binding keeps applying.
 /// </para>
 /// </remarks>
-public class SkUiPickerColumn : BindableObject
+public class SkUiPickerColumn : Element
 {
     /// <summary>
     /// The name this column raises <see cref="BindableObject.PropertyChanged"/> with once its selection changed and
@@ -300,6 +301,9 @@ public class SkUiPickerColumn : BindableObject
         return count > 0 ? Math.Min(value, count - 1) : value;
     }
 
+    /// <summary>The user chose <paramref name="index"/> (the popup, clearing the choice): written as a handler value (<see cref="SkUiWriteBack.WriteBack"/>).</summary>
+    internal void Choose(int index) => this.WriteBack(SelectedIndexProperty, index);
+
     private void OnItemsSourceChanged(IList? value)
     {
         _sourceListener.Listen(value as INotifyCollectionChanged);
@@ -316,7 +320,7 @@ public class SkUiPickerColumn : BindableObject
             // The chosen item stays chosen where it moved (or arrived).
             _pendingItem = null;
             if (moved != SelectedIndex)
-                SetValue(SelectedIndexProperty, moved);
+                this.WriteBack(SelectedIndexProperty, moved);
         }
         CoerceValue(SelectedIndexProperty);
         SyncSelectedItem();
@@ -338,7 +342,7 @@ public class SkUiPickerColumn : BindableObject
         _syncing = true;
         try
         {
-            SetValue(SelectedIndexProperty, index);
+            this.WriteBack(SelectedIndexProperty, index);
         }
         finally
         {
@@ -363,7 +367,7 @@ public class SkUiPickerColumn : BindableObject
         _syncing = true;
         try
         {
-            SetValue(SelectedItemProperty, ItemAt(SelectedIndex));
+            this.WriteBack(SelectedItemProperty, ItemAt(SelectedIndex));
         }
         finally
         {

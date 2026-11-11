@@ -174,7 +174,8 @@ public class SkUiStepper<T> : SkUiStepperBase where T : struct, INumber<T>, IMin
         _recoercing = true;
         try
         {
-            Value = _userSetValue ? _requestedValue : T.Clamp(Value, Minimum, Maximum);
+            // Coerced first: the value can equal the one held while the new range moves it.
+            WriteBack(ValueProperty, Coerce(_userSetValue ? _requestedValue : T.Clamp(Value, Minimum, Maximum)));
         }
         finally
         {
@@ -191,7 +192,7 @@ public class SkUiStepper<T> : SkUiStepperBase where T : struct, INumber<T>, IMin
 
     private protected override bool CanStep(int direction) => SkUiStepperMath<T>.CanStep(Value, Minimum, Maximum, direction);
 
-    private protected override void Step(int direction) => Value = SkUiStepperMath<T>.Step(Value, Increment, Minimum, Maximum, direction);
+    private protected override void Step(int direction) => WriteBack(ValueProperty, SkUiStepperMath<T>.Step(Value, Increment, Minimum, Maximum, direction));
 
     private protected override SkUiSemanticsRange SemanticsRange =>
         new(double.CreateSaturating(Minimum), double.CreateSaturating(Maximum), double.CreateSaturating(Value));
@@ -201,7 +202,7 @@ public class SkUiStepper<T> : SkUiStepperBase where T : struct, INumber<T>, IMin
     private protected override void SetValueFromSemantics(double value)
     {
         if (double.IsFinite(value))
-            Value = T.CreateSaturating(value);
+            WriteBack(ValueProperty, Coerce(T.CreateSaturating(value))); // coerced first: records the requested value
     }
 
     #endregion

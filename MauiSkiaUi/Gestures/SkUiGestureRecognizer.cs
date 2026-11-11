@@ -99,6 +99,13 @@ public abstract class SkUiGestureRecognizer
     /// </summary>
     internal virtual bool HoldsNativeTaps => IsDiscrete;
 
+    /// <summary>
+    /// Whether the recognizer leaves the arena on a release that did not move when it has not claimed (a pan, a scroller,
+    /// a swipe, a long press that has not fired), so an outer tap takes that release (<see cref="SkUiDiagnostics.SimulateTapAt"/>
+    /// predicts the winner from it). <c>false</c> by default: a recognizer is assumed to stay and win the sweep.
+    /// </summary>
+    internal virtual bool ResignsOnStillRelease => false;
+
     /// <summary>A pointer pressed on the owner (or a descendant). Return <c>false</c> to stay out of this pointer's arena.</summary>
     protected internal virtual bool OnPointerPressed(SkUiPointer pointer) => true;
 

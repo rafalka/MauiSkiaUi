@@ -275,6 +275,9 @@ internal sealed class SkUiMauiGestures(View view)
     /// </summary>
     private sealed class Presses(SkUiMauiGestures bridge, PointerGestureRecognizer maui) : SkUiGestureRecognizer
     {
+        /// <inheritdoc />
+        internal override bool ResignsOnStillRelease => true;
+
         private long? _pointer;
         private ButtonsMask _button;
         private SkUiPointer _last;

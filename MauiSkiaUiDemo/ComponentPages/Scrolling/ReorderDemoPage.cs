@@ -110,8 +110,8 @@ public sealed class ReorderDemoPage : ComponentDemoPage
     }
 
     /// <summary>
-    /// A task: a colored bar and its title, a row in a list, a card in a grid or a horizontal list. With
-    /// <paramref name="longPressed"/>, a drag handle (≡) at its end lifts it, and a long press elsewhere calls that.
+    /// A task: a colored bar and its title, a row in a list, a card in a grid or a horizontal list. With a long-press
+    /// callback, a drag handle (≡) at its end lifts it, and a long press elsewhere calls the callback.
     /// </summary>
     private sealed class SkiaTask : SkUiGrid
     {

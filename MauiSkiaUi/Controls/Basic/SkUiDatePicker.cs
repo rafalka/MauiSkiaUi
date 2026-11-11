@@ -177,7 +177,7 @@ public class SkUiDatePicker : SkUiDateTimePickerBase
         ApplyWheels(apply);
         // MAUI's: a value outside the new range moves into it (BindableObject.CoerceValue does not store the coerced value).
         if (Date is { } value && CoerceDate(value) is var coerced && coerced != value)
-            Date = coerced;
+            WriteBack(DateProperty, coerced);
     }
 
     private void OnFormatChanged(string? value)
@@ -195,10 +195,10 @@ public class SkUiDatePicker : SkUiDateTimePickerBase
     }
 
     /// <inheritdoc />
-    private protected override void ChooseValue(DateTime? value) => Date = value?.Date;
+    private protected override void ChooseValue(DateTime? value) => WriteBack(DateProperty, value?.Date);
 
     /// <inheritdoc />
-    private protected override void ClearChoice() => Date = null;
+    private protected override void ClearChoice() => WriteBack(DateProperty, null);
 
     /// <inheritdoc />
     private protected override void RaiseOpenedOrClosed(bool opened)

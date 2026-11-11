@@ -44,7 +44,7 @@ internal static class SkUiRadioGroups
     internal static void OnSelectionChanged(SkUiRadioButton radio)
     {
         if (FindController(radio, radio.GroupName) is { } controller)
-            controller.Layout.SetValue(RadioButtonGroup.SelectedValueProperty, radio.Value);
+            controller.WriteSelectedValue(radio.Value);
     }
 
     /// <summary>A checked radio button left a named group: that group no longer has a selection.</summary>
@@ -162,8 +162,14 @@ internal static class SkUiRadioGroups
             if (_selectedValue is not null)
                 ApplySelectedValue();
             else if (RadioButtons(Layout).Find(radio => radio.GroupName == value && radio.IsChecked) is { } selected)
-                Layout.SetValue(RadioButtonGroup.SelectedValueProperty, selected.Value);
+                WriteSelectedValue(selected.Value);
         }
+
+        /// <summary>
+        /// Reports the checked radio's value to the layout's <c>SelectedValue</c> as a handler value
+        /// (<see cref="SkUiWriteBack.WriteBack"/>): two-way bindings get it, and a one-way binding keeps applying.
+        /// </summary>
+        public void WriteSelectedValue(object? value) => Layout.WriteBack(RadioButtonGroup.SelectedValueProperty, value);
 
         public void SetSelectedValue(object? value)
         {
@@ -213,7 +219,7 @@ internal static class SkUiRadioGroups
             if (radio.GroupName != GroupName)
                 return;
             if (radio.IsChecked)
-                Layout.SetValue(RadioButtonGroup.SelectedValueProperty, radio.Value);
+                WriteSelectedValue(radio.Value);
             else if (_selectedValue is not null && Equals(radio.Value, _selectedValue))
                 radio.SetCheckedByGroup(true);
         }

@@ -236,8 +236,9 @@ public class SkUiSlider : SkUiView
     /// <summary>A user change: writes the value under <paramref name="position"/> back, then applies it (raising <see cref="ValueChanged"/>).</summary>
     private void CommitAt(Point position)
     {
-        var value = Clamp(SkUiSliderMath.ValueAt(position, new Size(Width, Height), _orientation, IsRightToLeft, _minimum, _maximum));
-        SetValue(ValueProperty, value);
+        // Coerced first: it records the user's value as the requested one even when the slider already holds it.
+        var value = CoerceValue(SkUiSliderMath.ValueAt(position, new Size(Width, Height), _orientation, IsRightToLeft, _minimum, _maximum));
+        WriteBack(ValueProperty, value);
         ApplyValue(value);
     }
 
@@ -264,7 +265,7 @@ public class SkUiSlider : SkUiView
             _recoercing = true;
             try
             {
-                SetValue(ValueProperty, value);
+                WriteBack(ValueProperty, value);
             }
             finally
             {
@@ -315,7 +316,7 @@ public class SkUiSlider : SkUiView
         var clamped = SkUiSliderMath.Clamp(value, _minimum, _maximum);
         if (clamped == _value)
             return false;
-        Value = clamped;
+        WriteBack(ValueProperty, CoerceValue(clamped)); // coerced first: records the requested value
         return true;
     }
 

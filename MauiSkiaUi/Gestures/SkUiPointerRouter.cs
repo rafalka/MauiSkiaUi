@@ -101,6 +101,18 @@ internal sealed class SkUiGestureArena(long pointerId, SkUiPointerRouter router,
     /// <summary>A member was cancelled from outside (detached / disabled element).</summary>
     public bool Invalidated { get; set; }
 
+    /// <summary>The winner when the arena ended (<see cref="Winner"/> is cleared then); diagnostics.</summary>
+    public SkUiGestureRecognizer? EndWinner { get; private set; }
+
+    /// <summary>
+    /// The member that takes a release that did not move (diagnostics): the winner, else the innermost member that stays for
+    /// the sweep (a discrete one, or one that does not resign: <see cref="SkUiGestureRecognizer.ResignsOnStillRelease"/>), as
+    /// members that have not claimed and resign (a scroller, a pan, a swipe, a long press that has not fired) leave before the
+    /// arena is swept; else the innermost member, which leads the press but will not take it.
+    /// </summary>
+    public SkUiGestureRecognizer? PredictedWinner =>
+        Winner ?? Members.Find(member => member.IsDiscrete || !member.ResignsOnStillRelease) ?? (Members.Count > 0 ? Members[0] : null);
+
     public void Add(SkUiGestureRecognizer recognizer)
     {
         Members.Add(recognizer);
@@ -161,6 +173,7 @@ internal sealed class SkUiGestureArena(long pointerId, SkUiPointerRouter router,
     /// <summary>Ends the arena: members leave silently (released) or are rejected (cancelled).</summary>
     public void End(bool cancelled)
     {
+        EndWinner = Winner;
         foreach (var member in Members.ToArray())
         {
             Members.Remove(member);
@@ -258,7 +271,10 @@ internal sealed class SkUiPointerRouter(ISkUiInputNode root)
         }
     }
 
-    private static SkUiNativeTapState TapStateOf(SkUiGestureArena arena)
+    /// <summary>The arena of a pointer still down on this root; <c>null</c> when it is unknown or ended (diagnostics).</summary>
+    internal SkUiGestureArena? ArenaOf(long pointerId) => _arenas.GetValueOrDefault(pointerId);
+
+    internal static SkUiNativeTapState TapStateOf(SkUiGestureArena arena)
     {
         if (arena.Winner is { } winner && arena.WinnerClaimed && (winner.IsExclusive || winner.HoldsNativeTaps))
             return SkUiNativeTapState.Claimed;

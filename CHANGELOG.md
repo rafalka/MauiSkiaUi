@@ -13,6 +13,31 @@ Publishing (the NuGet publish workflow, [docs/Releasing.md](docs/Releasing.md)) 
 
 ## Unreleased
 
+### New features
+
+- **Simulated taps report what took them** ([#93](https://github.com/rafalka/MauiSkiaUi/issues/93)): `SkUiDiagnostics.SimulateTapAt(root, rootPoint, releaseOnlyIfTap = true)` and `SkUiDiagnostics.SimulateTap(element, releaseOnlyIfTap)` return an `SkUiSimulatedTap`, so automation can report a tap truthfully instead of "succeeding" on a label inside a scroller, a disabled control or a control without a tap.
+  - `Hit` (the element hit, as before), `Winner` (the recognizer that won the press), `IsTap` (the winner completes on release: taps, a control's own tap, slider / stepper taps, text fields), `PassedToNative` (a real touch would reach native views around the surface: a parent's tap recognizer, or a hosted native view, which is not pressed; per platform, as each surface hands touches on) and `Released`.
+  - `releaseOnlyIfTap`: a press that a release without movement would not turn into a tap is cancelled instead of released, so a failed tap has no side effects (no fling, no pressed state left behind).
+  - `SimulateTap(element, releaseOnlyIfTap)` also cancels a press another element's recognizer would take (drawn over the element, or at its center while it is scrolled out of view), even without `releaseOnlyIfTap`; `Winner` names it.
+  - `SimulateTap(element)` is unchanged (returns the hit, always releases), except that a native view hosted on the surface (`SkUiMauiContentView`) is no longer pressed through to the drawn content under it.
+- **DevFlow extension for apps:** the `dev.skiaui` DevFlow agent extension the demo uses (a tree of drawn elements with window bounds, taps, hit-testing) is now ready to copy into any app that uses SkiaUi. The new [docs/DevFlow.md](docs/DevFlow.md) covers setup, and the new `skiaui-devflow` agent skill (`/plugin install skiaui-devflow@skiaui`) does it for you. It isn't a NuGet package because the DevFlow agent is still in preview.
+  - Taps report whether a drawn tap recognizer took them (`taken`, `winner`, `passedToNative`, `released`). A press that isn't a tap is cancelled unless `force` is set, and a press another element would take (the target is covered or scrolled out of view) is cancelled and reported as `coveredBy`.
+  - A new `tapAt` tool taps the drawn content at a window point.
+
+### Fixes
+
+- **Toggles: one-way bindings on `CheckState`, `IsChecked` or `IsToggled` stop updating after their first change** ([#92](https://github.com/rafalka/MauiSkiaUi/issues/92)): the control wrote the state back to its own bindable property with a plain `SetValue`, whose specificity outranks a binding's, so later values from the binding were stored below it and never applied (a three-state "select all" box bound one-way stayed on the dash). Check boxes, radio buttons and switches now skip writing a value the property already holds and write derived values (taps, the other view of the state) as handler values, as MAUI's own controls do: two-way bindings still get them, and the next value from a one-way binding, a style or the app replaces them.
+- **Input controls: one-way bindings stop updating after the first user change** (the rest of [#92](https://github.com/rafalka/MauiSkiaUi/issues/92)'s bug class): controls wrote user changes and derived values back to their own bindable properties with a plain `SetValue` (or the CLR setter), whose specificity outranks a binding's, so later values from a one-way binding were stored below it and never applied. They are now written as handler values (`SetValueFromRenderer`, as MAUI's own controls do) and skipped when the property already holds them: two-way bindings still get them, and the next value from a one-way binding, a style or the app replaces them.
+  - `SkUiSlider.Value` (drag, tap, screen reader, range clamp); `SkUiStepper.Value` and `SkUiStepper<T>.Value` (buttons, keys, screen reader, range changes).
+  - `SkUiEntry` / `SkUiEditor` / `SkUiSearchBar` `Text` (typing, `MaxLength` cuts, `TextTransform`, formatters), `CursorPosition` and `SelectionLength` (the user's selection), `SkUiEntry.IsPasswordRevealed` (the reveal button); `SkUiNumericEntry<T>.Value` and the text it shows.
+  - `SkUiPicker.SelectedIndex` / `SelectedItem`, `SkUiPickerColumn.SelectedIndex` / `SelectedItem`, `SkUiDatePicker.Date`, `SkUiTimePicker.Time`, `SkUiDateTimePicker.Date` (popup choices, clearing, range clamps) and every picker's `IsOpen` (taps, closing). `SkUiPickerColumn` now derives from `Element` (was `BindableObject`) to write handler values; its API is otherwise unchanged.
+  - `SkUiCollectionView.SelectedItem` (taps, keys, the selection mode, removed items), `IsLoadMoreActive` and `IsRefreshing`; `SkUiCarouselView.Position` / `CurrentItem` (swipes, `ScrollTo`, the linked indicator); `SkUiIndicatorView.Position` (taps, keys, screen reader, the linked carousel, a count clamp); `SkUiExpander.IsExpanded` (header taps); `SkUiRefreshView.IsRefreshing` (pulls, automatic completion, disabling).
+  - The group layout's `RadioButtonGroup.SelectedValue` (a radio button checked), and the uniform `CornerRadius` that follows `CornerRadii` on labels, image buttons, entries and pickers.
+
+### Other
+
+- **Built with Xcode 27.2:** CI and the packages build with workload set 10.0.404 (iOS / Mac Catalyst 27.2 SDKs, Xcode 27.2 on the `xcode-27` image) instead of 10.0.402.1 (Xcode 27.1); the Xcode 26.6 build (10.0.401) stays. The library still compiles against the iOS / Mac Catalyst 26.0 SDK, so apps keep building with Xcode 26.6, 27.1 or 27.2.
+
 ## 1.10.1
 
 ### Fixes

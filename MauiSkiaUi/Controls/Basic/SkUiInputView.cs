@@ -606,7 +606,7 @@ public abstract class SkUiInputView : SkUiView, ISkUiFontElement, ISkUiFieldChro
         if ((int?)GetValue(CornerRadiusProperty) == uniform)
             return;
         _syncingCornerRadius = true;
-        try { SetValue(CornerRadiusProperty, uniform); }
+        try { WriteBack(CornerRadiusProperty, uniform); }
         finally { _syncingCornerRadius = false; }
     }
 
@@ -629,7 +629,7 @@ public abstract class SkUiInputView : SkUiView, ISkUiFontElement, ISkUiFieldChro
         TextChanged?.Invoke(this, new TextChangedEventArgs(oldValue, newValue));
         // Cut or transformed: Text follows what the field shows (and a two-way binding gets it).
         if (shown is not null)
-            SetValue(TextProperty, shown);
+            WriteBack(TextProperty, shown);
         else if (!_textEditing)
             OnTextAssigned();
     }
@@ -665,20 +665,20 @@ public abstract class SkUiInputView : SkUiView, ISkUiFontElement, ISkUiFieldChro
     private void OnFormattersChanged()
     {
         if (Model.FormatsChanged() is { } shown)
-            SetValue(TextProperty, shown);
+            WriteBack(TextProperty, shown);
     }
 
     private void OnTextTransformChanged(TextTransform value)
     {
         if (Model.SetTransform(value) is { } shown)
-            SetValue(TextProperty, shown);
+            WriteBack(TextProperty, shown);
     }
 
     private void OnMaxLengthChanged(int value)
     {
         // Text longer than the new limit is cut (as MAUI's entries do; a numeric entry's value is not).
         if (Model.SetMaxLength(value) is { } shown)
-            SetValue(TextProperty, shown);
+            WriteBack(TextProperty, shown);
     }
 
     private protected virtual void OnIsReadOnlyChanged(bool value) => Model.SetReadOnly(value);
@@ -894,7 +894,7 @@ public abstract class SkUiInputView : SkUiView, ISkUiFontElement, ISkUiFieldChro
         _textEditing = true;
         try
         {
-            SetValue(TextProperty, text);
+            WriteBack(TextProperty, text);
         }
         finally
         {
@@ -908,8 +908,8 @@ public abstract class SkUiInputView : SkUiView, ISkUiFontElement, ISkUiFieldChro
         _settingSelection = true;
         try
         {
-            CursorPosition = start;
-            SelectionLength = length;
+            WriteBack(CursorPositionProperty, start);
+            WriteBack(SelectionLengthProperty, length);
         }
         finally
         {

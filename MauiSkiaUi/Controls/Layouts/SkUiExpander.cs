@@ -474,7 +474,7 @@ public class SkUiExpander : SkUiView
         protected override void OnTapped(SkUiTappedEventArgs args)
         {
             RaiseTapped(args);
-            owner.SetValue(IsExpandedProperty, !owner.IsExpanded);
+            owner.WriteBack(IsExpandedProperty, !owner.IsExpanded); // a user change: a one-way binding keeps applying
         }
 
         protected override void OnPopulateSemantics(SkUiSemanticsInfo info)

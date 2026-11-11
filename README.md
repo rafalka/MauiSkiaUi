@@ -55,7 +55,7 @@ Parity with MAUI is the starting point. What drawn controls add on top of it:
 
 Package on nuget.org: **[SkiaUi.Maui](https://www.nuget.org/packages/SkiaUi.Maui/)**.
 
-**Requirements:** .NET 10 with .NET MAUI 10.0.120 or a later 10.x (SDK 10.0.402 or newer); Android 5.0 (API 21), iOS 15, Mac Catalyst 17 and Windows 10 1809 or newer. iOS and Mac Catalyst builds work with Xcode 26.6 (workload set 10.0.401) or Xcode 27.1 (workload set 10.0.402.1, macOS 26.6 or newer); apps built with Xcode 27 must use the UIKit scene lifecycle ([migration guide](docs/Migration.md#ios-and-mac-catalyst-scene-lifecycle)). SkiaUi 1.0.x builds with MAUI 10.0.110, Mac Catalyst 15 and Xcode 26.
+**Requirements:** .NET 10 with .NET MAUI 10.0.120 or a later 10.x (SDK 10.0.402 or newer); Android 5.0 (API 21), iOS 15, Mac Catalyst 17 and Windows 10 1809 or newer. iOS and Mac Catalyst builds work with Xcode 26.6 (workload set 10.0.401), Xcode 27.1 (workload set 10.0.402.1) or Xcode 27.2 (workload set 10.0.404), macOS 26.6 or newer for Xcode 27; apps built with Xcode 27 must use the UIKit scene lifecycle ([migration guide](docs/Migration.md#ios-and-mac-catalyst-scene-lifecycle)). SkiaUi 1.0.x builds with MAUI 10.0.110, Mac Catalyst 15 and Xcode 26.
 
 ```bash
 dotnet add package SkiaUi.Maui
@@ -121,7 +121,7 @@ No second layout for the skeleton: while `IsLoading` is true, the still-empty li
 
 ## Migrating a MAUI app
 
-**[docs/Migration.md](docs/Migration.md)** walks through moving existing MAUI screens to drawn controls: where the drawn surface goes, the control mapping, styles, gestures, custom controls and what has no drawn equivalent yet. For AI coding agents, the **[SkiaUi migration skills](plugins/skiaui-migration/README.md)** audit an app and convert pages by the same rules (Claude Code: `/plugin marketplace add rafalka/MauiSkiaUi`, then `/plugin install skiaui-migration@skiaui`).
+**[docs/Migration.md](docs/Migration.md)** walks through moving existing MAUI screens to drawn controls: where the drawn surface goes, the control mapping, styles, gestures, custom controls and what has no drawn equivalent yet. For AI coding agents, the **[SkiaUi migration skills](plugins/skiaui-migration/README.md)** audit an app and convert pages by the same rules (Claude Code: `/plugin marketplace add rafalka/MauiSkiaUi`, then `/plugin install skiaui-migration@skiaui`). To drive a SkiaUi app's drawn controls with .NET MAUI DevFlow, see **[docs/DevFlow.md](docs/DevFlow.md)** and the `skiaui-devflow` skill.
 
 ## Controls
 

@@ -61,7 +61,7 @@ The samples app's "Field styles in one form" has them on one page.
 
 ## Shared conventions
 
-All SkiaUi controls inherit [`SkUiView`](SkUiView.md) behavior: DIP coordinates; `BindableProperty` + fluent `Set*` setters (invalid values: `Set*` throws, XAML and bindings ignore them with a warning); `StartUpdating` / `EndUpdating`; SkiaUi's gesture arena. User input writes back: typing sets `Text` (two-way by default), moving the caret sets `CursorPosition` / `SelectionLength`.
+All SkiaUi controls inherit [`SkUiView`](SkUiView.md) behavior: DIP coordinates; `BindableProperty` + fluent `Set*` setters (invalid values: `Set*` throws, XAML and bindings ignore them with a warning); `StartUpdating` / `EndUpdating`; SkiaUi's gesture arena. User input writes back: typing sets `Text` (two-way by default), moving the caret sets `CursorPosition` / `SelectionLength`, the reveal button sets `IsPasswordRevealed`; as handler values, so one-way bindings keep applying ([SkUiView](SkUiView.md#shared-conventions)).
 
 ## How to use
 

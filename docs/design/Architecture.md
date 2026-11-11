@@ -30,7 +30,7 @@ MAUI page
 
 `SkUiCoreHost` hosts a Core tree inside the SkUi tree. Most controls exist on both layers and share one engine (text, shapes, toggles, scrolling, images, pickers, text input), so both layers draw the same pixels; parity tests compare them. Both layers live in the one `SkiaUi.Maui` assembly and package; Core types use no MAUI Controls types. Details: [docs/controls/SkUiCore.md](../controls/SkUiCore.md).
 
-**Property pattern (SkUi\*).** Each `BindableProperty` validates with `SkUiValidate` (invalid values are ignored with a warning, as MAUI does); a fluent `SetX` throws on invalid input and assigns the property; the change callback copies the value into a field that layout and paint read. Change callbacks can run before the constructor body (MAUI applies app-level implicit styles inside the base `View` constructor), so their state comes from field initializers or is created on first use. Core's `SetX` validates, calls `SetProperty` and invalidates.
+**Property pattern (SkUi\*).** Each `BindableProperty` validates with `SkUiValidate` (invalid values are ignored with a warning, as MAUI does); a fluent `SetX` throws on invalid input and assigns the property; the change callback copies the value into a field that layout and paint read. Change callbacks can run before the constructor body (MAUI applies app-level implicit styles inside the base `View` constructor), so their state comes from field initializers or is created on first use. A value the control produces itself (a drag, a tap, typing, a popup choice, a range clamp, the other view of a selection) goes through `SkUiView.WriteBack`, which writes it as a handler value (`SetValueFromRenderer`, as MAUI's controls write user changes) and skips a value the property already holds: two-way bindings get it, and the next value from a one-way binding, a style or the app replaces it, where a plain `SetValue` would outrank a one-way binding for good. Core's `SetX` validates, calls `SetProperty` and invalidates.
 
 ## Layout
 
@@ -105,7 +105,7 @@ Each surface builds a **semantics tree** lazily from the render tree (both layer
 
 - **Weak subscriptions:** a view listens to sources it does not own and that may outlive it (brushes, geometries, image sources, commands) through `SkUiWeakListener<T>`; app-wide events are `SkUiWeakEvent`s.
 - **Fixed event args:** `PropertyChangedEventArgs` and reset args that never change are `static readonly`, not allocated per raise.
-- **Diagnostics:** Core nodes appear in Visual Studio's Live Visual Tree; `SkUiDiagnostics` reads bounds, hit-tests and simulates taps (also used by the DevFlow `dev.skiaui` extension); `SkUiRenderStatistics` and frame traces measure frames ([Benchmarks.md](Benchmarks.md)).
+- **Diagnostics:** Core nodes appear in Visual Studio's Live Visual Tree; `SkUiDiagnostics` reads bounds, hit-tests and simulates taps (also used by the DevFlow `dev.skiaui` extension, [DevFlow.md](../DevFlow.md)); `SkUiRenderStatistics` and frame traces measure frames ([Benchmarks.md](Benchmarks.md)).
 - **Trimming and Native AOT:** the library is `IsAotCompatible`; trim and AOT analyzer warnings fail its build.
 
 ## Source map

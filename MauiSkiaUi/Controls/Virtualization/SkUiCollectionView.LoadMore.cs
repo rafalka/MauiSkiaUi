@@ -97,7 +97,7 @@ public partial class SkUiCollectionView
         _itemsAtLoadMore = Model.ItemCount;
         try
         {
-            IsLoadMoreActive = true;
+            WriteBack(IsLoadMoreActiveProperty, true);
             LoadingMore?.Invoke(this, EventArgs.Empty);
             if (LoadMoreCommand is { } command && command.CanExecute(LoadMoreCommandParameter))
                 command.Execute(LoadMoreCommandParameter);

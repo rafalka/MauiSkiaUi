@@ -99,13 +99,11 @@ public class BorderOutlineSharingTests
     public void TheCacheKeepsAtMostItsCapacityAndCopiesOutliveIt()
     {
         SkUiStrokedOutlines.Clear();
-        using var first = new SKPath();
-        first.AddCircle(10, 10, 8);
+        using var first = Circle(10, 10, 8);
         var kept = SkUiStrokedOutlines.Inside(first, 2);
         for (var index = 0; index < SkUiStrokedOutlines.Capacity + 4; index++)
         {
-            using var outline = new SKPath();
-            outline.AddCircle(10, 10, 9 + index);
+            using var outline = Circle(10, 10, 9 + index);
             SkUiStrokedOutlines.Inside(outline, 2).Dispose();
         }
         Assert.Equal(SkUiStrokedOutlines.Capacity, SkUiStrokedOutlines.Count);
@@ -130,15 +128,27 @@ public class BorderOutlineSharingTests
     public void AnOutlineWithOtherPointsIsNotTakenForACachedOne()
     {
         SkUiStrokedOutlines.Clear();
-        using var square = new SKPath();
-        square.AddRect(new SKRect(0, 0, 20, 20));
-        using var wide = new SKPath();
-        wide.AddRect(new SKRect(0, 0, 30, 20));
+        using var square = Rectangle(new SKRect(0, 0, 20, 20));
+        using var wide = Rectangle(new SKRect(0, 0, 30, 20));
         using var a = SkUiStrokedOutlines.Inside(square, 2);
         using var b = SkUiStrokedOutlines.Inside(wide, 2);
         using var c = SkUiStrokedOutlines.Grown(square, 2);
         Assert.Equal(3, SkUiStrokedOutlines.Computed);
         Assert.NotEqual(a.Bounds, b.Bounds);
         Assert.True(c.Bounds.Width > a.Bounds.Width);
+    }
+
+    private static SKPath Circle(float x, float y, float radius)
+    {
+        using var builder = new SKPathBuilder();
+        builder.AddCircle(x, y, radius);
+        return builder.Detach();
+    }
+
+    private static SKPath Rectangle(SKRect rect)
+    {
+        using var builder = new SKPathBuilder();
+        builder.AddRect(rect);
+        return builder.Detach();
     }
 }

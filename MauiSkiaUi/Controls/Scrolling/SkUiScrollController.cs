@@ -1407,6 +1407,9 @@ internal sealed class SkUiScrollController(ISkUiRenderable owner, Action<SkUiRen
 /// </remarks>
 internal sealed class SkUiScrollGestureRecognizer(SkUiScrollController scroller) : SkUiGestureRecognizer
 {
+    /// <inheritdoc />
+    internal override bool ResignsOnStillRelease => true;
+
     private long? _pointer;
     private Point _start;
     private Point _last;

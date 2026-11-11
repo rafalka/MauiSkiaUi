@@ -633,7 +633,7 @@ public abstract class SkUiPickerBase : SkUiView, ISkUiFontElement, ISkUiFieldChr
         if ((int?)GetValue(CornerRadiusProperty) == uniform)
             return;
         _syncingCornerRadius = true;
-        try { SetValue(CornerRadiusProperty, uniform); }
+        try { WriteBack(CornerRadiusProperty, uniform); }
         finally { _syncingCornerRadius = false; }
     }
 
@@ -788,7 +788,7 @@ public abstract class SkUiPickerBase : SkUiView, ISkUiFontElement, ISkUiFieldChr
         else if (Model.TokenRemovedAt(args.Position, Width, Height) is var removed and >= 0)
             RemoveChoice(removed);
         else
-            IsOpen = !IsOpen;
+            WriteBack(IsOpenProperty, !IsOpen);
     }
 
     /// <inheritdoc />
@@ -826,7 +826,7 @@ public abstract class SkUiPickerBase : SkUiView, ISkUiFontElement, ISkUiFieldChr
     private protected void ClosePopup()
     {
         if (IsOpen)
-            IsOpen = false;
+            WriteBack(IsOpenProperty, false);
         else
             Model.Close();
     }
@@ -904,8 +904,7 @@ public abstract class SkUiPickerBase : SkUiView, ISkUiFontElement, ISkUiFieldChr
 
     void ISkUiPickerOwner.SetIsOpen(bool open)
     {
-        if (IsOpen != open)
-            IsOpen = open;
+        WriteBack(IsOpenProperty, open);
     }
 
     void ISkUiPickerOwner.FocusField()

@@ -115,7 +115,7 @@ public abstract class SkUiToggleControl : SkUiView
         CommitState(NextCheckState());
     }
 
-    /// <summary>A user change: applies <paramref name="value"/> and writes it back to both bindable properties.</summary>
+    /// <summary>A user change: applies <paramref name="value"/> and writes it back to the bindable properties (<see cref="SkUiView.WriteBack"/>).</summary>
     private protected void CommitState(SkUiCheckState value) => ApplyState(value);
 
     /// <summary>
@@ -148,7 +148,7 @@ public abstract class SkUiToggleControl : SkUiView
         _syncingIsChecked = true;
         try
         {
-            SetValue(IsCheckedProperty, isChecked);
+            WriteBack(IsCheckedProperty, isChecked);
         }
         finally
         {
@@ -164,8 +164,10 @@ public abstract class SkUiToggleControl : SkUiView
     {
         var old = _state;
         _state = value;
-        // Re-enters OnCheckStatePropertyChanged with the state already applied: that call only syncs.
-        SetValue(CheckStateProperty, value);
+        // A change from the property itself (binding, style, setter) already holds the value, so WriteBack skips it
+        // (writing it again would replace a one-way binding's value). Otherwise this re-enters
+        // OnCheckStatePropertyChanged with the state already applied, and that call only syncs.
+        WriteBack(CheckStateProperty, value);
         SyncIsCheckedProperty();
         SyncBindableState();
         if (old == value)

@@ -102,7 +102,7 @@ public class SkUiSwitch : SkUiToggleControl
         _syncingIsToggled = true;
         try
         {
-            SetValue(IsToggledProperty, isToggled);
+            WriteBack(IsToggledProperty, isToggled);
         }
         finally
         {

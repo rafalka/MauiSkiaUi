@@ -508,15 +508,15 @@ public partial class SkUiPicker : SkUiPickerBase
     {
         if (index == -1)
         {
-            SetValue(SelectedItemProperty, null);
+            WriteBack(SelectedItemProperty, null);
             return;
         }
         if (_itemsSource is { } source)
         {
-            SetValue(SelectedItemProperty, index < source.Count ? source[index] : null);
+            WriteBack(SelectedItemProperty, index < source.Count ? source[index] : null);
             return;
         }
-        SetValue(SelectedItemProperty, _items[index]);
+        WriteBack(SelectedItemProperty, _items[index]);
     }
 
     private void SetPendingSelectedIndex(int value)
@@ -565,7 +565,7 @@ public partial class SkUiPicker : SkUiPickerBase
         _settingSelectedIndexInternally = true;
         try
         {
-            SetValue(SelectedIndexProperty, value);
+            WriteBack(SelectedIndexProperty, value);
         }
         finally
         {
@@ -714,7 +714,7 @@ public partial class SkUiPicker : SkUiPickerBase
     private protected override void ChooseItem(int index)
     {
         if (!_multiple && index >= 0 && index < _items.Count && index != SelectedIndex)
-            SelectedIndex = index;
+            WriteBack(SelectedIndexProperty, index);
     }
 
     #endregion
