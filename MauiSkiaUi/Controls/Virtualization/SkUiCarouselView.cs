@@ -1035,7 +1035,10 @@ public partial class SkUiCarouselView : SkUiView, ISkUiScrollStepper
             return;
         _indicator = null;
         IndicatorListener.Listen(null);
-        WriteBack(IndicatorViewProperty, null);
+        // A plain set, not WriteBack: this ends a link (usually set by {x:Reference} or code, a manual value), it does not
+        // report a value. A handler value would sit on top of the manual one, which would come back as soon as anything else
+        // wrote the property, with the indicator linked to the other carousel.
+        IndicatorView = null;
     }
 
     /// <summary>The linked indicator's position changed: a tap (or the app) asks for an item.</summary>
