@@ -13,6 +13,10 @@ Publishing (the NuGet publish workflow, [docs/Releasing.md](docs/Releasing.md)) 
 
 ## Unreleased
 
+### New features
+
+- **Look colors for unchecked check boxes and radio buttons** ([#90](https://github.com/rafalka/MauiSkiaUi/issues/90)): `SkUiLook.CheckBoxBorderColor`, `CheckBoxBackgroundColor` and `RadioButtonRingColor` (defaults: the color scheme's `Muted`, white, `Muted`, as before) are virtual, so a look matches a design system's outline with the existing size and shape overrides instead of re-implementing `DrawCheckBoxCore`. Both layers; disabled controls still draw them at half alpha.
+
 ## 1.10.0
 
 ### New features

@@ -35,8 +35,8 @@ internal static class SkUiToggleDrawing
         var look = SkUiLook.Current;
         var slotSize = look.DefaultCheckBoxSize;
         var offset = slotSize.Width > slotSize.Height ? Math.Max(0, Math.Min(width, (float)slotSize.Width) - size) / 2 : 0;
-        var background = Colors.White;
-        var border = SkUiColors.Muted;
+        var background = look.CheckBoxBackgroundColor;
+        var border = look.CheckBoxBorderColor;
         if (!enabled)
         {
             color = color.MultiplyAlpha(0.5f);
@@ -54,7 +54,8 @@ internal static class SkUiToggleDrawing
         Color color, bool enabled)
     {
         var size = Math.Min(width, height);
-        var ring = SkUiColors.Muted;
+        var look = SkUiLook.Current;
+        var ring = look.RadioButtonRingColor;
         if (!enabled)
         {
             color = color.MultiplyAlpha(0.5f);
@@ -62,7 +63,7 @@ internal static class SkUiToggleDrawing
         }
         var save = canvas.Save();
         if (rightToLeft) canvas.Translate(width - size, 0);
-        SkUiLook.Current.DrawRadioButton(canvas, new SkUiRadioButtonPaint(size, visual, ToSkColor(color), ToSkColor(ring), enabled));
+        look.DrawRadioButton(canvas, new SkUiRadioButtonPaint(size, visual, ToSkColor(color), ToSkColor(ring), enabled));
         canvas.RestoreToCount(save);
     }
 
