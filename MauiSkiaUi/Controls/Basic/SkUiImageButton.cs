@@ -125,7 +125,7 @@ public class SkUiImageButton : SkUiImage, ISkUiBorderElement, SkUiImageButtonDra
         var uniform = (int)Math.Round(_chrome.Radii.TopLeft);
         if ((int)GetValue(CornerRadiusProperty) == uniform) return;
         _syncingCornerRadius = true; // the store follows the radii; it must not set all four corners back
-        try { SetValue(CornerRadiusProperty, uniform); }
+        try { WriteBack(CornerRadiusProperty, uniform); }
         finally { _syncingCornerRadius = false; }
     }
     /// <summary>Sets the border color (same as the property setter).</summary>

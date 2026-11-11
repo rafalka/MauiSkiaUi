@@ -138,8 +138,8 @@ public class SkUiRefreshView : SkUiView, ISkUiRefreshOwner
         propertyChanged: (bindable, _, newValue) =>
         {
             var view = (SkUiRefreshView)bindable;
-            if (!(bool)newValue && view.IsRefreshing)
-                view.IsRefreshing = false;
+            if (!(bool)newValue)
+                view.WriteBack(IsRefreshingProperty, false);
             view.OnCanRefreshChanged();
         });
 
@@ -352,8 +352,8 @@ public class SkUiRefreshView : SkUiView, ISkUiRefreshOwner
         if (propertyName == nameof(IsEnabled))
         {
             // As MAUI's: disabling the view ends a refresh.
-            if (!IsEnabled && IsRefreshing)
-                IsRefreshing = false;
+            if (!IsEnabled)
+                WriteBack(IsRefreshingProperty, false);
             OnCanRefreshChanged();
         }
     }
@@ -435,6 +435,8 @@ public class SkUiRefreshView : SkUiView, ISkUiRefreshOwner
     object? ISkUiRefreshOwner.RefreshCommandParameter => CommandParameter;
 
     void ISkUiRefreshOwner.RaiseRefreshing(SkUiRefreshingEventArgs args) => Refreshing?.Invoke(this, args);
+
+    void ISkUiRefreshOwner.WriteIsRefreshing(bool value) => WriteBack(IsRefreshingProperty, value);
 
     /// <summary>
     /// Shows the pull (the view's own or its scroller's, whichever shows more) or the running refresh; inline, the view's own

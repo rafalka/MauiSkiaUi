@@ -185,7 +185,7 @@ public partial class SkUiCollectionView
         if (_selectionMode == SkUiSelectionMode.Multiple)
             ReplaceSelectedItems([]);
         else
-            SelectedItem = null;
+            WriteBack(SelectedItemProperty, null);
     }
 
     /// <summary>
@@ -211,7 +211,7 @@ public partial class SkUiCollectionView
         _selectionMode = value;
         RevalidateFocus(); // a list without item taps takes no keyboard focus
         if (value is SkUiSelectionMode.None or SkUiSelectionMode.Multiple && _selectedItem is not null)
-            SelectedItem = null;
+            WriteBack(SelectedItemProperty, null);
         if (value != SkUiSelectionMode.Multiple && _selectedSet.Count > 0)
             ReplaceSelectedItems([]);
         RefreshSelection();
@@ -375,7 +375,7 @@ public partial class SkUiCollectionView
                     var args = new SkUiSelectionChangingEventArgs(_selectedItem, selected);
                     SelectionChanging?.Invoke(this, args);
                     if (!args.Cancel)
-                        SetValue(SelectedItemProperty, selected);
+                        WriteBack(SelectedItemProperty, selected);
                 }
                 break;
             }
@@ -462,7 +462,7 @@ public partial class SkUiCollectionView
         if (_selectedItem is { } selected
             && (reset || removed!.Cast<object?>().Any(item => Equals(item, selected)))
             && Model.IndexOfItem(selected) < 0)
-            SelectedItem = null;
+            WriteBack(SelectedItemProperty, null);
         if (_selectedSet.Count == 0)
             return;
         var gone = _selectedSnapshot.Where(item => (reset || removed!.Cast<object?>().Any(removedItem => Equals(removedItem, item))) && Model.IndexOfItem(item) < 0).ToList();

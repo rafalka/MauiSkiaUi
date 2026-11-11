@@ -242,15 +242,11 @@ public class SkUiEntry : SkUiInputView
 
     /// <inheritdoc />
     /// <remarks>
-    /// Only a change the property does not hold yet (the reveal button, a hold, unfocus, a screen reader) is set: the model also
-    /// follows the property, and setting it again from its own change would pin a style's, trigger's or one-way binding's value as
-    /// a manual one (MAUI applies the nested set at the manual specificity), so a trigger turning off would leave the text shown.
+    /// Only a change the property does not hold yet (the reveal button, a hold, unfocus, a screen reader) is written, as a handler
+    /// value (<see cref="SkUiView.WriteBack"/>): the model also follows the property, and a manual value would pin over a style's,
+    /// trigger's or one-way binding's value, so a trigger turning off would leave the text shown and a one-way binding would stop.
     /// </remarks>
-    private protected override void OnPasswordRevealEdited(bool revealed)
-    {
-        if (IsPasswordRevealed != revealed)
-            SetValue(IsPasswordRevealedProperty, revealed);
-    }
+    private protected override void OnPasswordRevealEdited(bool revealed) => WriteBack(IsPasswordRevealedProperty, revealed);
 
     /// <inheritdoc />
     private protected override void OnReturnPressed()

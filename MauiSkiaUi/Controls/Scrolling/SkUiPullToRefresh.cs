@@ -7,7 +7,13 @@ namespace MauiSkiaUi;
 internal interface ISkUiRefreshOwner
 {
     /// <summary>The owner's bindable <c>IsRefreshing</c>.</summary>
-    bool IsRefreshing { get; set; }
+    bool IsRefreshing { get; }
+
+    /// <summary>
+    /// Writes <c>IsRefreshing</c> as the pull (or an automatic completion) changed it: as a handler value, so a one-way binding
+    /// keeps applying (<see cref="SkUiView.WriteBack"/>).
+    /// </summary>
+    void WriteIsRefreshing(bool value);
 
     /// <summary>
     /// Whether a pull released past the trigger may start a refresh now: the owner is enabled, its pull is on and its command
@@ -115,7 +121,7 @@ internal sealed class SkUiPullToRefresh(ISkUiRefreshOwner owner)
     public void Release(double distance, SkUiPointerDevice device)
     {
         if (Counts(device) && distance >= TriggerDistance && !owner.IsRefreshing && owner.CanStartRefresh)
-            owner.IsRefreshing = true;
+            owner.WriteIsRefreshing(true);
     }
 
     /// <summary>
@@ -187,7 +193,7 @@ internal sealed class SkUiPullToRefresh(ISkUiRefreshOwner owner)
         if (!ReferenceEquals(_run, run))
             return;
         _run = null;
-        owner.IsRefreshing = false;
+        owner.WriteIsRefreshing(false);
     }
 
 

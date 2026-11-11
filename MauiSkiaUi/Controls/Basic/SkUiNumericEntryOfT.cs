@@ -357,7 +357,8 @@ public class SkUiNumericEntry<[DynamicallyAccessedMembers(DynamicallyAccessedMem
         _recoercing = true;
         try
         {
-            Value = _requestedValue;
+            // Coerced first: the value can equal the one held while the new range moves it.
+            WriteBack(ValueProperty, CoerceValue(_requestedValue));
         }
         finally
         {
@@ -380,7 +381,7 @@ public class SkUiNumericEntry<[DynamicallyAccessedMembers(DynamicallyAccessedMem
 
     T? ISkUiNumericValueHost<T>.Value => Value;
 
-    void ISkUiNumericValueHost<T>.SetValueFromUser(T? value) => Value = value;
+    void ISkUiNumericValueHost<T>.SetValueFromUser(T? value) => WriteBack(ValueProperty, value);
 
     #endregion
 }

@@ -267,6 +267,9 @@ public class SkUiIndicatorView : SkUiView, ISkUiKeyHandler
         InvalidateSemantics();
     }
 
+    /// <summary>The linked carousel moved to <paramref name="position"/>: written as a handler value (<see cref="SkUiView.WriteBack"/>).</summary>
+    internal void FollowCarousel(int position) => WriteBack(PositionProperty, position);
+
     /// <summary>A position within the items (kept while there are none: a position bound before the items).</summary>
     private object CoercePosition(int value) => Count > 0 && value >= Count ? Count - 1 : value;
 
@@ -275,7 +278,7 @@ public class SkUiIndicatorView : SkUiView, ISkUiKeyHandler
         Model.Count = value;
         // Set, not CoerceValue: MAUI's CoerceValue runs the coercion without applying its result.
         if (value > 0 && Position >= value)
-            Position = value - 1;
+            WriteBack(PositionProperty, value - 1);
         UpdateIndicatorViews();
         InvalidateMeasureOverride();
         InvalidateSemantics();
@@ -593,12 +596,12 @@ public class SkUiIndicatorView : SkUiView, ISkUiKeyHandler
         if (_layout is null && Model.HitTestButton(args.Position, (float)Width, (float)Height, IsRightToLeft) is not 0 and var step)
         {
             if (Model.Step(step) is var target and >= 0)
-                Position = target;
+                WriteBack(PositionProperty, target);
             return;
         }
         var index = _layout is null ? Model.HitTest(args.Position, (float)Width, (float)Height, IsRightToLeft) : TemplateViewAt(args.Position);
         if (index >= 0)
-            Position = index;
+            WriteBack(PositionProperty, index);
     }
 
     /// <inheritdoc />
@@ -615,7 +618,7 @@ public class SkUiIndicatorView : SkUiView, ISkUiKeyHandler
     {
         if (!IsEnabled || Model.KeyTarget(key, IsRightToLeft) is not (var target and >= 0) || target == Model.ClampedPosition)
             return false;
-        Position = target;
+        WriteBack(PositionProperty, target);
         return true;
     }
 
@@ -639,7 +642,7 @@ public class SkUiIndicatorView : SkUiView, ISkUiKeyHandler
         var target = Model.SemanticsTarget(action);
         if (target < 0)
             return base.OnSemanticsAction(action);
-        Position = target;
+        WriteBack(PositionProperty, target);
         return true;
     }
 
@@ -649,7 +652,7 @@ public class SkUiIndicatorView : SkUiView, ISkUiKeyHandler
         var target = Model.SemanticsValue(value);
         if (target < 0 || target == Model.ClampedPosition)
             return false;
-        Position = target;
+        WriteBack(PositionProperty, target);
         return true;
     }
 
