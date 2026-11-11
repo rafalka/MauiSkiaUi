@@ -19,6 +19,29 @@ public class SimulatedTapTests
         return new SkUiScrollView { Content = stack };
     }
 
+    /// <summary>Sets which native tap rule <c>PassedToNative</c> follows (Apple's tap gate, or Android / Windows) for one test.</summary>
+    private static IDisposable NativeTapGate(bool on)
+    {
+        var old = SkUiDiagnostics.NativeTapGate;
+        SkUiDiagnostics.NativeTapGate = on;
+        return new Restore(() => SkUiDiagnostics.NativeTapGate = old);
+    }
+
+    private sealed class Restore(Action action) : IDisposable
+    {
+        public void Dispose() => action();
+    }
+
+    /// <summary>A continuous recognizer that records how each pointer ended.</summary>
+    private sealed class Recorder : SkUiGestureRecognizer
+    {
+        public List<string> Seen { get; } = [];
+
+        protected internal override void OnPointerReleased(SkUiPointer pointer) => Seen.Add("released");
+
+        protected internal override void OnRejected(long pointerId) => Seen.Add("rejected");
+    }
+
     [Fact]
     public void ATapOnAButtonIsTakenByItsTap()
     {
@@ -39,9 +62,12 @@ public class SimulatedTapTests
         Assert.Equal(0, root.Router.ActiveArenaCount);
     }
 
-    [Fact]
-    public void ALabelInAScrollerIsCancelledWithoutSideEffects()
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void ALabelInAScrollerIsCancelledWithoutSideEffects(bool tapGate)
     {
+        using var _ = NativeTapGate(tapGate);
         var scroll = ScrollerWithLabel(out var label);
         var root = Surface(scroll);
 
@@ -52,7 +78,8 @@ public class SimulatedTapTests
         Assert.Same(scroll, result.Winner!.Owner);
         Assert.False(result.IsTap);
         Assert.False(result.Released);
-        Assert.True(result.PassedToNative);
+        // Apple: nothing drawn holds native taps back. Android / Windows: the surface handled the press (the scroller took it).
+        Assert.Equal(tapGate, result.PassedToNative);
         Assert.False(result.Winner.IsTracking);
         Assert.Equal(0, root.Router.ActiveArenaCount);
     }
@@ -60,6 +87,7 @@ public class SimulatedTapTests
     [Fact]
     public void WithoutReleaseOnlyIfTapTheScrollerPressIsReleased()
     {
+        using var _ = NativeTapGate(true);
         var root = Surface(ScrollerWithLabel(out var label));
 
         var result = SkUiDiagnostics.SimulateTap(label, releaseOnlyIfTap: false);
@@ -72,8 +100,46 @@ public class SimulatedTapTests
     }
 
     [Fact]
-    public void ADisabledButtonTakesNoTap()
+    public void ATapInsideAPanReachesTheTappableParent()
     {
+        var child = new SkUiContentView { WidthRequest = 50, HeightRequest = 50 };
+        child.PanUpdated += (_, _) => { };
+        var parent = new SkUiContentView { Content = child };
+        var taps = 0;
+        parent.Tapped += (_, _) => taps++;
+        Surface(parent);
+
+        // The pan is the innermost member, but it resigns a release that did not move: the parent's tap takes it.
+        var result = SkUiDiagnostics.SimulateTap(child, releaseOnlyIfTap: true);
+
+        Assert.True(result.Released);
+        Assert.True(result.IsTap);
+        Assert.Same(parent, result.Winner?.Owner);
+        Assert.Equal(1, taps);
+    }
+
+    [Fact]
+    public void ATapOnAScrollerInsideATappableViewIsTaken()
+    {
+        var card = new SkUiContentView { Content = ScrollerWithLabel(out var label) };
+        var taps = 0;
+        card.Tapped += (_, _) => taps++;
+        Surface(card);
+
+        var result = SkUiDiagnostics.SimulateTap(label, releaseOnlyIfTap: true);
+
+        Assert.True(result.Released);
+        Assert.True(result.IsTap);
+        Assert.Same(card, result.Winner?.Owner);
+        Assert.Equal(1, taps);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void ADisabledButtonTakesNoTap(bool tapGate)
+    {
+        using var _ = NativeTapGate(tapGate);
         var button = new SkUiButton { Text = "OK", IsEnabled = false };
         var root = Surface(button);
         var clicks = 0;
@@ -85,14 +151,17 @@ public class SimulatedTapTests
         Assert.Null(result.Winner);
         Assert.False(result.IsTap);
         Assert.False(result.Released);
-        Assert.True(result.PassedToNative);
+        Assert.Equal(tapGate, result.PassedToNative); // the disabled control takes the press, without a tap
         Assert.Equal(0, clicks);
         Assert.Equal(0, root.Router.ActiveArenaCount);
     }
 
-    [Fact]
-    public void PlainContentPassesTheTapToNativeAncestors()
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void PlainContentPassesTheTapToNativeAncestors(bool tapGate)
     {
+        using var _ = NativeTapGate(tapGate);
         var label = new SkUiLabel { Text = "plain" };
         var root = Surface(label);
 
@@ -106,6 +175,25 @@ public class SimulatedTapTests
     }
 
     [Fact]
+    public void ANativeViewOnTheSurfaceIsNotPressed()
+    {
+        var overlay = new SkUiMauiContentView { Content = new Editor(), WidthRequest = 50, HeightRequest = 50 };
+        var row = new SkUiContentView { Content = overlay };
+        var taps = 0;
+        row.Tapped += (_, _) => taps++;
+        var root = Surface(row);
+
+        var result = SkUiDiagnostics.SimulateTap(overlay, releaseOnlyIfTap: false);
+
+        Assert.Same(overlay, result.Hit);
+        Assert.True(result.PassedToNative); // a real finger lands on the native editor
+        Assert.False(result.Released);
+        Assert.Null(result.Winner);
+        Assert.Equal(0, taps);
+        Assert.Equal(0, root.Router.ActiveArenaCount);
+    }
+
+    [Fact]
     public void OutsideTheSurfaceNothingIsPressed()
     {
         var root = Surface(new SkUiButton { Text = "OK" });
@@ -115,12 +203,28 @@ public class SimulatedTapTests
     }
 
     [Fact]
+    public void ANestedViewIsNotASurfaceRoot()
+    {
+        var button = new SkUiButton { Text = "OK" };
+        Surface(button);
+
+        Assert.Throws<ArgumentException>(() => SkUiDiagnostics.SimulateTapAt(button, new Point(5, 5)));
+    }
+
+    [Fact]
     public void TheElementOverloadStillReturnsTheHitAndAlwaysReleases()
     {
-        var scroll = ScrollerWithLabel(out var label);
-        var root = Surface(scroll);
+        var box = new SkUiContentView { WidthRequest = 50, HeightRequest = 50 };
+        var recorder = new Recorder();
+        box.Gestures.Add(recorder);
+        var root = Surface(box);
 
-        Assert.Same(label, SkUiDiagnostics.SimulateTap(label));
+        Assert.Same(box, SkUiDiagnostics.SimulateTap(box));
+        Assert.Equal(["released"], recorder.Seen);
+
+        recorder.Seen.Clear();
+        Assert.False(SkUiDiagnostics.SimulateTap(box, releaseOnlyIfTap: true).Released); // not a tap: cancelled
+        Assert.Equal(["rejected"], recorder.Seen);
         Assert.Equal(0, root.Router.ActiveArenaCount);
     }
 }

@@ -202,7 +202,7 @@ public class SkUiStepper<T> : SkUiStepperBase where T : struct, INumber<T>, IMin
     private protected override void SetValueFromSemantics(double value)
     {
         if (double.IsFinite(value))
-            WriteBack(ValueProperty, T.CreateSaturating(value));
+            WriteBack(ValueProperty, Coerce(T.CreateSaturating(value))); // coerced first: records the requested value
     }
 
     #endregion

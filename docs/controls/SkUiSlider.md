@@ -19,7 +19,7 @@ All SkiaUi controls inherit [`SkUiView`](SkUiView.md) behavior:
 - **`StartUpdating` / `EndUpdating`** batch layout and paint invalidation.
 - **Gestures** use SkiaUi's gesture arena (`Tapped` / `TappedCommand`, `DoubleTapped`, `LongPressed`, `Swiped`, `PanUpdated`, `PinchUpdated`, custom recognizers in `Gestures`). MAUI's `GestureRecognizers` run on the arena too: tap (any `NumberOfTapsRequired`, primary or secondary button), swipe, pan, pinch and pointer recognizers; drag and drop is not run and is reported once as a `Trace` line. See [EventMechanism.md](../design/EventMechanism.md#maui-gesture-recognizers).
 - **Hosted vs standalone:** when nested under another SkiaUi parent, the node has no platform handler and paints into the root surface. See [LayoutSystem.md](../design/LayoutSystem.md).
-- **User input writes back:** a tap (toggles) or a drag / tap (sliders) sets the bindable property, so two-way bindings see the change, as with MAUI's controls.
+- **User input writes back:** a tap (toggles) or a drag / tap (sliders) sets the bindable property, so two-way bindings see the change, as with MAUI's controls. It is written as a handler value, so a one-way binding keeps applying after the user's change ([SkUiView](SkUiView.md#shared-conventions)).
 
 
 ## How to use

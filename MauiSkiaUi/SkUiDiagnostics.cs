@@ -119,32 +119,59 @@ public static class SkUiDiagnostics
     /// <summary>
     /// Presses <paramref name="root"/> (a surface root) at <paramref name="rootPoint"/> (its coordinates, DIPs) and
     /// releases, like a real touch, and reports what took it: the recognizer that won the press, whether that is a tap,
-    /// and whether a real touch would be left to native ancestors. With <paramref name="releaseOnlyIfTap"/>, a press that
-    /// would not end in a tap is cancelled instead of released, so a failed automation tap has no side effects (no
-    /// scroller fling, no pressed state left behind); only what a press does at once stays (moving focus, as a real
-    /// press). Nothing is pressed (an empty result) outside the root or where its content is clipped away.
+    /// and whether a real touch would be left to native views around the surface. With <paramref name="releaseOnlyIfTap"/>,
+    /// a press that would not end in a tap is cancelled instead of released, so a failed automation tap has no side
+    /// effects (no scroller fling, no pressed state left behind); only what a press does at once stays (moving focus, as a
+    /// real press). Nothing is pressed (an empty result) outside the root or where its content is clipped away, nor on a
+    /// native view hosted on the surface (<see cref="SkUiMauiContentView"/>), which a real touch reaches instead of the
+    /// drawn content (<see cref="SkUiSimulatedTap.PassedToNative"/>).
     /// </summary>
+    /// <exception cref="ArgumentException"><paramref name="root"/> is drawn inside another view (not a surface root).</exception>
     public static SkUiSimulatedTap SimulateTapAt(SkUiView root, Point rootPoint, bool releaseOnlyIfTap = true)
     {
         ArgumentNullException.ThrowIfNull(root);
+        if (((ISkUiRenderable)root).RenderParent is not null)
+            throw new ArgumentException("Not a surface root: pass the view that owns the surface (GetSurfaceRoot).", nameof(root));
         if (HitTest(root, rootPoint) is not { } hit)
             return default;
+        if (IsOnNativeView(hit))
+            return new SkUiSimulatedTap(hit, Winner: null, IsTap: false, PassedToNative: true, Released: false);
         var id = Interlocked.Increment(ref _syntheticTouchId);
         var now = TimeSpan.FromMilliseconds(Environment.TickCount64);
         if (!root.Touch(new SkUiTouchEvent(id, SkUiTouchAction.Pressed, rootPoint, now))
             || root.Router.ArenaOf(id) is not { } arena)
             return new SkUiSimulatedTap(hit, Winner: null, IsTap: false, PassedToNative: true, Released: false);
-        // What the platforms' native tap gates read at release: Tapping or Claimed keeps native ancestors from recognizing.
-        var passedToNative = SkUiPointerRouter.TapStateOf(arena) < SkUiNativeTapState.Tapping;
+        // What a release does for native views around the surface: on Apple platforms a tap gate keeps their tap recognizers
+        // from recognizing while a drawn tap is pending or a drawn gesture claimed (Tapping or Claimed); elsewhere a press the
+        // surface handled (an arena, even with no recognizer left) never reaches them.
+        var passedToNative = NativeTapGate && SkUiPointerRouter.TapStateOf(arena) < SkUiNativeTapState.Tapping;
         var predicted = arena.PredictedWinner;
         if (releaseOnlyIfTap && predicted is not { IsDiscrete: true })
         {
             root.Touch(new SkUiTouchEvent(id, SkUiTouchAction.Cancelled, rootPoint, now));
             return new SkUiSimulatedTap(hit, predicted, IsTap: false, passedToNative, Released: false);
         }
+        // Something the press ran (a handler detaching the subtree, the surface going away) may have ended the pointer.
+        if (!ReferenceEquals(root.Router.ArenaOf(id), arena))
+            return new SkUiSimulatedTap(hit, Winner: null, IsTap: false, passedToNative, Released: false);
         root.Touch(new SkUiTouchEvent(id, SkUiTouchAction.Released, rootPoint, now + TimeSpan.FromMilliseconds(50)));
         var winner = arena.EndWinner;
         return new SkUiSimulatedTap(hit, winner, winner is { IsDiscrete: true }, passedToNative, Released: true);
+    }
+
+    /// <summary>
+    /// Whether native views around a surface follow the drawn taps through a tap gate (iOS and Mac Catalyst) rather than
+    /// through whether the surface handled the press (Android, Windows). Settable for tests.
+    /// </summary>
+    internal static bool NativeTapGate { get; set; } = OperatingSystem.IsIOS() || OperatingSystem.IsMacCatalyst();
+
+    /// <summary>Whether <paramref name="hit"/> is, or is inside, a native view hosted on the surface.</summary>
+    private static bool IsOnNativeView(IVisualTreeElement hit)
+    {
+        for (var node = hit as ISkUiRenderable; node is not null; node = node.RenderParent)
+            if (node is SkUiMauiContentView)
+                return true;
+        return false;
     }
 
     private static ISkUiRenderable? HitTest(ISkUiRenderable node, SkUiRenderProps props, SKPoint local, List<ISkUiRenderable> scratch)

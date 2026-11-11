@@ -16,11 +16,11 @@ Publishing (the NuGet publish workflow, [docs/Releasing.md](docs/Releasing.md)) 
 ### New features
 
 - **Simulated taps report what took them** ([#93](https://github.com/rafalka/MauiSkiaUi/issues/93)): `SkUiDiagnostics.SimulateTapAt(root, rootPoint, releaseOnlyIfTap = true)` and `SkUiDiagnostics.SimulateTap(element, releaseOnlyIfTap)` return an `SkUiSimulatedTap`, so automation can report a tap truthfully instead of "succeeding" on a label inside a scroller, a disabled control or a control without a tap.
-  - `Hit` (the element hit, as before), `Winner` (the recognizer that won the press), `IsTap` (the winner completes on release: taps, a control's own tap, slider / stepper taps, text fields), `PassedToNative` (nothing drawn took the tap: a real touch would reach native ancestors of the surface) and `Released`.
-  - `releaseOnlyIfTap`: a press whose leading recognizer is not a tap is cancelled instead of released, so a failed tap has no side effects (no fling, no pressed state left behind).
+  - `Hit` (the element hit, as before), `Winner` (the recognizer that won the press), `IsTap` (the winner completes on release: taps, a control's own tap, slider / stepper taps, text fields), `PassedToNative` (a real touch would reach native views around the surface: a parent's tap recognizer, or a hosted native view, which is not pressed; per platform, as each surface hands touches on) and `Released`.
+  - `releaseOnlyIfTap`: a press that a release without movement would not turn into a tap is cancelled instead of released, so a failed tap has no side effects (no fling, no pressed state left behind).
   - `SimulateTap(element)` is unchanged (returns the hit, always releases).
-- **DevFlow extension for apps:** the `dev.skiaui` DevFlow agent extension the demo uses (a tree of drawn elements with window bounds, taps, hit-testing) is now ready to copy into any app that uses SkiaUi. The new [docs/DevFlow.md](https://github.com/rafalka/MauiSkiaUi/blob/master/docs/DevFlow.md) covers setup, and the new `skiaui-devflow` agent skill (`/plugin install skiaui-devflow@skiaui`) does it for you. It isn't a NuGet package because the DevFlow agent is still in preview.
-  - Taps report whether a drawn tap recognizer took them (`taken`, `winner`, `passedToNative`, `released`). A press that isn't a tap is cancelled unless `force` is set.
+- **DevFlow extension for apps:** the `dev.skiaui` DevFlow agent extension the demo uses (a tree of drawn elements with window bounds, taps, hit-testing) is now ready to copy into any app that uses SkiaUi. The new [docs/DevFlow.md](docs/DevFlow.md) covers setup, and the new `skiaui-devflow` agent skill (`/plugin install skiaui-devflow@skiaui`) does it for you. It isn't a NuGet package because the DevFlow agent is still in preview.
+  - Taps report whether a drawn tap recognizer took them (`taken`, `winner`, `passedToNative`, `released`). A press that isn't a tap is cancelled unless `force` is set, and an element that is covered or scrolled out of view is not pressed (422).
   - A new `tapAt` tool taps the drawn content at a window point.
 
 ### Fixes
@@ -36,7 +36,6 @@ Publishing (the NuGet publish workflow, [docs/Releasing.md](docs/Releasing.md)) 
 ### Other
 
 - **Built with Xcode 27.2:** CI and the packages build with workload set 10.0.404 (iOS / Mac Catalyst 27.2 SDKs, Xcode 27.2 on the `xcode-27` image) instead of 10.0.402.1 (Xcode 27.1); the Xcode 26.6 build (10.0.401) stays. The library still compiles against the iOS / Mac Catalyst 26.0 SDK, so apps keep building with Xcode 26.6, 27.1 or 27.2.
-
 
 ## 1.10.1
 

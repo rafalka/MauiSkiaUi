@@ -176,7 +176,8 @@ public class SkUiStepper : SkUiStepperBase
 
     private protected override string ValueText => Value.ToString("G", CultureInfo.CurrentCulture);
 
-    private protected override void SetValueFromSemantics(double value) => WriteBack(ValueProperty, value);
+    // Coerced first: it records the requested value even when the stepper already holds the coerced one.
+    private protected override void SetValueFromSemantics(double value) => WriteBack(ValueProperty, Coerce(value));
 
     #endregion
 }

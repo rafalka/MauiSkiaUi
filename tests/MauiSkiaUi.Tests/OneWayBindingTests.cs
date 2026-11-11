@@ -96,6 +96,37 @@ public sealed class OneWayBindingInputTests : IDisposable
     }
 
     [Fact]
+    public void SliderKeepsTheUsersValueWhenTheRangeGrows()
+    {
+        var slider = new SkUiSlider { Maximum = 10 };
+        var root = new SkUiContentView { Content = slider };
+        SkUiTestHelpers.Arrange(root, 220, 32); // the thumb travels 10…210
+        BindingSource<double>.Bind(slider, SkUiSlider.ValueProperty, 15); // out of range: shown at 10, 15 requested
+        Assert.Equal(10, slider.Value, 3);
+
+        Tap(root, new Point(215, 16)); // the user picks the end: 10, the value it already holds
+        Assert.Equal(10, slider.Value, 3);
+
+        slider.Maximum = 20; // the user's 10 is the requested value now, not the binding's earlier 15
+        Assert.Equal(10, slider.Value, 3);
+    }
+
+    [Fact]
+    public void LabelCornerRadiusFollowsTheBindingAfterCornerRadiiChange()
+    {
+        var label = new SkUiLabel { Text = "chip" };
+        var source = BindingSource<int>.Bind(label, SkUiLabel.CornerRadiusProperty, 4);
+        Assert.Equal(4, label.CornerRadius);
+
+        label.CornerRadii = new Microsoft.Maui.CornerRadius(10); // the uniform radius follows the corners (derived)
+        Assert.Equal(10, label.CornerRadius);
+
+        source.Value = 6;
+        Assert.Equal(6, label.CornerRadius);
+        Assert.Equal(new Microsoft.Maui.CornerRadius(6), label.CornerRadii);
+    }
+
+    [Fact]
     public void SliderStillWritesTapsToATwoWayBinding()
     {
         var slider = new SkUiSlider();
@@ -305,6 +336,21 @@ public sealed class OneWayBindingPickerTests : IDisposable
     }
 
     [Fact]
+    public void PickerSelectedIndexFollowsTheBindingAfterClearing()
+    {
+        var picker = Picker();
+        var source = BindingSource<int>.Bind(picker, SkUiPicker.SelectedIndexProperty, 2);
+        Assert.Equal(2, picker.SelectedIndex);
+
+        picker.ClearSelection(); // the user's clear button
+        Assert.Equal(-1, picker.SelectedIndex);
+        Assert.Equal(2, source.Value);
+
+        source.Value = 4;
+        Assert.Equal(4, picker.SelectedIndex);
+    }
+
+    [Fact]
     public void PickerSelectedIndexStillReachesATwoWayBinding()
     {
         var picker = Picker();
@@ -378,6 +424,23 @@ public sealed class OneWayBindingPickerTests : IDisposable
 
         source.Value = new TimeSpan(7, 15, 0);
         Assert.Equal(new TimeSpan(7, 15, 0), picker.Time);
+    }
+
+    [Fact]
+    public void PickerColumnFollowsTheBindingAfterItsItemMoves()
+    {
+        var hours = new ObservableCollection<string> { "00", "01", "02", "03" };
+        var hour = new SkUiPickerColumn { ItemsSource = hours };
+        var source = BindingSource<int>.Bind(hour, SkUiPickerColumn.SelectedIndexProperty, 1);
+        Assert.Equal("01", hour.SelectedItem);
+
+        hours.Insert(0, "23"); // the chosen item moves to index 2 (derived)
+        Assert.Equal(2, hour.SelectedIndex);
+        Assert.Equal("01", hour.SelectedItem);
+
+        source.Value = 3;
+        Assert.Equal(3, hour.SelectedIndex);
+        Assert.Equal("02", hour.SelectedItem);
     }
 
     [Fact]
@@ -562,6 +625,42 @@ public sealed class OneWayBindingItemsTests : IDisposable
         source.Value = false;
         source.Value = true;
         Assert.True(refresh.IsRefreshing);
+    }
+
+    [Fact]
+    public void RadioIsCheckedFollowsTheBindingAfterTheGroupUnchecksIt()
+    {
+        SkUiRadioButton first = new() { Value = "A", GroupName = "letters" }, second = new() { Value = "B", GroupName = "letters" };
+        var root = new SkUiContentView { Content = new SkUiVerticalStackLayout { Children = { first, second } } };
+        SkUiTestHelpers.Arrange(root, 200, 200);
+        var source = BindingSource<bool>.Bind(first, SkUiToggleControl.IsCheckedProperty, true);
+        Assert.True(first.IsChecked);
+
+        Assert.True(SkUiDiagnostics.SimulateTap(second, releaseOnlyIfTap: true).IsTap); // checking B unchecks A (derived)
+        Assert.False(first.IsChecked);
+        Assert.True(source.Value);
+
+        source.Value = false;
+        source.Value = true;
+        Assert.True(first.IsChecked);
+        Assert.False(second.IsChecked);
+    }
+
+    [Fact]
+    public void IndicatorPositionFollowsTheBindingAfterTheCarouselMoves()
+    {
+        var indicator = new SkUiIndicatorView();
+        var carousel = new SkUiCarouselView { ItemsSource = Items(5), Loop = false, ItemTemplate = Rows(200), IndicatorView = indicator };
+        using var surface = new SkUiTestSurface(new SkUiVerticalStackLayout { Children = { carousel, indicator } }, 300, 260);
+        surface.Frame(0);
+        var source = BindingSource<int>.Bind(indicator, SkUiIndicatorView.PositionProperty, 0);
+
+        carousel.Position = 2; // the linked indicator follows (derived)
+        Assert.Equal(2, indicator.Position);
+        Assert.Equal(0, source.Value);
+
+        source.Value = 4;
+        Assert.Equal(4, indicator.Position);
     }
 
     [Fact]

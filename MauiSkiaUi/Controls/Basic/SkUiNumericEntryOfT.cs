@@ -381,7 +381,8 @@ public class SkUiNumericEntry<[DynamicallyAccessedMembers(DynamicallyAccessedMem
 
     T? ISkUiNumericValueHost<T>.Value => Value;
 
-    void ISkUiNumericValueHost<T>.SetValueFromUser(T? value) => WriteBack(ValueProperty, value);
+    // Coerced first: it records the user's value as the requested one even when the entry already holds the coerced one.
+    void ISkUiNumericValueHost<T>.SetValueFromUser(T? value) => WriteBack(ValueProperty, CoerceValue(value));
 
     #endregion
 }

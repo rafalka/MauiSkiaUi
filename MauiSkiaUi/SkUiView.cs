@@ -48,18 +48,10 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
 
     /// <summary>
     /// Writes a value the control produced itself (a drag, a tap, typing, a picker choice, a value it clamped or derived)
-    /// to one of its own bindable properties, as MAUI's controls write user changes
-    /// (<see cref="Element.SetValueFromRenderer(BindableProperty, object)"/>): two-way bindings get it, and the next value
-    /// from a one-way binding, a style or the app replaces it. A plain <c>SetValue</c> (or the CLR setter) outranks a
-    /// one-way binding for good, so the control would stop following it after the first user change. Skips the write
-    /// when the property already holds <paramref name="value"/> (a value from the property itself stays where it is).
-    /// Inside the property's own change callback MAUI queues the write until the callback returns.
+    /// to one of its own bindable properties as a handler value, so one-way bindings keep applying
+    /// (<see cref="SkUiWriteBack.WriteBack"/>). Skipped when the property already holds <paramref name="value"/>.
     /// </summary>
-    private protected void WriteBack(BindableProperty property, object? value)
-    {
-        if (!Equals(GetValue(property), value))
-            SetValueFromRenderer(property, value);
-    }
+    private protected void WriteBack(BindableProperty property, object? value) => SkUiWriteBack.WriteBack(this, property, value);
 
     /// <summary>Bindable opt-in tap command.</summary>
     public static readonly BindableProperty TappedCommandProperty = BindableProperty.Create(

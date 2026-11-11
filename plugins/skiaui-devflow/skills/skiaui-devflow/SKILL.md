@@ -49,17 +49,17 @@ The extension is one source file, [assets/SkiaUiDevFlowExtension.cs](assets/Skia
 | Tool | Parameters | Returns |
 | --- | --- | --- |
 | `tree` | none | Drawn elements of the page on screen (top modal page, else the Shell's or navigation page's current page): `type`, `automationId`, `text`, `bounds` (window DIPs), `parent` |
-| `tap` | `automationId`, `text`, `type` (all optional filters, combined), `index` (nth match, default 0), `force` | Taps the match's center; returns `tapped`, `hit` and the tap result below. 404 when nothing matches, 422 when the element is clipped or detached |
+| `tap` | `automationId`, `text`, `type` (all optional filters, combined), `index` (nth match, default 0), `force` | Taps the match's center; returns `tapped`, `hit` and the tap result below. 404 when nothing matches; 422, without pressing, when the element is clipped, detached, covered by another element or scrolled out of its scroller's viewport (scroll it into view first) |
 | `tapAt` | `x`, `y` (window DIPs), `force` | The same at a point (for elements without an id or text) |
 | `hit` | `x`, `y` (window DIPs) | The deepest drawn element at the point |
 
 ## Reading a tap's result
 
-A tap is pressed through the surface, as a real touch. It is **released only when a drawn tap recognizer takes it** (a button, a toggle, a tap gesture, a slider or stepper tap, a text field). Otherwise it's cancelled, so a missed tap leaves no fling, no pressed state and no action.
+A tap is pressed through the surface, as a real touch. It is **released only when a drawn tap recognizer would take it** (a button, a toggle, a tap gesture, a slider or stepper tap, a text field; also one around a scroller, a pan or a swipe view, which give up a release that did not move). Otherwise it's cancelled, so a missed tap leaves no fling, no pressed state and no action.
 
 - `taken: true`: a drawn tap recognizer took the tap and its action ran (`Clicked`, the command, the toggle). `winner` / `winnerOwner` name the recognizer and its element.
 - `taken: false`: nothing drawn completes a tap there, e.g. a label inside a scroller, a disabled control, or plain text. `winner` is whatever led the press (a scroller's pan) or null. Look for the real target in `tree` (the row or button around the text) and tap that instead.
-- `passedToNative: true`: no drawn recognizer took the touch, so on a device a real touch would reach native views around the surface (a MAUI `TapGestureRecognizer` on the surface's parent, a native control behind it). Drive those with DevFlow's own tools, not this extension.
+- `passedToNative: true`: a real touch would be left to native views around the surface: a MAUI `TapGestureRecognizer` on the surface's parent, or a native view hosted on the surface (`SkUiMauiContentView`, which is not pressed). On iOS and Mac Catalyst that is when no drawn tap is pending and no drawn gesture claimed the touch; on Android and Windows, only when the surface did not take the press at all (a scroller around a label or a disabled control take it without a tap). Drive those with DevFlow's own tools (`ui tap`), not this extension.
 - `force: true` releases the press even when it isn't a tap (e.g. to check that a disabled control ignores taps). Don't use it to make a failed tap look successful.
 
 Report a tap to the user as done only when `taken` is true.

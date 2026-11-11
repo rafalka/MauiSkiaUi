@@ -53,19 +53,19 @@ maui devflow extensions call dev.skiaui hit '{"x":201,"y":709}'                 
 
 - **Coordinates:** window DIPs, the same as native elements in DevFlow's `ui tree`.
 - **Scope:** every tool looks only at the page on screen (the top modal page, else the Shell's or navigation page's current page). Pages lower in the navigation stack, or in other Shell sections, keep their surfaces but are ignored.
-- **Errors:** **404** when nothing matches. **422** when the element is outside every viewport or detached ("not on screen"). **409** always means DevFlow's mutation lease.
+- **Errors:** **404** when nothing matches. **422**, without pressing, when the element is clipped away or detached ("not on screen"), or covered by another element or scrolled out of its scroller's viewport, where a tap would land on something else ("covered or scrolled out of view": scroll it into view first). **409** always means DevFlow's mutation lease.
 - **Lease:** taps are mutations, so they wait for DevFlow's mutation lease. A lease taken by an earlier CLI call (e.g. `ui navigate`) expires after about 10 s.
 
 ## Tap results
 
-A tap is a press delivered through the surface root (hit-testing, the gesture arena, press states, `Clicked` and commands), the same as a finger. The press is **released only when a drawn tap recognizer takes it**: a button, a toggle, a tap gesture, a slider or stepper tap, a text field. Otherwise it's cancelled, so a missed tap leaves no fling, no pressed state and no action. The result comes from `SkUiDiagnostics.SimulateTap(element, releaseOnlyIfTap)` / `SimulateTapAt` (`SkUiSimulatedTap`):
+A tap is a press delivered through the surface root (hit-testing, the gesture arena, press states, `Clicked` and commands), the same as a finger. The press is **released only when a drawn tap recognizer would take it**: a button, a toggle, a tap gesture, a slider or stepper tap, a text field, also one around a scroller, a pan or a swipe view (they give up a release that did not move). Otherwise it's cancelled, so a missed tap leaves no fling, no pressed state and no action. The result comes from `SkUiDiagnostics.SimulateTap(element, releaseOnlyIfTap)` / `SimulateTapAt` (`SkUiSimulatedTap`):
 
 | Field | Meaning |
 | --- | --- |
 | `taken` | A drawn tap recognizer took the tap, and its action ran. Report an automated tap as done only when this is `true` |
-| `winner`, `winnerOwner` | The recognizer that won the press (or led it when it was cancelled: a scroller around a label) and its element; `null` when nothing drawn took part (a disabled control, plain text) |
+| `winner`, `winnerOwner` | The recognizer that won the press (when it was cancelled, the one leading it: a scroller around a label) and its element; `null` when nothing drawn took part (a disabled control, plain text, a native view) |
 | `released` | The press was released (`false`: cancelled) |
-| `passedToNative` | Nothing drawn took the touch: on a device, a real touch would reach native views around the surface (a MAUI `TapGestureRecognizer` on the surface's parent). Use DevFlow's own tools for those |
+| `passedToNative` | On a device, a real touch would be left to native views around the surface: a MAUI `TapGestureRecognizer` on the surface's parent, or a native view hosted on the surface (`SkUiMauiContentView`, which is not pressed). On iOS and Mac Catalyst that is when no drawn tap is pending and no drawn gesture claimed the touch; on Android and Windows, only when the surface did not take the press at all (a scroller around a label or a disabled control take it without a tap). Use DevFlow's own tools (`ui tap`) for those |
 
 `force: true` releases the press even when it isn't a tap, e.g. to check that a disabled control ignores taps.
 

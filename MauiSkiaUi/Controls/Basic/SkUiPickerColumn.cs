@@ -301,20 +301,8 @@ public class SkUiPickerColumn : Element
         return count > 0 ? Math.Min(value, count - 1) : value;
     }
 
-    /// <summary>The user chose <paramref name="index"/> (the popup, clearing the choice): written as a handler value (<see cref="WriteBack"/>).</summary>
-    internal void Choose(int index) => WriteBack(SelectedIndexProperty, index);
-
-    /// <summary>
-    /// Writes a value the column derived (the user's choice, the other view of the selection, a moved item) as a handler value
-    /// (<see cref="Element.SetValueFromRenderer(BindableProperty, object)"/>), as <see cref="SkUiView"/>'s controls do: two-way
-    /// bindings get it, and the next value from a one-way binding, a style or the app replaces it. Skipped when the property
-    /// already holds the value.
-    /// </summary>
-    private void WriteBack(BindableProperty property, object? value)
-    {
-        if (!Equals(GetValue(property), value))
-            SetValueFromRenderer(property, value);
-    }
+    /// <summary>The user chose <paramref name="index"/> (the popup, clearing the choice): written as a handler value (<see cref="SkUiWriteBack.WriteBack"/>).</summary>
+    internal void Choose(int index) => this.WriteBack(SelectedIndexProperty, index);
 
     private void OnItemsSourceChanged(IList? value)
     {
@@ -332,7 +320,7 @@ public class SkUiPickerColumn : Element
             // The chosen item stays chosen where it moved (or arrived).
             _pendingItem = null;
             if (moved != SelectedIndex)
-                WriteBack(SelectedIndexProperty, moved);
+                this.WriteBack(SelectedIndexProperty, moved);
         }
         CoerceValue(SelectedIndexProperty);
         SyncSelectedItem();
@@ -354,7 +342,7 @@ public class SkUiPickerColumn : Element
         _syncing = true;
         try
         {
-            WriteBack(SelectedIndexProperty, index);
+            this.WriteBack(SelectedIndexProperty, index);
         }
         finally
         {
@@ -379,7 +367,7 @@ public class SkUiPickerColumn : Element
         _syncing = true;
         try
         {
-            WriteBack(SelectedItemProperty, ItemAt(SelectedIndex));
+            this.WriteBack(SelectedItemProperty, ItemAt(SelectedIndex));
         }
         finally
         {

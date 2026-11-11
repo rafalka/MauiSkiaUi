@@ -148,4 +148,4 @@ Each difference becomes a shim with a short comment. No control-level `#if`.
   - Check GPU surfaces (Metal / GL), the software surface (the SkiaSharp net10 view assembly on MAUI 11), text input, native overlays, render-thread animations and Reduce Motion.
 - `scripts/device_tests.sh --net 11` and `--net 10` pass the memory-leak scenarios (CoreCLR finalizer timing).
 - On net11: Native AOT publish of the demo on iOS and Mac Catalyst, and full trimming on Android.
-- CI is green on every job, including the net10-only Xcode 26.6 / 27.1 jobs.
+- CI is green on every job, including the net10-only Xcode 26.6 / 27.2 jobs.

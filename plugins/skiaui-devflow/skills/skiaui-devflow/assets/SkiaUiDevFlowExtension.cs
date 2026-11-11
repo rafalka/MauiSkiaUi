@@ -3,12 +3,22 @@
 // Setup and tool reference: https://github.com/rafalka/MauiSkiaUi/blob/master/docs/DevFlow.md
 // The SkiaUi demo app compiles this same file, so it builds against the current SkiaUi and DevFlow versions.
 #if MAUI_DEVFLOW
+#nullable enable
+using System;
 using System.Collections.Concurrent;
+using System.Collections.Generic;
+using System.Globalization;
+using System.Linq;
 using System.Reflection;
 using System.Text.Json;
+using System.Threading.Tasks;
 using MauiSkiaUi;
 using MauiSkiaUi.Core;
+using Microsoft.Maui;
+using Microsoft.Maui.ApplicationModel;
+using Microsoft.Maui.Controls;
 using Microsoft.Maui.DevFlow.Agent.Core;
+using Microsoft.Maui.Graphics;
 
 namespace SkiaUiDevFlow;
 
@@ -52,11 +62,15 @@ internal static class SkiaUiDevFlowExtension
         if (index < 0 || index >= matches.Count)
             return HttpResponse.NotFound($"No drawn element matches ({matches.Count} candidates).");
         var target = matches[index];
-        var result = SkUiDiagnostics.SimulateTap(target, releaseOnlyIfTap: !Force(parameters));
-        return result.Hit is null
-            // 422, not 409: the DevFlow CLI shows only the status code, and 409 is also its mutation-lease conflict.
-            ? HttpResponse.Error("Element is not on screen (clipped or detached).", 422)
-            : TapResponse(target, result);
+        // A tap lands on whatever is at the element's center: something covering it, or what is there instead when the
+        // element is scrolled out of its scroller's viewport. Don't press then: the tap would go to another element.
+        // 422, not 409: the DevFlow CLI shows only the status code, and 409 is also its mutation-lease conflict.
+        if (SkUiDiagnostics.GetSurfaceRoot(target) is not { } root || SkUiDiagnostics.GetRootBounds(target) is not { } bounds
+            || SkUiDiagnostics.HitTest(root, bounds.Center) is not { } atCenter)
+            return HttpResponse.Error("Element is not on screen (clipped or detached).", 422);
+        if (!IsSelfOrDescendant(atCenter, target))
+            return HttpResponse.Error($"Element is covered or scrolled out of view: its center hits {atCenter.GetType().Name}. Scroll it into view first.", 422);
+        return TapResponse(target, SkUiDiagnostics.SimulateTap(target, releaseOnlyIfTap: !Force(parameters)));
     }
 
     private static HttpResponse TapAt(Dictionary<string, string> parameters)
@@ -95,10 +109,18 @@ internal static class SkiaUiDevFlowExtension
             : HttpResponse.NotFound("No drawn element at that point.");
     }
 
+    private static bool IsSelfOrDescendant(IVisualTreeElement element, IVisualTreeElement ancestor)
+    {
+        for (var current = element; current is not null; current = current.GetVisualParent())
+            if (ReferenceEquals(current, ancestor))
+                return true;
+        return false;
+    }
+
     private static bool TryPoint(Dictionary<string, string> parameters, out Point point)
     {
-        var ok = double.TryParse(parameters.GetValueOrDefault("x"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var x)
-            & double.TryParse(parameters.GetValueOrDefault("y"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var y);
+        var ok = double.TryParse(parameters.GetValueOrDefault("x"), NumberStyles.Float, CultureInfo.InvariantCulture, out var x)
+            & double.TryParse(parameters.GetValueOrDefault("y"), NumberStyles.Float, CultureInfo.InvariantCulture, out var y);
         point = new Point(x, y);
         return ok;
     }

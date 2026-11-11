@@ -204,6 +204,8 @@ public partial class SkUiPicker
         if (_multiple)
             ReplaceSelectedItems([]);
         else
+            // WriteBack skips -1 when it is already held, and with it CoerceSelectedIndex, which clears a pending index:
+            // nothing is lost, as a pending index exists only while there are no items, when there is no choice to clear.
             WriteBack(SelectedIndexProperty, -1);
     }
 

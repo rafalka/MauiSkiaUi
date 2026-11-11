@@ -21,6 +21,16 @@ inputs:
 runs:
   using: composite
   steps:
+    # One place for the default set: the Windows cache key and the install below both read it, so a new default drops the
+    # cached SDK folder instead of updating it on every run.
+    - name: Resolve workload set
+      id: workload-set
+      shell: bash
+      env:
+        # Callers pass an empty value through when their own input is unset (a tag push has no inputs).
+        REQUESTED: ${{ inputs.workload-version }}
+      run: echo "version=${REQUESTED:-10.0.404}" >> "$GITHUB_OUTPUT"
+
     # ---- Windows speed-ups -------------------------------------------------------------------------------------
     # Defender scans every file dotnet, NuGet and MSBuild write (SDK, workload packs, packages): turn real-time
     # scanning off for this throwaway VM, and exclude the build folders and tools in case the image blocks that.
@@ -55,7 +65,7 @@ runs:
       uses: actions/cache@v6
       with:
         path: ${{ steps.dotnet-dir.outputs.dir }}
-        key: dotnet-${{ runner.os }}-${{ hashFiles('global.json') }}-${{ inputs.workloads }}-${{ inputs.workload-version }}-${{ steps.dotnet-dir.outputs.month }}-v1
+        key: dotnet-${{ runner.os }}-${{ hashFiles('global.json') }}-${{ inputs.workloads }}-${{ steps.workload-set.outputs.version }}-${{ steps.dotnet-dir.outputs.month }}-v2
 
     # Restore downloads the large Windows App SDK packages on every run otherwise.
     - name: Cache NuGet packages
@@ -83,8 +93,7 @@ runs:
     - name: Install MAUI workloads
       shell: bash
       env:
-        # Callers pass an empty value through when their own input is unset (a tag push has no inputs).
-        WORKLOAD_VERSION: ${{ inputs.workload-version || '10.0.404' }}
+        WORKLOAD_VERSION: ${{ steps.workload-set.outputs.version }}
       run: |
         set -euo pipefail
         # A pinned workload set, not the SDK's baseline manifests: those carry the first iOS / Mac Catalyst SDKs of

@@ -166,14 +166,10 @@ internal static class SkUiRadioGroups
         }
 
         /// <summary>
-        /// Reports the checked radio's value to the layout's <c>SelectedValue</c> as a handler value (as
-        /// <see cref="SkUiView.WriteBack"/>): two-way bindings get it, and a one-way binding keeps applying.
+        /// Reports the checked radio's value to the layout's <c>SelectedValue</c> as a handler value
+        /// (<see cref="SkUiWriteBack.WriteBack"/>): two-way bindings get it, and a one-way binding keeps applying.
         /// </summary>
-        public void WriteSelectedValue(object? value)
-        {
-            if (!Equals(Layout.GetValue(RadioButtonGroup.SelectedValueProperty), value))
-                Layout.SetValueFromRenderer(RadioButtonGroup.SelectedValueProperty, value);
-        }
+        public void WriteSelectedValue(object? value) => Layout.WriteBack(RadioButtonGroup.SelectedValueProperty, value);
 
         public void SetSelectedValue(object? value)
         {

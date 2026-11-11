@@ -118,7 +118,7 @@ Every package targets `net11.0-*` with MAUI 11 next to `net10.0-*` with MAUI 10,
 
 - Per-TFM MAUI (10.0.120 / 11.0.0), Community Toolkit (15.0.1 / 17.0.0) and minimum Android (API 21 / 24); SkiaSharp 4.154.0 on both lines.
 - .NET SDK 11.0.100 and Xcode 27.2 for the net11 Apple builds; whether SDK 11 also builds the net10 assets or SDK 10 keeps building them is decided by a spike first.
-- CI over both lines (the Xcode 26.6 / 27.1 jobs stay as net10-only jobs on SDK 10), headless tests on `net10.0` and `net11.0`, an API comparison between the lines and against 1.10.0, and net10 / net11 consumer apps restoring the packed packages.
+- CI over both lines (the Xcode 26.6 / 27.2 jobs stay as net10-only jobs on SDK 10), headless tests on `net10.0` and `net11.0`, an API comparison between the lines and against 1.10.0, and net10 / net11 consumer apps restoring the packed packages.
 
 ## Backlog (1.x)
 
