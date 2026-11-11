@@ -62,15 +62,13 @@ internal static class SkiaUiDevFlowExtension
         if (index < 0 || index >= matches.Count)
             return HttpResponse.NotFound($"No drawn element matches ({matches.Count} candidates).");
         var target = matches[index];
-        // A tap lands on whatever is at the element's center: something covering it, or what is there instead when the
-        // element is scrolled out of its scroller's viewport. Don't press then: the tap would go to another element.
-        // 422, not 409: the DevFlow CLI shows only the status code, and 409 is also its mutation-lease conflict.
-        if (SkUiDiagnostics.GetSurfaceRoot(target) is not { } root || SkUiDiagnostics.GetRootBounds(target) is not { } bounds
-            || SkUiDiagnostics.HitTest(root, bounds.Center) is not { } atCenter)
-            return HttpResponse.Error("Element is not on screen (clipped or detached).", 422);
-        if (!IsSelfOrDescendant(atCenter, target))
-            return HttpResponse.Error($"Element is covered or scrolled out of view: its center hits {atCenter.GetType().Name}. Scroll it into view first.", 422);
-        return TapResponse(target, SkUiDiagnostics.SimulateTap(target, releaseOnlyIfTap: !Force(parameters)));
+        // A press another element's tap would take (drawn over the target, or at its center while it is scrolled out of view)
+        // is cancelled by SimulateTap, even with force; the response names that element (coveredBy).
+        var result = SkUiDiagnostics.SimulateTap(target, releaseOnlyIfTap: !Force(parameters));
+        return result.Hit is null
+            // 422, not 409: the DevFlow CLI shows only the status code, and 409 is also its mutation-lease conflict.
+            ? HttpResponse.Error("Element is not on screen (clipped or detached).", 422)
+            : TapResponse(target, result);
     }
 
     private static HttpResponse TapAt(Dictionary<string, string> parameters)
@@ -95,6 +93,10 @@ internal static class SkiaUiDevFlowExtension
             taken = result.IsTap,
             winner = result.Winner?.GetType().Name,
             winnerOwner = result.Winner?.Owner is IVisualTreeElement owner ? Describe(owner) : null,
+            // Another element took the press (drawn over the target, or at its center while the target is scrolled out of view):
+            // it was cancelled.
+            coveredBy = target is not null && !result.Released && result.Winner?.Owner is IVisualTreeElement other
+                && !IsInChainOf(other, target) ? Describe(other) : null,
             released = result.Released,
             // Nothing drawn took it: a real touch would reach native views around the surface instead.
             passedToNative = result.PassedToNative
@@ -109,10 +111,14 @@ internal static class SkiaUiDevFlowExtension
             : HttpResponse.NotFound("No drawn element at that point.");
     }
 
-    private static bool IsSelfOrDescendant(IVisualTreeElement element, IVisualTreeElement ancestor)
+    /// <summary>Whether <paramref name="element"/> is <paramref name="target"/>, a descendant of it or an ancestor of it.</summary>
+    private static bool IsInChainOf(IVisualTreeElement element, IVisualTreeElement target)
     {
         for (var current = element; current is not null; current = current.GetVisualParent())
-            if (ReferenceEquals(current, ancestor))
+            if (ReferenceEquals(current, target))
+                return true;
+        for (var current = target.GetVisualParent(); current is not null; current = current.GetVisualParent())
+            if (ReferenceEquals(current, element))
                 return true;
         return false;
     }

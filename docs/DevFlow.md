@@ -53,7 +53,8 @@ maui devflow extensions call dev.skiaui hit '{"x":201,"y":709}'                 
 
 - **Coordinates:** window DIPs, the same as native elements in DevFlow's `ui tree`.
 - **Scope:** every tool looks only at the page on screen (the top modal page, else the Shell's or navigation page's current page). Pages lower in the navigation stack, or in other Shell sections, keep their surfaces but are ignored.
-- **Errors:** **404** when nothing matches. **422**, without pressing, when the element is clipped away or detached ("not on screen"), or covered by another element or scrolled out of its scroller's viewport, where a tap would land on something else ("covered or scrolled out of view": scroll it into view first). **409** always means DevFlow's mutation lease.
+- **Errors:** **404** when nothing matches. **422** when the element is clipped away or detached ("not on screen"). **409** always means DevFlow's mutation lease.
+- **Covered elements:** a press that another element would take (drawn over the target, or at its center while the target is scrolled out of its scroller's viewport) is cancelled, even with `force`, and `coveredBy` names that element: scroll the target into view or tap the other element on purpose. Passive content drawn over the target (a label laid over a tappable border, an input-transparent overlay) lets the tap through, as for a finger.
 - **Lease:** taps are mutations, so they wait for DevFlow's mutation lease. A lease taken by an earlier CLI call (e.g. `ui navigate`) expires after about 10 s.
 
 ## Tap results
@@ -65,6 +66,7 @@ A tap is a press delivered through the surface root (hit-testing, the gesture ar
 | `taken` | A drawn tap recognizer took the tap, and its action ran. Report an automated tap as done only when this is `true` |
 | `winner`, `winnerOwner` | The recognizer that won the press (when it was cancelled, the one leading it: a scroller around a label) and its element; `null` when nothing drawn took part (a disabled control, plain text, a native view) |
 | `released` | The press was released (`false`: cancelled) |
+| `coveredBy` | `tap` only: the element that would have taken the press instead of the target (it was cancelled); `null` otherwise |
 | `passedToNative` | On a device, a real touch would be left to native views around the surface: a MAUI `TapGestureRecognizer` on the surface's parent, or a native view hosted on the surface (`SkUiMauiContentView`, which is not pressed). On iOS and Mac Catalyst that is when no drawn tap is pending and no drawn gesture claimed the touch; on Android and Windows, only when the surface did not take the press at all (a scroller around a label or a disabled control take it without a tap). Use DevFlow's own tools (`ui tap`) for those |
 
 `force: true` releases the press even when it isn't a tap, e.g. to check that a disabled control ignores taps.

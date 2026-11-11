@@ -907,6 +907,9 @@ public partial class SkUiCollectionView
     /// </summary>
     private sealed class ReorderGesture(SkUiCollectionView owner) : SkUiGestureRecognizer
     {
+        /// <inheritdoc />
+        internal override bool ResignsOnStillRelease => true;
+
         private ItemHost? _host;
         private long? _pointer;
         private bool _mouse;

@@ -103,17 +103,26 @@ public static class SkUiDiagnostics
     /// element is not on a surface or the point is clipped away. It does not tell whether anything took the tap:
     /// <see cref="SimulateTap(object, bool)"/> does.
     /// </summary>
-    public static IVisualTreeElement? SimulateTap(object element) => SimulateTap(element, releaseOnlyIfTap: false).Hit;
+    public static IVisualTreeElement? SimulateTap(object element) =>
+        GetSurfaceRoot(element) is { } root && GetRootBounds(element) is { } bounds
+            ? PressAndRelease(root, bounds.Center, releaseOnlyIfTap: false, target: null).Hit
+            : null;
 
     /// <summary>
     /// Taps the center of <paramref name="element"/>'s bounds, as <see cref="SimulateTapAt"/> does at a point; nothing is
-    /// pressed (an empty result) when the element is not on a surface or the point is clipped away.
+    /// pressed (an empty result) when the element is not on a surface or the point is clipped away. A press that a tap
+    /// recognizer of another element would take is cancelled, whatever <paramref name="releaseOnlyIfTap"/> says: something
+    /// drawn over the element, or what lies at its center while it is scrolled out of its scroller's viewport. Its
+    /// <see cref="SkUiSimulatedTap.Winner"/> then names that recognizer (its owner is outside the element, its descendants
+    /// and its ancestors), with <see cref="SkUiSimulatedTap.IsTap"/> and <see cref="SkUiSimulatedTap.Released"/>
+    /// <c>false</c>. Passive content drawn over the element (no recognizers, or input-transparent) lets the press through,
+    /// as for a real touch.
     /// </summary>
     public static SkUiSimulatedTap SimulateTap(object element, bool releaseOnlyIfTap)
     {
         if (GetSurfaceRoot(element) is not { } root || GetRootBounds(element) is not { } bounds)
             return default;
-        return SimulateTapAt(root, bounds.Center, releaseOnlyIfTap);
+        return PressAndRelease(root, bounds.Center, releaseOnlyIfTap, element as ISkUiRenderable);
     }
 
     /// <summary>
@@ -127,7 +136,11 @@ public static class SkUiDiagnostics
     /// drawn content (<see cref="SkUiSimulatedTap.PassedToNative"/>).
     /// </summary>
     /// <exception cref="ArgumentException"><paramref name="root"/> is drawn inside another view (not a surface root).</exception>
-    public static SkUiSimulatedTap SimulateTapAt(SkUiView root, Point rootPoint, bool releaseOnlyIfTap = true)
+    public static SkUiSimulatedTap SimulateTapAt(SkUiView root, Point rootPoint, bool releaseOnlyIfTap = true) =>
+        PressAndRelease(root, rootPoint, releaseOnlyIfTap, target: null);
+
+    /// <summary><see cref="SimulateTapAt"/>; with <paramref name="target"/>, also cancels a press a tap recognizer outside its chain would take.</summary>
+    private static SkUiSimulatedTap PressAndRelease(SkUiView root, Point rootPoint, bool releaseOnlyIfTap, ISkUiRenderable? target)
     {
         ArgumentNullException.ThrowIfNull(root);
         if (((ISkUiRenderable)root).RenderParent is not null)
@@ -146,7 +159,8 @@ public static class SkUiDiagnostics
         // surface handled (an arena, even with no recognizer left) never reaches them.
         var passedToNative = NativeTapGate && SkUiPointerRouter.TapStateOf(arena) < SkUiNativeTapState.Tapping;
         var predicted = arena.PredictedWinner;
-        if (releaseOnlyIfTap && predicted is not { IsDiscrete: true })
+        if ((releaseOnlyIfTap && predicted is not { IsDiscrete: true })
+            || (target is not null && predicted is { IsDiscrete: true } && !IsInChainOf(predicted.Node, target)))
         {
             root.Touch(new SkUiTouchEvent(id, SkUiTouchAction.Cancelled, rootPoint, now));
             return new SkUiSimulatedTap(hit, predicted, IsTap: false, passedToNative, Released: false);
@@ -164,6 +178,18 @@ public static class SkUiDiagnostics
     /// through whether the surface handled the press (Android, Windows). Settable for tests.
     /// </summary>
     internal static bool NativeTapGate { get; set; } = OperatingSystem.IsIOS() || OperatingSystem.IsMacCatalyst();
+
+    /// <summary>Whether <paramref name="node"/> is <paramref name="target"/>, one of its descendants or one of its ancestors.</summary>
+    private static bool IsInChainOf(ISkUiRenderable? node, ISkUiRenderable target)
+    {
+        for (var current = node; current is not null; current = current.RenderParent)
+            if (ReferenceEquals(current, target))
+                return true; // the target or a descendant of it
+        for (var current = target.RenderParent; current is not null; current = current.RenderParent)
+            if (ReferenceEquals(current, node))
+                return true; // an ancestor (a tappable row around a label)
+        return false;
+    }
 
     /// <summary>Whether <paramref name="hit"/> is, or is inside, a native view hosted on the surface.</summary>
     private static bool IsOnNativeView(IVisualTreeElement hit)

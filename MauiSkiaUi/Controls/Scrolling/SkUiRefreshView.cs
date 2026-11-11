@@ -719,6 +719,9 @@ public class SkUiRefreshView : SkUiView, ISkUiRefreshOwner
     /// </summary>
     private sealed class PullGesture(SkUiRefreshView owner) : SkUiGestureRecognizer
     {
+        /// <inheritdoc />
+        internal override bool ResignsOnStillRelease => true;
+
         private long? _pointer;
         private bool _active;
         private SkUiScrollController? _contentScroller;

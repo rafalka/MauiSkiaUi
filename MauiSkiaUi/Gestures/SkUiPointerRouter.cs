@@ -105,11 +105,13 @@ internal sealed class SkUiGestureArena(long pointerId, SkUiPointerRouter router,
     public SkUiGestureRecognizer? EndWinner { get; private set; }
 
     /// <summary>
-    /// The member that takes a release that did not move (diagnostics): the winner, else the innermost discrete member, as
-    /// continuous members that have not claimed (a scroller, a pan, a swipe, a long press that has not fired) resign on such
-    /// a release before the arena is swept; else the innermost member, which leads the press but will not take it.
+    /// The member that takes a release that did not move (diagnostics): the winner, else the innermost member that stays for
+    /// the sweep (a discrete one, or one that does not resign: <see cref="SkUiGestureRecognizer.ResignsOnStillRelease"/>), as
+    /// members that have not claimed and resign (a scroller, a pan, a swipe, a long press that has not fired) leave before the
+    /// arena is swept; else the innermost member, which leads the press but will not take it.
     /// </summary>
-    public SkUiGestureRecognizer? PredictedWinner => Winner ?? Members.Find(member => member.IsDiscrete) ?? (Members.Count > 0 ? Members[0] : null);
+    public SkUiGestureRecognizer? PredictedWinner =>
+        Winner ?? Members.Find(member => member.IsDiscrete || !member.ResignsOnStillRelease) ?? (Members.Count > 0 ? Members[0] : null);
 
     public void Add(SkUiGestureRecognizer recognizer)
     {

@@ -212,6 +212,9 @@ public class SkUiTapGestureRecognizer : SkUiGestureRecognizer
 /// <summary>Long press: the pointer stays within the touch slop for <see cref="Duration"/>; then it claims the gesture.</summary>
 public class SkUiLongPressGestureRecognizer : SkUiGestureRecognizer
 {
+    /// <inheritdoc />
+    internal override bool ResignsOnStillRelease => true;
+
     private long? _pointer;
     private Point _start;
     private SkUiPointer _last;
@@ -297,6 +300,9 @@ public class SkUiLongPressGestureRecognizer : SkUiGestureRecognizer
 /// <summary>Pan (drag) along <see cref="Axis"/>; claims once the movement passes the touch slop in that axis.</summary>
 public class SkUiPanGestureRecognizer : SkUiGestureRecognizer
 {
+    /// <inheritdoc />
+    internal override bool ResignsOnStillRelease => true;
+
     private long? _pointer;
     private Point _start;
     private bool _active;
@@ -393,6 +399,9 @@ public class SkUiPanGestureRecognizer : SkUiGestureRecognizer
 /// <summary>Swipe in one of <see cref="Direction"/>: claims when the movement passes the slop in an allowed direction.</summary>
 public class SkUiSwipeGestureRecognizer : SkUiGestureRecognizer
 {
+    /// <inheritdoc />
+    internal override bool ResignsOnStillRelease => true;
+
     private long? _pointer;
     private Point _start;
     private SwipeDirection? _direction;
@@ -503,6 +512,9 @@ public class SkUiSwipeGestureRecognizer : SkUiGestureRecognizer
 /// <summary>Two-pointer pinch / rotate on the owner.</summary>
 public class SkUiPinchGestureRecognizer : SkUiGestureRecognizer
 {
+    /// <inheritdoc />
+    internal override bool ResignsOnStillRelease => true;
+
     private readonly List<(long Id, Point Position)> _pointers = new(2);
     private bool _active;
     private double _startDistance, _startAngle, _lastDistance, _lastAngle;

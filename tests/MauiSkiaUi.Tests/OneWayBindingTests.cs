@@ -226,6 +226,25 @@ public sealed class OneWayBindingInputTests : IDisposable
     }
 
     [Fact]
+    public void NumericEntryKeepsTheUsersValueWhenTheRangeGrows()
+    {
+        using var _ = SkUiTestHelpers.UseBundledFont();
+        var entry = new SkUiNumericEntry { FontFamily = SkUiTestHelpers.BundledFontFamily, Culture = CultureInfo.GetCultureInfo("en-US"), Maximum = 10 };
+        Arranged(entry);
+        BindingSource<double?>.Bind(entry, SkUiNumericEntry<double>.ValueProperty, 15d); // out of range: shown at 10, 15 requested
+        Assert.Equal(10, entry.Value);
+
+        Assert.True(entry.Focus());
+        entry.Model.Editor.SelectAll();
+        entry.Model.Editor.InsertText("50", SkUiTextEditKind.Other); // clamped to 10, the value it already holds
+        entry.Unfocus();
+        Assert.Equal(10, entry.Value);
+
+        entry.Maximum = 20; // the user's 10 is the requested value now, not the binding's earlier 15
+        Assert.Equal(10, entry.Value);
+    }
+
+    [Fact]
     public void IndicatorPositionFollowsTheBindingAfterAStep()
     {
         var indicator = new SkUiIndicatorView { Count = 5 };

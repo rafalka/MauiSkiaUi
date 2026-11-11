@@ -134,6 +134,71 @@ public class SimulatedTapTests
         Assert.Equal(1, taps);
     }
 
+    [Fact]
+    public void AnObservingPointerRecognizerKeepsThePressFromTheParentsTap()
+    {
+        var child = new SkUiContentView { WidthRequest = 50, HeightRequest = 50 };
+        var events = new List<SkUiTouchAction>();
+        var observer = new SkUiPointerGestureRecognizer { ClaimOnPress = false };
+        observer.Pointer += (_, args) => events.Add(args.Action);
+        child.Gestures.Add(observer);
+        var parent = new SkUiContentView { Content = child };
+        var taps = 0;
+        parent.Tapped += (_, _) => taps++;
+        Surface(parent);
+
+        // The observer stays in the arena on a still release and wins the sweep: not a tap, so it is cancelled.
+        var result = SkUiDiagnostics.SimulateTap(child, releaseOnlyIfTap: true);
+
+        Assert.False(result.Released);
+        Assert.False(result.IsTap);
+        Assert.Same(observer, result.Winner);
+        Assert.Equal(0, taps);
+        Assert.DoesNotContain(SkUiTouchAction.Released, events);
+    }
+
+    [Fact]
+    public void PassiveContentDrawnOverTheElementLetsTheTapThrough()
+    {
+        var border = new SkUiBorder();
+        var taps = 0;
+        border.Tapped += (_, _) => taps++;
+        var label = new SkUiLabel { Text = "Buy" }; // a sibling drawn over the border, with no recognizers
+        Surface(new SkUiGrid { Children = { border, label } });
+
+        var result = SkUiDiagnostics.SimulateTap(border, releaseOnlyIfTap: true);
+
+        Assert.Same(label, result.Hit);
+        Assert.True(result.Released);
+        Assert.True(result.IsTap);
+        Assert.Equal(1, taps);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void APressAnotherElementsTapWouldTakeIsCancelled(bool releaseOnlyIfTap)
+    {
+        SkUiButton target = new() { Text = "Row" }, cover = new() { Text = "Delete" };
+        int targetClicks = 0, coverClicks = 0;
+        target.Clicked += (_, _) => targetClicks++;
+        cover.Clicked += (_, _) => coverClicks++;
+        var root = Surface(new SkUiGrid { Children = { target, cover } });
+
+        var result = SkUiDiagnostics.SimulateTap(target, releaseOnlyIfTap);
+
+        Assert.Same(cover, result.Hit);
+        Assert.Same(cover, result.Winner?.Owner);
+        Assert.False(result.Released);
+        Assert.False(result.IsTap);
+        Assert.Equal(0, coverClicks);
+        Assert.Equal(0, targetClicks);
+        Assert.Equal(0, root.Router.ActiveArenaCount);
+
+        Assert.Same(cover, SkUiDiagnostics.SimulateTap(target)); // the 1.x overload still taps whatever covers the center
+        Assert.Equal(1, coverClicks);
+    }
+
     [Theory]
     [InlineData(true)]
     [InlineData(false)]

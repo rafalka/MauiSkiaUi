@@ -120,6 +120,9 @@ internal sealed class SkUiDraggerModel(ISkUiDraggerOwner owner)
 /// </summary>
 internal sealed class SkUiDraggerGestureRecognizer : SkUiGestureRecognizer
 {
+    /// <inheritdoc />
+    internal override bool ResignsOnStillRelease => true;
+
     private long? _pointer;
     private Point _start;
     private bool _active;

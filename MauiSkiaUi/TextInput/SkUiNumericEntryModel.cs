@@ -365,9 +365,9 @@ internal sealed class SkUiNumericEntryModel<T> : SkUiNumericEntryModel where T :
                 return false;
             value = T.Clamp(rounded, Minimum, Maximum);
         }
-        // Exact: whether the value changes at all.
-        if (!Nullable.Equals(Values.Value, value))
-            Values.SetValueFromUser(value);
+        // Also when the value does not change: the host records it as the user's requested value (a range that grows later keeps
+        // it), and writes nothing when it already holds it.
+        Values.SetValueFromUser(value);
         return true;
     }
 
