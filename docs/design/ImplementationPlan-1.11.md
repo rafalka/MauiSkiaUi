@@ -41,12 +41,12 @@ Work in a scratch worktree with `global.json` set to 11.0.100:
 
 1. Build every TFM of `MauiSkiaUi` with Xcode 27.2. Check for Xcode-version errors or warnings on the net10 Apple TFMs, which use the 26.0 pack.
 2. Compare the net10 Apple assemblies built this way with the 1.10.0 nupkg using ApiCompat. The public API must be identical.
-3. Build the iOS demo for `net10.0-ios` with SDK 10.0.402 and Xcode 27.1 against the library built on SDK 11, and run it on a simulator.
+3. Build the iOS demo for `net10.0-ios` with SDK 10.0.402 and Xcode 27.2 (workload set 10.0.404) against the library built on SDK 11, and run it on a simulator.
 
 Outcome:
 
 - **All pass → one SDK:** `global.json` moves to 11.0.100 and builds every TFM.
-- **Any fail → two SDKs:** net10 assets keep being built by SDK 10.0.402 with workload 10.0.402.1, which is the 1.10 toolchain. net11 assets are built by SDK 11, and the pack workflow merges both (Step 5). `global.json` still moves to 11.0.100 for development.
+- **Any fail → two SDKs:** net10 assets keep being built by SDK 10.0.402 with workload 10.0.404, which is the 1.10.2 toolchain. net11 assets are built by SDK 11, and the pack workflow merges both (Step 5). `global.json` still moves to 11.0.100 for development.
 
 ## Step 1: MSBuild, one place for TFMs and versions (done)
 
@@ -90,16 +90,16 @@ Each difference becomes a shim with a short comment. No control-level `#if`.
 
 - **`.github/actions/setup-dotnet-maui/action.yml`:**
   - An `sdk-version` input overrides `global.json` for net10-only jobs.
-  - The default workload set follows the SDK band: 11.0.100.1, or 10.0.402.1 for SDK 10.
+  - The default workload set follows the SDK band: 11.0.100.1, or 10.0.404 for SDK 10.
   - The Xcode probe takes its TFMs from the SDK instead of the hard-coded net10 ones.
   - The pin printout greps the new version properties.
 - **`ci.yml`:**
   - Headless tests run on both TFMs.
   - Apple: a new SDK 11 / Xcode 27.2 entry builds both lines and the iOS demo for each.
-  - The existing Xcode 27.1 (10.0.402.1) and Xcode 26.6 (10.0.401, `macos-26`) entries become net10-only jobs on SDK 10 with `SkUiNet=10`. They prove that .NET 10 users' toolchains still build.
+  - The existing Xcode 27.2 (10.0.404) and Xcode 26.6 (10.0.401, `macos-26`) entries become net10-only jobs on SDK 10 with `SkUiNet=10`. They prove that .NET 10 users' toolchains still build.
   - The Android and Windows jobs build both lines. The newest-AndroidX.Core check runs per line.
   - The Mac Catalyst device tests run on net11 and net10.
-  - Before merging, check that the `xcode-27` runner image has Xcode 27.2.
+  - The `xcode-27` runner image has Xcode 27.2 (not its default); CI moved to it in 1.10.2.
 - **`nuget-pack.yml` / `nuget-publish.yml`:**
   - With one SDK, the macOS pack holds both lines, and the Windows pack uses both Windows TFMs instead of `-p:TargetFrameworks`.
   - With two SDKs, `pack-apple` splits into net10 (SDK 10) and net11 (SDK 11) jobs, and `scripts/merge_nupkgs.py` merges N packs instead of two.

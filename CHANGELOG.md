@@ -33,6 +33,11 @@ Publishing (the NuGet publish workflow, [docs/Releasing.md](docs/Releasing.md)) 
   - `SkUiCollectionView.SelectedItem` (taps, keys, the selection mode, removed items), `IsLoadMoreActive` and `IsRefreshing`; `SkUiCarouselView.Position` / `CurrentItem` (swipes, `ScrollTo`, the linked indicator); `SkUiIndicatorView.Position` (taps, keys, screen reader, the linked carousel, a count clamp); `SkUiExpander.IsExpanded` (header taps); `SkUiRefreshView.IsRefreshing` (pulls, automatic completion, disabling).
   - The group layout's `RadioButtonGroup.SelectedValue` (a radio button checked), and the uniform `CornerRadius` that follows `CornerRadii` on labels, image buttons, entries and pickers.
 
+### Other
+
+- **Built with Xcode 27.2:** CI and the packages build with workload set 10.0.404 (iOS / Mac Catalyst 27.2 SDKs, Xcode 27.2 on the `xcode-27` image) instead of 10.0.402.1 (Xcode 27.1); the Xcode 26.6 build (10.0.401) stays. The library still compiles against the iOS / Mac Catalyst 26.0 SDK, so apps keep building with Xcode 26.6, 27.1 or 27.2.
+
+
 ## 1.10.1
 
 ### Fixes
