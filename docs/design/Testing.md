@@ -19,6 +19,7 @@ Run `dotnet test tests/MauiSkiaUi.Tests/MauiSkiaUi.Tests.csproj`. The library's 
 | `CoreLayerTests` | `MauiSkiaUi.Core` smoke/regression |
 | `LookAndColorSchemeTests` | FR-18 / FR-19 look and color scheme |
 | `ToggleStateTests`, `SliderTests`, `ProgressBarTests` | Three-state toggles and binding write-back, slider range / input / scroll competition, progress fill / indeterminate slide / `ProgressTo` |
+| `OneWayBindingInputTests`, `OneWayBindingPickerTests`, `OneWayBindingItemsTests` | User and derived changes written as handler values: a one-way binding keeps applying after a drag, tap, typing, popup choice, scroll, pull or range clamp, in every control with a two-way property; two-way bindings still get the change |
 | `TransitionTests` | FR-26 state-change transitions on a deterministic clock: switch slide and mid-way reversal (one re-record per frame), no animation before the first frame or with reduced motion, stopped clock jumps to the end, quick-tap press and ripple origin, ripple pixels, slider glide, progress smoothing, Core parity |
 | `AnimationClockTests` | Callbacks that dispose animations or stop the clock mid-tick; the internal stopped callback |
 | `ContentAndTemplateTests` | P9: button image measure and placement per `ContentLayout` (RTL, scaled-down images, Core pixels, MAUI markup); radio button text / view content, chrome; MAUI's RadioButton `ControlTemplate` sample with drawn views and `SkUiContentPresenter` |

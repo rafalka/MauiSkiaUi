@@ -18,9 +18,10 @@ namespace MauiSkiaUi;
 /// <para>
 /// The selection follows the rules of <see cref="SkUiPicker"/> where they fit: an index beyond the items is clamped to the last
 /// item, an index set before the items applies when they come, and a selected item that moves in a changing source stays selected.
+/// A choice in the popup is written as a handler value (as MAUI's controls write user changes), so a one-way binding keeps applying.
 /// </para>
 /// </remarks>
-public class SkUiPickerColumn : BindableObject
+public class SkUiPickerColumn : Element
 {
     /// <summary>
     /// The name this column raises <see cref="BindableObject.PropertyChanged"/> with once its selection changed and
@@ -300,6 +301,21 @@ public class SkUiPickerColumn : BindableObject
         return count > 0 ? Math.Min(value, count - 1) : value;
     }
 
+    /// <summary>The user chose <paramref name="index"/> (the popup, clearing the choice): written as a handler value (<see cref="WriteBack"/>).</summary>
+    internal void Choose(int index) => WriteBack(SelectedIndexProperty, index);
+
+    /// <summary>
+    /// Writes a value the column derived (the user's choice, the other view of the selection, a moved item) as a handler value
+    /// (<see cref="Element.SetValueFromRenderer(BindableProperty, object)"/>), as <see cref="SkUiView"/>'s controls do: two-way
+    /// bindings get it, and the next value from a one-way binding, a style or the app replaces it. Skipped when the property
+    /// already holds the value.
+    /// </summary>
+    private void WriteBack(BindableProperty property, object? value)
+    {
+        if (!Equals(GetValue(property), value))
+            SetValueFromRenderer(property, value);
+    }
+
     private void OnItemsSourceChanged(IList? value)
     {
         _sourceListener.Listen(value as INotifyCollectionChanged);
@@ -316,7 +332,7 @@ public class SkUiPickerColumn : BindableObject
             // The chosen item stays chosen where it moved (or arrived).
             _pendingItem = null;
             if (moved != SelectedIndex)
-                SetValue(SelectedIndexProperty, moved);
+                WriteBack(SelectedIndexProperty, moved);
         }
         CoerceValue(SelectedIndexProperty);
         SyncSelectedItem();
@@ -338,7 +354,7 @@ public class SkUiPickerColumn : BindableObject
         _syncing = true;
         try
         {
-            SetValue(SelectedIndexProperty, index);
+            WriteBack(SelectedIndexProperty, index);
         }
         finally
         {
@@ -363,7 +379,7 @@ public class SkUiPickerColumn : BindableObject
         _syncing = true;
         try
         {
-            SetValue(SelectedItemProperty, ItemAt(SelectedIndex));
+            WriteBack(SelectedItemProperty, ItemAt(SelectedIndex));
         }
         finally
         {

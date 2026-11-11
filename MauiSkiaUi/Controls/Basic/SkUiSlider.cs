@@ -237,7 +237,7 @@ public class SkUiSlider : SkUiView
     private void CommitAt(Point position)
     {
         var value = Clamp(SkUiSliderMath.ValueAt(position, new Size(Width, Height), _orientation, IsRightToLeft, _minimum, _maximum));
-        SetValue(ValueProperty, value);
+        WriteBack(ValueProperty, value);
         ApplyValue(value);
     }
 
@@ -264,7 +264,7 @@ public class SkUiSlider : SkUiView
             _recoercing = true;
             try
             {
-                SetValue(ValueProperty, value);
+                WriteBack(ValueProperty, value);
             }
             finally
             {
@@ -315,7 +315,7 @@ public class SkUiSlider : SkUiView
         var clamped = SkUiSliderMath.Clamp(value, _minimum, _maximum);
         if (clamped == _value)
             return false;
-        Value = clamped;
+        WriteBack(ValueProperty, clamped);
         return true;
     }
 

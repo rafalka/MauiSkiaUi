@@ -314,7 +314,7 @@ public abstract class SkUiNumericEntryBase : SkUiEntry, ISkUiNumericEntryHost
 
     bool ISkUiNumericEntryHost.CanChange => IsEnabled && !IsReadOnly;
 
-    void ISkUiNumericEntryHost.ShowText(string text) => SetValue(TextProperty, text);
+    void ISkUiNumericEntryHost.ShowText(string text) => WriteBack(TextProperty, text);
 
     #endregion
 }

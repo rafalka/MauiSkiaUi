@@ -204,7 +204,7 @@ public partial class SkUiPicker
         if (_multiple)
             ReplaceSelectedItems([]);
         else
-            SelectedIndex = -1;
+            WriteBack(SelectedIndexProperty, -1);
     }
 
     private void OnSelectionModeChanged(SkUiSelectionMode mode)

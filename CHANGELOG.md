@@ -13,6 +13,15 @@ Publishing (the NuGet publish workflow, [docs/Releasing.md](docs/Releasing.md)) 
 
 ## Unreleased
 
+### Fixes
+
+- **Input controls: one-way bindings stop updating after the first user change** (the rest of [#92](https://github.com/rafalka/MauiSkiaUi/issues/92)'s bug class): controls wrote user changes and derived values back to their own bindable properties with a plain `SetValue` (or the CLR setter), whose specificity outranks a binding's, so later values from a one-way binding were stored below it and never applied. They are now written as handler values (`SetValueFromRenderer`, as MAUI's own controls do) and skipped when the property already holds them: two-way bindings still get them, and the next value from a one-way binding, a style or the app replaces them.
+  - `SkUiSlider.Value` (drag, tap, screen reader, range clamp); `SkUiStepper.Value` and `SkUiStepper<T>.Value` (buttons, keys, screen reader, range changes).
+  - `SkUiEntry` / `SkUiEditor` / `SkUiSearchBar` `Text` (typing, `MaxLength` cuts, `TextTransform`, formatters), `CursorPosition` and `SelectionLength` (the user's selection), `SkUiEntry.IsPasswordRevealed` (the reveal button); `SkUiNumericEntry<T>.Value` and the text it shows.
+  - `SkUiPicker.SelectedIndex` / `SelectedItem`, `SkUiPickerColumn.SelectedIndex` / `SelectedItem`, `SkUiDatePicker.Date`, `SkUiTimePicker.Time`, `SkUiDateTimePicker.Date` (popup choices, clearing, range clamps) and every picker's `IsOpen` (taps, closing). `SkUiPickerColumn` now derives from `Element` (was `BindableObject`) to write handler values; its API is otherwise unchanged.
+  - `SkUiCollectionView.SelectedItem` (taps, keys, the selection mode, removed items), `IsLoadMoreActive` and `IsRefreshing`; `SkUiCarouselView.Position` / `CurrentItem` (swipes, `ScrollTo`, the linked indicator); `SkUiIndicatorView.Position` (taps, keys, screen reader, the linked carousel, a count clamp); `SkUiExpander.IsExpanded` (header taps); `SkUiRefreshView.IsRefreshing` (pulls, automatic completion, disabling).
+  - The group layout's `RadioButtonGroup.SelectedValue` (a radio button checked), and the uniform `CornerRadius` that follows `CornerRadii` on labels, image buttons, entries and pickers.
+
 ## 1.10.1
 
 ### Fixes

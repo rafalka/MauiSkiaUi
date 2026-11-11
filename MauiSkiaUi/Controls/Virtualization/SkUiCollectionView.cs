@@ -1082,6 +1082,8 @@ public partial class SkUiCollectionView : SkUiView, ISkUiItemsView, ISkUiRefresh
 
     void ISkUiRefreshOwner.RaiseRefreshing(SkUiRefreshingEventArgs args) => Refreshing?.Invoke(this, args);
 
+    void ISkUiRefreshOwner.WriteIsRefreshing(bool value) => WriteBack(IsRefreshingProperty, value);
+
     #endregion
 
     #region Layout

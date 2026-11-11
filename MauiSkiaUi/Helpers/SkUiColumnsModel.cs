@@ -186,8 +186,7 @@ internal sealed class SkUiColumnsModel
     private void Apply(IReadOnlyList<int> indices)
     {
         for (var column = 0; column < indices.Count && column < Columns.Count; column++)
-            if (Columns[column].SelectedIndex != indices[column])
-                Columns[column].SelectedIndex = indices[column];
+            Columns[column].Choose(indices[column]);
     }
 
     #endregion

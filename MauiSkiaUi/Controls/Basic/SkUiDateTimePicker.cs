@@ -184,7 +184,7 @@ public class SkUiDateTimePicker : SkUiDateTimePickerBase
         ApplyWheels(apply);
         // MAUI's: a value outside the new range moves into it (BindableObject.CoerceValue does not store the coerced value).
         if (Date is { } value && CoerceDate(value) is var coerced && coerced != value)
-            Date = coerced;
+            WriteBack(DateProperty, coerced);
     }
 
     private void OnFormatChanged(string? value)
@@ -202,10 +202,10 @@ public class SkUiDateTimePicker : SkUiDateTimePickerBase
     }
 
     /// <inheritdoc />
-    private protected override void ChooseValue(DateTime? value) => Date = value;
+    private protected override void ChooseValue(DateTime? value) => WriteBack(DateProperty, value);
 
     /// <inheritdoc />
-    private protected override void ClearChoice() => Date = null;
+    private protected override void ClearChoice() => WriteBack(DateProperty, null);
 
     /// <summary>Sets <see cref="SkUiPickerBase.Title"/> (same as the property setter).</summary>
     public new SkUiDateTimePicker SetTitle(string? value) { base.SetTitle(value); return this; }
