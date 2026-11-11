@@ -83,8 +83,8 @@ public readonly record struct SkUiSwitchPaint(SKRect Bounds, SkUiToggleVisual Vi
 /// <param name="Size">Side length of the box.</param>
 /// <param name="Visual">State, transition progress and press amount.</param>
 /// <param name="Color">Fill and border when checked or indeterminate.</param>
-/// <param name="Background">Fill when unchecked.</param>
-/// <param name="Border">Border when unchecked.</param>
+/// <param name="Background">Fill when unchecked (<see cref="SkUiLook.CheckBoxBackgroundColor"/>).</param>
+/// <param name="Border">Border when unchecked (<see cref="SkUiLook.CheckBoxBorderColor"/>).</param>
 /// <param name="IsEnabled">The control is enabled.</param>
 public readonly record struct SkUiCheckBoxPaint(float Size, SkUiToggleVisual Visual, SKColor Color, SKColor Background, SKColor Border, bool IsEnabled);
 
@@ -95,7 +95,7 @@ public readonly record struct SkUiCheckBoxPaint(float Size, SkUiToggleVisual Vis
 /// <param name="Size">Diameter.</param>
 /// <param name="Visual">State, transition progress and press amount.</param>
 /// <param name="Color">Ring and dot when checked (and the indeterminate bar).</param>
-/// <param name="Ring">Ring when unchecked.</param>
+/// <param name="Ring">Ring when unchecked (<see cref="SkUiLook.RadioButtonRingColor"/>).</param>
 /// <param name="IsEnabled">The control is enabled.</param>
 public readonly record struct SkUiRadioButtonPaint(float Size, SkUiToggleVisual Visual, SKColor Color, SKColor Ring, bool IsEnabled);
 

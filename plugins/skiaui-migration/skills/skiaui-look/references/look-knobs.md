@@ -45,10 +45,12 @@ Override these in a `DefaultSkUiLook` subclass (or a stock platform look's). Siz
 | `CheckBoxInset` | Space around the box inside the control [0 / 0 / 7 / 7 / 6] |
 | `GetCheckBoxCornerRadius(size)`, `CheckBoxBorderWidth` | Box shape; half the size draws a circle (iOS) |
 | `CheckMarkStrokeFraction`, `CheckMarkScale` | The check mark's width (fraction of the box) and size [0.12, 1 / … / Windows: 0.065, 0.8] |
+| `CheckBoxBorderColor`, `CheckBoxBackgroundColor` (base) | The unchecked box's outline and fill; dimmed while disabled [the scheme's `Muted`, white] |
 | `DefaultRadioButtonSize` (base) | The circle's slot [21 / 21 / 32 / 32 / 20] |
 | `RadioButtonInset` | Space around the ring inside the slot [0 / 0 / 6 / 6 / 0] |
 | `RadioButtonStyle` | `Dot` (a dot of the ring's color) or `Filled` (Fluent: the ring fills around a white dot) |
 | `RadioRingFraction`, `RadioDotRadiusFraction` | Ring width and dot radius as fractions of the ring's size [Windows: 0.05, 0.3] |
+| `RadioButtonRingColor` (base) | The unselected ring's color; dimmed while disabled [the scheme's `Muted`] |
 | `DefaultRadioButtonContentSpacing` (base) | Between circle and content [6 / 6 / 0 / 0 / 8] |
 | `RadioButtonPadding` (base) | Around circle and content, added to the control's Padding [7 / same / 0 / 0 / 0 × 6] |
 | `DefaultRadioButtonMinimumWidth` (base) | WinUI's MinWidth; a `MinimumWidthRequest` replaces it, as natively [0 / 0 / 0 / 0 / 120] |

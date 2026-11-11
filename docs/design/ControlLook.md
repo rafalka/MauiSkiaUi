@@ -246,7 +246,7 @@ Look methods are the **shared Content/Background chrome implementations**. Contr
 - Property state (`CheckState`, colors, `IsEnabled` alpha) and the transition state they pass to the look.
 - Interaction / commands.
 
-Looks do **not** replace `PaintBackground` / `OnPaintContent` hooks; they are what those hooks call for stock geometry. Looks do **not** own the palette — that is **FR-19**.
+Looks do **not** replace `PaintBackground` / `OnPaintContent` hooks; they are what those hooks call for stock geometry. Looks do **not** own the palette — that is **FR-19**. Where a part has no control property, the look names the scheme color it draws with, as an overridable default that follows the scheme: `CheckBoxBorderColor` and `RadioButtonRingColor` (the scheme's `Muted`) and `CheckBoxBackgroundColor` (white) on `SkUiLook`, which the toggles dim while disabled before calling the painter.
 
 ## Built-in looks
 

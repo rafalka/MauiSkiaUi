@@ -533,6 +533,18 @@ public class SkUiLook
     /// <summary>Default CheckBox geometry.</summary>
     protected virtual void DrawCheckBoxCore(SKCanvas canvas, SkUiCheckBoxPaint box) { }
 
+    /// <summary>
+    /// The outline of an unchecked check box, passed to the painter as <see cref="SkUiCheckBoxPaint.Border"/> (default the
+    /// color scheme's <see cref="SkUiColorScheme.Muted"/>); a disabled check box draws it at half its alpha.
+    /// </summary>
+    public virtual Color CheckBoxBorderColor => SkUiColors.Muted;
+
+    /// <summary>
+    /// The fill of an unchecked check box, passed to the painter as <see cref="SkUiCheckBoxPaint.Background"/> (default white);
+    /// a disabled check box draws it at half its alpha.
+    /// </summary>
+    public virtual Color CheckBoxBackgroundColor => Colors.White;
+
     #endregion
 
     #region RadioButton
@@ -571,6 +583,12 @@ public class SkUiLook
 
     /// <summary>Default RadioButton size from <see cref="DefaultRadioButtonSize"/>.</summary>
     protected virtual Size MeasureRadioButtonCore(double widthConstraint, double heightConstraint) => DefaultRadioButtonSize;
+
+    /// <summary>
+    /// The ring of an unselected radio button, passed to the painter as <see cref="SkUiRadioButtonPaint.Ring"/> (default the
+    /// color scheme's <see cref="SkUiColorScheme.Muted"/>); a disabled radio button draws it at half its alpha.
+    /// </summary>
+    public virtual Color RadioButtonRingColor => SkUiColors.Muted;
 
     /// <summary>Draws a RadioButton (delegate or <see cref="DrawRadioButtonCore"/>), every frame of its transitions.</summary>
     public void DrawRadioButton(SKCanvas canvas, SkUiRadioButtonPaint radio)

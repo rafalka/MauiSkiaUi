@@ -36,7 +36,7 @@ All SkiaUi controls inherit [`SkUiView`](SkUiView.md) behavior:
 | Topic | SkiaUi |
 | --- | --- |
 | Label text | None — compose with [`SkUiLabel`](SkUiLabel.md) in a stack |
-| Color model | Single `Color` for checked chrome |
+| Color model | Single `Color` for checked chrome; the unchecked outline and fill come from the look (`CheckBoxBorderColor`, `CheckBoxBackgroundColor`) |
 | Three states | `CheckState` / `IsThreeState` (MAUI has two) |
 | A command that cannot execute | Disables the check box as in MAUI, but `IsEnabled` keeps its value (MAUI's reads `false`), as on drawn buttons |
 | Gestures | Intrinsic SkiaUi tap |
