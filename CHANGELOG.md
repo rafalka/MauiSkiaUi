@@ -13,6 +13,8 @@ Publishing (the NuGet publish workflow, [docs/Releasing.md](docs/Releasing.md)) 
 
 ## Unreleased
 
+## 1.10.2
+
 ### New features
 
 - **Simulated taps report what took them** ([#93](https://github.com/rafalka/MauiSkiaUi/issues/93)): `SkUiDiagnostics.SimulateTapAt(root, rootPoint, releaseOnlyIfTap = true)` and `SkUiDiagnostics.SimulateTap(element, releaseOnlyIfTap)` return an `SkUiSimulatedTap`, so automation can report a tap truthfully instead of "succeeding" on a label inside a scroller, a disabled control or a control without a tap.
