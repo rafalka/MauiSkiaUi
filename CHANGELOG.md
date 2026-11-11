@@ -13,6 +13,8 @@ Publishing (the NuGet publish workflow, [docs/Releasing.md](docs/Releasing.md)) 
 
 ## Unreleased
 
+## 1.10.0
+
 ### New features
 
 - **Community Toolkit layouts:** `SkUiDockLayout` and `SkUiUniformItemsLayout` in **SkiaUi.Maui.CommunityToolkit** (namespace `MauiSkiaUi.CommunityToolkit`), drawn counterparts of the toolkit's `DockLayout` and `UniformItemsLayout` laid out by the toolkit's own layout managers, so toolkit pages port by changing the prefix: [SkUiDockLayout.md](docs/controls/SkUiDockLayout.md), [SkUiUniformItemsLayout.md](docs/controls/SkUiUniformItemsLayout.md).
