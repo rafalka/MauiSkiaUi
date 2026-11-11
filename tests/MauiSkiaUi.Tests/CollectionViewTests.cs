@@ -449,6 +449,34 @@ public class CollectionViewTests
     }
 
     [Fact]
+    public void AnItemDeselectedUnderThePointerLeavesTheSelectedStateWithoutAPointerOverState()
+    {
+        // The template has no PointerOver state: the deselected item under the pointer goes to Normal, not stays Selected.
+        var rows = Rows(10);
+        var list = List(rows, () =>
+        {
+            var view = new RowView();
+            VisualStateManager.SetVisualStateGroups(view, [new VisualStateGroup
+            {
+                Name = "CommonStates",
+                States = { new VisualState { Name = "Normal" }, new VisualState { Name = "Selected" } }
+            }]);
+            return view;
+        });
+        list.SelectionMode = SkUiSelectionMode.Single;
+        SkUiTestHelpers.Arrange(list, 300, 500);
+        string State(int index) => VisualStateManager.GetVisualStateGroups((VisualElement)list.GetRealizedView(index)!)[0].CurrentState?.Name ?? "-";
+
+        list.Touch(new(++_pointer, SkUiTouchAction.HoverMoved, new Point(50, 25), TimeSpan.FromSeconds(1)));
+        Assert.True(((SkUiView)list.GetRealizedView(0)!).IsPointerOver);
+        list.SelectedItem = rows[0];
+        Assert.Equal("Selected", State(0));
+        list.SelectedItem = rows[1];
+        Assert.Equal("Normal", State(0));
+        Assert.Equal("Selected", State(1));
+    }
+
+    [Fact]
     public void RemovingTheSelectedItemClearsTheSelection()
     {
         var rows = Rows(10);

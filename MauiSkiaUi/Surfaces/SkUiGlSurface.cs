@@ -126,7 +126,8 @@ internal sealed class SkUiGlTextureView : GLTextureView
             Device: SkUiPointerDevices.From(e, index))
         {
             Buttons = (e.ButtonState.HasFlag(MotionEventButtonState.Secondary) ? SkUiPointerButtons.Secondary : 0)
-                | (e.ButtonState.HasFlag(MotionEventButtonState.Tertiary) ? SkUiPointerButtons.Middle : 0)
+                | (e.ButtonState.HasFlag(MotionEventButtonState.Tertiary) ? SkUiPointerButtons.Middle : 0),
+            Modifiers = SkUiPointerDevices.ModifiersFrom(e.MetaState)
         };
 
     private sealed class Renderer(SkUiGlTextureView owner) : SKGLTextureViewRenderer, GLTextureView.IRenderer

@@ -11,6 +11,12 @@ public sealed class SkUiTappedEventArgs(Point position, int numberOfTaps = 1) : 
 
     /// <summary>The buttons the last press of the tap had (<see cref="SkUiPointerButtons.None"/> for a touch).</summary>
     internal SkUiPointerButtons Buttons { get; init; }
+
+    /// <summary>The modifier keys held at the tap's last release.</summary>
+    internal SkUiKeyModifiers Modifiers { get; init; }
+
+    /// <summary>What produced the tap (a finger, a mouse, a pen); <see cref="SkUiPointerDevice.Touch"/> for taps not made by a pointer.</summary>
+    internal SkUiPointerDevice Device { get; init; }
 }
 
 /// <summary>A tapped link of HTML text (<c>TextType="Html"</c>).</summary>

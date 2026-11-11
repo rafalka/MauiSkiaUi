@@ -247,9 +247,13 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
     protected override void ChangeVisualState()
     {
         var enabled = IsVisualStateEnabled;
-        VisualStateManager.GoToState(this, !enabled ? VisualStateManager.CommonStates.Disabled
+        var state = !enabled ? VisualStateManager.CommonStates.Disabled
             : _isSelectedItem ? VisualStateManager.CommonStates.Selected
-            : IsPointerOver ? VisualStateManager.CommonStates.PointerOver : VisualStateManager.CommonStates.Normal);
+            : IsPointerOver ? VisualStateManager.CommonStates.PointerOver : VisualStateManager.CommonStates.Normal;
+        // A group without the state stays in the one it was in (MAUI's VSM): an item deselected under the pointer would keep
+        // its Selected look, a view enabled under it its Disabled look. Normal stands in for a missing PointerOver.
+        if (!VisualStateManager.GoToState(this, state) && IsPointerOver && state == VisualStateManager.CommonStates.PointerOver)
+            VisualStateManager.GoToState(this, VisualStateManager.CommonStates.Normal);
         if (enabled)
             VisualStateManager.GoToState(this, IsFocused ? VisualStateManager.CommonStates.Focused : UnfocusedState);
     }
@@ -1270,6 +1274,56 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
                 RenderState.ActiveAnimations?.Remove(animation);
                 if (!animation.SupersededByUi && ((SkUiRenderTween)animation).LastValues is { } values)
                     ApplyAnimatedValues(property, (SkUiRenderTween)animation, values);
+                completion.TrySetResult(completed);
+            }
+        };
+        SkUiRenderInvalidation.Enqueue(this, tween);
+        return completion.Task;
+    }
+
+    /// <summary>
+    /// Draws <paramref name="property"/> (opacity or a translation) from <paramref name="from"/> back to the view's own value
+    /// on the render thread, while the view keeps its value (layout and hit-testing see the end state from the start): a
+    /// collection view's items moving to their new place or fading in. A later animation of the property, or setting it,
+    /// replaces this one. Returns <c>true</c> when it ran to completion.
+    /// </summary>
+    /// <param name="property">Opacity, TranslationX or TranslationY.</param>
+    /// <param name="from">Where the drawing starts.</param>
+    /// <param name="length">Milliseconds.</param>
+    /// <param name="easing">The curve.</param>
+    /// <param name="finished">Runs on the UI thread when it ends (<c>true</c>: ran to completion).</param>
+    internal Task<bool> AnimateFromAsync(SkUiAnimatableProperty property, double from, uint length, Easing? easing, Action<bool>? finished = null) =>
+        AnimateFromAsync(property, from, length, easing, out _, finished);
+
+    /// <summary>
+    /// <see cref="AnimateFromAsync(SkUiAnimatableProperty, double, uint, Easing?, Action{bool}?)"/>, also giving the
+    /// render-thread tween, whose <see cref="SkUiRenderTween.LastValues"/> tell where the view was drawn last.
+    /// </summary>
+    /// <param name="property">Opacity, TranslationX or TranslationY.</param>
+    /// <param name="from">Where the drawing starts.</param>
+    /// <param name="length">Milliseconds.</param>
+    /// <param name="easing">The curve.</param>
+    /// <param name="tween">The render-thread tween.</param>
+    /// <param name="finished">Runs on the UI thread when it ends (<c>true</c>: ran to completion).</param>
+    internal Task<bool> AnimateFromAsync(SkUiAnimatableProperty property, double from, uint length, Easing? easing, out SkUiRenderTween tween,
+        Action<bool>? finished = null)
+    {
+        var (renderProperty, to) = property switch
+        {
+            SkUiAnimatableProperty.Opacity => (SkUiRenderProperty.Opacity, Opacity),
+            SkUiAnimatableProperty.TranslationX => (SkUiRenderProperty.TranslationX, TranslationX),
+            SkUiAnimatableProperty.TranslationY => (SkUiRenderProperty.TranslationY, TranslationY),
+            _ => throw new ArgumentOutOfRangeException(nameof(property))
+        };
+        var completion = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        tween = new SkUiRenderTween([renderProperty], [(float)to], TimeSpan.FromMilliseconds(Math.Max(1, length)), easing)
+        {
+            From = [(float)from],
+            Finished = (animation, completed) =>
+            {
+                RenderState.ActiveAnimations?.Remove(animation);
+                // It ends where the view's own value is: nothing to write back.
+                finished?.Invoke(completed);
                 completion.TrySetResult(completed);
             }
         };

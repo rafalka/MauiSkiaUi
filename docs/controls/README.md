@@ -71,6 +71,8 @@ Shared pipelines: [Architecture.md](../design/Architecture.md) · [LayoutSystem.
 | `SkUiFlexLayout` | [SkUiFlexLayout.md](SkUiFlexLayout.md) | FlexLayout |
 | `SkUiWrapLayout` | [SkUiWrapLayout.md](SkUiWrapLayout.md) | — (chips / tags) |
 | `SkUiTileLayout` | [SkUiTileLayout.md](SkUiTileLayout.md) | — (galleries of equal tiles, an overflow tile) |
+| `SkUiDockLayout` (SkiaUi.Maui.CommunityToolkit) | [SkUiDockLayout.md](SkUiDockLayout.md) | Community Toolkit `DockLayout` |
+| `SkUiUniformItemsLayout` (SkiaUi.Maui.CommunityToolkit) | [SkUiUniformItemsLayout.md](SkUiUniformItemsLayout.md) | Community Toolkit `UniformItemsLayout` |
 | `SkUiHorizontalShrinkLayout` / `SkUiVerticalShrinkLayout` | [SkUiShrinkLayout.md](SkUiShrinkLayout.md) | — (stacks whose children shrink to fit) |
 | `SkUiHorizontalAlignStackLayout` | [SkUiHorizontalAlignStackLayout.md](SkUiHorizontalAlignStackLayout.md) | — (children placed by alignment: a bar's title stays centered) |
 | `SkUiStateContainer` / `SkUiStateView` (attached properties on any drawn layout) | [SkUiStateContainer.md](SkUiStateContainer.md) | Community Toolkit `StateContainer` / `StateView` |

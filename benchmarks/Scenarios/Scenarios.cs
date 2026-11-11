@@ -75,6 +75,8 @@ public static class Scenarios
         new ScrollFling(),
         new VirtualListFling(),
         new CollectionSnapFling(),
+        new CollectionChanges(animated: false),
+        new CollectionChanges(animated: true),
         new Spinners(),
         new ToggleTransitions(),
         new ToggleTransitions(busy: true),
@@ -1234,6 +1236,45 @@ public sealed class VirtualListFling : BenchScenario
             HeightRequest = 40 + index % 3 * 12;
         }
     }
+}
+
+/// <summary>
+/// A shown collection view changing its items (1.10 C4): with <c>AnimatesItemChanges</c> off the changes must cost what they
+/// did before; on, the glides and fades run on the render thread, so the update's UI cost is what to watch.
+/// </summary>
+public sealed class CollectionChanges(bool animated) : BenchScenario
+{
+    public override string Name => animated ? "collection-changes-animated" : "collection-changes";
+    public override string Description => animated
+        ? "SkUiCollectionView over 1,000 rows with AnimatesItemChanges (none before 1.10); update = 10 inserts, 10 removes and a move in view, animated"
+        : "SkUiCollectionView over 1,000 rows; update = 10 inserts, 10 removes and a move in view, not animated";
+
+    public override View Build()
+    {
+        var list = new SkUiCollectionView
+        {
+            Background = Colors.White,
+            ItemsSource = new System.Collections.ObjectModel.ObservableCollection<int>(Enumerable.Range(0, 1000)),
+            ItemTemplate = new DataTemplate(() => new SkUiBox { HeightRequest = 44, Color = Colors.LightGray, Margin = new Thickness(0, 0, 0, 2) })
+        };
+        if (animated)
+            TrySet(list, "AnimatesItemChanges", true);
+        return list;
+    }
+
+    // Inserted values never repeat: equal items in one list would be a case of their own.
+    private int _nextValue = 10_000;
+
+    public override Action<View>? Update => root =>
+    {
+        var items = (System.Collections.ObjectModel.ObservableCollection<int>)((SkUiCollectionView)root).ItemsSource!;
+        for (var index = 0; index < 10; index++)
+        {
+            items.Insert(2 + index, _nextValue++);
+            items.RemoveAt(20);
+        }
+        items.Move(3, 12);
+    };
 }
 
 /// <summary>A long collection view with MAUI's items layout and snap points (1.2: V1, V4); snapping must cost nothing while it scrolls.</summary>

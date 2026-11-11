@@ -222,6 +222,10 @@ public class DefaultSkUiLook : SkUiLook
         SkUiTransitionKind.PickerOpen => SkUiTransition.FromMilliseconds(200, Easing.CubicInOut),
         SkUiTransitionKind.ReorderLift => SkUiTransition.FromMilliseconds(150, Easing.CubicOut),
         SkUiTransitionKind.ReorderMove => SkUiTransition.FromMilliseconds(200, Easing.CubicOut),
+        // RecyclerView's DefaultItemAnimator: quick fades, a longer accelerate-decelerate move.
+        SkUiTransitionKind.ItemInsert => SkUiTransition.FromMilliseconds(120, Easing.Linear),
+        SkUiTransitionKind.ItemRemove => SkUiTransition.FromMilliseconds(120, Easing.Linear),
+        SkUiTransitionKind.ItemMove => SkUiTransition.FromMilliseconds(250, Easing.SinInOut),
         SkUiTransitionKind.ImageFadeIn => SkUiTransition.FromMilliseconds(200, Easing.CubicOut),
         // Determinate progress follows Progress at once, as MAUI's ProgressBar (ProgressTo animates).
         _ => SkUiTransition.None

@@ -45,7 +45,8 @@ public class OverlayScrollTests
     [Fact]
     public void ClipLeavesOutAStickyHeaderOfAList()
     {
-        var overlay = new SkUiMauiContentView { Content = new BoxView(), HeightRequest = 40 };
+        // A row taller than the viewport (rows clip what they host too): the viewport's clip is what is left.
+        var overlay = new SkUiMauiContentView { Content = new BoxView(), HeightRequest = 400 };
         var list = new SkUiCollectionView
         {
             ItemsSource = new[] { "row" },

@@ -364,6 +364,7 @@ public partial class SkUiCollectionView : SkUiView, ISkUiItemsView, ISkUiRefresh
     /// <summary>Drops recycled views and grid cells (their templates no longer create the same views).</summary>
     private void DropViews()
     {
+        DropFadingViews();
         ItemsHost.DropRecycled();
         _cellPool.Clear();
         _kindKeys.Clear();
@@ -377,6 +378,8 @@ public partial class SkUiCollectionView : SkUiView, ISkUiItemsView, ISkUiRefresh
         // A reorder takes the item out and puts it back: it stays selected.
         if (!_committingReorder)
             OnSelectionSourceChanged(removed, reset);
+        OnItemsChangedKeepCurrent(reset);
+        ItemChangeEnded(reset);
         OnVisibleRowsChanged();
         UpdateStickyGroupHeader();
         CheckLoadMore();
@@ -1180,6 +1183,7 @@ public partial class SkUiCollectionView : SkUiView, ISkUiItemsView, ISkUiRefresh
         UpdateStickyGroupHeader();
         RecheckLoadMore();
         KeepSelectionVisibleAfterArrange(size);
+        AnimateItemChanges();
     }
 
     /// <summary>A size along the list's axis.</summary>

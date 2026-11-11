@@ -28,6 +28,9 @@ public class WindowsSkUiLook : DefaultSkUiLook
         SkUiTransitionKind.Press => SkUiTransition.FromMilliseconds(83, Easing.Linear),
         SkUiTransitionKind.Release => SkUiTransition.FromMilliseconds(167, SkUiEasings.FluentDecelerate),
         SkUiTransitionKind.PickerOpen => SkUiTransition.FromMilliseconds(167, SkUiEasings.FluentDecelerate),
+        // Fluent's list transitions: decelerating moves, short fades.
+        SkUiTransitionKind.ItemInsert or SkUiTransitionKind.ItemRemove => SkUiTransition.FromMilliseconds(167, Easing.Linear),
+        SkUiTransitionKind.ItemMove => SkUiTransition.FromMilliseconds(250, SkUiEasings.FluentDecelerate),
         _ => base.GetTransitionCore(kind)
     };
 

@@ -45,7 +45,7 @@ public abstract class SkUiShrinkLayout : SkUiLayout
     private void OnSpacingChanged(double value) { _spacing = value; InvalidateMeasureOverride(); }
 
     /// <inheritdoc />
-    private protected override bool AffectsChildLayout(string? propertyName) => propertyName == ShrinkProperty.PropertyName;
+    protected override bool AffectsChildLayout(string? propertyName) => propertyName == ShrinkProperty.PropertyName;
 
     /// <inheritdoc />
     protected override Size MeasureContent(double widthConstraint, double heightConstraint)

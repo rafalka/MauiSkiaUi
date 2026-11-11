@@ -43,7 +43,17 @@ public enum SkUiTransitionKind
     /// A loaded image fades in over its placeholder (<c>FadeAnimationEnabled</c>; its <c>FadeAnimationDuration</c>
     /// replaces this duration, the easing stays the look's).
     /// </summary>
-    ImageFadeIn
+    ImageFadeIn,
+    /// <summary>
+    /// An item inserted into a collection view fades in where it lands (<c>AnimatesItemChanges</c>; also the rows of an
+    /// expanded group).
+    /// </summary>
+    ItemInsert,
+    /// <summary>An item removed from a collection view fades out where it was (also the rows of a collapsed group).</summary>
+    ItemRemove,
+    /// <summary>The items a collection view change moves glide from their old places to their new ones.</summary>
+    ItemMove
+    // New members go last: the values are compiled into callers (a look built against an earlier 1.x keeps its meaning).
 }
 
 /// <summary>

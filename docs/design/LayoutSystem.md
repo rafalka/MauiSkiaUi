@@ -79,7 +79,9 @@ Every child implements **`IView`**, so MAUI's own managers measure and arrange d
 
 **Layouts without a MAUI manager** (wrap, shrink, align stack) use one engine per algorithm for both layers (`SkUiWrapEngine`, `SkUiShrinkEngine`, `SkUiAlignStackEngine`). Engines reach children through struct adapters (`ISkUiLayoutChildren`: `SkUiViewChildren` for SkUi*, `SkUiCoreNodeChildren` for Core), so they take no allocation per pass. The SkUi* adapter lets the child align itself (`ComputeFrame`); the Core adapter aligns it in its slot (`AlignInSlot`), since Core nodes do not align themselves.
 
-**Attached properties:** MAUI's attached-property callbacks only invalidate MAUI's own layout types, so each `SkUiLayout` lists the child properties it reads (`AffectsChildLayout`: `Grid.Row`…, `AbsoluteLayout.LayoutBounds`…, `FlexLayout.Grow`…, `SkUiShrinkLayout.Shrink`) and re-measures when one changes.
+**Attached properties:** MAUI's attached-property callbacks only invalidate MAUI's own layout types, so each `SkUiLayout` lists the child properties it reads (`AffectsChildLayout`: `Grid.Row`…, `AbsoluteLayout.LayoutBounds`…, `FlexLayout.Grow`…, `SkUiShrinkLayout.Shrink`, the toolkit's `DockLayout.DockPosition`) and re-measures when one changes. `AffectsChildLayout` and `OnChildrenChanged` are protected (1.10), so layouts outside the library run other managers the same way.
+
+**Community Toolkit layouts** (package SkiaUi.Maui.CommunityToolkit, public API only): `SkUiDockLayout` runs the toolkit's `DockLayoutManager`; `SkUiUniformItemsLayout` runs `UniformItemsLayoutManager`, a new one per measure, since the manager keeps the first child's size for its lifetime, and arranges the children past `MaxRows` × `MaxColumns` empty.
 
 Multi-pass measure (Auto then `*` columns/rows) is **expected**. Optimize with per-node caches and dirty flags; do not switch to Flutter constraints to avoid passes.
 

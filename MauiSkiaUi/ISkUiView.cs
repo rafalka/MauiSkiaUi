@@ -60,6 +60,12 @@ public readonly record struct SkUiTouchEvent(long Id, SkUiTouchAction Action, Po
     /// menu); <see cref="SkUiPointerButtons.None"/> when the platform does not tell (a touch, the primary button).
     /// </summary>
     public SkUiPointerButtons Buttons { get; init; }
+
+    /// <summary>
+    /// The modifier keys held during the sample (Shift / Ctrl / Command+click: a collection view's extended selection);
+    /// <see cref="SkUiKeyModifiers.None"/> when none are, or the platform does not tell.
+    /// </summary>
+    public SkUiKeyModifiers Modifiers { get; init; }
 }
 
 /// <summary>Mouse and pen buttons of a press (<see cref="SkUiTouchEvent.Buttons"/>, <see cref="SkUiPointer.Buttons"/>).</summary>

@@ -878,6 +878,13 @@ public class SkUiLook
 
     #region Item reordering
 
+    /// <summary>
+    /// Whether collection views animate inserted, removed and moved items when their <c>AnimatesItemChanges</c> is not set
+    /// (<see cref="SkUiTransitionKind.ItemInsert"/>, <see cref="SkUiTransitionKind.ItemRemove"/>,
+    /// <see cref="SkUiTransitionKind.ItemMove"/>); default <c>false</c> in 1.x. Override it in a look to turn them on everywhere.
+    /// </summary>
+    public virtual bool CollectionViewAnimatesItemChanges => false;
+
     /// <summary>How much a collection view item lifted to be reordered is scaled (<see cref="SkUiTransitionKind.ReorderLift"/>); 1: not at all.</summary>
     public virtual double ReorderLiftScale => 1;
 

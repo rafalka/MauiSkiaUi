@@ -122,16 +122,23 @@ internal sealed class SkUiRenderTween : SkUiRenderAnimation
 
     /// <summary>
     /// Values last written on the render thread (property order), or <c>null</c> if the tween never ran.
-    /// Read on the UI thread from <see cref="SkUiRenderAnimation.Finished"/> (posted after the write).
+    /// Read on the UI thread from <see cref="SkUiRenderAnimation.Finished"/> (posted after the write), or while it runs as an
+    /// estimate of what shows (a float is written whole; at most a frame old).
     /// </summary>
     internal float[]? LastValues { get; private set; }
 
     internal override int PropertyMask => _mask;
 
+    /// <summary>
+    /// Start values in property order, instead of the values the node shows when the tween starts: the node is drawn from
+    /// them while the UI keeps its own (final) values (a collection view's items moving to their new place).
+    /// </summary>
+    internal float[]? From { get; init; }
+
     internal override void OnStart(in SkUiRenderProps props)
     {
         for (var index = 0; index < _properties.Length; index++)
-            _starts[index] = props.Get(_properties[index]);
+            _starts[index] = From is { } from ? from[index] : props.Get(_properties[index]);
     }
 
     internal override bool Advance(TimeSpan elapsed, ref SkUiRenderProps props)

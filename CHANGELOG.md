@@ -13,6 +13,39 @@ Publishing (the NuGet publish workflow, [docs/Releasing.md](docs/Releasing.md)) 
 
 ## Unreleased
 
+### New features
+
+- **Community Toolkit layouts:** `SkUiDockLayout` and `SkUiUniformItemsLayout` in **SkiaUi.Maui.CommunityToolkit** (namespace `MauiSkiaUi.CommunityToolkit`), drawn counterparts of the toolkit's `DockLayout` and `UniformItemsLayout` laid out by the toolkit's own layout managers, so toolkit pages port by changing the prefix: [SkUiDockLayout.md](docs/controls/SkUiDockLayout.md), [SkUiUniformItemsLayout.md](docs/controls/SkUiUniformItemsLayout.md).
+  - `SkUiDockLayout`: `ShouldExpandLastChild`, `HorizontalSpacing`, `VerticalSpacing`, `Add(view, position)`; children keep the toolkit's attached `DockLayout.DockPosition`, and changing it re-lays the dock out.
+  - `SkUiUniformItemsLayout`: `MaxRows`, `MaxColumns`. Unlike the toolkit's layout, cells follow the first child when it changes size, and children past `MaxRows` × `MaxColumns` are hidden instead of keeping an old frame.
+  - The migration checker suggests them for the toolkit's layouts in drawn trees; the gallery shows each beside the toolkit's own.
+- **Keyboard navigation in collection views:** an interactive `SkUiCollectionView` is one tab stop with a current item, as native lists are: [Keyboard](docs/controls/SkUiCollectionView.md#keyboard).
+  - Arrow keys move it (in grids also across, keeping the column; mirrored right to left), Home / End to the ends, Page Up / Page Down by the part of the viewport sticky parts leave uncovered; each move scrolls it into view.
+  - Space / Enter select and tap it as a tap would (`SelectionChanging`, `ItemTapped`, `ItemTappedCommand`); with `AllowGroupExpandCollapse`, group headers are stops that the arrows and Enter expand and collapse.
+  - The focus ring is drawn on the current item while focus came from the keyboard; the item is kept across collection changes and recycling, and passes to its neighbor when removed.
+- **Extended selection in collection views:** `IsExtendedSelectionEnabled` with `SelectionMode="Multiple"` selects as desktop lists: a click selects only its item, Ctrl+click (Command+click on Apple) toggles one, Shift+click selects the range from the anchor; modifier clicks select without raising `ItemTapped`. The keyboard never drops the selection by moving: the arrow keys move only the current item, Space toggles it, Insert toggles it and moves on, Shift+arrows toggle the items they move onto (selected ones are deselected; the item the range starts on keeps its state, so a click then Shift+Down selects both), Enter taps (opens) without selecting, Ctrl / Command+A selects all. Touch keeps the toggling tap. Each gesture is one cancelable change ([Keyboard](docs/controls/SkUiCollectionView.md#keyboard)).
+- **Selected item template in collection views:** `SelectedItemTemplate` (a template or selector) makes a selected item's row, for selected rows that show more or differ in size. A selection change swaps the row's view (recycled per template) and measures it again with what shows kept in place, in lists and grids; nothing changes while it is unset. Leak scenario `CollectionViewSelectedTemplate`.
+- **Animated item changes in collection views:** `AnimatesItemChanges="True"` (or a look's `CollectionViewAnimatesItemChanges`) animates inserts, removes and moves as native lists do: moved items and grid cells glide to their new places, inserted ones fade in, removed ones fade out where they were; expanding and collapsing groups too ([Animated changes](docs/controls/SkUiCollectionView.md#animated-changes)).
+  - Off by default in 1.x. The changes of a frame animate together; everything runs on the render thread, the views keep their final layout and taps hit it.
+  - With a `SelectedItemTemplate` of another size, the rows after a selected row glide to make room.
+  - The look's new transitions `ItemInsert`, `ItemRemove`, `ItemMove` (per platform). Leak scenario `CollectionViewItemsAnimated`, bench scenarios `collection-changes` and `collection-changes-animated`.
+- **Modifier keys on pointer samples:** `SkUiTouchEvent.Modifiers` and `SkUiPointer.Modifiers` (`SkUiKeyModifiers`, now public) report Shift, Control, Alt and Command held during a press, move or release, from Android (GPU surfaces), UIKit (iOS 13.4+, Mac Catalyst) and Windows ([EventMechanism.md](docs/design/EventMechanism.md)).
+- **Layouts of your own on other layout managers:** `SkUiLayout.AffectsChildLayout` (a child's attached property that re-lays the layout out) and `OnChildrenChanged` are now protected virtuals, so a layout outside SkiaUi can run another library's `ILayoutManager` ([SkUiLayout.md](docs/controls/SkUiLayout.md#layouts-of-your-own)).
+
+### Breaking changes
+
+- **Collection view items clip to their bounds** (`ClipItemsToBounds`, default `true`): an item's or grid cell's content wider or taller than its slot (a row of buttons in a narrow grid column) spilled over the neighboring items, which are drawn after it, and covered them in part. Item and group header containers now clip what they show, native views hosted in them included, as Android's lists do. A template that draws past its row on purpose (a shadow into the item spacing, a part overlapping the next row, content scaled up on press) is cut at the edge: set `ClipItemsToBounds="False"`, or give the template's root a margin that leaves the shadow room.
+
+### Fixes
+
+- **No stuck `Selected` look under the pointer:** a collection item deselected while the pointer was over it (on a desktop, or selecting with the keyboard) kept its `Selected` visual state when its template defined no `PointerOver` state, until the pointer left it, as MAUI's visual state manager leaves a group in its state when the next one is missing. Drawn views now go to `Normal` when they have no `PointerOver` state.
+
+### Other
+
+- Control / Command with a letter now reaches drawn key handlers on Apple and Windows too (as on Android), as `SkUiKey.Character` with the lowercase letter; pickers' type-ahead ignores it.
+- Gallery pages for the collection view's keyboard and extended selection and its animated changes (next to MAUI's `CollectionView`), and its selected item template.
+- Collection view items are no longer tab stops one by one: the list is one stop and the arrow keys move between its items (above). Buttons inside items stay tab stops.
+
 ## 1.9.0
 
 ### New features

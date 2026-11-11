@@ -1,4 +1,5 @@
 using MauiSkiaUi;
+using MauiSkiaUi.CommunityToolkit;
 using MauiSkiaUi.Core;
 
 namespace MauiSkiaUiDemo;
@@ -74,6 +75,9 @@ public static class ComponentDemos
         new(typeof(SkUiHorizontalStackLayout), typeof(HorizontalStackLayoutDemoPage), nameof(HorizontalStackLayout), ComponentCategory.Layouts, () => new HorizontalStackLayoutDemoPage()),
         new(typeof(SkUiAbsoluteLayout), typeof(AbsoluteLayoutDemoPage), nameof(AbsoluteLayout), ComponentCategory.Layouts, () => new AbsoluteLayoutDemoPage()),
         new(typeof(SkUiFlexLayout), typeof(FlexLayoutDemoPage), nameof(FlexLayout), ComponentCategory.Layouts, () => new FlexLayoutDemoPage()),
+        new(typeof(SkUiDockLayout), typeof(DockLayoutDemoPage), "Community Toolkit DockLayout", ComponentCategory.Layouts, () => new DockLayoutDemoPage()),
+        new(typeof(SkUiUniformItemsLayout), typeof(UniformItemsLayoutDemoPage), "Community Toolkit UniformItemsLayout", ComponentCategory.Layouts,
+            () => new UniformItemsLayoutDemoPage()),
         new(typeof(SkUiWrapLayout), typeof(WrapLayoutDemoPage), ComponentDemo.SkUiOnlyCounterpart, ComponentCategory.Layouts, () => new WrapLayoutDemoPage()),
         new(typeof(SkUiTileLayout), typeof(TileLayoutDemoPage), ComponentDemo.SkUiOnlyCounterpart, ComponentCategory.Layouts, () => new TileLayoutDemoPage()),
         new(typeof(SkUiHorizontalShrinkLayout), typeof(HorizontalShrinkLayoutDemoPage), ComponentDemo.SkUiOnlyCounterpart, ComponentCategory.Layouts, () => new HorizontalShrinkLayoutDemoPage()),
@@ -101,6 +105,12 @@ public static class ComponentDemos
             () => new ItemsLayoutDemoPage(), Key: "SkUiCollectionViewItemsLayout", Scenario: "items layouts and snap points"),
         new(typeof(SkUiCollectionView), typeof(ReorderDemoPage), nameof(CollectionView), ComponentCategory.ScrollingAndCollections,
             () => new ReorderDemoPage(), Key: "SkUiCollectionViewReorder", Scenario: "reordering"),
+        new(typeof(SkUiCollectionView), typeof(CollectionViewKeyboardDemoPage), nameof(CollectionView), ComponentCategory.ScrollingAndCollections,
+            () => new CollectionViewKeyboardDemoPage(), Key: "SkUiCollectionViewKeyboard", Scenario: "keyboard and extended selection"),
+        new(typeof(SkUiCollectionView), typeof(CollectionViewSelectedTemplateDemoPage), ComponentDemo.SkUiOnlyCounterpart, ComponentCategory.ScrollingAndCollections,
+            () => new CollectionViewSelectedTemplateDemoPage(), Key: "SkUiCollectionViewSelectedTemplate", Scenario: "selected item template"),
+        new(typeof(SkUiCollectionView), typeof(CollectionViewAnimationsDemoPage), nameof(CollectionView), ComponentCategory.ScrollingAndCollections,
+            () => new CollectionViewAnimationsDemoPage(), Key: "SkUiCollectionViewAnimations", Scenario: "animated changes"),
         new(typeof(SkUiCollectionView), typeof(SwipeViewListDemoPage), nameof(CollectionView), ComponentCategory.ScrollingAndCollections,
             () => new SwipeViewListDemoPage(), Key: "SkUiCollectionViewSwipeRows", Scenario: "swipeable rows"),
         new(typeof(SkUiCollectionView), typeof(PickerRowsDemoPage), nameof(CollectionView), ComponentCategory.ScrollingAndCollections,

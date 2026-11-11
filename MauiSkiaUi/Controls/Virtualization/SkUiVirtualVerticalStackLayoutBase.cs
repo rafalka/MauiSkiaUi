@@ -580,6 +580,21 @@ public abstract class SkUiVirtualVerticalStackLayoutBase : SkUiView, ISkUiScroll
         ChangeItems(() => Move(index, count, newIndex));
     }
 
+    /// <summary>
+    /// Asked for each view released while it is set (a removal the collection view animates): <c>true</c> takes the view
+    /// (and its recycle key) instead of the pool, until <see cref="RecycleView"/> gives it back.
+    /// </summary>
+    internal Func<ISkUiView, object?, bool>? TakesReleasedView { get; set; }
+
+    /// <summary>A view taken when it was released (<see cref="TakesReleasedView"/>) goes to the pool of <paramref name="key"/>.</summary>
+    internal void RecycleView(ISkUiView view, object key)
+    {
+        if (!_pool.TryGetValue(key, out var pooled))
+            _pool[key] = pooled = new Stack<ISkUiView>();
+        if (pooled.Count < Math.Max(8, _peakRealized))
+            pooled.Push(view);
+    }
+
     /// <summary>Drops the recycled views waiting for reuse (their recycle keys no longer create the same views, e.g. a template changed).</summary>
     protected void ClearRecycledViews() => _pool.Clear();
 
@@ -718,6 +733,9 @@ public abstract class SkUiVirtualVerticalStackLayoutBase : SkUiView, ISkUiScroll
         RemoveLogicalChild((Element)realized.View);
         _childrenChanged = true;
         UnbindItemView(realized.Index, realized.View);
+        // A collection view fading a removed item out keeps its view until the fade ends (RecycleView then).
+        if (recycle && TakesReleasedView?.Invoke(realized.View, realized.Key) == true)
+            recycle = false;
         if (recycle && realized.Key is { } key)
         {
             if (!_pool.TryGetValue(key, out var pooled))
@@ -777,6 +795,34 @@ public abstract class SkUiVirtualVerticalStackLayoutBase : SkUiView, ISkUiScroll
             return -1;
         var position = index - _realized[0].Index;
         return position >= 0 && position < _realized.Count ? position : -1;
+    }
+
+    /// <summary>
+    /// The item at <paramref name="index"/> wants another kind of view (its recycle key changed: a collection view's selected
+    /// item with a template of its own): a realized view of another key is released (recycled) and the item realized again
+    /// in its place, from the pool of its new key, and measured; what shows stays in place, as for a change of the items. An
+    /// item not realized forgets its size until it is. Returns <c>false</c> when nothing changed (a realized view of the key).
+    /// </summary>
+    internal bool RenewItem(int index)
+    {
+        if (index < 0 || index >= _sizes.Count)
+            throw new ArgumentOutOfRangeException(nameof(index), index, "The index is not an item of the layout.");
+        var position = PositionOf(index);
+        if (position < 0)
+        {
+            RemeasureItem(index);
+            return true;
+        }
+        if (Equals(_realized[position].Key, GetRecycleKey(index)))
+            return false;
+        ChangeItems(() =>
+        {
+            var anchor = CaptureAnchor();
+            ReleaseAt(position);
+            RealizeInside(index, position);
+            Reanchor(anchor.Index, anchor.Start);
+        });
+        return true;
     }
 
     /// <summary>

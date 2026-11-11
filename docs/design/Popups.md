@@ -22,7 +22,7 @@ SkiaUi does not replace navigation, so it ships no pages and no popup windows of
 
 `SkiaUi.Maui` depends on MAUI and SkiaSharp only. Integrations with other libraries are packages of their own, released with it (same version, one changelog) and built on its **public API** only (no `InternalsVisibleTo`), so they cannot couple to internals and show what app authors can build themselves:
 
-- **SkiaUi.Maui.CommunityToolkit** (`MauiSkiaUi.CommunityToolkit/`): the popup presenter on the toolkit's `Popup`. Planned ([roadmap](Roadmap.md)): drawn counterparts of the toolkit's `UniformItemsLayout` and `DockLayout` on its public layout managers (`UniformItemsLayoutManager`, `DockLayoutManager`), as `SkUiFlexLayout` runs MAUI's `FlexLayoutManager`. Needs one extension point made public first: `SkUiLayout.AffectsChildLayout` (a child's attached property, e.g. `DockLayout.DockPosition`, re-measures the layout) and `OnChildrenChanged` are `private protected` today.
+- **SkiaUi.Maui.CommunityToolkit** (`MauiSkiaUi.CommunityToolkit/`): the popup presenter on the toolkit's `Popup`. Since 1.10 also the drawn counterparts of the toolkit's layouts on its public layout managers, as `SkUiFlexLayout` runs MAUI's `FlexLayoutManager`: [`SkUiDockLayout`](../controls/SkUiDockLayout.md) (`DockLayoutManager`) and [`SkUiUniformItemsLayout`](../controls/SkUiUniformItemsLayout.md) (`UniformItemsLayoutManager`), through `SkUiLayout`'s protected `AffectsChildLayout` (a child's `DockLayout.DockPosition` re-measures the layout) and `OnChildrenChanged`.
 - A package per further popup library only if asked for; until then, a docs sketch.
 
 ## A popup of your own view

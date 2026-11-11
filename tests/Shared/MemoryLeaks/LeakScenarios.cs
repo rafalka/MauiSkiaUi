@@ -51,6 +51,8 @@ public static class LeakScenarios
         new("CollectionViewUsed", Scrolling, "SkUiCollectionView bound to a long-lived collection, with long-lived selection, item-tap and refresh commands, a sticky header and an empty view: items tapped to select and deselect, flung, scrolled to an item, pulled to refresh, the selected item removed, the collection emptied and refilled; closed mid-fling.", () => new CollectionViewRun()),
         new("CollectionViewReordered", Scrolling, "SkUiCollectionView over a long-lived collection with CanReorderItems, as a list and as a grid of two columns: items held and dragged to new places (rows and cells moving aside, the lifted copy scaled and shadowed), the selected item moved, an item held near the list's end so it scrolls, a drag cancelled by a change of the collection, an item moved by a screen-reader action; closed with an item lifted.", () => new CollectionViewReorderRun()),
         new("CollectionViewGrouped", Scrolling, "SkUiCollectionView over long-lived groups (a grid of two columns, sticky collapsible group headers), with a long-lived selected-items list and load-more command: headers tapped to collapse and expand, items selected, flung, scrolled to a group, groups and items added and removed, the template replaced; closed mid-fling.", () => new CollectionViewGroupedRun()),
+        new("CollectionViewSelectedTemplate", Scrolling, "SkUiCollectionView over a long-lived collection with a SelectedItemTemplate (taller rows with a button running a long-lived command), as a list (multiple, extended selection) and as a grid of two columns (single selection): items tapped and added to the selection (as a Ctrl+click does) so rows swap to the selected template and back, everything selected and cleared, flung so both kinds recycle, the selected template replaced; closed with rows selected.", () => new CollectionViewSelectedTemplateRun()),
+        new("CollectionViewItemsAnimated", Scrolling, "SkUiCollectionView over a long-lived collection with AnimatesItemChanges, as a list and as a grid of two columns with sticky collapsible group headers over long-lived groups: items inserted, removed (fading out over the items), moved and replaced, several changes while rows still glide, a group collapsed and expanded, the template replaced while removed rows fade; closed while rows glide and fade.", () => new CollectionViewItemsAnimatedRun()),
         new("RefreshPulled", Scrolling, "SkUiRefreshView (inline style, automatic completion) with a long-lived command around a header and a drawn scroller: pulled through the scroller and by the header (content held down while refreshing), each refresh ended by a deferral taken in Refreshing, a short pull released before the trigger (the indicator going back), the scroller replaced while still linked and the old one detached; closed mid-pull.", () => new RefreshRun()),
         new("CarouselSwiped", Scrolling, "SkUiCarouselView over a long-lived collection with a long-lived shared cover flow effect, a long-lived position command and a linked indicator view: swiped and flung forward past the middle of its looping strip (moved back by corrections), an indicator tapped, the position set by code, items added and removed, the effect switched, looping turned off and the end reached (load-more command); closed mid-fling.", () => new CarouselRun()),
         new("PickerOpened", Controls, "SkUiPicker and SkUiCorePicker over a long-lived collection (a display binding, an item template), opened on a long-lived presenter that keeps the last request (as a popup stack does): tapped open and an item chosen in the drawn list, dismissed, closed by IsOpen = false and by hiding the picker, opened by the keyboard, the Core picker chosen; closed with a popup open.", () => new PickerRun()),
@@ -2164,6 +2166,166 @@ public static class LeakScenarios
         public override string? CheckInteraction() =>
             _taps >= 3 && _selections >= 4 && _refreshes == 1 && _list!.SelectedItem is null ? null
                 : $"Tapped {_taps} times, selection changed {_selections} times, refreshed {_refreshes} times; selected {_list!.SelectedItem ?? "none"}.";
+    }
+
+    private sealed class CollectionViewSelectedTemplateRun : LeakScenarioRun
+    {
+        private SkUiCollectionView? _list;
+        private SkUiCollectionView? _grid;
+        private int _selectedViews;
+        private int _selections;
+
+        public override View Build(LeakScenarioContext context)
+        {
+            LeakItems.Shared.Clear();
+            for (var index = 0; index < 500; index++)
+                LeakItems.Shared.Add($"Order {index}");
+            _list = context.Track(List(context, span: 1), "list with a selected template");
+            _list.SelectionMode = SkUiSelectionMode.Multiple;
+            _list.IsExtendedSelectionEnabled = true;
+            _grid = context.Track(List(context, span: 2), "grid with a selected template");
+            _grid.SelectionMode = SkUiSelectionMode.Single;
+            _list.SelectionChanged += (_, _) => _selections++;
+            _grid.SelectionChanged += (_, _) => _selections++;
+            var grid = new SkUiGrid { RowDefinitions = [new RowDefinition(GridLength.Star), new RowDefinition(GridLength.Star)] };
+            grid.Add(_list);
+            grid.Add(_grid, 0, 1);
+            return Root(grid);
+        }
+
+        private SkUiCollectionView List(LeakScenarioContext context, int span) => new SkUiCollectionView
+        {
+            ItemsSource = LeakItems.Shared,
+            ItemTemplate = new DataTemplate(() =>
+            {
+                var row = context.Track(Text("", 13), "collection item view");
+                row.HeightRequest = 40;
+                row.SetBinding(SkUiLabel.TextProperty, Binding.SelfPath);
+                return row;
+            }),
+            SelectedItemTemplate = SelectedTemplate(context)
+        }.SetSpan(span);
+
+        private DataTemplate SelectedTemplate(LeakScenarioContext context) => new(() =>
+        {
+            _selectedViews++;
+            var title = Text("", 15);
+            title.SetBinding(SkUiLabel.TextProperty, Binding.SelfPath);
+            var stack = context.Track(new SkUiVerticalStackLayout { HeightRequest = 90 }, "selected item view");
+            stack.Children.Add(title);
+            stack.Children.Add(new SkUiButton { Text = "Open", Command = LeakCommands.Shared });
+            return stack;
+        });
+
+        public override async Task InteractAsync(LeakScenarioContext context)
+        {
+            var list = _list!;
+            var grid = _grid!;
+            await context.SettleAsync();
+            await context.TapAsync(list.GetRealizedView(1)!);
+            await context.SettleAsync();
+            list.SelectedItems.Add(LeakItems.Shared[3]); // as Ctrl+click: the row swaps
+            await context.SettleAsync();
+            list.SelectAll();
+            await context.SettleAsync();
+            await context.DragAsync(list, 0, -300, durationMs: 80); // fling: selected rows recycle
+            await context.WaitAsync(300);
+            list.ClearSelection();
+            await context.SettleAsync();
+            await context.TapAsync(grid.GetRealizedView(2)!);
+            await context.SettleAsync();
+            await context.TapAsync(grid.GetRealizedView(5)!);
+            await context.SettleAsync();
+            grid.SelectedItemTemplate = SelectedTemplate(context); // every row made again
+            await context.SettleAsync();
+            await context.DragAsync(grid, 0, -300, durationMs: 80);
+            await context.WaitAsync(300);
+            list.SelectedItems.Add(LeakItems.Shared[0]); // closes with rows selected
+            await context.SettleAsync();
+        }
+
+        public override string? CheckInteraction() =>
+            _selectedViews >= 3 && _selections >= 6 && _grid!.SelectedItem is not null ? null
+                : $"{_selectedViews} selected-template views made, selection changed {_selections} times; grid selection {_grid!.SelectedItem ?? "none"}.";
+    }
+
+    private sealed class CollectionViewItemsAnimatedRun : LeakScenarioRun
+    {
+        private SkUiCollectionView? _list;
+        private SkUiCollectionView? _grid;
+        private readonly ObservableCollection<ObservableCollection<string>> _groups = [];
+        private int _rowViews;
+
+        public override View Build(LeakScenarioContext context)
+        {
+            LeakItems.Shared.Clear();
+            for (var index = 0; index < 200; index++)
+                LeakItems.Shared.Add($"Task {index}");
+            for (var group = 0; group < 3; group++)
+                _groups.Add(new ObservableCollection<string>(Enumerable.Range(0, 6).Select(index => $"Group {group} item {index}")));
+            _list = context.Track(new SkUiCollectionView
+            {
+                ItemsSource = LeakItems.Shared,
+                AnimatesItemChanges = true,
+                ItemTemplate = RowTemplate(context)
+            }, "animated list");
+            _grid = context.Track(new SkUiCollectionView
+            {
+                ItemsSource = _groups,
+                IsGrouped = true,
+                AllowGroupExpandCollapse = true,
+                IsStickyGroupHeader = true,
+                AnimatesItemChanges = true,
+                GroupHeaderTemplate = new DataTemplate(() => Text("Group", 15)),
+                ItemTemplate = RowTemplate(context)
+            }.SetSpan(2), "animated grid");
+            var root = new SkUiGrid { RowDefinitions = [new RowDefinition(GridLength.Star), new RowDefinition(GridLength.Star)] };
+            root.Add(_list);
+            root.Add(_grid, 0, 1);
+            return Root(root);
+        }
+
+        private DataTemplate RowTemplate(LeakScenarioContext context) => new(() =>
+        {
+            _rowViews++;
+            var row = context.Track(Text("", 13), "animated item view");
+            row.HeightRequest = 40;
+            row.SetBinding(SkUiLabel.TextProperty, Binding.SelfPath);
+            return row;
+        });
+
+        public override async Task InteractAsync(LeakScenarioContext context)
+        {
+            var list = _list!;
+            var grid = _grid!;
+            await context.SettleAsync();
+            LeakItems.Shared.Insert(1, "Inserted");
+            await context.SettleAsync();
+            LeakItems.Shared.RemoveAt(3); // fades out over the items
+            await context.SettleAsync();
+            LeakItems.Shared.Move(2, 6);
+            LeakItems.Shared[4] = "Replaced";
+            LeakItems.Shared.Insert(0, "First"); // while the rows still glide
+            await context.WaitAsync(400);
+            for (var index = 0; index < 3; index++)
+                LeakItems.Shared.RemoveAt(2);
+            list.ItemTemplate = RowTemplate(context); // while removed rows fade
+            await context.WaitAsync(400);
+            _groups[1].Insert(0, "New in group 1");
+            _groups[0].RemoveAt(1);
+            await context.SettleAsync();
+            grid.CollapseGroup(_groups[0]);
+            await context.WaitAsync(400);
+            grid.ExpandGroup(_groups[0]);
+            await context.SettleAsync();
+            LeakItems.Shared.RemoveAt(1);
+            _groups[2].Move(0, 3); // closes while rows glide and fade
+            await context.SettleAsync();
+        }
+
+        public override string? CheckInteraction() =>
+            _list!.ItemCount == 197 && _grid!.ItemCount == 18 && _rowViews > 0 ? null
+                : $"List shows {_list!.ItemCount} items, grid {_grid!.ItemCount}; {_rowViews} row views made.";
     }
 
     private sealed class CollectionViewReorderRun : LeakScenarioRun

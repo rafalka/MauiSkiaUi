@@ -461,13 +461,24 @@ internal class SkUiAccessibilityElement : UIAccessibilityElement
 /// <summary>Hardware keyboard presses of a focused surface container as <see cref="SkUiKey"/>s.</summary>
 internal static class SkUiAppleKeys
 {
-    /// <summary>The key as a <see cref="SkUiKey"/>; a printable character (without Command or Control) as <see cref="SkUiKey.Character"/>.</summary>
+    /// <summary>
+    /// The key as a <see cref="SkUiKey"/>; a printable character (without Command or Control) as <see cref="SkUiKey.Character"/>;
+    /// Command or Control with a letter as <see cref="SkUiKey.Character"/> with the lowercase letter (a shortcut: select all).
+    /// </summary>
     public static SkUiKey Map(UIKey key, out char character)
     {
         character = '\0';
         var mapped = Map(key);
-        if (mapped != SkUiKey.None || (key.ModifierFlags & (UIKeyModifierFlags.Command | UIKeyModifierFlags.Control)) != 0)
+        if (mapped != SkUiKey.None)
             return mapped;
+        if ((key.ModifierFlags & (UIKeyModifierFlags.Command | UIKeyModifierFlags.Control)) != 0)
+        {
+            var lower = key.CharactersIgnoringModifiers is { Length: 1 } letter ? char.ToLowerInvariant(letter[0]) : '\0';
+            if (lower is not (>= 'a' and <= 'z'))
+                return SkUiKey.None;
+            character = lower;
+            return SkUiKey.Character;
+        }
         if (key.Characters is { Length: 1 } text && text[0] > ' ' && !char.IsControl(text[0]))
         {
             character = text[0];
@@ -492,6 +503,7 @@ internal static class SkUiAppleKeys
         UIKeyboardHidUsage.KeyboardEnd => SkUiKey.End,
         UIKeyboardHidUsage.KeyboardDeleteOrBackspace => SkUiKey.Backspace,
         UIKeyboardHidUsage.KeyboardDeleteForward => SkUiKey.Delete,
+        UIKeyboardHidUsage.KeyboardInsert => SkUiKey.Insert,
         _ => SkUiKey.None
     };
 

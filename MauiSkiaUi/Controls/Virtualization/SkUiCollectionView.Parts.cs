@@ -19,6 +19,45 @@ public partial class SkUiCollectionView
     /// <summary>Grid cells waiting for reuse, per item template (a grid row whose items need other templates swaps cells).</summary>
     private readonly Dictionary<object, Stack<ItemHost>> _cellPool = [];
 
+    private bool _clipItems = true;
+
+    /// <summary>Bindable property for <see cref="ClipItemsToBounds"/>.</summary>
+    public static readonly BindableProperty ClipItemsToBoundsProperty = BindableProperty.Create(nameof(ClipItemsToBounds), typeof(bool),
+        typeof(SkUiCollectionView), true, propertyChanged: (view, _, value) => ((SkUiCollectionView)view).OnClipItemsToBoundsChanged((bool)value));
+
+    /// <summary>
+    /// Whether each item and group header shows only what fits its slot (default <c>true</c>, as Android's list cells): content
+    /// larger than the slot does not cover the neighbors, and native views hosted in items are clipped too. <c>false</c>
+    /// lets an item draw past its edges (a shadow into <see cref="ItemsLayout"/>'s spacing, a part that overlaps the next row,
+    /// content scaled up on press); items are drawn in order, so a later one covers what an earlier one drew past its edge.
+    /// </summary>
+    public bool ClipItemsToBounds { get => (bool)GetValue(ClipItemsToBoundsProperty); set => SetValue(ClipItemsToBoundsProperty, value); }
+
+    /// <summary>Sets <see cref="ClipItemsToBounds"/> (same as the property setter).</summary>
+    public SkUiCollectionView SetClipItemsToBounds(bool value)
+    {
+        ClipItemsToBounds = value;
+        return this;
+    }
+
+    private void OnClipItemsToBoundsChanged(bool value)
+    {
+        _clipItems = value;
+        // Containers made from now on take it as their default; the ones that exist (shown, pooled, fading out) are set.
+        foreach (var view in ItemsHost.RealizedViews.Concat(ItemsHost.RecycledViews))
+            if (view is GridRowPart row)
+                foreach (var cell in row.Cells)
+                    cell.ClipToBounds = value;
+            else if (view is ItemHost or GroupHeaderHost)
+                ((SkUiView)view).ClipToBounds = value;
+        foreach (var cell in _cellPool.Values.SelectMany(static cells => cells))
+            cell.ClipToBounds = value;
+        foreach (var ghost in _removedViews is { } pending ? _ghosts.Concat(pending) : _ghosts)
+            ghost.View.ClipToBounds = value;
+        if (_stickyGroupHeader is { } sticky)
+            sticky.ClipToBounds = value;
+    }
+
     #region Rows
 
     private DataTemplate? SelectTemplate(DataTemplate? template, object? item) =>
@@ -28,8 +67,11 @@ public partial class SkUiCollectionView
         template.CreateContent() as ISkUiView
         ?? throw new InvalidOperationException($"{property} of {nameof(SkUiCollectionView)} must create drawn (SkUi*) views; put native views inside an SkUiMauiContentView.");
 
-    /// <summary>The recycle key of an item: its (selected) template, or one key for default labels.</summary>
-    private object ItemKey(object? item) => (object?)SelectTemplate(_itemTemplate, item) ?? DefaultItemKey;
+    /// <summary>
+    /// The recycle key of an item: the selected item template's choice for a selected item, else its (selector-chosen)
+    /// item template, or one key for default labels.
+    /// </summary>
+    private object ItemKey(object? item) => (object?)SelectedTemplateOf(item) ?? (object?)SelectTemplate(_itemTemplate, item) ?? DefaultItemKey;
 
     private KindKey KindKeyOf(RowKind kind, DataTemplate template)
     {
@@ -75,6 +117,7 @@ public partial class SkUiCollectionView
 
     private void ReturnCell(ItemHost cell)
     {
+        RingAfterUnbind(cell);
         if (!_cellPool.TryGetValue(cell.TemplateKey, out var pooled))
             _cellPool[cell.TemplateKey] = pooled = new Stack<ItemHost>();
         if (pooled.Count < 64)
@@ -94,10 +137,13 @@ public partial class SkUiCollectionView
                 break;
             case GroupHeaderHost header:
                 header.StickyGroup = -1;
+                StopItemMotion(header, Model.Groups[row.Group].Value);
                 header.BindingContext = Model.Groups[row.Group].Value;
                 header.SetExpanded(Model.Groups[row.Group].Expanded);
                 break;
             default:
+                if (view is SkUiView footer)
+                    StopItemMotion(footer, Model.Groups[row.Group].Value);
                 ((BindableObject)view).BindingContext = Model.Groups[row.Group].Value;
                 break;
         }
@@ -106,6 +152,7 @@ public partial class SkUiCollectionView
     /// <summary>Shows an item in its container: binding context, default label text, selected state.</summary>
     private void BindItemHost(ItemHost host, object? item)
     {
+        StopItemMotion(host, item);
         ((BindableObject)host).BindingContext = item;
         if (ReferenceEquals(host.TemplateKey, DefaultItemKey) && host.Content is SkUiLabel label)
             label.Text = item?.ToString() ?? string.Empty;
@@ -125,13 +172,46 @@ public partial class SkUiCollectionView
     {
         public void Reset(int count) => ResetItems(count);
 
-        public void InsertRows(int row, int count) => InsertItems(row, count);
+        /// <summary>Whether inserted and replaced rows are new parts (<c>false</c> while grid rows only reflow their items).</summary>
+        public bool NotesInsertedRows { get; set; } = true;
 
-        public void RemoveRows(int row, int count) => RemoveItems(row, count);
+        // Each change notes what the item animations need first (AnimatesItemChanges): where the items show, what was inserted,
+        // the views of removed items to fade out.
+        public void InsertRows(int row, int count)
+        {
+            owner.BeforeRowsChange();
+            InsertItems(row, count);
+            if (NotesInsertedRows)
+                owner.NoteInsertedRows(row, count);
+        }
 
-        public void ReplaceRows(int row, int count) => ReplaceItems(row, count);
+        public void RemoveRows(int row, int count)
+        {
+            owner.BeforeRowsChange();
+            TakesReleasedView = owner.FadesRemovedRows ? owner.TakeRemovedView : null;
+            try
+            {
+                RemoveItems(row, count);
+            }
+            finally
+            {
+                TakesReleasedView = null;
+            }
+        }
 
-        public void MoveRows(int row, int count, int newRow) => MoveItems(row, count, newRow);
+        public void ReplaceRows(int row, int count)
+        {
+            owner.BeforeRowsChange();
+            ReplaceItems(row, count);
+            if (NotesInsertedRows)
+                owner.NoteInsertedRows(row, count);
+        }
+
+        public void MoveRows(int row, int count, int newRow)
+        {
+            owner.BeforeRowsChange();
+            MoveItems(row, count, newRow);
+        }
 
         public void DropRecycled() => ClearRecycledViews();
 
@@ -143,9 +223,14 @@ public partial class SkUiCollectionView
         {
             owner.BindRow(index, view, recycleKey);
             owner.OnRowBound(index, view);
+            owner.RingAfterBind(index, view);
         }
 
-        protected override void UnbindItemView(int index, ISkUiView view) => owner.OnRowUnbound(view);
+        protected override void UnbindItemView(int index, ISkUiView view)
+        {
+            owner.OnRowUnbound(view);
+            owner.RingAfterUnbind(view);
+        }
 
         protected override object? GetItem(int index) => owner.RowItem(index);
 
@@ -201,6 +286,10 @@ public partial class SkUiCollectionView
         /// <summary>The template (or default-label key) its view comes from.</summary>
         public object TemplateKey { get; } = templateKey;
 
+        // A row or grid cell shows only what fits it (ClipItemsToBounds): content wider or taller than its slot does not
+        // spill over the neighbors, which are drawn after it.
+        private protected override bool DefaultClipToBounds => owner._clipItems;
+
         public bool IsSelected
         {
             get => _selected;
@@ -218,6 +307,9 @@ public partial class SkUiCollectionView
 
         protected override bool HandlesTap => owner.WantsItemTaps;
 
+        // The list is one tab stop; arrow keys move its current item (SkUiCollectionView.Keyboard).
+        internal override bool TakesKeyboardFocus => false;
+
         internal override bool OnSemanticsCustomAction(int index) => owner.PerformReorderAction(this, index);
 
         /// <summary>What screen readers read for the item changed (its moves).</summary>
@@ -226,7 +318,7 @@ public partial class SkUiCollectionView
         protected override void OnTapped(SkUiTappedEventArgs args)
         {
             RaiseTapped(args);
-            owner.OnItemHostTapped(this);
+            owner.OnItemHostTapped(this, args);
         }
 
         protected override void OnPaintBackground(SKCanvas canvas)
@@ -358,6 +450,8 @@ public partial class SkUiCollectionView
         /// <summary>The group the sticky header shows, or -1 (a header in the list, found by its row).</summary>
         public int StickyGroup { get; set; } = -1;
 
+        private protected override bool DefaultClipToBounds => owner._clipItems; // as the item rows
+
         public void SetExpanded(bool expanded)
         {
             _expanded = expanded;
@@ -373,6 +467,8 @@ public partial class SkUiCollectionView
         }
 
         protected override bool HandlesTap => owner.AllowGroupExpandCollapse && Content is not null;
+
+        internal override bool TakesKeyboardFocus => false; // a stop of the list's arrow keys, not a tab stop
 
         protected override void OnTapped(SkUiTappedEventArgs args)
         {
@@ -465,6 +561,9 @@ public partial class SkUiCollectionView
         /// <summary>The placeholder items of an empty list in a skeleton made from content, created the first time they show.</summary>
         public PlaceholderPart? PlaceholderHost;
 
+        /// <summary>Removed items fading out, under the items (created the first time an item fades out).</summary>
+        public GhostPart? GhostHost;
+
         public bool LoadMoreAtStart
         {
             get => _loadMoreAtStart;
@@ -505,6 +604,8 @@ public partial class SkUiCollectionView
         {
             get
             {
+                if (GhostHost is not null)
+                    yield return GhostHost; // first: drawn under the items moving over it
                 if (HeaderHost is not null)
                     yield return HeaderHost;
                 if (LoadMoreHost is not null && _loadMoreAtStart)
@@ -523,9 +624,10 @@ public partial class SkUiCollectionView
         protected override Size MeasureContent(double widthConstraint, double heightConstraint)
         {
             var (along, across) = (0d, 0d);
+            ((IView?)GhostHost)?.Measure(widthConstraint, heightConstraint);
             foreach (var part in SkiaChildren)
             {
-                if (part is not SkUiView { IsVisible: true } view)
+                if (part is not SkUiView { IsVisible: true } view || part is GhostPart)
                     continue;
                 var size = _owner.MeasurePart(view, widthConstraint, heightConstraint);
                 along += _owner.Along(size);
@@ -539,11 +641,13 @@ public partial class SkUiCollectionView
             // The empty view fills what the viewport has left besides the other parts.
             var others = 0d;
             foreach (var part in SkiaChildren)
-                if (!ReferenceEquals(part, EmptyHost))
+                if (!ReferenceEquals(part, EmptyHost) && part is not GhostPart)
                     others += _owner.AlongOf((SkUiView)part);
             var position = 0d;
             foreach (var part in SkiaChildren)
             {
+                if (part is GhostPart)
+                    continue;
                 var view = (SkUiView)part;
                 var length = ReferenceEquals(view, EmptyHost) && view.IsVisible
                     ? Math.Max(_owner.AlongOf(view), _owner.Along(size) - others)
@@ -551,6 +655,8 @@ public partial class SkUiCollectionView
                 ((IView)view).Arrange(_owner.Slot(position, length, new Rect(Point.Zero, size)));
                 position += length;
             }
+            // Over the items' own place: the fading views keep the places they had in it.
+            ((IView?)GhostHost)?.Arrange(_owner.ItemsHost.Frame);
         }
     }
 }

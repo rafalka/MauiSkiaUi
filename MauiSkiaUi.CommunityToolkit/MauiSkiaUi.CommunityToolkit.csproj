@@ -31,8 +31,8 @@
 		<Authors>Rafal Kukla</Authors>
 		<Company>Rafal Kukla</Company>
 		<Copyright>Copyright © Rafal Kukla</Copyright>
-		<Description>CommunityToolkit.Maui integration for SkiaUi.Maui: drawn pickers (and other drawn controls with popups) show their popups in the toolkit's Popup.</Description>
-		<PackageTags>maui;skiasharp;skia;ui;communitytoolkit;popup;picker</PackageTags>
+		<Description>CommunityToolkit.Maui integration for SkiaUi.Maui: drawn pickers (and other drawn controls with popups) show their popups in the toolkit's Popup, and drawn counterparts of the toolkit's DockLayout and UniformItemsLayout.</Description>
+		<PackageTags>maui;skiasharp;skia;ui;communitytoolkit;popup;picker;layout;docklayout;uniformitemslayout</PackageTags>
 		<PackageProjectUrl>https://github.com/rafalka/MauiSkiaUi</PackageProjectUrl>
 		<RepositoryUrl>https://github.com/rafalka/MauiSkiaUi</RepositoryUrl>
 		<RepositoryType>git</RepositoryType>

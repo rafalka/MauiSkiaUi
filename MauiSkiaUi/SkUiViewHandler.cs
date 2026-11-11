@@ -1395,7 +1395,10 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
                 SKMouseButton.Middle => SkUiPointerButtons.Middle,
                 SKMouseButton.Left => SkUiPointerButtons.Primary,
                 _ => SkUiPointerButtons.None
-            }
+            },
+#if WINDOWS
+            Modifiers = SkUiWindowsKeys.Modifiers() // SkiaSharp's touch events do not carry them: read while the event is dispatched
+#endif
         }) == true;
         if (SkUiDiagnostics.TraceOn)
             SkUiDiagnostics.Write($"touch {action} id={args.Id} {args.DeviceType} px={args.Location.X:F0},{args.Location.Y:F0} handled={args.Handled} native={GetNativeGestureState()} arenas={ConnectedView?.Router.ActiveArenaCount} root={ConnectedView?.AutomationId ?? ConnectedView?.GetType().Name}");
@@ -1782,7 +1785,10 @@ internal sealed class SkUiOverlayClip : Android.Views.ViewGroup
         var density = Resources?.DisplayMetrics?.Density ?? 1;
         // This view's position in the overlay container equals the surface's coordinate space.
         var position = new Point((Left + e.GetX(index)) / density, (Top + e.GetY(index)) / density);
-        return touch(new SkUiTouchEvent(_pointer, action, position, TimeSpan.FromMilliseconds(e.EventTime), Device: SkUiPointerDevices.From(e, index)));
+        return touch(new SkUiTouchEvent(_pointer, action, position, TimeSpan.FromMilliseconds(e.EventTime), Device: SkUiPointerDevices.From(e, index))
+        {
+            Modifiers = SkUiPointerDevices.ModifiersFrom(e.MetaState) // as on the surface: a Ctrl / Shift click on a native view
+        });
     }
 
     /// <summary>JNI activation constructor.</summary>
@@ -2503,7 +2509,10 @@ internal sealed partial class SkUiOverlayContainer : Microsoft.UI.Xaml.Controls.
             // The overlay container's space is the surface's DIP space (the surface is its first child at 0, 0).
             var point = args.GetCurrentPoint(_space);
             return _touch(new SkUiTouchEvent(_pointer, action, new Point(point.Position.X, point.Position.Y),
-                TimeSpan.FromTicks((long)point.Timestamp * 10), Device: SkUiPointerDevices.From(args.Pointer.PointerDeviceType)));
+                TimeSpan.FromTicks((long)point.Timestamp * 10), Device: SkUiPointerDevices.From(args.Pointer.PointerDeviceType))
+            {
+                Modifiers = SkUiWindowsKeys.Modifiers() // as on the surface: a Ctrl / Shift click on a native view
+            });
         }
     }
 
