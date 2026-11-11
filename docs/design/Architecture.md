@@ -105,7 +105,7 @@ Each surface builds a **semantics tree** lazily from the render tree (both layer
 
 - **Weak subscriptions:** a view listens to sources it does not own and that may outlive it (brushes, geometries, image sources, commands) through `SkUiWeakListener<T>`; app-wide events are `SkUiWeakEvent`s.
 - **Fixed event args:** `PropertyChangedEventArgs` and reset args that never change are `static readonly`, not allocated per raise.
-- **Diagnostics:** Core nodes appear in Visual Studio's Live Visual Tree; `SkUiDiagnostics` reads bounds, hit-tests and simulates taps (also used by the DevFlow `dev.skiaui` extension); `SkUiRenderStatistics` and frame traces measure frames ([Benchmarks.md](Benchmarks.md)).
+- **Diagnostics:** Core nodes appear in Visual Studio's Live Visual Tree; `SkUiDiagnostics` reads bounds, hit-tests and simulates taps (also used by the DevFlow `dev.skiaui` extension, [DevFlow.md](../DevFlow.md)); `SkUiRenderStatistics` and frame traces measure frames ([Benchmarks.md](Benchmarks.md)).
 - **Trimming and Native AOT:** the library is `IsAotCompatible`; trim and AOT analyzer warnings fail its build.
 
 ## Source map

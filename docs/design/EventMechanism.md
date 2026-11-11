@@ -85,7 +85,7 @@ Recognizers raise events / commands on their owner (UI thread)
 - **Core nodes (`SkUiCoreNode`):** the same events, `SetSwipeDirections`, `SetPanAxis`, `AddGestureRecognizer` / `RemoveGestureRecognizer`, and `AutomationId`.
 - **Controls:** `SkUiButton.Clicked` / `Command`, toggles and Core buttons use the intrinsic tap.
 - **`SkUiGestureSettings`:** app-wide thresholds.
-- **`SkUiDiagnostics.SimulateTap` / `HitTest`:** for tests and automation.
+- **`SkUiDiagnostics.SimulateTap` / `SimulateTapAt` / `HitTest`:** for tests and automation. `SimulateTapAt(root, point)` and `SimulateTap(element, releaseOnlyIfTap)` return an `SkUiSimulatedTap`: the element hit, the recognizer that won the press (`Winner`), whether it is a tap (`IsTap`: a discrete recognizer), whether a real touch would be left to native ancestors (`PassedToNative`, what the platforms' native tap gate reads) and whether the press was released. With `releaseOnlyIfTap` (the default of `SimulateTapAt`), a press whose leading recognizer is not a tap (a scroller around a label) is cancelled instead of released, so a failed automation tap leaves no fling or pressed state; `SimulateTap(element)` keeps returning only the hit and always releases.
 
 ## MAUI gesture recognizers
 

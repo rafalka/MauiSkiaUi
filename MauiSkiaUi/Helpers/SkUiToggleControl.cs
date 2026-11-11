@@ -115,7 +115,7 @@ public abstract class SkUiToggleControl : SkUiView
         CommitState(NextCheckState());
     }
 
-    /// <summary>A user change: applies <paramref name="value"/> and writes it back to both bindable properties.</summary>
+    /// <summary>A user change: applies <paramref name="value"/> and writes it back to the bindable properties (<see cref="WriteBack"/>).</summary>
     private protected void CommitState(SkUiCheckState value) => ApplyState(value);
 
     /// <summary>
@@ -148,7 +148,7 @@ public abstract class SkUiToggleControl : SkUiView
         _syncingIsChecked = true;
         try
         {
-            SetValue(IsCheckedProperty, isChecked);
+            WriteBack(IsCheckedProperty, isChecked);
         }
         finally
         {
@@ -164,8 +164,11 @@ public abstract class SkUiToggleControl : SkUiView
     {
         var old = _state;
         _state = value;
-        // Re-enters OnCheckStatePropertyChanged with the state already applied: that call only syncs.
-        SetValue(CheckStateProperty, value);
+        // A change from the property itself (binding, style, setter) already holds the value: writing it again would
+        // replace a one-way binding's value. Otherwise this re-enters OnCheckStatePropertyChanged with the state
+        // already applied, and that call only syncs.
+        if ((SkUiCheckState)GetValue(CheckStateProperty) != value)
+            WriteBack(CheckStateProperty, value);
         SyncIsCheckedProperty();
         SyncBindableState();
         if (old == value)
@@ -179,6 +182,14 @@ public abstract class SkUiToggleControl : SkUiView
         if (SkUiCheckStates.IsChecked(old) != isChecked)
             RaiseCheckedChanged(isChecked);
     }
+
+    /// <summary>
+    /// Writes a state the control derived (a tap, or the other view of the state changing) to one of its bindable
+    /// properties, as MAUI's controls write user changes (<see cref="Element.SetValueFromRenderer(BindableProperty, object)"/>):
+    /// two-way bindings get it, and the next value from a one-way binding, a style or the app replaces it. A plain
+    /// <c>SetValue</c> would outrank a one-way binding for good, so the control would stop following it.
+    /// </summary>
+    private protected void WriteBack(BindableProperty property, object value) => SetValueFromRenderer(property, value);
 
     /// <inheritdoc />
     protected override void OnPopulateSemantics(SkUiSemanticsInfo info)

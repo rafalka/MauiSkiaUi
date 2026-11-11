@@ -100,20 +100,51 @@ public static class SkUiDiagnostics
     /// Taps the center of <paramref name="element"/>'s bounds: a press and a release delivered through its surface
     /// root, like a real touch (hit-testing, capture, press states, <c>Clicked</c> / commands). Returns the element
     /// actually hit (the element itself, a descendant, or whatever covers that point), or <c>null</c> when the
-    /// element is not on a surface or the point is clipped away.
+    /// element is not on a surface or the point is clipped away. It does not tell whether anything took the tap:
+    /// <see cref="SimulateTap(object, bool)"/> does.
     /// </summary>
-    public static IVisualTreeElement? SimulateTap(object element)
+    public static IVisualTreeElement? SimulateTap(object element) => SimulateTap(element, releaseOnlyIfTap: false).Hit;
+
+    /// <summary>
+    /// Taps the center of <paramref name="element"/>'s bounds, as <see cref="SimulateTapAt"/> does at a point; nothing is
+    /// pressed (an empty result) when the element is not on a surface or the point is clipped away.
+    /// </summary>
+    public static SkUiSimulatedTap SimulateTap(object element, bool releaseOnlyIfTap)
     {
         if (GetSurfaceRoot(element) is not { } root || GetRootBounds(element) is not { } bounds)
-            return null;
-        var center = bounds.Center;
-        if (HitTest(root, center) is not { } hit)
-            return null;
+            return default;
+        return SimulateTapAt(root, bounds.Center, releaseOnlyIfTap);
+    }
+
+    /// <summary>
+    /// Presses <paramref name="root"/> (a surface root) at <paramref name="rootPoint"/> (its coordinates, DIPs) and
+    /// releases, like a real touch, and reports what took it: the recognizer that won the press, whether that is a tap,
+    /// and whether a real touch would be left to native ancestors. With <paramref name="releaseOnlyIfTap"/>, a press that
+    /// would not end in a tap is cancelled instead of released, so a failed automation tap has no side effects (no
+    /// scroller fling, no pressed state left behind); only what a press does at once stays (moving focus, as a real
+    /// press). Nothing is pressed (an empty result) outside the root or where its content is clipped away.
+    /// </summary>
+    public static SkUiSimulatedTap SimulateTapAt(SkUiView root, Point rootPoint, bool releaseOnlyIfTap = true)
+    {
+        ArgumentNullException.ThrowIfNull(root);
+        if (HitTest(root, rootPoint) is not { } hit)
+            return default;
         var id = Interlocked.Increment(ref _syntheticTouchId);
         var now = TimeSpan.FromMilliseconds(Environment.TickCount64);
-        root.Touch(new SkUiTouchEvent(id, SkUiTouchAction.Pressed, center, now));
-        root.Touch(new SkUiTouchEvent(id, SkUiTouchAction.Released, center, now + TimeSpan.FromMilliseconds(50)));
-        return hit;
+        if (!root.Touch(new SkUiTouchEvent(id, SkUiTouchAction.Pressed, rootPoint, now))
+            || root.Router.ArenaOf(id) is not { } arena)
+            return new SkUiSimulatedTap(hit, Winner: null, IsTap: false, PassedToNative: true, Released: false);
+        // What the platforms' native tap gates read at release: Tapping or Claimed keeps native ancestors from recognizing.
+        var passedToNative = SkUiPointerRouter.TapStateOf(arena) < SkUiNativeTapState.Tapping;
+        var predicted = arena.PredictedWinner;
+        if (releaseOnlyIfTap && predicted is not { IsDiscrete: true })
+        {
+            root.Touch(new SkUiTouchEvent(id, SkUiTouchAction.Cancelled, rootPoint, now));
+            return new SkUiSimulatedTap(hit, predicted, IsTap: false, passedToNative, Released: false);
+        }
+        root.Touch(new SkUiTouchEvent(id, SkUiTouchAction.Released, rootPoint, now + TimeSpan.FromMilliseconds(50)));
+        var winner = arena.EndWinner;
+        return new SkUiSimulatedTap(hit, winner, winner is { IsDiscrete: true }, passedToNative, Released: true);
     }
 
     private static ISkUiRenderable? HitTest(ISkUiRenderable node, SkUiRenderProps props, SKPoint local, List<ISkUiRenderable> scratch)

@@ -6,6 +6,7 @@ using MauiSkiaUi.CommunityToolkit;
 using MauiSkiaUiTour;
 #if MAUI_DEVFLOW
 using Microsoft.Maui.DevFlow.Agent;
+using SkiaUiDevFlow;
 #endif
 
 namespace MauiSkiaUiDemo;

@@ -1,0 +1,9 @@
+{
+  "name": "skiaui-devflow",
+  "displayName": "SkiaUi DevFlow",
+  "description": "Lets .NET MAUI DevFlow drive SkiaUi's drawn controls: adds the dev.skiaui agent extension (drawn element tree with window bounds, taps that report whether a drawn tap recognizer took them, hit-testing) to an app that uses SkiaUi.",
+  "author": { "name": "Rafal Kukla", "url": "https://github.com/rafalka" },
+  "homepage": "https://github.com/rafalka/MauiSkiaUi/blob/master/docs/DevFlow.md",
+  "repository": "https://github.com/rafalka/MauiSkiaUi",
+  "license": "MIT"
+}

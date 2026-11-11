@@ -390,22 +390,12 @@ Fall back to manual verification via [`scripts/device_verify.sh`](../../scripts/
 
 ### Drawn elements (`dev.skiaui` extension)
 
-DevFlow's own tree treats drawn elements differently from native views:
-- **SkUi\* views:** it lists them, but with parent-relative frames.
-- **Core nodes:** it lists them (they are visual tree elements), without bounds or text.
-- **Taps:** `ui tap` fails for both, because neither has a platform view.
-
-The demo registers a Debug-only agent extension ([SkiaUiDevFlowExtension.cs](../../MauiSkiaUiDemo/Diagnostics/SkiaUiDevFlowExtension.cs)) built on `SkUiDiagnostics`:
+DevFlow's own tree lists `SkUi*` views with parent-relative frames and Core nodes without bounds, and `ui tap` can't tap either (neither has a platform view). The demo registers the Debug-only `dev.skiaui` agent extension that apps copy ([SkiaUiDevFlowExtension.cs](../../plugins/skiaui-devflow/skills/skiaui-devflow/assets/SkiaUiDevFlowExtension.cs), compiled into the demo through a link). Its tools, results and errors are covered in [DevFlow.md](../DevFlow.md):
 
 ```bash
 maui devflow extensions call dev.skiaui tree                                    # drawn elements: type, automationId, text, window bounds
-maui devflow extensions call dev.skiaui tap '{"automationId":"AddObservation"}' # press + release through the drawn tree
-maui devflow extensions call dev.skiaui tap '{"type":"SkUiCoreLabel","text":"Cell 1"}'
+maui devflow extensions call dev.skiaui tap '{"automationId":"AddObservation"}' # released only when a drawn tap recognizer takes it
 maui devflow extensions call dev.skiaui hit '{"x":201,"y":709}'                 # deepest drawn element at a window point
 ```
 
-- **Coordinates:** window DIPs, the same as native elements in `ui tree`.
-- **Scope:** all three tools look only at the page on screen (the top modal page, else the Shell's current page). Pages lower in the navigation stack or in other Shell sections keep their surfaces, but they are ignored.
-- **Tap result:** `tap` returns both the matched element and the element actually hit. If something covers the element's center, the two differ. An element outside every viewport returns **422** ("not on screen"); **409** is always DevFlow's mutation lease.
-- **Lease:** `tap` is a mutation, so it waits for DevFlow's mutation lease. A lease taken by an earlier CLI call (e.g. `ui navigate`) expires after about 10 s.
-- **Tests:** in headless tests, use `SkUiDiagnostics.GetRootBounds` / `HitTest` / `SimulateTap` directly.
+- **Tests:** in headless tests, use `SkUiDiagnostics.GetRootBounds` / `HitTest` / `SimulateTap` directly (`SimulateTap(element, releaseOnlyIfTap: true)` / `SimulateTapAt` to assert that a tap recognizer, not a scroller, took the tap).

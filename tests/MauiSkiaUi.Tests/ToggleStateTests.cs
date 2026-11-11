@@ -90,6 +90,67 @@ public class ToggleStateTests
     }
 
     [Fact]
+    public void OneWayCheckStateBindingFollowsEveryValue()
+    {
+        using var dispatcher = SkUiTestHelpers.UseTestDispatcher();
+        var model = new ToggleModel();
+        var box = Hosted(new SkUiCheckBox { IsThreeState = true, BindingContext = model });
+        box.SetBinding(SkUiToggleControl.CheckStateProperty, new Binding(nameof(ToggleModel.State), BindingMode.OneWay));
+
+        SkUiCheckState[] states = [SkUiCheckState.Indeterminate, SkUiCheckState.Checked, SkUiCheckState.Unchecked, SkUiCheckState.Indeterminate];
+        foreach (var state in states)
+        {
+            model.State = state;
+            Assert.Equal(state, box.CheckState);
+            Assert.Equal(state == SkUiCheckState.Checked, box.IsChecked);
+        }
+
+        Tap(box); // a user change does not cut the binding either (as MAUI's controls)
+        Assert.Equal(SkUiCheckState.Unchecked, box.CheckState);
+        model.State = SkUiCheckState.Checked;
+        Assert.Equal(SkUiCheckState.Checked, box.CheckState);
+    }
+
+    [Fact]
+    public void OneWayIsCheckedBindingSurvivesCheckStateChanges()
+    {
+        using var dispatcher = SkUiTestHelpers.UseTestDispatcher();
+        var model = new ToggleModel();
+        var box = Hosted(new SkUiCheckBox { BindingContext = model });
+        box.SetBinding(SkUiToggleControl.IsCheckedProperty, new Binding(nameof(ToggleModel.IsOn), BindingMode.OneWay));
+
+        box.CheckState = SkUiCheckState.Indeterminate;
+        box.CheckState = SkUiCheckState.Checked; // syncs IsChecked to true
+        Assert.True(box.IsChecked);
+        model.IsOn = true;
+        model.IsOn = false;
+        Assert.False(box.IsChecked);
+        Assert.Equal(SkUiCheckState.Unchecked, box.CheckState);
+        model.IsOn = true;
+        Assert.Equal(SkUiCheckState.Checked, box.CheckState);
+    }
+
+    [Fact]
+    public void OneWaySwitchBindingsFollowEveryValue()
+    {
+        using var dispatcher = SkUiTestHelpers.UseTestDispatcher();
+        var model = new ToggleModel();
+        var toggle = Hosted(new SkUiSwitch { BindingContext = model });
+        toggle.SetBinding(SkUiSwitch.IsToggledProperty, new Binding(nameof(ToggleModel.IsOn), BindingMode.OneWay));
+
+        toggle.CheckState = SkUiCheckState.Checked; // syncs IsToggled to true
+        model.IsOn = true;
+        model.IsOn = false;
+        Assert.False(toggle.IsToggled);
+        Tap(toggle);
+        Assert.True(toggle.IsToggled);
+        model.IsOn = true;
+        model.IsOn = false;
+        Assert.False(toggle.IsToggled);
+        Assert.Equal(SkUiCheckState.Unchecked, toggle.CheckState);
+    }
+
+    [Fact]
     public void ChangeEventsSeeBindingsAlreadyUpdated()
     {
         using var dispatcher = SkUiTestHelpers.UseTestDispatcher();

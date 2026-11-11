@@ -10,7 +10,9 @@
 | [Performance](Performance.md) | Device measurements against native MAUI, and the cost of each drawing effect |
 | [Samples](../samples/README.md) | The samples app |
 | [Changelog](../CHANGELOG.md) | What each release changed |
+| [DevFlow](DevFlow.md) | Driving an app's drawn controls with .NET MAUI DevFlow: the `dev.skiaui` agent extension |
 | Migration skills ([plugins/skiaui-migration](../plugins/skiaui-migration/README.md)) | Claude Code skills that audit and port MAUI pages |
+| DevFlow skill ([plugins/skiaui-devflow](../plugins/skiaui-devflow/README.md)) | A Claude Code skill that adds the `dev.skiaui` extension to an app |
 
 ## Contributing
 

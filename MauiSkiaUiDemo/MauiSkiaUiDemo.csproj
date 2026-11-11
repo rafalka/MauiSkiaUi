@@ -135,6 +135,8 @@
 	<!-- SKUI_TOUR=1: opens every page and logs exceptions (scripts/page_tour.sh). -->
 	<ItemGroup>
 		<Compile Include="../tests/Shared/PageTour/PageTour.cs" Link="Diagnostics/PageTour.cs" />
+		<!-- The DevFlow extension apps copy (skiaui-devflow skill, docs/DevFlow.md): compiled here so it keeps building. -->
+		<Compile Include="../plugins/skiaui-devflow/skills/skiaui-devflow/assets/SkiaUiDevFlowExtension.cs" Link="Diagnostics/SkiaUiDevFlowExtension.cs" />
 	</ItemGroup>
 
 </Project>

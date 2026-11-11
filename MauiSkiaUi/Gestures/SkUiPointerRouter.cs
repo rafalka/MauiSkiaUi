@@ -101,6 +101,12 @@ internal sealed class SkUiGestureArena(long pointerId, SkUiPointerRouter router,
     /// <summary>A member was cancelled from outside (detached / disabled element).</summary>
     public bool Invalidated { get; set; }
 
+    /// <summary>The winner when the arena ended (<see cref="Winner"/> is cleared then); diagnostics.</summary>
+    public SkUiGestureRecognizer? EndWinner { get; private set; }
+
+    /// <summary>The member that wins if the pointer is released now: the winner, else the innermost member (<see cref="Sweep"/>).</summary>
+    public SkUiGestureRecognizer? PredictedWinner => Winner ?? (Members.Count > 0 ? Members[0] : null);
+
     public void Add(SkUiGestureRecognizer recognizer)
     {
         Members.Add(recognizer);
@@ -161,6 +167,7 @@ internal sealed class SkUiGestureArena(long pointerId, SkUiPointerRouter router,
     /// <summary>Ends the arena: members leave silently (released) or are rejected (cancelled).</summary>
     public void End(bool cancelled)
     {
+        EndWinner = Winner;
         foreach (var member in Members.ToArray())
         {
             Members.Remove(member);
@@ -258,7 +265,10 @@ internal sealed class SkUiPointerRouter(ISkUiInputNode root)
         }
     }
 
-    private static SkUiNativeTapState TapStateOf(SkUiGestureArena arena)
+    /// <summary>The arena of a pointer still down on this root; <c>null</c> when it is unknown or ended (diagnostics).</summary>
+    internal SkUiGestureArena? ArenaOf(long pointerId) => _arenas.GetValueOrDefault(pointerId);
+
+    internal static SkUiNativeTapState TapStateOf(SkUiGestureArena arena)
     {
         if (arena.Winner is { } winner && arena.WinnerClaimed && (winner.IsExclusive || winner.HoldsNativeTaps))
             return SkUiNativeTapState.Claimed;

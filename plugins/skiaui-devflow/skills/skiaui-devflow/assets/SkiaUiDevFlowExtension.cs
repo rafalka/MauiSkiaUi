@@ -1,3 +1,7 @@
+// SkiaUi DevFlow extension: copy this file into a .NET MAUI app that uses SkiaUi (SkiaUi.Maui) and the DevFlow agent
+// (Microsoft.Maui.DevFlow.Agent), then register it: builder.AddMauiDevFlowAgent(SkiaUiDevFlowExtension.Register).
+// Setup and tool reference: https://github.com/rafalka/MauiSkiaUi/blob/master/docs/DevFlow.md
+// The SkiaUi demo app compiles this same file, so it builds against the current SkiaUi and DevFlow versions.
 #if MAUI_DEVFLOW
 using System.Collections.Concurrent;
 using System.Reflection;
@@ -6,28 +10,37 @@ using MauiSkiaUi;
 using MauiSkiaUi.Core;
 using Microsoft.Maui.DevFlow.Agent.Core;
 
-namespace MauiSkiaUiDemo;
+namespace SkiaUiDevFlow;
 
 /// <summary>
-/// DevFlow agent extension <c>dev.skiaui</c> (Debug builds). The agent's own tree reports parent-relative frames for
-/// drawn elements, has no bounds for Core nodes and cannot tap either (they have no platform views); these tools use
-/// <see cref="SkUiDiagnostics"/> instead:
+/// DevFlow agent extension <c>dev.skiaui</c> (Debug builds). Drawn elements (<c>SkUi*</c> views and Core nodes) have no
+/// platform views, so the agent's own tree reports parent-relative frames for them, has no bounds for Core nodes and
+/// cannot tap them; these tools use <see cref="SkUiDiagnostics"/> instead:
 /// <code>
 /// maui devflow extensions call dev.skiaui tree
-/// maui devflow extensions call dev.skiaui tap '{"automationId":"SkiaPreview"}'
+/// maui devflow extensions call dev.skiaui tap '{"automationId":"SaveButton"}'
 /// maui devflow extensions call dev.skiaui tap '{"text":"Label 2","type":"SkUiCoreLabel"}'
+/// maui devflow extensions call dev.skiaui tapAt '{"x":120,"y":300}'
 /// maui devflow extensions call dev.skiaui hit '{"x":120,"y":300}'
 /// </code>
+/// A tap is released only when a drawn tap recognizer takes it (a button, a toggle, a tap gesture, a text field); otherwise
+/// it is cancelled, so a missed tap has no side effects, and the response says what happened (<c>taken</c>, <c>winner</c>,
+/// <c>passedToNative</c>). Pass <c>"force": true</c> to release it anyway.
 /// </summary>
 internal static class SkiaUiDevFlowExtension
 {
+    private const string ExtensionId = "dev.skiaui";
+
     public static void Register(AgentOptions options)
     {
-        var extension = options.RegisterExtension("dev.skiaui", "SkiaUi drawn elements (SkUi* and Core): tree with window bounds, tap, hit-test");
-        extension.MapTool("tree", "Drawn SkiaUi elements in the current window with window bounds (DIPs), text and automationId.",
+        var extension = options.RegisterExtension(ExtensionId, "SkiaUi drawn elements (SkUi* and Core): tree with window bounds, tap, hit-test");
+        extension.MapTool("tree", "Drawn SkiaUi elements of the page on screen with window bounds (DIPs), text and automationId.",
             "GET", "/tree", request => OnUi(() => HttpResponse.Json(DrawnElements().Select(Describe).ToList())));
-        extension.MapTool("tap", "Tap a drawn element (press + release at its center). Parameters: automationId, text, type, index (nth match).",
+        extension.MapTool("tap", "Tap a drawn element at its center. Released only when a drawn tap recognizer takes it, else cancelled (force: true releases anyway). "
+                + "Reports taken, winner, passedToNative, released. Parameters: automationId, text, type, index (nth match), force.",
             "POST", "/tap", request => OnUi(() => Tap(Parameters(request))));
+        extension.MapTool("tapAt", "Tap the drawn content at a window point, as tap does. Parameters: x, y (DIPs), force.",
+            "POST", "/tapAt", request => OnUi(() => TapAt(Parameters(request))));
         extension.MapTool("hit", "Deepest drawn element at a window point. Parameters: x, y (DIPs).",
             "GET", "/hit", request => OnUi(() => Hit(Parameters(request))));
     }
@@ -39,22 +52,59 @@ internal static class SkiaUiDevFlowExtension
         if (index < 0 || index >= matches.Count)
             return HttpResponse.NotFound($"No drawn element matches ({matches.Count} candidates).");
         var target = matches[index];
-        var hit = SkUiDiagnostics.SimulateTap(target);
-        return hit is null
+        var result = SkUiDiagnostics.SimulateTap(target, releaseOnlyIfTap: !Force(parameters));
+        return result.Hit is null
             // 422, not 409: the DevFlow CLI shows only the status code, and 409 is also its mutation-lease conflict.
             ? HttpResponse.Error("Element is not on screen (clipped or detached).", 422)
-            : HttpResponse.Json(new { tapped = Describe(target), hit = Describe(hit) });
+            : TapResponse(target, result);
     }
+
+    private static HttpResponse TapAt(Dictionary<string, string> parameters)
+    {
+        if (!TryPoint(parameters, out var point))
+            return HttpResponse.Error("x and y are required.");
+        if (VisiblePage() is not { } page
+            || SkUiDiagnostics.HitTestWindow(page, point) is not { } hit
+            || SkUiDiagnostics.GetSurfaceRoot(hit) is not { } root
+            || SkUiDiagnostics.GetWindowBounds(root) is not { } rootBounds)
+            return HttpResponse.NotFound("No drawn element at that point.");
+        var result = SkUiDiagnostics.SimulateTapAt(root, new Point(point.X - rootBounds.X, point.Y - rootBounds.Y), releaseOnlyIfTap: !Force(parameters));
+        return TapResponse(target: null, result);
+    }
+
+    private static HttpResponse TapResponse(IVisualTreeElement? target, SkUiSimulatedTap result) =>
+        HttpResponse.Json(new
+        {
+            tapped = target is null ? null : Describe(target),
+            hit = result.Hit is { } hit ? Describe(hit) : null,
+            // A drawn tap recognizer took it: its action (Clicked, a command, a toggle) ran, or runs when released.
+            taken = result.IsTap,
+            winner = result.Winner?.GetType().Name,
+            winnerOwner = result.Winner?.Owner is IVisualTreeElement owner ? Describe(owner) : null,
+            released = result.Released,
+            // Nothing drawn took it: a real touch would reach native views around the surface instead.
+            passedToNative = result.PassedToNative
+        });
 
     private static HttpResponse Hit(Dictionary<string, string> parameters)
     {
-        if (!double.TryParse(parameters.GetValueOrDefault("x"), out var x) || !double.TryParse(parameters.GetValueOrDefault("y"), out var y))
+        if (!TryPoint(parameters, out var point))
             return HttpResponse.Error("x and y are required.");
-        return VisiblePage() is { } page
-            && SkUiDiagnostics.HitTestWindow(page, new Point(x, y)) is { } hit
+        return VisiblePage() is { } page && SkUiDiagnostics.HitTestWindow(page, point) is { } hit
             ? HttpResponse.Json(Describe(hit))
             : HttpResponse.NotFound("No drawn element at that point.");
     }
+
+    private static bool TryPoint(Dictionary<string, string> parameters, out Point point)
+    {
+        var ok = double.TryParse(parameters.GetValueOrDefault("x"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var x)
+            & double.TryParse(parameters.GetValueOrDefault("y"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var y);
+        point = new Point(x, y);
+        return ok;
+    }
+
+    private static bool Force(Dictionary<string, string> parameters) =>
+        parameters.TryGetValue("force", out var value) && bool.TryParse(value, out var force) && force;
 
     private static bool Matches(IVisualTreeElement element, Dictionary<string, string> parameters) =>
         (!parameters.TryGetValue("automationId", out var id) || AutomationId(element) == id)
@@ -72,7 +122,7 @@ internal static class SkiaUiDevFlowExtension
                 element is SkUiView or ISkUiCoreNode && SkUiDiagnostics.GetWindowBounds(element) is not null)
             : [];
 
-    /// <summary>The page on screen: the top modal page, else the Shell's current page, else the window's page.</summary>
+    /// <summary>The page on screen: the top modal page, else the Shell's or navigation page's current page, else the window's page.</summary>
     private static IVisualTreeElement? VisiblePage()
     {
         if (Application.Current?.Windows.FirstOrDefault()?.Page is not { } root)

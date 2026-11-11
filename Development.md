@@ -17,6 +17,7 @@ Internal guide for working **on** SkiaUi (library + demo + tests). Library **use
 | `tests/Maestro` | [Maestro](https://maestro.dev) flows | UI-test driver checks of the installed demo on an emulator or simulator (`maestro --device … test tests/Maestro/…`) |
 | `benchmarks/MauiSkiaUi.Benchmarks` | Console app (`net10.0`) | Headless benchmark runner (layout / text / recording / compositing) |
 | `benchmarks/MauiSkiaUiBench` | .NET MAUI application (`net10.0-*`) | On-device benchmark app (Release); shares `benchmarks/Scenarios` with the headless runner |
+| `plugins/skiaui-devflow` | Claude Code plugin (Agent Skill) | `skiaui-devflow`: adds the DevFlow `dev.skiaui` extension to an app. Its `assets/SkiaUiDevFlowExtension.cs` is the extension's only copy; the demo compiles it (linked), so CI builds it ([README](plugins/skiaui-devflow/README.md), [docs/DevFlow.md](docs/DevFlow.md)) |
 | `plugins/skiaui-migration` | Claude Code plugin (Agent Skills) | Migration skills for app developers (`skiaui-audit`, `skiaui-migrate`) with their Python checkers; listed by the repo marketplace `.claude-plugin/marketplace.json` ([README](plugins/skiaui-migration/README.md)) |
 
 Solution file: `SkiaUi.slnx`
