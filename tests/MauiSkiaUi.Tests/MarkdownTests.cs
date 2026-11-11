@@ -368,7 +368,7 @@ public class MarkdownTests
         var table = Assert.Single(Nodes<SkUiCoreTable>(view));
         var labels = Nodes<SkUiCoreLabel>(view).ToLookup(AllTextOf);
         Assert.Equal(2, table.GetColumnSpan(labels["wide"].Single()));
-        Assert.NotEmpty(Nodes<SkUiCoreGrid>(view).Where(grid => grid is not SkUiCoreTable));
+        Assert.Contains(Nodes<SkUiCoreGrid>(view), grid => grid is not SkUiCoreTable);
         Assert.Single(labels["x"]);
         Assert.Single(labels["z"]);
     }
