@@ -121,6 +121,15 @@ public class ToggleLookColorTests
     });
 
     [Fact]
+    public void ADisabledRadioButtonDimsTheLooksRing() => WithLook(() =>
+    {
+        using var bitmap = RenderBoth(new SkUiRadioButton(), new SkUiCoreRadioButton(), enabled: false);
+        var ring = bitmap.GetPixel(Size / 2, 2);
+        Assert.InRange(ring.Alpha, 126, 129);
+        Assert.True(ring.Green > 200 && ring.Red == 0 && ring.Blue == 0, ring.ToString());
+    });
+
+    [Fact]
     public void TheDefaultsAreTheSchemesMutedColorAndWhite()
     {
         var look = new DefaultSkUiLook();
