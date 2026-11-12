@@ -155,9 +155,8 @@ public abstract class SkUiGestureRecognizer
     /// <summary>Stops tracking all pointers (e.g. the owner was disabled or detached).</summary>
     public void Cancel()
     {
-        foreach (var arena in _arenas)
-            arena.Invalidated = true;
-        Resign();
+        foreach (var arena in _arenas.ToArray())
+            arena.Cancel(this);
     }
 
     /// <summary>The owner's arranged size (DIPs).</summary>

@@ -13,6 +13,10 @@ Publishing (the NuGet publish workflow, [docs/Releasing.md](docs/Releasing.md)) 
 
 ## Unreleased
 
+### Fixes
+
+- **Simulated taps whose handler ends the press** ([#95](https://github.com/rafalka/MauiSkiaUi/issues/95)): `SkUiDiagnostics.SimulateTap(element, releaseOnlyIfTap)` and `SimulateTapAt` reported `Winner: null` and `IsTap: false` for a tap that ran when its own handler ended the press while it ran: it opened a popup or navigated (cancelling the surface's pointers), disabled its control, or removed it from the tree. They now report the recognizer that took the tap. The gesture arena ends once per pointer and keeps the release's winner when the release's handlers take it out; a recognizer that gives up the release itself (a scroller after a press that did not move) still leaves `Winner` empty, and so does a control disabled before the release.
+
 ## 1.10.2
 
 ### New features

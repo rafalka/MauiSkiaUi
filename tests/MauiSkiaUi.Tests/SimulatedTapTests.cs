@@ -1,3 +1,4 @@
+using MauiSkiaUi.Core;
 using Xunit;
 
 namespace MauiSkiaUi.Tests;
@@ -275,6 +276,137 @@ public class SimulatedTapTests
         Assert.False(result.Released);
         Assert.Null(result.Winner);
         Assert.Equal(0, taps);
+        Assert.Equal(0, root.Router.ActiveArenaCount);
+    }
+
+    /// <summary>What a tap handler does to end its own press (issue #95).</summary>
+    public enum EndsPress
+    {
+        CancelsThePointers, // a popup or navigation cancelling the surface's touches
+        DisablesItself,
+        LeavesTheTree
+    }
+
+    private static void EndPress(EndsPress how, SkUiContentView root, SkUiView button, SkUiLayout parent)
+    {
+        switch (how)
+        {
+            case EndsPress.CancelsThePointers:
+                root.Router.CancelAll();
+                break;
+            case EndsPress.DisablesItself:
+                button.IsEnabled = false;
+                break;
+            case EndsPress.LeavesTheTree:
+                parent.Remove(button);
+                break;
+        }
+    }
+
+    [Theory]
+    [InlineData(EndsPress.CancelsThePointers)]
+    [InlineData(EndsPress.DisablesItself)]
+    [InlineData(EndsPress.LeavesTheTree)]
+    public void ATapWhoseHandlerEndsThePressIsStillReportedAsTaken(EndsPress how)
+    {
+        var button = new SkUiButton { Text = "Open" };
+        var stack = new SkUiVerticalStackLayout { button };
+        var root = Surface(stack);
+        var clicks = 0;
+        button.Clicked += (_, _) =>
+        {
+            clicks++;
+            EndPress(how, root, button, stack);
+        };
+
+        var result = SkUiDiagnostics.SimulateTapAt(root, new Point(10, 10));
+
+        Assert.Equal(1, clicks);
+        Assert.True(result.Released);
+        Assert.Same(button, result.Winner?.Owner);
+        Assert.True(result.IsTap);
+        Assert.Equal(0, root.Router.ActiveArenaCount);
+    }
+
+    [Theory]
+    [InlineData(EndsPress.CancelsThePointers)]
+    [InlineData(EndsPress.DisablesItself)]
+    [InlineData(EndsPress.LeavesTheTree)]
+    public void ATapThatWinsOnReleaseAndEndsThePressIsStillReportedAsTaken(EndsPress how)
+    {
+        // Inside a scroller the button wins only when the release makes the scroller resign: its tap runs from OnAccepted.
+        var button = new SkUiButton { Text = "Open", HeightRequest = 40 };
+        var stack = new SkUiVerticalStackLayout { button, new SkUiLabel { HeightRequest = 400 } };
+        var root = Surface(new SkUiScrollView { Content = stack });
+        var clicks = 0;
+        button.Clicked += (_, _) =>
+        {
+            clicks++;
+            EndPress(how, root, button, stack);
+        };
+
+        var result = SkUiDiagnostics.SimulateTap(button, releaseOnlyIfTap: true);
+
+        Assert.Equal(1, clicks);
+        Assert.True(result.Released);
+        Assert.Same(button, result.Winner?.Owner);
+        Assert.True(result.IsTap);
+        Assert.Equal(0, root.Router.ActiveArenaCount);
+    }
+
+    [Theory]
+    [InlineData(EndsPress.CancelsThePointers)]
+    [InlineData(EndsPress.DisablesItself)]
+    [InlineData(EndsPress.LeavesTheTree)]
+    public void ACoreTapWhoseHandlerEndsThePressIsStillReportedAsTaken(EndsPress how)
+    {
+        var button = new SkUiCoreButton { Text = "Open" };
+        var stack = new SkUiCoreVerticalStackLayout();
+        stack.Add(button);
+        var root = Surface(new SkUiCoreHost().SetContent(stack));
+        var clicks = 0;
+        button.Clicked += (_, _) =>
+        {
+            clicks++;
+            switch (how)
+            {
+                case EndsPress.CancelsThePointers:
+                    root.Router.CancelAll();
+                    break;
+                case EndsPress.DisablesItself:
+                    button.IsEnabled = false;
+                    break;
+                case EndsPress.LeavesTheTree:
+                    stack.Remove(button);
+                    break;
+            }
+        };
+
+        var result = SkUiDiagnostics.SimulateTapAt(root, new Point(10, 10));
+
+        Assert.Equal(1, clicks);
+        Assert.True(result.Released);
+        Assert.Same(button, result.Winner?.Owner);
+        Assert.True(result.IsTap);
+        Assert.Equal(0, root.Router.ActiveArenaCount);
+    }
+
+    [Fact]
+    public void AButtonDisabledBeforeTheReleaseDoesNotTakeIt()
+    {
+        var button = new SkUiButton { Text = "OK" };
+        var root = Surface(button);
+        var clicks = 0;
+        button.Clicked += (_, _) => clicks++;
+        const long id = 7;
+
+        root.Touch(new SkUiTouchEvent(id, SkUiTouchAction.Pressed, new Point(10, 10)));
+        var arena = root.Router.ArenaOf(id)!;
+        button.IsEnabled = false; // not by the release: the press is cancelled from outside
+        root.Touch(new SkUiTouchEvent(id, SkUiTouchAction.Released, new Point(10, 10)));
+
+        Assert.Null(arena.EndWinner);
+        Assert.Equal(0, clicks);
         Assert.Equal(0, root.Router.ActiveArenaCount);
     }
 

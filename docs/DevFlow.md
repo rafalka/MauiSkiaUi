@@ -64,7 +64,7 @@ A tap is a press delivered through the surface root (hit-testing, the gesture ar
 | Field | Meaning |
 | --- | --- |
 | `taken` | A drawn tap recognizer took the tap, and its action ran. Report an automated tap as done only when this is `true` |
-| `winner`, `winnerOwner` | The recognizer that won the press (when it was cancelled, the one leading it: a scroller around a label) and its element; `null` when nothing drawn took part (a disabled control, plain text, a native view) |
+| `winner`, `winnerOwner` | The recognizer that won the press (also when its action ended the press, e.g. it opened a popup or disabled its control; when it was cancelled, the one leading it: a scroller around a label) and its element; `null` when nothing drawn took part (a disabled control, plain text, a native view) |
 | `released` | The press was released (`false`: cancelled) |
 | `coveredBy` | `tap` only: the element that would have taken the press instead of the target (it was cancelled); `null` otherwise |
 | `passedToNative` | On a device, a real touch would be left to native views around the surface: a MAUI `TapGestureRecognizer` on the surface's parent, or a native view hosted on the surface (`SkUiMauiContentView`, which is not pressed). On iOS and Mac Catalyst that is when no drawn tap is pending and no drawn gesture claimed the touch; on Android and Windows, only when the surface did not take the press at all (a scroller around a label or a disabled control take it without a tap). Use DevFlow's own tools (`ui tap`) for those |
