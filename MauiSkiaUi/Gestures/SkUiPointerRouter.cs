@@ -85,6 +85,10 @@ internal enum SkUiNativeTapState
 internal sealed class SkUiGestureArena(long pointerId, SkUiPointerRouter router, Point start, SkUiPointerDevice device = SkUiPointerDevice.Touch)
 {
     private bool _open = true;
+    private bool _ended;
+    private bool _releasing;
+    /// <summary>The winner while the release was delivered, kept when the release's own handlers remove it (issue #95).</summary>
+    private SkUiGestureRecognizer? _releaseWinner;
 
     public long PointerId { get; } = pointerId;
     public Point Start { get; } = start;
@@ -101,7 +105,11 @@ internal sealed class SkUiGestureArena(long pointerId, SkUiPointerRouter router,
     /// <summary>A member was cancelled from outside (detached / disabled element).</summary>
     public bool Invalidated { get; set; }
 
-    /// <summary>The winner when the arena ended (<see cref="Winner"/> is cleared then); diagnostics.</summary>
+    /// <summary>
+    /// The winner when the arena ended (<see cref="Winner"/> is cleared then); diagnostics. After a release, the member that
+    /// won it also when what it ran ended the press first or took it out of the arena (a popup cancelling the surface's
+    /// pointers, the control disabling itself or leaving the tree).
+    /// </summary>
     public SkUiGestureRecognizer? EndWinner { get; private set; }
 
     /// <summary>
@@ -142,6 +150,8 @@ internal sealed class SkUiGestureArena(long pointerId, SkUiPointerRouter router,
             return;
         Winner = recognizer;
         WinnerClaimed = explicitClaim;
+        if (_releasing)
+            _releaseWinner = recognizer; // before OnAccepted, which completes a released tap (runs its handler)
         foreach (var member in Members.ToArray())
             if (!ReferenceEquals(member, recognizer))
                 Remove(member, rejected: true);
@@ -149,18 +159,40 @@ internal sealed class SkUiGestureArena(long pointerId, SkUiPointerRouter router,
         router.OnArenaChanged();
     }
 
-    public void Remove(SkUiGestureRecognizer recognizer, bool rejected)
+    public void Remove(SkUiGestureRecognizer recognizer, bool rejected) => Remove(recognizer, rejected, cancelled: false);
+
+    /// <summary>A member cancelled from outside: its element was disabled or detached (<see cref="SkUiGestureRecognizer.Cancel"/>).</summary>
+    public void Cancel(SkUiGestureRecognizer recognizer)
+    {
+        Invalidated = true;
+        Remove(recognizer, rejected: true, cancelled: true);
+    }
+
+    private void Remove(SkUiGestureRecognizer recognizer, bool rejected, bool cancelled)
     {
         if (!Members.Remove(recognizer))
             return;
         recognizer.LeaveArena(this);
         if (ReferenceEquals(Winner, recognizer))
+        {
             Winner = null;
+            // The release's winner giving it up itself (a scroller resigning a release that did not move) did not take it;
+            // one the release's own handler disabled or detached did.
+            if (!cancelled && ReferenceEquals(_releaseWinner, recognizer))
+                _releaseWinner = null;
+        }
         if (rejected)
             recognizer.OnRejected(PointerId);
         if (!_open && Winner is null && Members.Count == 1)
             Resolve(Members[0], explicitClaim: false);
         router.OnArenaChanged();
+    }
+
+    /// <summary>The release is about to be delivered to the members: the winner from here on is the release's winner.</summary>
+    public void BeginRelease()
+    {
+        _releasing = true;
+        _releaseWinner = Winner;
     }
 
     /// <summary>Release: an undecided arena is won by the innermost remaining member.</summary>
@@ -170,10 +202,16 @@ internal sealed class SkUiGestureArena(long pointerId, SkUiPointerRouter router,
             Resolve(Members[0], explicitClaim: false);
     }
 
-    /// <summary>Ends the arena: members leave silently (released) or are rejected (cancelled).</summary>
+    /// <summary>
+    /// Ends the arena: members leave silently (released) or are rejected (cancelled). Only the first call counts: a handler
+    /// the release ran may have ended the arena already (<see cref="SkUiPointerRouter.CancelAll"/>).
+    /// </summary>
     public void End(bool cancelled)
     {
-        EndWinner = Winner;
+        if (_ended)
+            return;
+        _ended = true;
+        EndWinner = Winner ?? _releaseWinner;
         foreach (var member in Members.ToArray())
         {
             Members.Remove(member);
@@ -335,6 +373,8 @@ internal sealed class SkUiPointerRouter(ISkUiInputNode root)
             arena.SlopExceeded = true;
             OnArenaChanged();
         }
+        if (touch.Action == SkUiTouchAction.Released)
+            arena.BeginRelease();
         foreach (var member in arena.Members.ToArray())
         {
             if (!arena.Members.Contains(member))
@@ -674,8 +714,12 @@ internal sealed class SkUiPointerRouter(ISkUiInputNode root)
 
     private void EndArena(SkUiGestureArena arena, bool cancelled)
     {
-        if (_arenas.Remove(arena.PointerId))
+        // A handler may have ended this arena already, and a new press of the same pointer may hold the slot since.
+        if (_arenas.TryGetValue(arena.PointerId, out var current) && ReferenceEquals(current, arena))
+        {
+            _arenas.Remove(arena.PointerId);
             ActiveArenas--;
+        }
         arena.End(cancelled);
         OnArenaChanged();
     }

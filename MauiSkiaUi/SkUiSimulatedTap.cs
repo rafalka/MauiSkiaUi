@@ -7,7 +7,8 @@ namespace MauiSkiaUi;
 /// </summary>
 /// <param name="Hit">The deepest drawn element at the tapped point; <c>null</c> when nothing was pressed (outside the surface, clipped away, not on a surface).</param>
 /// <param name="Winner">
-/// When the press was released, the recognizer that won it. When it was cancelled, the one that would have taken a release
+/// When the press was released, the recognizer that won it, also when its action ended the press while it ran (opened a
+/// popup, navigated, disabled its control or removed it from the tree). When it was cancelled, the one that would have taken a release
 /// without movement: the arena's winner, else its innermost member that stays for the sweep (pans, scrollers, swipes and long
 /// presses that have not claimed give such a release up), else the one leading the press (a scroller around a label). From
 /// <see cref="SkUiDiagnostics.SimulateTap(object, bool)"/> it can be another element's recognizer that would have taken the
