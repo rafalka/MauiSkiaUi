@@ -530,14 +530,30 @@ public class MarkdownTests
     public async Task ADataImageLoadsAndTheDocumentGrows()
     {
         using var _ = SkUiTestHelpers.UseBundledFont();
-        var view = View($"![dot]({RedDot})");
+        // An image of its own: RedDot is cached by other tests, and a cached image loads synchronously, before any measure.
+        var view = View($"![dot]({UniquePngDataUri(new SKColor(0x12, 0x34, 0x56))})");
         Draw(view);
         var picture = Assert.Single(Nodes<SkUiMarkdownPicture>(view));
         var before = view.Measure(Width, double.PositiveInfinity).Height;
+        // Headless (no dispatcher) a decode applies on its own thread as soon as it ends, so it can beat the measure above.
+        var measuredBeforeLoad = picture.ImageSize.Width <= 0;
         await WaitFor(() => picture.ImageSize.Width > 0);
         Assert.Equal(1, picture.ImageSize.Width);
-        Assert.True(view.Measure(Width, double.PositiveInfinity).Height > before);
+        var after = view.Measure(Width, double.PositiveInfinity).Height;
+        if (measuredBeforeLoad)
+            Assert.True(after > before);
+        Assert.True(after >= picture.Measure(Width, double.PositiveInfinity).Height);
+        Assert.True(after > 0);
         Assert.False(Assert.Single(Nodes<SkUiMarkdownImageBlock>(view)).ShowsAltText);
+    }
+
+    /// <summary>A 1×1 PNG data URI of <paramref name="color"/>: a cache key no other test shares.</summary>
+    private static string UniquePngDataUri(SKColor color)
+    {
+        using var bitmap = new SKBitmap(1, 1);
+        bitmap.SetPixel(0, 0, color);
+        using var data = bitmap.Encode(SKEncodedImageFormat.Png, 100);
+        return "data:image/png;base64," + Convert.ToBase64String(data.ToArray());
     }
 
     [Fact]
