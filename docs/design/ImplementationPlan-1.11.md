@@ -8,7 +8,7 @@
 
 **Baseline:** 1.10.0 (MAUI 10.0.120, SDK 10.0.402, SkiaSharp 4.154.0, Xcode 26.6 / 27.1).
 
-**Status:** Steps 0 (one SDK) and 1 are done on branch `feature/net11-support`. The headless part of Steps 2 and 3 is done: the library builds for `net11.0` with 0 warnings and the headless suite is green on `net10.0` and `net11.0` with MAUI 11.0.10 (findings below). Step 2 is done on macOS: the solution builds with 0 warnings on SDK 11 (net10 Apple app heads on SDK 10), and the net11 demo runs on an iOS 27.2 simulator (CoreCLR, Metal). Windows builds wait for CI (Step 5). Next: Step 4 (API check script), then Step 5.
+**Status:** Steps 0 (one SDK) and 1 are done on branch `feature/net11-support`. The headless part of Steps 2 and 3 is done: the library builds for `net11.0` with 0 warnings and the headless suite is green on `net10.0` and `net11.0` with MAUI 11.0.10 (findings below). Step 2 is done on macOS: the solution builds with 0 warnings on SDK 11 (net10 Apple app heads on SDK 10), and the net11 demo runs on an iOS 27.2 simulator (CoreCLR, Metal). Windows builds wait for CI (Step 5). Step 4 (API check script) is done. Next: Step 5, then the net10 bump to MAUI 10.0.130.
 
 ## Decisions
 
@@ -94,12 +94,14 @@ Each difference becomes a shim with a short comment. No control-level `#if`.
 - `MauiApiParityTests`: on net11, a known-gap list under `NET11_0_OR_GREATER` holds the new MAUI 11 members, each linked to the backlog entry. `ImplicitStyleTests` and the memory-leak scenarios run on both lines.
 - When a test fails only under MAUI 11, find the behavior change and fix the cause. Never loosen the assertion.
 
-## Step 4: API compatibility check
+## Step 4: API compatibility check (done)
 
-- `scripts/api_compat.sh` runs `Microsoft.DotNet.ApiCompat.Tool` (`apicompat package`) on each merged nupkg, with `--baseline-package` set to the 1.10.0 package from nuget.org. It checks two things:
-  - net10 and net11 expose the same API.
-  - Nothing from 1.10 was removed (the 1.x API promise).
-- If reference resolution fails for the Apple assemblies, check `net10.0` / `net11.0` / Android only, and say so in the script.
+- `scripts/api_compat.sh` packs the four packages with `-p:SkUiApiBaseline=<version>` (default: the newest release tag), which turns on the SDK's package validation (`Directory.Build.props`). It checks two things:
+  - Nothing public from the baseline release on nuget.org was removed (the 1.x API promise).
+  - Each framework keeps the API of the older one it is compatible with: net11.0-ios has everything net10.0-ios has, and so on. Not strict, since the platform TFMs add platform types (`SkUiViewHandler`, `SkUiAppBuilderExtensions`, Android's `Resource`) to `net10.0` / `net11.0` by design, so an API added only on net11 would pass; the parity test's net11 gap list is what keeps the lines equal.
+- A pack holds the TFMs its OS builds, so the baseline's frameworks that pack has no TFM for are ignored (`PackageValidationBaselineFrameworkToIgnore`, with `%2A` as the wildcard: a bare `*` in `Include` is a file glob and drops the item). CI runs it on macOS (net10.0, Android, iOS, Mac Catalyst) and on Windows (the Windows TFMs).
+- Result (macOS, 13 November 2026): no differences for all four packages against 1.10.3 (about 7 minutes, a full Release pack). Making `SkUiMarkdownMath` internal fails it with `CP0001` on each baseline framework.
+- The standalone `Microsoft.DotNet.ApiCompat.Tool` on the merged nupkg was not needed: package validation resolves the Apple references through the build.
 
 ## Step 5: CI, packing, scripts
 
@@ -144,6 +146,10 @@ Each difference becomes a shim with a short comment. No control-level `#if`.
   - Android 24 on net11.
 - **Migration skills in `plugins/skiaui-migration`:** update the MAUI version statements.
 - **Others:** [Testing.md](Testing.md) (running per TFM), [Releasing.md](../Releasing.md) if the pack jobs change, and the bug report template's version placeholder.
+
+## After .NET 11: net10 floor to MAUI 10.0.130
+
+Once Steps 4 to 6 are in, raise `Maui10Version` from 10.0.120 to 10.0.130 (and check the Community Toolkit 15.x and `MicrosoftExtensions10Version` pins against it), run the headless suite on `net10.0` and the net10 device checks, and note it in the changelog. It ships with 1.11.0.
 
 ## Step 7: release
 

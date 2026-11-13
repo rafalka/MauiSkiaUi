@@ -94,4 +94,24 @@
     <SupportedOSPlatformVersion Condition="'$(_SkUiTfmPlatform)' == 'windows'">10.0.17763.0</SupportedOSPlatformVersion>
     <TargetPlatformMinVersion Condition="'$(_SkUiTfmPlatform)' == 'windows'">10.0.17763.0</TargetPlatformMinVersion>
   </PropertyGroup>
+
+  <!--
+    API check (scripts/api_compat.sh): -p:SkUiApiBaseline=<released version> turns on the SDK's package validation for pack.
+    It compares the package with that release from nuget.org (nothing public may be removed in 1.x) and each framework in the
+    package with the newer ones it is compatible with (net10.0-ios with net11.0-ios: net11 drops nothing net10 has; not strict,
+    since the platform TFMs add platform types to net10.0 / net11.0 by design). A pack holds the TFMs its OS builds, so the
+    baseline's frameworks this pack has no TFM for are left out (the pack on the other OS compares them). '%2A' is a literal
+    wildcard for the SDK's framework filter (a bare '*' in Include is a file glob and matches nothing).
+  -->
+  <PropertyGroup Condition="'$(SkUiApiBaseline)' != ''">
+    <EnablePackageValidation>true</EnablePackageValidation>
+    <PackageValidationBaselineVersion>$(SkUiApiBaseline)</PackageValidationBaselineVersion>
+  </PropertyGroup>
+  <ItemGroup Condition="'$(SkUiApiBaseline)' != ''">
+    <PackageValidationBaselineFrameworkToIgnore Include="net10.0" Condition="!$([System.String]::new(';$(TargetFrameworks);').Contains(';net10.0;'))" />
+    <PackageValidationBaselineFrameworkToIgnore Include="net10.0-android%2A" Condition="!$(TargetFrameworks.Contains('net10.0-android'))" />
+    <PackageValidationBaselineFrameworkToIgnore Include="net10.0-ios%2A" Condition="!$(TargetFrameworks.Contains('net10.0-ios'))" />
+    <PackageValidationBaselineFrameworkToIgnore Include="net10.0-maccatalyst%2A" Condition="!$(TargetFrameworks.Contains('net10.0-maccatalyst'))" />
+    <PackageValidationBaselineFrameworkToIgnore Include="net10.0-windows%2A" Condition="!$(TargetFrameworks.Contains('net10.0-windows'))" />
+  </ItemGroup>
 </Project>
