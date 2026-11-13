@@ -13,6 +13,10 @@ Publishing (the NuGet publish workflow, [docs/Releasing.md](docs/Releasing.md)) 
 
 ## Unreleased
 
+### Other
+
+- **Headless test suite flake:** `SamplesTests.EveryExamplePageIsOneDrawnSurfaceThatLaysOutAndDraws` failed about one run in three with `Collection was modified` while disposing a surface. The Markdown example's background build handed its result to `SkUiTestHelpers.UseTestDispatcher()`, whose `Dispatch` ran it inline on the calling pool thread, so the document's Core tree changed while the test tore it down. The package is unchanged (with a real dispatcher the result goes on the UI thread); the test now uses the new `SkUiTestHelpers.UseUiThreadDispatcher()`, which queues work dispatched from other threads until `TestDispatcherProvider.RunDispatched()`, plus a `TestUiContext` for the examples' own async continuations, and `ABackgroundMarkdownBuildChangesTheTreeOnlyOnTheUiThread` checks the hand-over.
+
 ## 1.10.3
 
 ### Fixes

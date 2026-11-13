@@ -59,6 +59,10 @@ start:
 - **Headless loads have no dispatcher.** A load that is not a memory-cache hit completes on the thread pool, where
   views skip what must not run off the UI thread (an image fade, for one). Use `SkUiTestHelpers.UseTestDispatcher()`
   in xUnit tests, or put the image in the memory cache first (shared scenarios: `ImageFadingIn`).
+  `UseTestDispatcher()` runs dispatched work inline on whatever thread dispatches it, so background work that finishes
+  while a synchronous test still works on the tree (a Markdown build handing its result back) changes the tree from a
+  pool thread. Such tests use `SkUiTestHelpers.UseUiThreadDispatcher()`: work dispatched from other threads is queued
+  until `TestDispatcherProvider.RunDispatched()` runs it on the test thread (`SamplesTests`).
 - **CI devices may have Reduce Motion on.** Transitions and fades then jump to their end. A device scenario that is
   about an animation sets `SkUiMotion.ReduceMotion = false` while it starts it (devices only: headless test classes
   set the override themselves) and restores it.

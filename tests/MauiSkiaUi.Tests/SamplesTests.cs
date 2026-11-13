@@ -1,6 +1,7 @@
 using MauiSkiaUiDemo;
 using MauiSkiaUiSamples;
 using MauiSkiaUi.Core;
+using MauiSkiaUi.Markdown;
 using MauiSkiaUiSamples.Samples.Controls;
 using MauiSkiaUiSamples.Samples.Core;
 using MauiSkiaUiSamples.Samples.Customisation;
@@ -128,7 +129,10 @@ public class SamplesTests
     [Fact]
     public void EveryExamplePageIsOneDrawnSurfaceThatLaysOutAndDraws()
     {
-        using var dispatcher = SkUiTestHelpers.UseTestDispatcher();
+        // Work the examples start in the background (a Markdown build, a simulated request) comes back to this thread as
+        // it comes back to the UI thread in the app, and here never: each surface is disposed on this thread meanwhile.
+        using var dispatcher = SkUiTestHelpers.UseUiThreadDispatcher();
+        using var ui = TestUiContext.Install();
         using var font = SkUiTestHelpers.UseBundledFont();
         var pages = SampleCatalog.All.Select(entry => (Page)entry.Create())
             .Append(new SampleListPage(section: null))
@@ -143,6 +147,32 @@ public class SamplesTests
             if (page is SamplePage { SampleContent: { } content })
                 Assert.True(content.Width > 0, $"{page.Title}: the example was not laid out");
         }
+    }
+
+    [Fact]
+    public void ABackgroundMarkdownBuildChangesTheTreeOnlyOnTheUiThread()
+    {
+        using var dispatcher = SkUiTestHelpers.UseUiThreadDispatcher();
+        using var font = SkUiTestHelpers.UseBundledFont();
+        var page = new MarkdownDocumentSample();
+        var markdown = ((SkUiVerticalStackLayout)page.SampleContent!).Children.OfType<SkUiMarkdownView>().Single().Markdown;
+        var appliedOn = new List<int>();
+        markdown.ContentUpdated += (_, _) => appliedOn.Add(Environment.CurrentManagedThreadId);
+        var root = Assert.IsAssignableFrom<SkUiView>(page.Content);
+        using var surface = new SkUiTestSurface(root, 380, 800);
+        surface.Frame();
+        var heightBefore = markdown.Frame.Height;
+
+        // The document is too long to build in place: the build ends on the thread pool and hands its result to the UI thread.
+        Assert.True(SpinWait.SpinUntil(() => TestDispatcherProvider.HasDispatched, TimeSpan.FromSeconds(30)), "the build never ended");
+        Assert.Empty(appliedOn);
+        Assert.False(markdown.WhenUpdated.IsCompleted);
+
+        TestDispatcherProvider.RunDispatched();
+        Assert.Equal([Environment.CurrentManagedThreadId], appliedOn);
+        Assert.True(markdown.WhenUpdated.IsCompleted);
+        surface.Frame();
+        Assert.True(markdown.Frame.Height > heightBefore, $"{heightBefore} -> {markdown.Frame.Height}");
     }
 
     [Fact]
