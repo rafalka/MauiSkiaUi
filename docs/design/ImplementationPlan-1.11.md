@@ -135,7 +135,7 @@ Each difference becomes a shim with a short comment. No control-level `#if`.
 - **`README.md`:**
   - Requirements for each line.
   - Recheck the Native AOT note on net11.
-  - Add a .NET 11 row to the Stress-page table after measuring.
+  - Add a .NET 11 row to the Stress-page table after measuring (done: both lines on the Galaxy S9 and iPhone 8, 14 November 2026).
 - **`Development.md`:** SDK 11, Xcode 27.2, the workload set, `SkUiNet`, per-TFM project table and CI table.
 - **`CLAUDE.md`:** the toolchain pin paragraph, and `-f net11.0` commands.
 - **[Migration.md](../Migration.md):**
@@ -144,6 +144,14 @@ Each difference becomes a shim with a short comment. No control-level `#if`.
   - Android 24 on net11.
 - **Migration skills in `plugins/skiaui-migration`:** update the MAUI version statements.
 - **Others:** [Testing.md](Testing.md) (running per TFM), [Releasing.md](../Releasing.md) if the pack jobs change, and the bug report template's version placeholder.
+
+## Device benchmarks (Stress page, 14 November 2026)
+
+Release builds of the demo, each line with its own SDK (net10: SDK 10.0.404, Mono; net11: SDK 11.0.100, CoreCLR), 4 launches × 3 rounds per layer, the two lines alternated (each run once first); the table is in the README.
+
+- **Galaxy S9:** net11 is faster: native MAUI overall 6,023 → 4,416 ms, SkUi* 426 → 383 ms (generate 226 → 137 ms, but the first frame 150 → 210 ms), Core about the same; render thread per scrolled frame 6.4 → 3.7 ms on both drawn layers.
+- **iPhone 8:** Core is faster (95 → 84 ms) and native MAUI about the same, but **SkUi\* generates its tree about 60 % slower** (118 → 188 ms, overall 174 → 245 ms), the same in every round of both runs. To investigate before 1.11.0: building 1,000 `SkUiButton`s (bindable properties, implicit styles, the look) costs more on CoreCLR iOS than on Mono AOT, while plain CLR objects (Core) don't; a profile of the generate phase should show whether code falls back from the precompiled image.
+- iOS 16 devices launch through Xcode 26.6 (`mlaunch --sdkroot`); Xcode 27.2 can't mount their developer image (HE0032).
 
 ## After .NET 11: net10 floor to MAUI 10.0.130
 
