@@ -12,6 +12,7 @@
 #   scripts/device_tests.sh -t ios -s <device-udid>            # physical device (devicectl, or mlaunch below iOS 17)
 #   scripts/device_tests.sh -t ios -s <udid> --xcode /Applications/Xcode-26.6.0.app   # below iOS 17 with an Xcode that still mounts its developer image
 #   scripts/device_tests.sh -t maccatalyst --aot               # Native AOT (fully trimmed) build of the app
+#   scripts/device_tests.sh -t maccatalyst --net 10            # the .NET 10 line (Mono, MAUI 10); default: net11 (CoreCLR, MAUI 11)
 #   scripts/device_tests.sh -t android --trim                  # fully trimmed build (no AOT)
 #   scripts/device_tests.sh -t maccatalyst -S NativeOverlays --placement-tolerance -1   # the hosted check must fail
 #
@@ -35,6 +36,7 @@ AOT=false
 TRIM=false
 PLACEMENT_TOLERANCE=""
 XCODE=""
+NET="${SKUI_NET:-}"
 
 usage() {
     cat <<'EOF'
@@ -45,6 +47,8 @@ Usage: scripts/device_tests.sh -t TARGET [options]
   -c CONFIG        Release (default) or Debug. Debug may keep instances alive (debugger, Hot Reload)
   -S LIST          comma separated scenario names (default: all)
   -o DIR           output directory (default artifacts/device-tests/<timestamp>)
+  --net 10|11      .NET line (default: SKUI_NET, else net11; SDK 10 builds net10 only). net10 iOS / Mac Catalyst
+                   apps build with SDK 10: dotnet then runs from scripts/sdk10, whose global.json selects it
   --timeout SEC    give up after SEC seconds (default 900)
   --aot            publish the app with Native AOT (implies full trimming); fails on trim / AOT warnings from SkiaUi
   --trim           build the app fully trimmed (TrimMode=full, no AOT); fails on trim warnings from SkiaUi
@@ -67,6 +71,7 @@ while [[ $# -gt 0 ]]; do
         --timeout) TIMEOUT="$2"; shift 2 ;;
         --no-build) BUILD=false; shift ;;
         --xcode) XCODE="$2"; shift 2 ;;
+        --net) NET="$2"; shift 2 ;;
         --aot) AOT=true; shift ;;
         --trim) TRIM=true; shift ;;
         --placement-tolerance) PLACEMENT_TOLERANCE="$2"; shift 2 ;;
@@ -75,9 +80,17 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 [[ "$TARGET" =~ ^(android|ios|maccatalyst)$ ]] || { usage; exit 2; }
+[[ -z "$NET" || "$NET" =~ ^1[01]$ ]] || { echo "--net takes 10 or 11" >&2; exit 2; }
 
 OUT="${OUT:-$REPO_ROOT/artifacts/device-tests/$(date +%Y%m%d-%H%M%S)}"
 mkdir -p "$OUT"
+OUT="$(cd "$OUT" && pwd)" # absolute: dotnet may run from scripts/sdk10 below
+
+# net10 iOS / Mac Catalyst apps only build with SDK 10's workload (Directory.Build.props): select it through scripts/sdk10.
+if [[ "$NET" == 10 && "$TARGET" != android && "$(dotnet --version)" != 10.* ]]; then
+    cd "$REPO_ROOT/scripts/sdk10"
+    [[ "$(dotnet --version)" == 10.* ]] || { echo "net10 $TARGET apps need a .NET SDK 10.0.4xx with its iOS / Mac Catalyst workloads" >&2; exit 1; }
+fi
 LOG="$OUT/$TARGET.log"
 log() { echo "[device-tests] $*" >&2; }
 # macOS without coreutils has no `timeout`; run unbounded there.
@@ -100,8 +113,9 @@ case "$TARGET" in
         fi ;;
 esac
 
-TFM="$(dotnet msbuild "$PROJECT" -getProperty:TargetFrameworks | tr ';' '\n' | grep -- "-$TARGET\$" | head -1)"
-[[ -n "$TFM" ]] || { echo "no $TARGET target framework in $PROJECT" >&2; exit 1; }
+# The project lists net11 first, so without --net the newest line this SDK builds wins.
+TFM="$(dotnet msbuild "$PROJECT" -getProperty:TargetFrameworks | tr ';' '\n' | grep -- "^net${NET:-[0-9]*}\.0-$TARGET\$" | head -1)"
+[[ -n "$TFM" ]] || { echo "no ${NET:+net$NET }$TARGET target framework in $PROJECT" >&2; exit 1; }
 RID=""
 HOST_ARCH="$(uname -m | sed 's/x86_64/x64/')"
 if [[ "$TARGET" == ios ]]; then RID=ios-arm64; ios_is_simulator && RID="iossimulator-$HOST_ARCH"; fi
@@ -222,7 +236,7 @@ run_ios() {
         # mlaunch directly (installs, then launches and waits): `dotnet build -t:Run` needs a build of the same invocation.
         # ${sdk[@]+...}: an empty array is "unbound" under set -u in macOS's bash 3.2.
         local mlaunch stdout="$OUT/ios.stdout" sdk=() launch_args=()
-        mlaunch="$(find /usr/local/share/dotnet/packs "$HOME/.dotnet/packs" -path "*Microsoft.iOS.Sdk.net10*/tools/bin/mlaunch" -type f 2>/dev/null | sort -V | tail -1)"
+        mlaunch="$(find /usr/local/share/dotnet/packs "$HOME/.dotnet/packs" -path "*Microsoft.iOS.Sdk.${TFM%%-*}*/tools/bin/mlaunch" -type f 2>/dev/null | sort -V | tail -1)"
         [[ -n "$mlaunch" ]] || { echo "mlaunch not found (iOS workload)" >&2; exit 1; }
         if [[ -n "$XCODE" ]]; then
             [[ -d "$XCODE/Contents/Developer" ]] && XCODE="$XCODE/Contents/Developer"
@@ -244,7 +258,9 @@ run_ios() {
 
 run_maccatalyst() {
     local binary
-    binary="$(output "maccatalyst-$HOST_ARCH/*.app/Contents/MacOS/MauiSkiaUi.DeviceTests")"
+    # Without a RID the build makes a universal .app next to the per-architecture ones, and only it is signed with the
+    # entitlements (allow-jit): CoreCLR (net11) JIT-compiles and is killed on its first JIT page in an unsigned one.
+    binary="$(output "${RID:+$RID/}*.app/Contents/MacOS/MauiSkiaUi.DeviceTests")"
     timeout "$TIMEOUT" "$binary" "${app_args[@]}" 2>&1 | filter >"$LOG" || true
 }
 

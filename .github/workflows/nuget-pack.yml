@@ -1,7 +1,7 @@
 name: NuGet pack
 
 # Produces the SkiaUi.Maui, SkiaUi.Maui.CommunityToolkit, SkiaUi.Maui.Markdown and SkiaUi.Maui.Markdown.Math .nupkg / .snupkg artifacts (does not push to nuget.org).
-# macOS packs net10.0 + Android + iOS + Mac Catalyst; Windows adds the Windows TFM;
+# macOS packs net10.0 / net11.0 + Android + iOS + Mac Catalyst of both lines; Windows packs both Windows TFMs;
 # a merge job combines both into one multi-TFM package each (scripts/merge_nupkgs.py).
 
 on:
@@ -18,7 +18,7 @@ on:
         type: string
         default: xcode-27
       workload-version:
-        description: Workload set for the macOS pack (empty = 10.0.404, Xcode 27.2; 10.0.402.1 = Xcode 27.1 on xcode-27; 10.0.401 = Xcode 26.6, e.g. on macos-26)
+        description: Workload set for the macOS pack (empty = 11.0.100.1, SDK 11's set for Xcode 27.2)
         required: false
         type: string
         default: ""
@@ -85,7 +85,8 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v4
         with:
-          packages: platform-tools platforms;android-36 build-tools;36.0.0
+          # net10.0-android / net11.0-android default to API 36 / 37.
+          packages: platform-tools platforms;android-36 platforms;android-37 build-tools;36.0.0 build-tools;37.0.0
 
       - name: Extract release notes
         env:
@@ -113,8 +114,12 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          # API check while packing (Directory.Build.props): nothing public removed since the newest stable release on nuget.org,
+          # and net11 keeps net10's API. Each pack compares the baseline frameworks it builds.
+          BASELINE="$(python3 scripts/api_baseline.py "$(sed -n 's/^[[:space:]]*<Version>\([^<]*\)<\/Version>/\1/p' Directory.Build.props | head -1)")"
           mkdir -p artifacts/nuget
           ARGS=(
+            -p:SkUiApiBaseline="$BASELINE"
             -c Release
             -o artifacts/nuget
             -p:ContinuousIntegrationBuild=true
@@ -125,8 +130,8 @@ jobs:
             ARGS+=(-p:Version="${PACKAGE_VERSION}")
           fi
           # Do not pass -p:TargetFrameworks=… here: a semicolon-list via -p is misapplied as
-          # singular TargetFramework (NETSDK1046). On macOS the csproj already selects
-          # net10.0 + android + ios + maccatalyst via OS conditions.
+          # singular TargetFramework (NETSDK1046). On macOS Directory.Build.props already selects
+          # net10.0 / net11.0 + android + ios + maccatalyst of both lines via OS conditions.
           # Every package (SkiaUi.Maui and its integrations), released together with one version.
           for project in MauiSkiaUi/MauiSkiaUi.csproj MauiSkiaUi.CommunityToolkit/MauiSkiaUi.CommunityToolkit.csproj MauiSkiaUi.Markdown/MauiSkiaUi.Markdown.csproj MauiSkiaUi.Markdown.Math/MauiSkiaUi.Markdown.Math.csproj; do
             dotnet pack "$project" "${ARGS[@]}"
@@ -143,7 +148,7 @@ jobs:
           if-no-files-found: error
 
   pack-windows:
-    name: Pack (Windows TFM)
+    name: Pack (Windows TFMs)
     needs: resolve-version
     runs-on: windows-latest
     steps:
@@ -176,20 +181,25 @@ jobs:
           fi
           python3 scripts/extract-release-notes.py ${ARGS[@]+"${ARGS[@]}"} "$VERSION" CHANGELOG.md artifacts/release-notes.txt
 
-      - name: Pack Windows TFM
+      - name: Pack Windows TFMs
         env:
           PACKAGE_VERSION: ${{ needs.resolve-version.outputs.version }}
         shell: bash
         run: |
           set -euo pipefail
+          # API check while packing (Directory.Build.props): nothing public removed since the newest stable release on nuget.org,
+          # and net11 keeps net10's API. Each pack compares the baseline frameworks it builds.
+          BASELINE="$(python3 scripts/api_baseline.py "$(sed -n 's/^[[:space:]]*<Version>\([^<]*\)<\/Version>/\1/p' Directory.Build.props | head -1)")"
           mkdir -p artifacts/nuget-win
           ARGS=(
+            -p:SkUiApiBaseline="$BASELINE"
             -c Release
             -o artifacts/nuget-win
             -p:ContinuousIntegrationBuild=true
             -p:IncludeSymbols=true
             -p:SymbolPackageFormat=snupkg
-            -p:TargetFrameworks="net10.0-windows10.0.19041.0"
+            # Both lines' Windows TFMs only (Directory.Build.props).
+            -p:SkUiPlatforms=windows
           )
           if [[ -n "${PACKAGE_VERSION:-}" ]]; then
             ARGS+=(-p:Version="${PACKAGE_VERSION}")
@@ -244,3 +254,37 @@ jobs:
             artifacts/nuget/*.nupkg
             artifacts/nuget/*.snupkg
           if-no-files-found: error
+
+  # The merged packages in a minimal Android app of each line, restored with that line's SDK (net10: SDK 10, as .NET 10 apps
+  # build): each app must get its own line's assets and MAUI, and a net10 app never MAUI 11 (scripts/consumer_check.sh).
+  consumer-check:
+    name: Consumer check (net${{ matrix.net }})
+    needs: merge
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - net: "10"
+            sdk-version: "10.0.404"
+          - net: "11"
+            sdk-version: ""
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup .NET MAUI
+        uses: ./.github/actions/setup-dotnet-maui
+        with:
+          workloads: maui-android
+          java-version: ""
+          sdk-version: ${{ matrix.sdk-version }}
+
+      - name: Download merged packages
+        uses: actions/download-artifact@v8
+        with:
+          name: nuget-packages
+          path: incoming/nuget
+
+      - name: Restore into a net${{ matrix.net }} app
+        run: scripts/consumer_check.sh -f incoming/nuget --net ${{ matrix.net }}

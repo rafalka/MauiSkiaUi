@@ -1,5 +1,5 @@
 name: Setup .NET MAUI
-description: Install .NET SDK (from global.json), optional JDK, and MAUI workloads for CI
+description: Install the .NET SDK (global.json's, or an SDK 10 band for net10-only jobs), optional JDK, and MAUI workloads for CI
 
 inputs:
   workloads:
@@ -10,11 +10,18 @@ inputs:
     description: Temurin JDK major version (empty skips Java setup)
     required: false
     default: ""
+  sdk-version:
+    description: >
+      SDK to use instead of global.json's (e.g. 10.0.404 for net10-only jobs: .NET 10 users' toolchain, and the only one that
+      builds net10 iOS / Mac Catalyst apps with Xcode 27.2). The action rewrites global.json to it; Directory.Build.props then
+      builds the net10 line only. Empty: global.json (SDK 11, both lines).
+    required: false
+    default: ""
   workload-version:
     description: >
-      Workload set version; empty for the pinned 10.0.404 (iOS / Mac Catalyst 27.2 SDKs, which need Xcode 27.2).
-      dotnet/macios release notes name the set for each Xcode (10.0.401: Xcode 26.6; 10.0.402.1: Xcode 27.1). On macOS the step after the
-      install selects that Xcode.
+      Workload set version; empty for the band's pinned set: 11.0.100.1 on SDK 11, 10.0.404 on SDK 10 (iOS / Mac Catalyst 27.2
+      SDKs, which need Xcode 27.2). dotnet/macios release notes name the set for each Xcode (10.0.401: Xcode 26.6; 10.0.402.1:
+      Xcode 27.1). On macOS the step after the install selects that Xcode.
     required: false
     default: ""
 
@@ -23,13 +30,28 @@ runs:
   steps:
     # One place for the default set: the Windows cache key and the install below both read it, so a new default drops the
     # cached SDK folder instead of updating it on every run.
-    - name: Resolve workload set
+    # A requested SDK band replaces global.json's SDK here, before anything reads global.json (cache keys, setup-dotnet).
+    - name: Resolve SDK and workload set
       id: workload-set
       shell: bash
       env:
         # Callers pass an empty value through when their own input is unset (a tag push has no inputs).
         REQUESTED: ${{ inputs.workload-version }}
-      run: echo "version=${REQUESTED:-10.0.404}" >> "$GITHUB_OUTPUT"
+        SDK_BAND: ${{ inputs.sdk-version }}
+      run: |
+        set -euo pipefail
+        if [[ -n "$SDK_BAND" ]]; then
+          printf '{\n  "sdk": {\n    "version": "%s",\n    "rollForward": "latestPatch"\n  }\n}\n' "$SDK_BAND" > global.json
+          echo "global.json now selects SDK $SDK_BAND."
+        fi
+        major="$(sed -nE 's/.*"version": *"([0-9]+)\..*/\1/p' global.json | head -1)"
+        case "$major" in
+          10) default=10.0.404 ;;
+          11) default=11.0.100.1 ;;
+          *) echo "No default workload set for SDK $major; pass workload-version." >&2; exit 1 ;;
+        esac
+        echo "major=$major" >> "$GITHUB_OUTPUT"
+        echo "version=${REQUESTED:-$default}" >> "$GITHUB_OUTPUT"
 
     # ---- Windows speed-ups -------------------------------------------------------------------------------------
     # Defender scans every file dotnet, NuGet and MSBuild write (SDK, workload packs, packages): turn real-time
@@ -102,9 +124,9 @@ runs:
           echo "Installing workload: $wl"
           dotnet workload install "$wl" --version "$WORKLOAD_VERSION"
         done
-        echo "MauiVersion / Version (Directory.Build.props):"
-        # Surface pins used by PackageReference Version="$(MauiVersion)" and product Version.
-        grep -E '<MauiVersion>|<Version>' Directory.Build.props || true
+        echo "Pins (Directory.Build.props):"
+        # The per-line MAUI / Community Toolkit pins PackageReference Version="$(MauiVersion)" resolves to, and the product Version.
+        grep -E '<Maui1[0-9]Version>|<CommunityToolkitMaui1[0-9]Version>|<SkiaSharpVersion>|<Version>' Directory.Build.props || true
         dotnet --info
         dotnet workload list
 
@@ -117,17 +139,19 @@ runs:
       shell: bash
       run: |
         set -euo pipefail
+        # The SDK's own line: SDK 11 builds net10 libraries too, but no net10 Apple app, whose packs want an older Xcode.
+        tfm="net${{ steps.workload-set.outputs.major }}.0"
         probe="$RUNNER_TEMP/xcode-probe"
         mkdir -p "$probe"
         cp global.json "$probe/"
         printf '%s\n' '<Project Sdk="Microsoft.NET.Sdk">' \
-          '  <PropertyGroup><TargetFrameworks>net10.0-ios;net10.0-maccatalyst</TargetFrameworks><OutputType>Exe</OutputType></PropertyGroup>' \
+          "  <PropertyGroup><TargetFrameworks>$tfm-ios;$tfm-maccatalyst</TargetFrameworks><OutputType>Exe</OutputType></PropertyGroup>" \
           '</Project>' > "$probe/probe.csproj"
         want=""
         for wl in ios maccatalyst; do
           [[ " ${{ inputs.workloads }} " == *"$wl"* ]] || continue
-          v="$(cd "$probe" && dotnet msbuild probe.csproj -nologo -getProperty:_RecommendedXcodeVersion -p:TargetFramework="net10.0-$wl")"
-          echo "net10.0-$wl needs Xcode $v"
+          v="$(cd "$probe" && dotnet msbuild probe.csproj -nologo -getProperty:_RecommendedXcodeVersion -p:TargetFramework="$tfm-$wl")"
+          echo "$tfm-$wl needs Xcode $v"
           want="$(printf '%s\n%s\n' "$want" "$v" | sed '/^$/d' | sort -V | tail -1)"
         done
         [[ -n "$want" ]] || { echo "Could not tell which Xcode the iOS / Mac Catalyst SDKs need." >&2; exit 1; }

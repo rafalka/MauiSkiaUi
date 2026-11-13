@@ -185,7 +185,8 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v4
         with:
-          packages: platform-tools platforms;android-36 build-tools;36.0.0
+          # net10.0-android / net11.0-android default to API 36 / 37.
+          packages: platform-tools platforms;android-36 platforms;android-37 build-tools;36.0.0 build-tools;37.0.0
 
       - name: Extract release notes
         env:
@@ -201,15 +202,19 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          # API check while packing (Directory.Build.props): nothing public removed since the newest stable release on nuget.org,
+          # and net11 keeps net10's API. Each pack compares the baseline frameworks it builds.
+          BASELINE="$(python3 scripts/api_baseline.py "$PACKAGE_VERSION")"
           mkdir -p artifacts/nuget
           # Do not pass -p:TargetFrameworks=… here: a semicolon-list via -p is misapplied as
-          # singular TargetFramework (NETSDK1046). On macOS the csproj already selects
-          # net10.0 + android + ios + maccatalyst via OS conditions.
+          # singular TargetFramework (NETSDK1046). On macOS Directory.Build.props already selects
+          # net10.0 / net11.0 + android + ios + maccatalyst of both lines via OS conditions.
           # Every package (SkiaUi.Maui and its integrations), released together with one version.
           for project in MauiSkiaUi/MauiSkiaUi.csproj MauiSkiaUi.CommunityToolkit/MauiSkiaUi.CommunityToolkit.csproj MauiSkiaUi.Markdown/MauiSkiaUi.Markdown.csproj MauiSkiaUi.Markdown.Math/MauiSkiaUi.Markdown.Math.csproj; do
             dotnet pack "$project" \
               -c Release \
               -o artifacts/nuget \
+              -p:SkUiApiBaseline="$BASELINE" \
               -p:Version="${PACKAGE_VERSION}" \
               -p:ContinuousIntegrationBuild=true \
               -p:IncludeSymbols=true \
@@ -226,7 +231,7 @@ jobs:
           if-no-files-found: error
 
   pack-windows:
-    name: Pack (Windows TFM)
+    name: Pack (Windows TFMs)
     needs: prepare
     runs-on: windows-latest
     steps:
@@ -255,22 +260,26 @@ jobs:
           set -euo pipefail
           python3 scripts/extract-release-notes.py "$PACKAGE_VERSION" CHANGELOG.md artifacts/release-notes.txt
 
-      - name: Pack Windows TFM
+      - name: Pack Windows TFMs
         env:
           PACKAGE_VERSION: ${{ needs.prepare.outputs.version }}
         shell: bash
         run: |
           set -euo pipefail
+          # API check while packing (Directory.Build.props): nothing public removed since the newest stable release on nuget.org,
+          # and net11 keeps net10's API. Each pack compares the baseline frameworks it builds.
+          BASELINE="$(python3 scripts/api_baseline.py "$PACKAGE_VERSION")"
           mkdir -p artifacts/nuget-win
           for project in MauiSkiaUi/MauiSkiaUi.csproj MauiSkiaUi.CommunityToolkit/MauiSkiaUi.CommunityToolkit.csproj MauiSkiaUi.Markdown/MauiSkiaUi.Markdown.csproj MauiSkiaUi.Markdown.Math/MauiSkiaUi.Markdown.Math.csproj; do
             dotnet pack "$project" \
               -c Release \
               -o artifacts/nuget-win \
+              -p:SkUiApiBaseline="$BASELINE" \
               -p:Version="${PACKAGE_VERSION}" \
               -p:ContinuousIntegrationBuild=true \
               -p:IncludeSymbols=true \
               -p:SymbolPackageFormat=snupkg \
-              -p:TargetFrameworks="net10.0-windows10.0.19041.0"
+              -p:SkUiPlatforms=windows
           done
 
       - name: Upload Windows package

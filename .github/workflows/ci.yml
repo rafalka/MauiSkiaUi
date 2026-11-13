@@ -28,20 +28,17 @@ jobs:
       - name: Setup .NET MAUI
         uses: ./.github/actions/setup-dotnet-maui
         with:
-          # Headless tests target net10.0; maui-android registers MAUI packs used by UseMaui projects.
+          # Headless tests target net10.0 and net11.0; maui-android registers MAUI packs used by UseMaui projects.
           workloads: maui-android
           java-version: "17"
 
       - name: Restore
         run: dotnet restore tests/MauiSkiaUi.Tests/MauiSkiaUi.Tests.csproj
 
-      - name: Build library (net10.0)
-        run: >
-          dotnet build MauiSkiaUi/MauiSkiaUi.csproj
-          -c Release
-          -f net10.0
-          --no-restore
-          -p:ContinuousIntegrationBuild=true
+      - name: Build library (net10.0, net11.0)
+        run: |
+          dotnet build MauiSkiaUi/MauiSkiaUi.csproj -c Release -f net10.0 --no-restore -p:ContinuousIntegrationBuild=true
+          dotnet build MauiSkiaUi/MauiSkiaUi.csproj -c Release -f net11.0 --no-restore -p:ContinuousIntegrationBuild=true
 
       - name: Build tests
         run: >
@@ -50,12 +47,13 @@ jobs:
           --no-restore
           -p:ContinuousIntegrationBuild=true
 
+      # Both TFMs (net10.0 with MAUI 10, net11.0 with MAUI 11), one results file each.
       - name: Run tests
         run: >
           dotnet test tests/MauiSkiaUi.Tests/MauiSkiaUi.Tests.csproj
           -c Release
           --no-build
-          --logger "trx;LogFileName=test-results.trx"
+          --logger "trx;LogFilePrefix=test-results"
           --results-directory "${{ runner.temp }}/test-results"
 
       - name: Upload test results
@@ -67,19 +65,33 @@ jobs:
           if-no-files-found: ignore
 
   # The workload set picks the iOS / Mac Catalyst SDKs and so the Xcode (dotnet/macios release notes name the set
-  # for each Xcode). Both legs keep building: Xcode 26 on macOS 26 and Xcode 27 on the xcode-27 image.
+  # for each Xcode). SDK 11 builds both lines' libraries and the net11 demo. net10 Apple apps only build with SDK 10's own
+  # workload (SDK 11's net10 Apple packs want Xcode 26), so the net10 legs run on SDK 10 as .NET 10 users do: Xcode 27.2 on
+  # the xcode-27 image and Xcode 26.6 on macOS 26. On SDK 10, Directory.Build.props builds the net10 line only.
   build-apple:
-    name: Build libraries and iOS demo (Xcode ${{ matrix.xcode }})
+    name: Build libraries and iOS demo (${{ matrix.name }})
     strategy:
       fail-fast: false
       matrix:
         include:
-          - xcode: "27.2"
+          - name: SDK 11, Xcode 27.2
+            xcode: "27.2"
             runner: xcode-27
+            sdk-version: ""
+            workload-version: ""
+            demo-tfm: net11.0-ios
+          - name: SDK 10, Xcode 27.2
+            xcode: "27.2"
+            runner: xcode-27
+            sdk-version: "10.0.404"
             workload-version: "10.0.404"
-          - xcode: "26.6"
+            demo-tfm: net10.0-ios
+          - name: SDK 10, Xcode 26.6
+            xcode: "26.6"
             runner: macos-26
+            sdk-version: "10.0.404"
             workload-version: "10.0.401"
+            demo-tfm: net10.0-ios
     runs-on: ${{ matrix.runner }}
     steps:
       - name: Checkout
@@ -90,6 +102,7 @@ jobs:
         with:
           workloads: maui-ios maui-maccatalyst
           java-version: ""
+          sdk-version: ${{ matrix.sdk-version }}
           workload-version: ${{ matrix.workload-version }}
 
       - name: Check Xcode version
@@ -99,59 +112,42 @@ jobs:
           [[ "$have" == "${{ matrix.xcode }}" || "$have" == "${{ matrix.xcode }}".* ]] \
             || { echo "Selected Xcode $have, expected ${{ matrix.xcode }}." >&2; exit 1; }
 
-      - name: Restore Apple TFMs only
-        # %3B = ';' so MSBuild does not treat the list as multiple -p switches.
+      # SkUiPlatforms keeps the Apple TFMs of the line(s) this SDK builds (Directory.Build.props). The math package references
+      # the Markdown package and SkiaUi.Maui, so one build covers three packages.
+      - name: Build SkiaUi.Maui, SkiaUi.Maui.Markdown and its math package (Apple TFMs)
         run: >
-          dotnet restore MauiSkiaUi/MauiSkiaUi.csproj
-          -p:TargetFrameworks=net10.0-ios%3Bnet10.0-maccatalyst
-
-      - name: Build iOS TFM
-        run: >
-          dotnet build MauiSkiaUi/MauiSkiaUi.csproj
+          dotnet build MauiSkiaUi.Markdown.Math/MauiSkiaUi.Markdown.Math.csproj
           -c Release
-          -f net10.0-ios
-          --no-restore
+          -p:SkUiPlatforms=ios+maccatalyst
           -p:ContinuousIntegrationBuild=true
 
-      - name: Build Mac Catalyst TFM
+      - name: Build SkiaUi.Maui.CommunityToolkit (Apple TFMs)
         run: >
-          dotnet build MauiSkiaUi/MauiSkiaUi.csproj
+          dotnet build MauiSkiaUi.CommunityToolkit/MauiSkiaUi.CommunityToolkit.csproj
           -c Release
-          -f net10.0-maccatalyst
-          --no-restore
+          -p:SkUiPlatforms=ios+maccatalyst
           -p:ContinuousIntegrationBuild=true
-
-      - name: Restore SkiaUi.Maui.CommunityToolkit (Apple TFMs)
-        run: >
-          dotnet restore MauiSkiaUi.CommunityToolkit/MauiSkiaUi.CommunityToolkit.csproj
-          -p:TargetFrameworks=net10.0-ios%3Bnet10.0-maccatalyst
-
-      - name: Build SkiaUi.Maui.CommunityToolkit (iOS, Mac Catalyst)
-        run: |
-          dotnet build MauiSkiaUi.CommunityToolkit/MauiSkiaUi.CommunityToolkit.csproj -c Release -f net10.0-ios --no-restore -p:ContinuousIntegrationBuild=true
-          dotnet build MauiSkiaUi.CommunityToolkit/MauiSkiaUi.CommunityToolkit.csproj -c Release -f net10.0-maccatalyst --no-restore -p:ContinuousIntegrationBuild=true
-
-      - name: Restore SkiaUi.Maui.Markdown and its math package (Apple TFMs)
-        run: >
-          dotnet restore MauiSkiaUi.Markdown.Math/MauiSkiaUi.Markdown.Math.csproj
-          -p:TargetFrameworks=net10.0-ios%3Bnet10.0-maccatalyst
-
-      - name: Build SkiaUi.Maui.Markdown and its math package (iOS, Mac Catalyst)
-        run: |
-          dotnet build MauiSkiaUi.Markdown.Math/MauiSkiaUi.Markdown.Math.csproj -c Release -f net10.0-ios --no-restore -p:ContinuousIntegrationBuild=true
-          dotnet build MauiSkiaUi.Markdown.Math/MauiSkiaUi.Markdown.Math.csproj -c Release -f net10.0-maccatalyst --no-restore -p:ContinuousIntegrationBuild=true
 
       # An app build runs the Xcode toolchain (actool, ibtool, linking) that a library build does not. Simulator, so
       # no signing; the TFM list is scoped so restore does not need the android workload (NETSDK1147).
       - name: Build demo app (iOS simulator)
         run: >
           dotnet build MauiSkiaUiDemo/MauiSkiaUiDemo.csproj
-          -f net10.0-ios
-          -p:TargetFrameworks=net10.0-ios
+          -f ${{ matrix.demo-tfm }}
+          -p:TargetFrameworks=${{ matrix.demo-tfm }}
           -p:ContinuousIntegrationBuild=true
 
+  # Both runtimes: net11 (CoreCLR, SDK 11) and net10 (Mono, SDK 10: the only SDK that builds net10 Apple apps with Xcode 27.2).
   device-tests-maccatalyst:
-    name: Device tests (Mac Catalyst, Native AOT)
+    name: Device tests (Mac Catalyst, Native AOT, net${{ matrix.net }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - net: "11"
+            sdk-version: ""
+          - net: "10"
+            sdk-version: "10.0.404"
     runs-on: xcode-27
     timeout-minutes: 45
     steps:
@@ -163,27 +159,40 @@ jobs:
         with:
           workloads: maui-maccatalyst
           java-version: ""
+          sdk-version: ${{ matrix.sdk-version }}
 
       # Native AOT (full trimming): also fails on trim / AOT warnings from SkiaUi and checks that drawing works.
       - name: Run memory leak tests (real handlers and platform views)
-        run: scripts/device_tests.sh -t maccatalyst --aot -o artifacts/device-tests/ci
+        run: scripts/device_tests.sh -t maccatalyst --net ${{ matrix.net }} --aot -o artifacts/device-tests/ci
 
       - name: Upload device test logs
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: device-tests-maccatalyst
+          name: device-tests-maccatalyst-net${{ matrix.net }}
           path: artifacts/device-tests/ci
           if-no-files-found: ignore
 
   # The Android TFM as MAUI resolves it, and against the newest Xamarin.AndroidX.Core that apps get through Google Play
   # Services and other libraries: a binding change there (issue #78: AccessibilityNodeInfoCompat.Checked turned from bool
   # into int) fails this build instead of crashing those apps. Bump ANDROIDX_CORE_VERSION when a newer binding ships.
+  # Both lines on SDK 11: net10.0-android (API 36, minimum 21) and net11.0-android (API 37, minimum 24).
   build-android:
-    name: Build library (Android TFM)
+    name: Build library (Android TFM, net${{ matrix.net }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - net: "10"
+            api: "36"
+            build-tools: "36.0.0"
+          - net: "11"
+            api: "37"
+            build-tools: "37.0.0"
     runs-on: ubuntu-24.04
     env:
       ANDROIDX_CORE_VERSION: "1.19.0.1"
+      TFM: net${{ matrix.net }}.0-android
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -197,16 +206,16 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v4
         with:
-          # net10.0-android defaults to API 36.
-          packages: platform-tools platforms;android-36 build-tools;36.0.0
+          # The API level and build-tools the TFM defaults to.
+          packages: platform-tools platforms;android-${{ matrix.api }} build-tools;${{ matrix.build-tools }}
 
       # Scoped to the Android TFM so restore does not need the other platforms' workloads.
       - name: Build Android TFM
         run: >
           dotnet build MauiSkiaUi/MauiSkiaUi.csproj
           -c Release
-          -f net10.0-android
-          -p:TargetFrameworks=net10.0-android
+          -f ${{ env.TFM }}
+          -p:TargetFrameworks=${{ env.TFM }}
           -p:ContinuousIntegrationBuild=true
 
       # Holds the Markdown package too, by its reference. Trim and AOT warnings fail these builds.
@@ -214,21 +223,21 @@ jobs:
         run: >
           dotnet build MauiSkiaUi.Markdown.Math/MauiSkiaUi.Markdown.Math.csproj
           -c Release
-          -f net10.0-android
-          -p:TargetFrameworks=net10.0-android
+          -f ${{ env.TFM }}
+          -p:TargetFrameworks=${{ env.TFM }}
           -p:ContinuousIntegrationBuild=true
 
       - name: Build Android TFM (newest Xamarin.AndroidX.Core)
         run: >
           dotnet build MauiSkiaUi/MauiSkiaUi.csproj
           -c Release
-          -f net10.0-android
-          -p:TargetFrameworks=net10.0-android
+          -f ${{ env.TFM }}
+          -p:TargetFrameworks=${{ env.TFM }}
           -p:SkUiAndroidXCoreVersion=${{ env.ANDROIDX_CORE_VERSION }}
           -p:ContinuousIntegrationBuild=true
 
   build-windows:
-    name: Build libraries (Windows TFM)
+    name: Build libraries (Windows TFMs)
     runs-on: windows-latest
     steps:
       - name: Checkout
@@ -240,41 +249,18 @@ jobs:
           workloads: maui-windows
           java-version: ""
 
-      - name: Restore Windows TFM only
-        run: >
-          dotnet restore MauiSkiaUi/MauiSkiaUi.csproj
-          -p:TargetFrameworks=net10.0-windows10.0.19041.0
-
-      - name: Build Windows TFM
-        run: >
-          dotnet build MauiSkiaUi/MauiSkiaUi.csproj
-          -c Release
-          -f net10.0-windows10.0.19041.0
-          --no-restore
-          -p:ContinuousIntegrationBuild=true
-
-      - name: Restore SkiaUi.Maui.CommunityToolkit (Windows TFM)
-        run: >
-          dotnet restore MauiSkiaUi.CommunityToolkit/MauiSkiaUi.CommunityToolkit.csproj
-          -p:TargetFrameworks=net10.0-windows10.0.19041.0
-
-      - name: Build SkiaUi.Maui.CommunityToolkit (Windows TFM)
-        run: >
-          dotnet build MauiSkiaUi.CommunityToolkit/MauiSkiaUi.CommunityToolkit.csproj
-          -c Release
-          -f net10.0-windows10.0.19041.0
-          --no-restore
-          -p:ContinuousIntegrationBuild=true
-
-      - name: Restore SkiaUi.Maui.Markdown and its math package (Windows TFM)
-        run: >
-          dotnet restore MauiSkiaUi.Markdown.Math/MauiSkiaUi.Markdown.Math.csproj
-          -p:TargetFrameworks=net10.0-windows10.0.19041.0
-
-      - name: Build SkiaUi.Maui.Markdown and its math package (Windows TFM)
+      # Both lines' Windows TFMs (SkUiPlatforms, Directory.Build.props). The math package references the Markdown package and
+      # SkiaUi.Maui, so one build covers three packages.
+      - name: Build SkiaUi.Maui, SkiaUi.Maui.Markdown and its math package (Windows TFMs)
         run: >
           dotnet build MauiSkiaUi.Markdown.Math/MauiSkiaUi.Markdown.Math.csproj
           -c Release
-          -f net10.0-windows10.0.19041.0
-          --no-restore
+          -p:SkUiPlatforms=windows
+          -p:ContinuousIntegrationBuild=true
+
+      - name: Build SkiaUi.Maui.CommunityToolkit (Windows TFMs)
+        run: >
+          dotnet build MauiSkiaUi.CommunityToolkit/MauiSkiaUi.CommunityToolkit.csproj
+          -c Release
+          -p:SkUiPlatforms=windows
           -p:ContinuousIntegrationBuild=true

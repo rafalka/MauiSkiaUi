@@ -45,6 +45,7 @@ PHASE="all"
 MSBUILD_VERBOSITY="m"
 APPLICATION_ID=""
 TARGET_FRAMEWORK=""
+NET_LINE="${SKUI_NET:-}"
 ADB_SERIAL=""
 
 declare -a ENTRIES=()
@@ -72,6 +73,8 @@ Options:
   -p PLATFORM         Limit to android, ios, or maccatalyst
   -c CONFIG           MSBuild configuration (default: Debug)
   -r RID              Android runtime identifier, e.g. android-arm64
+  --net 10|11         .NET line: net11 (CoreCLR, MAUI 11; default, or SKUI_NET; net10 on SDK 10) or net10. net10 iOS /
+                      Mac Catalyst apps build with SDK 10: dotnet then runs from scripts/sdk10, whose global.json selects it
   -C, --fresh         Clean the project first, then deploy
   -R, --release       Release configuration (shorthand for -c Release)
   -U, --wipe          Uninstall the app from the target first
@@ -202,6 +205,14 @@ parse_args() {
                     exit 1
                 fi
                 RUNTIME_IDENTIFIER="$2"
+                shift 2
+                ;;
+            --net)
+                if [[ $# -lt 2 || ! "$2" =~ ^1[01]$ ]]; then
+                    echo "--net takes 10 or 11" >&2
+                    exit 1
+                fi
+                NET_LINE="$2"
                 shift 2
                 ;;
             -P|--property)
@@ -840,10 +851,17 @@ read_application_id() {
 resolve_target_framework() {
     local platform
     platform="$(entry_platform "$SELECTED_ENTRY")"
+    local sdk
+    sdk="$(dotnet --version)"
+    [[ -n "$NET_LINE" ]] || { [[ "$sdk" == 10.* ]] && NET_LINE=10 || NET_LINE=11; }
+    # net10 iOS / Mac Catalyst apps only build with SDK 10's workload (Directory.Build.props): select it through scripts/sdk10.
+    if [[ "$NET_LINE" == 10 && "$platform" != android && "$sdk" != 10.* ]]; then
+        [[ -z "$SCREENSHOT_DIR" || "$SCREENSHOT_DIR" == /* ]] || SCREENSHOT_DIR="$PWD/$SCREENSHOT_DIR"
+        cd "$REPO_ROOT/scripts/sdk10"
+        [[ "$(dotnet --version)" == 10.* ]] || { echo "net10 $platform apps need a .NET SDK 10.0.4xx with its iOS / Mac Catalyst workloads" >&2; exit 1; }
+    fi
     case "$platform" in
-        android) TARGET_FRAMEWORK="net10.0-android" ;;
-        ios) TARGET_FRAMEWORK="net10.0-ios" ;;
-        maccatalyst) TARGET_FRAMEWORK="net10.0-maccatalyst" ;;
+        android|ios|maccatalyst) TARGET_FRAMEWORK="net$NET_LINE.0-$platform" ;;
         *)
             echo "Unknown platform: $platform" >&2
             exit 1

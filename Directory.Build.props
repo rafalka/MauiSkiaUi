@@ -75,6 +75,19 @@
     <SkUiLibraryTfms>$([MSBuild]::Unescape($([System.Text.RegularExpressions.Regex]::Replace('$(SkUiHeadlessTfms);$(_SkUiDevice11);$(_SkUiWin11);$(_SkUiDevice10);$(_SkUiApple10);$(_SkUiWin10)', ';{2,}', ';').Trim(';'))))</SkUiLibraryTfms>
   </PropertyGroup>
 
+  <!--
+    -p:SkUiPlatforms=ios+maccatalyst (joined by "+", as "," and ";" split -p values: android, ios, maccatalyst, windows) keeps only those platforms' TFMs in the
+    lists, for CI jobs that build one platform: restore then needs no other workload (NETSDK1147), without a TargetFrameworks
+    override (an escaped list on the command line reaches the inner builds as one TFM, NETSDK1046). Plain netX.0 is left out.
+  -->
+  <PropertyGroup Condition="'$(SkUiPlatforms)' != ''">
+    <_SkUiDropTfm>(?&lt;=;)net\d+\.\d+(?:-(?!(?:$(SkUiPlatforms.Replace('+', '|')))\b)[a-z]+[\d.]*)?(?=;)</_SkUiDropTfm>
+    <SkUiHeadlessTfms>$([MSBuild]::Unescape($([System.Text.RegularExpressions.Regex]::Replace($([System.Text.RegularExpressions.Regex]::Replace(';$(SkUiHeadlessTfms);', '$(_SkUiDropTfm)', '')), ';{2,}', ';').Trim(';'))))</SkUiHeadlessTfms>
+    <SkUiDeviceTfms>$([MSBuild]::Unescape($([System.Text.RegularExpressions.Regex]::Replace($([System.Text.RegularExpressions.Regex]::Replace(';$(SkUiDeviceTfms);', '$(_SkUiDropTfm)', '')), ';{2,}', ';').Trim(';'))))</SkUiDeviceTfms>
+    <SkUiAppTfms>$([MSBuild]::Unescape($([System.Text.RegularExpressions.Regex]::Replace($([System.Text.RegularExpressions.Regex]::Replace(';$(SkUiAppTfms);', '$(_SkUiDropTfm)', '')), ';{2,}', ';').Trim(';'))))</SkUiAppTfms>
+    <SkUiLibraryTfms>$([MSBuild]::Unescape($([System.Text.RegularExpressions.Regex]::Replace($([System.Text.RegularExpressions.Regex]::Replace(';$(SkUiLibraryTfms);', '$(_SkUiDropTfm)', '')), ';{2,}', ';').Trim(';'))))</SkUiLibraryTfms>
+  </PropertyGroup>
+
   <!-- Per-TFM pins and minimum OS versions (MAUI 11 raised Android to API 24; the others are the same on both lines). -->
   <PropertyGroup>
     <_SkUiTfmVersion Condition="'$(TargetFramework)' != ''">$([MSBuild]::GetTargetFrameworkVersion('$(TargetFramework)', 2))</_SkUiTfmVersion>

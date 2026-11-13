@@ -119,14 +119,14 @@ jobs:
         uses: ./.github/actions/setup-dotnet-maui
         with:
           workloads: maui-android
-          # .NET 10 Android supports JDK 21; prefer it over the older 17 default.
+          # .NET 10 / 11 Android support JDK 21; prefer it over the older 17 default.
           java-version: "21"
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v4
         with:
-          # net10.0-android defaults to API 36.
-          packages: platform-tools platforms;android-36 build-tools;36.0.0
+          # net11.0-android defaults to API 37; net10.0-android (a 1.10.x tag) to API 36.
+          packages: platform-tools platforms;android-36 platforms;android-37 build-tools;36.0.0 build-tools;37.0.0
 
       - name: Decode keystore (optional)
         id: keystore
@@ -156,14 +156,17 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p artifacts/${{ matrix.app }}/android
+          # The newest line the tag's project targets (net11 from 1.11 on; the lists put it first).
+          TFM="$(dotnet msbuild "${{ matrix.project }}" -getProperty:TargetFrameworks | tr ';' '\n' | grep -- '-android$' | head -1)"
+          echo "Publishing $TFM"
           # Scope TFMs to Android so the multi-TFM library is not restored for net10.0 with an
           # Android RID. Use a single Android RID (not the host linux-x64) — desktop Mono packs
           # were removed in .NET 9+ and host RID leakage causes NU1102 Mono.linux-x64.
           ARGS=(
             "${{ matrix.project }}"
-            -f net10.0-android
+            -f "$TFM"
             -c "$CONFIG"
-            -p:TargetFrameworks=net10.0-android
+            -p:TargetFrameworks="$TFM"
             -p:RuntimeIdentifier=android-arm64
             -p:EnableProfiling=false
             -p:ContinuousIntegrationBuild=true
@@ -219,16 +222,19 @@ jobs:
           set -euo pipefail
           # Scope TFMs to Mac Catalyst: the libraries are multi-targeted, and restoring their Android TFM needs the
           # android workload (NETSDK1147). No `-o`: with the two Mac Catalyst RIDs it nests the output under the
-          # absolute project path, and the universal .app is built into bin/<config>/net10.0-maccatalyst anyway.
+          # absolute project path, and the universal .app is built into bin/<config>/<tfm> anyway.
           # No `.pkg` (CreatePackage): it needs a signing identity the runner does not have.
+          # The newest line the tag's project targets (net11 from 1.11 on; the lists put it first).
+          TFM="$(dotnet msbuild "${{ matrix.project }}" -getProperty:TargetFrameworks | tr ';' '\n' | grep -- '-maccatalyst$' | head -1)"
+          echo "Publishing $TFM"
           dotnet publish "${{ matrix.project }}" \
-            -f net10.0-maccatalyst \
+            -f "$TFM" \
             -c "$CONFIG" \
-            -p:TargetFrameworks=net10.0-maccatalyst \
+            -p:TargetFrameworks="$TFM" \
             -p:EnableProfiling=false \
             -p:ContinuousIntegrationBuild=true \
             -p:CreatePackage=false
-          bin="$(dirname "${{ matrix.project }}")/bin/$CONFIG/net10.0-maccatalyst"
+          bin="$(dirname "${{ matrix.project }}")/bin/$CONFIG/$TFM"
           app="$(find "$bin" -maxdepth 1 -name '*.app' -print -quit)"
           [[ -n "$app" ]] || { echo "No .app in $bin" >&2; ls -la "$bin"; exit 1; }
           echo "Publishing $app"

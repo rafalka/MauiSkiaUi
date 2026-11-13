@@ -9,13 +9,14 @@
 #   scripts/page_tour.sh                    # both apps, Debug
 #   scripts/page_tour.sh -a samples -d 500  # one app, shorter stay on each page
 #   scripts/page_tour.sh --no-build --all   # reuse the last build; list known exceptions too
+#   scripts/page_tour.sh --net 10           # the .NET 10 line (MAUI 10); default net11
 #
 # Pages are opened and scrolled only: nothing is tapped, so popups, pickers and dialogs are not covered.
 #
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-TFM="net10.0-windows10.0.19041.0"
+NET="${SKUI_NET:-11}"
 
 APPS="demo,samples"
 CONFIG="Debug"
@@ -34,6 +35,7 @@ Usage: scripts/page_tour.sh [options]
   -d MS            how long each page stays open (default 1200)
   -o DIR           output directory (default artifacts/page-tour/<timestamp>)
   --timeout SEC    give up on an app after SEC seconds (default 900)
+  --net 10|11      .NET line (default: SKUI_NET, else 11)
   --all            also list the known exceptions (DevFlow's broker, cancellations, ...)
   --no-build       reuse the last build
   -h, --help       this help
@@ -47,12 +49,16 @@ while [[ $# -gt 0 ]]; do
         -d) DWELL="$2"; shift 2 ;;
         -o) OUT="$2"; shift 2 ;;
         --timeout) TIMEOUT="$2"; shift 2 ;;
+        --net) NET="$2"; shift 2 ;;
         --all) ALL=true; shift ;;
         --no-build) BUILD=false; shift ;;
         -h|--help) usage; exit 0 ;;
         *) echo "Unknown option: $1" >&2; usage >&2; exit 2 ;;
     esac
 done
+
+[[ "$NET" =~ ^1[01]$ ]] || { echo "--net takes 10 or 11" >&2; exit 2; }
+TFM="net$NET.0-windows10.0.19041.0"
 
 case "$(uname -s)" in
     MINGW*|MSYS*|CYGWIN*) ;;
