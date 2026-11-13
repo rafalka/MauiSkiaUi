@@ -48,10 +48,13 @@
     App heads (SkUiAppTfms, SkUiDeviceTfms) build net10 iOS and Mac Catalyst on SDK 10 only: SDK 11's workload carries the net10
     Apple packs for Xcode 26 (26.0.x), which refuse to build an app with a newer Xcode, while SDK 10's own workload has the Xcode 27
     packs .NET 10 apps use. Libraries are not affected (no Xcode check), so the packages build every TFM on SDK 11. The SDK's major
-    version comes from MSBuild's path (empty under Visual Studio's own MSBuild, which then keeps every TFM).
+    version comes from the resolved SDK's own path (<dotnet>/sdk/<version>/Sdks/…), which its Sdk.props appends to
+    $(CustomAfterDirectoryBuildProps) before this file is read, under the dotnet CLI and Visual Studio's own MSBuild alike;
+    SDK 10 sets nothing else this early ($(NETCoreSdkVersion) comes later, MSBuildBinPath is Visual Studio's under VS).
+    net10/ has a global.json selecting SDK 10 and a solution with the same projects, to work on the .NET 10 line (net10/README.md).
   -->
   <PropertyGroup>
-    <_SkUiSdkMajor>$([System.Text.RegularExpressions.Regex]::Match('$(MSBuildBinPath)', '[/\\]sdk[/\\](\d+)\.').Groups[1].Value)</_SkUiSdkMajor>
+    <_SkUiSdkMajor>$([System.Text.RegularExpressions.Regex]::Match('$(CustomAfterDirectoryBuildProps)', '[/\\]sdk[/\\](\d+)\.\d+\.\d+[/\\]Sdks[/\\]').Groups[1].Value)</_SkUiSdkMajor>
     <SkUiNet Condition="'$(SkUiNet)' == '' and '$(_SkUiSdkMajor)' == '10'">10</SkUiNet>
     <_SkUiNet11 Condition="'$(SkUiNet)' != '10'">true</_SkUiNet11>
     <_SkUiNet10 Condition="'$(SkUiNet)' != '11'">true</_SkUiNet10>

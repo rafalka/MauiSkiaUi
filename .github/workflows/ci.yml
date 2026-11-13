@@ -32,6 +32,10 @@ jobs:
           workloads: maui-android
           java-version: "17"
 
+      # net10/SkiaUi.Net10.slnx (the .NET 10 line on SDK 10) is generated from SkiaUi.slnx.
+      - name: Check the net10 solution is in sync
+        run: python3 scripts/net10_solution.py --check
+
       - name: Restore
         run: dotnet restore tests/MauiSkiaUi.Tests/MauiSkiaUi.Tests.csproj
 

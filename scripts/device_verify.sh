@@ -74,7 +74,7 @@ Options:
   -c CONFIG           MSBuild configuration (default: Debug)
   -r RID              Android runtime identifier, e.g. android-arm64
   --net 10|11         .NET line: net11 (CoreCLR, MAUI 11; default, or SKUI_NET; net10 on SDK 10) or net10. net10 iOS /
-                      Mac Catalyst apps build with SDK 10: dotnet then runs from scripts/sdk10, whose global.json selects it
+                      Mac Catalyst apps build with SDK 10: dotnet then runs from net10, whose global.json selects it
   -C, --fresh         Clean the project first, then deploy
   -R, --release       Release configuration (shorthand for -c Release)
   -U, --wipe          Uninstall the app from the target first
@@ -854,10 +854,10 @@ resolve_target_framework() {
     local sdk
     sdk="$(dotnet --version)"
     [[ -n "$NET_LINE" ]] || { [[ "$sdk" == 10.* ]] && NET_LINE=10 || NET_LINE=11; }
-    # net10 iOS / Mac Catalyst apps only build with SDK 10's workload (Directory.Build.props): select it through scripts/sdk10.
+    # net10 iOS / Mac Catalyst apps only build with SDK 10's workload (Directory.Build.props): select it through net10.
     if [[ "$NET_LINE" == 10 && "$platform" != android && "$sdk" != 10.* ]]; then
         [[ -z "$SCREENSHOT_DIR" || "$SCREENSHOT_DIR" == /* ]] || SCREENSHOT_DIR="$PWD/$SCREENSHOT_DIR"
-        cd "$REPO_ROOT/scripts/sdk10"
+        cd "$REPO_ROOT/net10"
         [[ "$(dotnet --version)" == 10.* ]] || { echo "net10 $platform apps need a .NET SDK 10.0.4xx with its iOS / Mac Catalyst workloads" >&2; exit 1; }
     fi
     case "$platform" in

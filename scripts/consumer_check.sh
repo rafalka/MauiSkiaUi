@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # Consumer check of packed SkiaUi packages: restores them into a minimal Android app of one .NET line, with that line's SDK
-# (net10: SDK 10 through scripts/sdk10, as .NET 10 apps build; net11: global.json's SDK 11), and asserts that the app gets
+# (net10: SDK 10 through net10, as .NET 10 apps build; net11: global.json's SDK 11), and asserts that the app gets
 # that line's assets (lib/netX.0-android*) and MAUI (Microsoft.Maui.Controls X.*), so a net10 app never pulls MAUI 11.
 # Needs the maui-android workload of that SDK. The app lives in a temporary folder outside the repository (no
 # Directory.Build.props) and is only restored, not built. It does not set UseMaui: that adds an implicit
@@ -45,7 +45,7 @@ version="${version#SkiaUi.Maui.}"
 
 app="$(mktemp -d)"
 trap 'rm -rf "$app"' EXIT
-if [[ "$NET" == 10 ]]; then cp "$REPO_ROOT/scripts/sdk10/global.json" "$app/"; else cp "$REPO_ROOT/global.json" "$app/"; fi
+if [[ "$NET" == 10 ]]; then cp "$REPO_ROOT/net10/global.json" "$app/"; else cp "$REPO_ROOT/global.json" "$app/"; fi
 cat >"$app/nuget.config" <<EOF
 <?xml version="1.0" encoding="utf-8"?>
 <configuration>

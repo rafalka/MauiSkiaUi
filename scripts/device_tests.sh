@@ -48,7 +48,7 @@ Usage: scripts/device_tests.sh -t TARGET [options]
   -S LIST          comma separated scenario names (default: all)
   -o DIR           output directory (default artifacts/device-tests/<timestamp>)
   --net 10|11      .NET line (default: SKUI_NET, else net11; SDK 10 builds net10 only). net10 iOS / Mac Catalyst
-                   apps build with SDK 10: dotnet then runs from scripts/sdk10, whose global.json selects it
+                   apps build with SDK 10: dotnet then runs from net10, whose global.json selects it
   --timeout SEC    give up after SEC seconds (default 900)
   --aot            publish the app with Native AOT (implies full trimming); fails on trim / AOT warnings from SkiaUi
   --trim           build the app fully trimmed (TrimMode=full, no AOT); fails on trim warnings from SkiaUi
@@ -84,11 +84,11 @@ done
 
 OUT="${OUT:-$REPO_ROOT/artifacts/device-tests/$(date +%Y%m%d-%H%M%S)}"
 mkdir -p "$OUT"
-OUT="$(cd "$OUT" && pwd)" # absolute: dotnet may run from scripts/sdk10 below
+OUT="$(cd "$OUT" && pwd)" # absolute: dotnet may run from net10 below
 
-# net10 iOS / Mac Catalyst apps only build with SDK 10's workload (Directory.Build.props): select it through scripts/sdk10.
+# net10 iOS / Mac Catalyst apps only build with SDK 10's workload (Directory.Build.props): select it through net10.
 if [[ "$NET" == 10 && "$TARGET" != android && "$(dotnet --version)" != 10.* ]]; then
-    cd "$REPO_ROOT/scripts/sdk10"
+    cd "$REPO_ROOT/net10"
     [[ "$(dotnet --version)" == 10.* ]] || { echo "net10 $TARGET apps need a .NET SDK 10.0.4xx with its iOS / Mac Catalyst workloads" >&2; exit 1; }
 fi
 LOG="$OUT/$TARGET.log"
