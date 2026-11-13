@@ -8,7 +8,7 @@
 
 **Baseline:** 1.10.0 (MAUI 10.0.120, SDK 10.0.402, SkiaSharp 4.154.0, Xcode 26.6 / 27.1).
 
-**Status:** Step 1 is done on branch `feature/net11-support`. The headless part of Steps 2 and 3 is done: the library builds for `net11.0` with 0 warnings and the headless suite is green on `net10.0` and `net11.0` with MAUI 11.0.10 (findings below). Next: Step 0 (Xcode 27.2 and the workload set 11.0.100.1 are on the build machine), then the platform TFMs.
+**Status:** Steps 0 (one SDK) and 1 are done on branch `feature/net11-support`. The headless part of Steps 2 and 3 is done: the library builds for `net11.0` with 0 warnings and the headless suite is green on `net10.0` and `net11.0` with MAUI 11.0.10 (findings below). The library's platform TFMs build with 0 warnings; next the app heads (demo, samples, device tests, bench app) on both lines.
 
 ## Decisions
 
@@ -48,11 +48,13 @@ Work in a scratch worktree with `global.json` set to 11.0.100:
 2. Compare the net10 Apple assemblies built this way with the 1.10.0 nupkg using ApiCompat. The public API must be identical.
 3. Build the iOS demo for `net10.0-ios` with SDK 10.0.402 and Xcode 27.2 (workload set 10.0.404) against the library built on SDK 11, and run it on a simulator.
 
-Results so far (13 November 2026, Xcode 27.2, SDK 11.0.100, workload set 11.0.100.1):
+Results (13 November 2026, Xcode 27.2, SDK 11.0.100, workload set 11.0.100.1):
 
 1. **Pass.** Every TFM builds with 0 warnings once `NSObject.SuperHandle` (obsolete on net11 Apple) is replaced by our own `objc_super` struct in `SkUiViewHandler`'s accessibility hit test (one code path on both lines; check VoiceOver's explore by touch on devices). The net10 Apple TFMs use the 26.0 packs (26.0.11017), the net11 ones 27.2.11039; net10 / net11 Android target API 36 / 37.
 2. **Pass.** Package validation (the SDK's ApiCompat: `EnablePackageValidation`, `PackageValidationBaselineVersion=1.10.3`) finds no difference from 1.10.3 for `net10.0`, Android, iOS and Mac Catalyst, and none between the net10 and net11 assets. The only reports are the Windows-only types (`SkUiAppBuilderExtensions`, `SkUiViewHandler`) because a Mac pack has no Windows assembly; the baseline's Windows framework has to be ignored through the `PackageValidationBaselineFrameworkToIgnore` item (not a property) for Step 4.
-3. Open: needs SDK 10's workload band back on set 10.0.404 (a `dotnet workload install` run under SDK 10 had pinned it to 11.0.100.1).
+3. **Pass.** A minimal net10 iOS app built with SDK 10.0.404 (workload set 10.0.404) and Xcode 27.2 restores the SDK 11-built package from a local feed and runs on an iPhone 18 Pro simulator (iOS 27.2): drawn controls render, taps, the typed stepper and the entry with the software keyboard work, as with the same commit packed by SDK 10. SDK 10's workload set 10.0.404 builds `net10.0-ios` against the same 26.0 pack, so the pack is not a difference between the SDKs. (Install workloads from a folder whose `global.json` selects the SDK meant: `dotnet workload install` under SDK 10 pins SDK 10's band to whatever set it is given.)
+
+**Decision: one SDK.** `global.json` is on 11.0.100 and builds every TFM; SDK 10 builds the net10 line with `-p:SkUiNet=10` (CI's net10-only jobs, Step 5).
 
 Outcome:
 
