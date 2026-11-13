@@ -48,6 +48,12 @@ Work in a scratch worktree with `global.json` set to 11.0.100:
 2. Compare the net10 Apple assemblies built this way with the 1.10.0 nupkg using ApiCompat. The public API must be identical.
 3. Build the iOS demo for `net10.0-ios` with SDK 10.0.402 and Xcode 27.2 (workload set 10.0.404) against the library built on SDK 11, and run it on a simulator.
 
+Results so far (13 November 2026, Xcode 27.2, SDK 11.0.100, workload set 11.0.100.1):
+
+1. **Pass.** Every TFM builds with 0 warnings once `NSObject.SuperHandle` (obsolete on net11 Apple) is replaced by our own `objc_super` struct in `SkUiViewHandler`'s accessibility hit test (one code path on both lines; check VoiceOver's explore by touch on devices). The net10 Apple TFMs use the 26.0 packs (26.0.11017), the net11 ones 27.2.11039; net10 / net11 Android target API 36 / 37.
+2. **Pass.** Package validation (the SDK's ApiCompat: `EnablePackageValidation`, `PackageValidationBaselineVersion=1.10.3`) finds no difference from 1.10.3 for `net10.0`, Android, iOS and Mac Catalyst, and none between the net10 and net11 assets. The only reports are the Windows-only types (`SkUiAppBuilderExtensions`, `SkUiViewHandler`) because a Mac pack has no Windows assembly; the baseline's Windows framework has to be ignored through the `PackageValidationBaselineFrameworkToIgnore` item (not a property) for Step 4.
+3. Open: needs SDK 10's workload band back on set 10.0.404 (a `dotnet workload install` run under SDK 10 had pinned it to 11.0.100.1).
+
 Outcome:
 
 - **All pass → one SDK:** `global.json` moves to 11.0.100 and builds every TFM.

@@ -1860,8 +1860,20 @@ internal sealed class SkUiOverlayContainer : MauiView
 
     private static readonly ObjCRuntime.Selector AccessibilityHitTestSelector = new("_accessibilityHitTest:withEvent:");
 
+    /// <summary>
+    /// Objective-C's <c>objc_super</c>: the receiver and the class whose superclass's method runs, as the bindings'
+    /// <c>ObjCSuper</c> fills it (<c>NSObject.SuperHandle</c> is obsolete on .NET 11; <c>ObjCSuper</c> is a ref struct that needs
+    /// unsafe code to pass).
+    /// </summary>
+    [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
+    private struct ObjCSuperArgs(IntPtr receiver, IntPtr classHandle)
+    {
+        public IntPtr Receiver = receiver;
+        public IntPtr ClassHandle = classHandle;
+    }
+
     [System.Runtime.InteropServices.DllImport(ObjCRuntime.Constants.ObjectiveCLibrary, EntryPoint = "objc_msgSendSuper")]
-    private static extern IntPtr SendSuperHitTest(IntPtr super, IntPtr selector, CoreGraphics.CGPoint point, IntPtr uiEvent);
+    private static extern IntPtr SendSuperHitTest(ref ObjCSuperArgs super, IntPtr selector, CoreGraphics.CGPoint point, IntPtr uiEvent);
 
     /// <summary>
     /// VoiceOver's explore by touch (and Accessibility Inspector's pointer): UIKit's search from the window asks each view for the
@@ -1876,7 +1888,10 @@ internal sealed class SkUiOverlayContainer : MauiView
     {
         if (Accessibility?.HitTest(point) is { } element)
             return element;
-        return ObjCRuntime.Runtime.GetNSObject(SendSuperHitTest(SuperHandle, AccessibilityHitTestSelector.Handle, point, uiEvent is null ? IntPtr.Zero : uiEvent.Handle));
+        var super = new ObjCSuperArgs(Handle, ClassHandle);
+        var result = SendSuperHitTest(ref super, AccessibilityHitTestSelector.Handle, point, uiEvent is null ? IntPtr.Zero : uiEvent.Handle);
+        GC.KeepAlive(this);
+        return ObjCRuntime.Runtime.GetNSObject(result);
     }
 
     public override bool CanBecomeFirstResponder => KeyboardFocus is { } focus && (focus.Focused is not null || focus.HasFocusableNodes);
