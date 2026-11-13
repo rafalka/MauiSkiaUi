@@ -110,6 +110,26 @@ internal static class SkUiShapeGeometry
     }
 
     /// <summary>
+    /// The inset a shape's path and size leave for its stroke, as MAUI's shapes. MAUI 10 always leaves the stroke thickness (1 by
+    /// default, even without a stroke); MAUI 11 leaves it only when there is a stroke (dotnet/maui#37319), so a shape without one
+    /// fills its bounds.
+    /// </summary>
+    public static double StrokeInset(bool hasStroke, double strokeThickness) =>
+#if NET11_0_OR_GREATER
+        hasStroke ? strokeThickness : 0;
+#else
+        strokeThickness;
+#endif
+
+    /// <summary>Whether a stroke appearing or going changes the shape's size and path (<see cref="StrokeInset"/>).</summary>
+    public const bool StrokeChangesInset =
+#if NET11_0_OR_GREATER
+        true;
+#else
+        false;
+#endif
+
+    /// <summary>
     /// Places <paramref name="path"/> in <paramref name="viewBounds"/> as MAUI's <c>TransformPathForBounds</c>: the area is
     /// the bounds inset by half the stroke; without stretch the path only moves to bring an edge that sticks out over the
     /// left / top (or else right / bottom) back in, otherwise it is scaled by <paramref name="aspect"/>.

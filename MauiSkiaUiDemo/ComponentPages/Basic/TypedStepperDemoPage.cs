@@ -21,7 +21,7 @@ public sealed class TypedStepperDemoPage : ComponentDemoPage
         Number(nameof(SkUiStepper<decimal>.Minimum), 0, 50, 0, value => { skia.Minimum = (decimal)value; native.Minimum = value; },
             () => (double)skia.Minimum, () => native.Minimum, whole: true);
         Choice(nameof(SkUiStepper<decimal>.Increment), Increments, 0.1m, value => { skia.Increment = value; native.Increment = (double)value; },
-            () => skia.Increment, () => (decimal)native.Increment);
+            () => skia.Increment, () => SkUiDecimal.FromDouble(native.Increment)); // (decimal)0.1 is exact on .NET 11: 0.1000…0555m
         Number(nameof(SkUiStepper<decimal>.Value), 0, 100, 0, value => { skia.Value = (decimal)value; native.Value = value; },
             () => (double)skia.Value, () => native.Value, whole: true);
         Choice(nameof(SkUiStepper<decimal>.Orientation), [StackOrientation.Horizontal, StackOrientation.Vertical], StackOrientation.Horizontal,

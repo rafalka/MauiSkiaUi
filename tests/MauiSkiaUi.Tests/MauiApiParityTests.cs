@@ -15,7 +15,7 @@ namespace MauiSkiaUi.Tests;
 /// <see cref="EditorBrowsableState.Never"/> are handler plumbing and not compared; so are the visible plumbing members in
 /// <see cref="PlumbingEverywhere"/>. Every other difference is listed in <see cref="Excluded"/> with the reason or in
 /// <see cref="Planned"/> with the step that closes it (a step removes its entries), and an entry that no longer
-/// matches a difference fails too. On a new MAUI 10.0.x release, the failure lists what MAUI added.
+/// matches a difference fails too. On a new MAUI release (10.0.x on net10, 11.0.x on net11), the failure lists what MAUI added.
 /// </summary>
 public class MauiApiParityTests
 {
@@ -133,8 +133,17 @@ public class MauiApiParityTests
                 "FontAutoScalingEnabled", "FontFamily", "FontSize", "GroupName", "IsClippedToBounds", "Padding", "TextColor", "TextTransform", "Value",
             ]));
 
-    /// <summary>Gaps a planned step closes, keyed like <see cref="Excluded"/>, with the step (none planned now: reordering, the last, shipped in 1.3).</summary>
-    private static readonly Dictionary<string, string> Planned = Entries();
+    private const string Maui11Backlog = "New in MAUI 11 (net11 only): the roadmap's MAUI parity backlog, \"MAUI 11 members\"";
+
+    /// <summary>Gaps a planned step closes, keyed like <see cref="Excluded"/>, with the step or backlog entry (MAUI 11's new members on net11).</summary>
+    private static readonly Dictionary<string, string> Planned = Entries(
+#if NET11_0_OR_GREATER
+        (Maui11Backlog, ["SkUiBox"], ["Fill", "FillProperty"]),
+        (Maui11Backlog, ["SkUiCoreBox"], ["Fill"]),
+        (Maui11Backlog, ["SkUiEditor"], ["ReturnCommand", "ReturnCommandParameter", "ReturnCommandParameterProperty", "ReturnCommandProperty"]),
+        (Maui11Backlog, ["SkUiCoreEditor"], ["ReturnCommand", "ReturnCommandParameter"])
+#endif
+    );
 
     private static readonly Lazy<List<(string Key, string Problem)>> DrawnDifferences =
         new(() => [.. Pairs.SelectMany(pair => Differences(pair.Maui, pair.Drawn))]);

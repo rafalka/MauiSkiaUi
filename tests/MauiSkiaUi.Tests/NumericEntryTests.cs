@@ -80,6 +80,17 @@ public class NumericEntryTests
     }
 
     [Fact]
+    public void ALargeDoubleIsEditedWrittenOutWithoutItsBinaryError()
+    {
+        using var _ = SkUiTestHelpers.UseBundledFont();
+        // 1.2345678901234567E+20 is written out through decimal, whose conversion from double is exact on .NET 11
+        // (123456789012345671680); both lines show the 15 significant digits .NET 10's conversion keeps.
+        var (_, entry) = Field(new SkUiNumericEntry { Culture = German, Maximum = 1e21, Value = 1.2345678901234567e20 });
+        Assert.True(entry.Focus());
+        Assert.Equal("123456789012346000000", entry.Text);
+    }
+
+    [Fact]
     public void TypedTextIsFilteredAndCommittedOnReturnAndFocusLossClampedOnlyThen()
     {
         using var _ = SkUiTestHelpers.UseBundledFont();

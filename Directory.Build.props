@@ -7,7 +7,7 @@
     -->
     <!-- Microsoft.Maui.Controls (and the MAUI workload's implicit packages). net10 stays at its floor: apps may use any later 10.x. -->
     <Maui10Version>10.0.120</Maui10Version>
-    <Maui11Version>11.0.0</Maui11Version>
+    <Maui11Version>11.0.10</Maui11Version>
 
     <!-- Pin SkiaSharp and its companion packages (HarfBuzz, Views, native assets) via $(SkiaSharpVersion); keep them in lockstep. One
          version for both lines: SkiaSharp.Views.Maui.Controls has net10 assets only, which net11 builds use on MAUI 11. -->

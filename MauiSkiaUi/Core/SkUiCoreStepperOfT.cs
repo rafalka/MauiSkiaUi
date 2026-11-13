@@ -137,6 +137,6 @@ public class SkUiCoreStepper<T> : SkUiCoreStepperBase where T : struct, INumber<
     private protected override void SetValueFromSemantics(double value)
     {
         if (double.IsFinite(value))
-            SetValue(T.CreateSaturating(value));
+            SetValue(SkUiStepperMath<T>.FromDouble(value));
     }
 }

@@ -31,6 +31,13 @@ internal static class SkUiStepperMath<T> where T : struct, INumber<T>, IMinMaxVa
     private static T Round(T value, int digits) =>
         IsBinaryFloatingPoint ? T.CreateTruncating(Math.Round(double.CreateTruncating(value), digits)) : value;
 
+    /// <summary>
+    /// A finite <see cref="double"/> (a screen reader's value) as <typeparamref name="T"/>, saturating at the type's limits; a
+    /// <see cref="decimal"/> gets the number as written (<see cref="SkUiDecimal.FromDouble"/>), not the double's binary error.
+    /// </summary>
+    public static T FromDouble(double value) =>
+        typeof(T) == typeof(decimal) ? T.CreateTruncating(SkUiDecimal.FromDouble(value)) : T.CreateSaturating(value);
+
     /// <summary>Whether the value can move down (-1) or up (+1).</summary>
     public static bool CanStep(T value, T minimum, T maximum, int direction) => direction < 0 ? value > minimum : value < maximum;
 

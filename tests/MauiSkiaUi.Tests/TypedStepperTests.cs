@@ -123,6 +123,20 @@ public class TypedStepperTests
     }
 
     [Fact]
+    public void ADecimalSetByAScreenReaderIsTheNumberWritten()
+    {
+        // .NET 11's double to decimal conversion is exact: (decimal)0.1 is 0.1000000000000000055511151231.
+        var stepper = new SkUiStepper<decimal> { Increment = 0.1m, Maximum = decimal.MaxValue };
+        Assert.True(((ISkUiAccessibleNode)stepper).SetSemanticsValue(0.1));
+        Assert.Equal("0.1", stepper.Value.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        Assert.True(((ISkUiAccessibleNode)stepper).SetSemanticsValue(1e30));
+        Assert.Equal(decimal.MaxValue, stepper.Value);
+        var core = new SkUiCoreStepper<decimal>().SetMaximum(10);
+        Assert.True(((ISkUiAccessibleNode)core).SetSemanticsValue(2.3));
+        Assert.Equal("2.3", core.Value.ToString(System.Globalization.CultureInfo.InvariantCulture));
+    }
+
+    [Fact]
     public void ButtonsAndKeysStepATypedValue()
     {
         var stepper = new SkUiStepper<short> { Value = 3, Increment = 2, HorizontalOptions = LayoutOptions.Start };

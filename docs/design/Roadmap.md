@@ -18,7 +18,7 @@ What the next releases bring, and the work after them. What has shipped is in th
 | **1.8.0** | 10.0.120 | 27 | 10.0.402 | As 1.1.0 | `master`, released 6 November 2026 |
 | **1.9.0** | 10.0.120 | 27 | 10.0.402 | As 1.1.0 | `master`, released 10 November 2026 |
 | **1.10.0** | 10.0.120 | 27 | 10.0.402 | As 1.1.0 | `master`, released 11 November 2026 |
-| **1.11.0** | 10.0.120 (net10) and 11.0.0 (net11) | 27 (net10), 27.2 (net11) | 11.0.100 | As 1.1.0; Android 7.0 (API 24) on net11 | Planned |
+| **1.11.0** | 10.0.120 (net10) and 11.0.10 (net11) | 27 (net10), 27.2 (net11) | 11.0.100 | As 1.1.0; Android 7.0 (API 24) on net11 | Planned |
 
 SkiaUi up to 1.10 targets MAUI 10.x only; 1.11 adds net11 targets with MAUI 11 next to them ([1.11.0](#1110-net-11-and-maui-11-planned)). Development happens on `devel`; `master` holds stable releases ([Releasing.md](../Releasing.md#branches-and-versions)).
 
@@ -116,7 +116,7 @@ Built on the branch `1.10-implementation`. Steps, order and open decisions: [Imp
 
 Every package targets `net11.0-*` with MAUI 11 next to `net10.0-*` with MAUI 10, so apps that stay on .NET 10 keep restoring the net10 assets and never see MAUI 11; no net10 target framework is dropped. Platform support only: the MAUI 11 members new to the API go to [MAUI parity](#maui-parity). Ships as `1.11.0-Prerelease01`, then `1.11.0` after device checks on both runtimes (CoreCLR replaces Mono on mobile in .NET 11). Steps, decisions and verification: [ImplementationPlan-1.11.md](ImplementationPlan-1.11.md); the shared target framework lists and per-TFM pins (step 1) are on the branch `feature/net11-support`.
 
-- Per-TFM MAUI (10.0.120 / 11.0.0), Community Toolkit (15.0.1 / 17.0.0) and minimum Android (API 21 / 24); SkiaSharp 4.154.0 on both lines.
+- Per-TFM MAUI (10.0.120 / 11.0.10), Community Toolkit (15.0.1 / 17.0.0) and minimum Android (API 21 / 24); SkiaSharp 4.154.0 on both lines.
 - .NET SDK 11.0.100 and Xcode 27.2 for the net11 Apple builds; whether SDK 11 also builds the net10 assets or SDK 10 keeps building them is decided by a spike first.
 - CI over both lines (the Xcode 26.6 / 27.2 jobs stay as net10-only jobs on SDK 10), headless tests on `net10.0` and `net11.0`, an API comparison between the lines and against 1.10.0, and net10 / net11 consumer apps restoring the packed packages.
 
@@ -132,7 +132,7 @@ Taken up when a real app needs it, roughly in this order within each area. Items
 ### MAUI parity
 
 - **CarouselView / IndicatorView:** `VisibleViews`; autoplay, several items per snap point, a Core carousel.
-- **MAUI 11 members** (net11 only, known gaps in the parity test from 1.11): `LongPressGestureRecognizer` on drawn views, `BoxView.Fill`, the `CancellationToken` overloads of `FadeToAsync` and the other animation extensions, `VisualElement.InvalidateStyle` / `VisualStateManager.InvalidateVisualStates`.
+- **MAUI 11 members** (net11 only, known gaps in the parity test from 1.11): `LongPressGestureRecognizer` on drawn views, `BoxView.Fill`, `Editor.ReturnCommand` / `ReturnCommandParameter`, the `CancellationToken` overloads of `FadeToAsync` and the other animation extensions, `VisualElement.InvalidateStyle` / `VisualStateManager.InvalidateVisualStates`.
 - **Gesture recognizers on drawn views:** `PanGestureRecognizer` with `TouchPoints` other than 1 (reported and not run since 1.2).
 - **Labels:** span press feedback, HTML images, block indents; one fitted size for a group of labels.
 - **Templates:** button image tint.

@@ -159,10 +159,11 @@ public class ControlParityTests
     [Fact]
     public void LineMeasuresAndDrawsItsPointsLikeMaui()
     {
-        var line = new SkUiLine(10, 5, 50, 25) { StrokeThickness = 2 };
+        var line = new SkUiLine(10, 5, 50, 25) { Stroke = Colors.Red, StrokeThickness = 2 };
         Assert.Equal(new Size(52, 27), ((IView)line).Measure(double.PositiveInfinity, double.PositiveInfinity));
-        // MAUI's default stroke is 1 DIP.
-        Assert.Equal(new Size(1, 1), ((IView)new SkUiLine()).Measure(double.PositiveInfinity, double.PositiveInfinity));
+        // MAUI's default stroke is 1 DIP; MAUI 11 leaves no room for it without a stroke.
+        Assert.Equal(new Size(ShapeTests.UnstrokedInset, ShapeTests.UnstrokedInset),
+            ((IView)new SkUiLine()).Measure(double.PositiveInfinity, double.PositiveInfinity));
 
         var horizontal = new SkUiLine(0, 10, 40, 10) { Stroke = Colors.Red, StrokeThickness = 4 };
         SkUiTestHelpers.Arrange(horizontal, 44, 20);
@@ -175,7 +176,7 @@ public class ControlParityTests
         }
 
         var core = new SkUiCoreLine(10, 5, 50, 25);
-        core.SetStrokeThickness(2);
+        core.SetStroke(Colors.Red).SetStrokeThickness(2);
         Assert.Equal(new Size(52, 27), core.Measure(double.PositiveInfinity, double.PositiveInfinity));
         core.SetY2(45);
         Assert.Equal(new Size(52, 47), core.Measure(double.PositiveInfinity, double.PositiveInfinity));

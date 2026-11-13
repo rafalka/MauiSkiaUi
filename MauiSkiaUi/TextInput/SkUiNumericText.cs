@@ -83,7 +83,7 @@ internal static class SkUiNumericText<T> where T : struct, INumber<T>, IMinMaxVa
         if (!SkUiStepperMath<T>.IsBinaryFloatingPoint || text.IndexOfAny(['E', 'e']) < 0)
             return text;
         var number = double.CreateTruncating(value);
-        return Math.Abs(number) < 7.9e28 ? ((decimal)number).ToString("G29", format) : text;
+        return Math.Abs(number) < 7.9e28 ? SkUiDecimal.FromDouble(number).ToString("G29", format) : text;
     }
 
     /// <summary>The value as shown while the entry is not edited: <paramref name="format"/> (a .NET numeric format) in the culture.</summary>

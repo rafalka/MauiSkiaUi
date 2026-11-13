@@ -60,8 +60,12 @@ public abstract class SkUiCoreShape : SkUiCoreNode, IShape, ISkUiShapeOutline
     /// <summary>Sets the stroke paint.</summary>
     public SkUiCoreShape SetStroke(Paint? value)
     {
+        var insetChanged = SkUiShapeGeometry.StrokeChangesInset && _stroke is null != value is null;
         if (!SetProperty(ref _stroke, value, nameof(Stroke))) return this;
-        InvalidatePaint();
+        if (insetChanged)
+            InvalidateMeasure();
+        else
+            InvalidatePaint();
         return this;
     }
 
@@ -148,18 +152,22 @@ public abstract class SkUiCoreShape : SkUiCoreNode, IShape, ISkUiShapeOutline
     /// <summary>Raised by subclasses when their geometry changed.</summary>
     private protected void InvalidateGeometry() => InvalidateMeasure();
 
-    private PathF PlacedPath(Rect bounds, double strokeThickness)
+    /// <summary>The inset left for the stroke (<see cref="SkUiShapeGeometry.StrokeInset"/>).</summary>
+    private double StrokeInset => SkUiShapeGeometry.StrokeInset(_stroke is not null, _strokeThickness);
+
+    /// <summary>The geometry placed in <paramref name="bounds"/>, inset by <paramref name="strokeInset"/> for the stroke.</summary>
+    private PathF PlacedPath(Rect bounds, double strokeInset)
     {
         if (SizesToBounds)
-            return CreatePath(bounds.Inflate(-strokeThickness / 2, -strokeThickness / 2));
+            return CreatePath(bounds.Inflate(-strokeInset / 2, -strokeInset / 2));
         var path = CreatePath(bounds);
-        SkUiShapeGeometry.PlaceInBounds(path, bounds, strokeThickness, _aspect);
+        SkUiShapeGeometry.PlaceInBounds(path, bounds, strokeInset, _aspect);
         return path;
     }
 
     /// <inheritdoc />
     protected override Size MeasureContent(double widthConstraint, double heightConstraint) => SkUiShapeGeometry.Measure(
-        SizesToBounds ? default : SkUiShapeGeometry.Bounds(CreatePath(default)), _aspect, _strokeThickness, widthConstraint, heightConstraint);
+        SizesToBounds ? default : SkUiShapeGeometry.Bounds(CreatePath(default)), _aspect, StrokeInset, widthConstraint, heightConstraint);
 
     /// <inheritdoc />
     protected override void OnPaintContent(SKCanvas canvas)
@@ -167,7 +175,7 @@ public abstract class SkUiCoreShape : SkUiCoreNode, IShape, ISkUiShapeOutline
         var stroked = _strokeThickness > 0 && SkUiShapePainter.IsVisible(_stroke);
         if (!stroked && !SkUiShapePainter.IsVisible(_fill)) return;
         var bounds = new Rect(0, 0, Frame.Width, Frame.Height);
-        using var path = SkUiShapeGeometry.ToSkia(PlacedPath(bounds, _strokeThickness), Winding, GeometryTransform);
+        using var path = SkUiShapeGeometry.ToSkia(PlacedPath(bounds, StrokeInset), Winding, GeometryTransform);
         SkUiShapePainter.Draw(canvas, path, _fill, new SKRect(0, 0, (float)Frame.Width, (float)Frame.Height), stroked ? _stroke : null, StrokeStyle());
     }
 
@@ -185,12 +193,12 @@ public abstract class SkUiCoreShape : SkUiCoreNode, IShape, ISkUiShapeOutline
             return background;
         if (PaintBackground is not null)
             return null;
-        var path = SkUiShapeGeometry.ToSkia(PlacedPath(new Rect(0, 0, width, height), _strokeThickness), Winding, GeometryTransform);
+        var path = SkUiShapeGeometry.ToSkia(PlacedPath(new Rect(0, 0, width, height), StrokeInset), Winding, GeometryTransform);
         return SkUiShapePainter.ShapeShadowOutline(path, _fill, _stroke, StrokeStyle());
     }
 
     /// <summary>The geometry placed in <paramref name="bounds"/> inset by half the stroke, as MAUI's <c>IShape.PathForBounds</c>.</summary>
-    PathF IShape.PathForBounds(Rect bounds) => PlacedPath(bounds, _strokeThickness);
+    PathF IShape.PathForBounds(Rect bounds) => PlacedPath(bounds, StrokeInset);
 
     /// <inheritdoc />
     WindingMode ISkUiShapeOutline.Winding => Winding;
