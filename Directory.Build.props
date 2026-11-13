@@ -43,9 +43,16 @@
       SkUiDeviceTfms    app heads without one (device tests, on-device bench)
       SkUiHeadlessTfms  plain netX.0 projects (headless tests, benchmark runner)
     Each list has net11 first, so a tool that picks the first TFM runs .NET 11. iOS and Mac Catalyst are left out on Linux, Windows
-    is only built on Windows. -p:SkUiNet=10 or -p:SkUiNet=11 builds one line only (CI jobs on SDK 10, which can't build net11.0).
+    is only built on Windows. -p:SkUiNet=10 or -p:SkUiNet=11 builds one line only; SDK 10, which can't build net11.0, builds the
+    net10 line by itself.
+    App heads (SkUiAppTfms, SkUiDeviceTfms) build net10 iOS and Mac Catalyst on SDK 10 only: SDK 11's workload carries the net10
+    Apple packs for Xcode 26 (26.0.x), which refuse to build an app with a newer Xcode, while SDK 10's own workload has the Xcode 27
+    packs .NET 10 apps use. Libraries are not affected (no Xcode check), so the packages build every TFM on SDK 11. The SDK's major
+    version comes from MSBuild's path (empty under Visual Studio's own MSBuild, which then keeps every TFM).
   -->
   <PropertyGroup>
+    <_SkUiSdkMajor>$([System.Text.RegularExpressions.Regex]::Match('$(MSBuildBinPath)', '[/\\]sdk[/\\](\d+)\.').Groups[1].Value)</_SkUiSdkMajor>
+    <SkUiNet Condition="'$(SkUiNet)' == '' and '$(_SkUiSdkMajor)' == '10'">10</SkUiNet>
     <_SkUiNet11 Condition="'$(SkUiNet)' != '10'">true</_SkUiNet11>
     <_SkUiNet10 Condition="'$(SkUiNet)' != '11'">true</_SkUiNet10>
     <_SkUiApple Condition="!$([MSBuild]::IsOSPlatform('linux'))">true</_SkUiApple>
@@ -54,7 +61,8 @@
     <_SkUiDevice11 Condition="'$(_SkUiNet11)' == 'true'">net11.0-android</_SkUiDevice11>
     <_SkUiDevice11 Condition="'$(_SkUiNet11)' == 'true' and '$(_SkUiApple)' == 'true'">$(_SkUiDevice11);net11.0-ios;net11.0-maccatalyst</_SkUiDevice11>
     <_SkUiDevice10 Condition="'$(_SkUiNet10)' == 'true'">net10.0-android</_SkUiDevice10>
-    <_SkUiDevice10 Condition="'$(_SkUiNet10)' == 'true' and '$(_SkUiApple)' == 'true'">$(_SkUiDevice10);net10.0-ios;net10.0-maccatalyst</_SkUiDevice10>
+    <_SkUiApple10 Condition="'$(_SkUiNet10)' == 'true' and '$(_SkUiApple)' == 'true'">net10.0-ios;net10.0-maccatalyst</_SkUiApple10>
+    <_SkUiApple10Apps Condition="'$(_SkUiSdkMajor)' == '' or '$(_SkUiSdkMajor)' == '10'">$(_SkUiApple10)</_SkUiApple10Apps>
     <_SkUiWin11 Condition="'$(_SkUiNet11)' == 'true' and '$(_SkUiWindows)' == 'true'">net11.0-windows10.0.19041.0</_SkUiWin11>
     <_SkUiWin10 Condition="'$(_SkUiNet10)' == 'true' and '$(_SkUiWindows)' == 'true'">net10.0-windows10.0.19041.0</_SkUiWin10>
     <_SkUiHeadless11 Condition="'$(_SkUiNet11)' == 'true'">net11.0</_SkUiHeadless11>
@@ -62,9 +70,9 @@
 
     <!-- Joined with ';' and trimmed (empty segments dropped); unescaped, as MSBuild escapes the ';' in a property function's result. -->
     <SkUiHeadlessTfms>$([MSBuild]::Unescape($([System.Text.RegularExpressions.Regex]::Replace('$(_SkUiHeadless11);$(_SkUiHeadless10)', ';{2,}', ';').Trim(';'))))</SkUiHeadlessTfms>
-    <SkUiDeviceTfms>$([MSBuild]::Unescape($([System.Text.RegularExpressions.Regex]::Replace('$(_SkUiDevice11);$(_SkUiDevice10)', ';{2,}', ';').Trim(';'))))</SkUiDeviceTfms>
-    <SkUiAppTfms>$([MSBuild]::Unescape($([System.Text.RegularExpressions.Regex]::Replace('$(_SkUiDevice11);$(_SkUiWin11);$(_SkUiDevice10);$(_SkUiWin10)', ';{2,}', ';').Trim(';'))))</SkUiAppTfms>
-    <SkUiLibraryTfms>$([MSBuild]::Unescape($([System.Text.RegularExpressions.Regex]::Replace('$(SkUiHeadlessTfms);$(SkUiAppTfms)', ';{2,}', ';').Trim(';'))))</SkUiLibraryTfms>
+    <SkUiDeviceTfms>$([MSBuild]::Unescape($([System.Text.RegularExpressions.Regex]::Replace('$(_SkUiDevice11);$(_SkUiDevice10);$(_SkUiApple10Apps)', ';{2,}', ';').Trim(';'))))</SkUiDeviceTfms>
+    <SkUiAppTfms>$([MSBuild]::Unescape($([System.Text.RegularExpressions.Regex]::Replace('$(_SkUiDevice11);$(_SkUiWin11);$(_SkUiDevice10);$(_SkUiApple10Apps);$(_SkUiWin10)', ';{2,}', ';').Trim(';'))))</SkUiAppTfms>
+    <SkUiLibraryTfms>$([MSBuild]::Unescape($([System.Text.RegularExpressions.Regex]::Replace('$(SkUiHeadlessTfms);$(_SkUiDevice11);$(_SkUiWin11);$(_SkUiDevice10);$(_SkUiApple10);$(_SkUiWin10)', ';{2,}', ';').Trim(';'))))</SkUiLibraryTfms>
   </PropertyGroup>
 
   <!-- Per-TFM pins and minimum OS versions (MAUI 11 raised Android to API 24; the others are the same on both lines). -->

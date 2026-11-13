@@ -8,7 +8,7 @@
 
 **Baseline:** 1.10.0 (MAUI 10.0.120, SDK 10.0.402, SkiaSharp 4.154.0, Xcode 26.6 / 27.1).
 
-**Status:** Steps 0 (one SDK) and 1 are done on branch `feature/net11-support`. The headless part of Steps 2 and 3 is done: the library builds for `net11.0` with 0 warnings and the headless suite is green on `net10.0` and `net11.0` with MAUI 11.0.10 (findings below). The library's platform TFMs build with 0 warnings; next the app heads (demo, samples, device tests, bench app) on both lines.
+**Status:** Steps 0 (one SDK) and 1 are done on branch `feature/net11-support`. The headless part of Steps 2 and 3 is done: the library builds for `net11.0` with 0 warnings and the headless suite is green on `net10.0` and `net11.0` with MAUI 11.0.10 (findings below). Step 2 is done on macOS: the solution builds with 0 warnings on SDK 11 (net10 Apple app heads on SDK 10), and the net11 demo runs on an iOS 27.2 simulator (CoreCLR, Metal). Windows builds wait for CI (Step 5). Next: Step 4 (API check script), then Step 5.
 
 ## Decisions
 
@@ -54,7 +54,9 @@ Results (13 November 2026, Xcode 27.2, SDK 11.0.100, workload set 11.0.100.1):
 2. **Pass.** Package validation (the SDK's ApiCompat: `EnablePackageValidation`, `PackageValidationBaselineVersion=1.10.3`) finds no difference from 1.10.3 for `net10.0`, Android, iOS and Mac Catalyst, and none between the net10 and net11 assets. The only reports are the Windows-only types (`SkUiAppBuilderExtensions`, `SkUiViewHandler`) because a Mac pack has no Windows assembly; the baseline's Windows framework has to be ignored through the `PackageValidationBaselineFrameworkToIgnore` item (not a property) for Step 4.
 3. **Pass.** A minimal net10 iOS app built with SDK 10.0.404 (workload set 10.0.404) and Xcode 27.2 restores the SDK 11-built package from a local feed and runs on an iPhone 18 Pro simulator (iOS 27.2): drawn controls render, taps, the typed stepper and the entry with the software keyboard work, as with the same commit packed by SDK 10. SDK 10's workload set 10.0.404 builds `net10.0-ios` against the same 26.0 pack, so the pack is not a difference between the SDKs. (Install workloads from a folder whose `global.json` selects the SDK meant: `dotnet workload install` under SDK 10 pins SDK 10's band to whatever set it is given.)
 
-**Decision: one SDK.** `global.json` is on 11.0.100 and builds every TFM; SDK 10 builds the net10 line with `-p:SkUiNet=10` (CI's net10-only jobs, Step 5).
+**Decision: one SDK for the packages.** `global.json` is on 11.0.100 and builds every package TFM; SDK 10 builds the net10 line by itself (`Directory.Build.props` reads the SDK's major version from MSBuild's path and sets `SkUiNet=10`).
+
+**App heads (found in Step 2):** SDK 11's workload carries the net10 Apple packs for Xcode 26 (26.0.11017), which refuse to build an *app* with Xcode 27.2 ("requires Xcode 26.0"); libraries have no such check. SDK 10's own workload set builds net10 Apple apps with its Xcode 27.2 packs (27.2.10000), as .NET 10 apps do. So on SDK 11 the app heads (`SkUiAppTfms`, `SkUiDeviceTfms`) leave out `net10.0-ios` / `net10.0-maccatalyst`, and those are built with SDK 10 (run `dotnet` from a folder whose `global.json` selects 10.0.402). Skipping the Xcode check instead (`ValidateXcodeVersion=false`) was not chosen: it would test a toolchain no .NET 10 app uses.
 
 Outcome:
 
