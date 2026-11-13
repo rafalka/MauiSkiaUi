@@ -7,8 +7,14 @@ The repository's `global.json` selects SDK 11, which builds both lines (net10 wi
 
 ## Opening it
 
-- **Visual Studio, Rider:** open `net10/SkiaUi.Net10.slnx`. The IDE takes the SDK from the `global.json` next to the solution.
-- **VS Code (C# Dev Kit):** open the `net10` folder, so the workspace's `global.json` is this one.
+- **Rider:** open `net10/SkiaUi.Net10.slnx`. It takes the SDK from the `global.json` next to the solution (checked).
+- **Visual Studio:** open `net10/SkiaUi.Net10.slnx`; it should take the SDK the same way (not checked yet).
+- **VS Code (C# Dev Kit):** it builds with the SDK the repository root's `global.json` selects, whichever solution is open, and opening the `net10` folder shows only this folder. Copy this folder's `global.json` over the root one, reload the window and keep the root folder open (`SkiaUi.slnx` then builds the net10 line only); put it back before committing:
+
+  ```bash
+  cp net10/global.json global.json        # .NET 10 line
+  git restore global.json                 # back to SDK 11
+  ```
 - **Command line:** run `dotnet` from this folder; the host reads `global.json` from the current directory, not from the solution's path:
 
   ```bash
