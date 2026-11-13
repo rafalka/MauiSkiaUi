@@ -79,9 +79,10 @@
     -p:SkUiPlatforms=ios+maccatalyst (joined by "+", as "," and ";" split -p values: android, ios, maccatalyst, windows) keeps only those platforms' TFMs in the
     lists, for CI jobs that build one platform: restore then needs no other workload (NETSDK1147), without a TargetFrameworks
     override (an escaped list on the command line reaches the inner builds as one TFM, NETSDK1046). Plain netX.0 is left out.
+    The kept platform's name ends where a letter doesn't follow, not at \b: "windows10.0.19041.0" has no word boundary after "windows".
   -->
   <PropertyGroup Condition="'$(SkUiPlatforms)' != ''">
-    <_SkUiDropTfm>(?&lt;=;)net\d+\.\d+(?:-(?!(?:$(SkUiPlatforms.Replace('+', '|')))\b)[a-z]+[\d.]*)?(?=;)</_SkUiDropTfm>
+    <_SkUiDropTfm>(?&lt;=;)net\d+\.\d+(?:-(?!(?:$(SkUiPlatforms.Replace('+', '|')))(?![a-z]))[a-z]+[\d.]*)?(?=;)</_SkUiDropTfm>
     <SkUiHeadlessTfms>$([MSBuild]::Unescape($([System.Text.RegularExpressions.Regex]::Replace($([System.Text.RegularExpressions.Regex]::Replace(';$(SkUiHeadlessTfms);', '$(_SkUiDropTfm)', '')), ';{2,}', ';').Trim(';'))))</SkUiHeadlessTfms>
     <SkUiDeviceTfms>$([MSBuild]::Unescape($([System.Text.RegularExpressions.Regex]::Replace($([System.Text.RegularExpressions.Regex]::Replace(';$(SkUiDeviceTfms);', '$(_SkUiDropTfm)', '')), ';{2,}', ';').Trim(';'))))</SkUiDeviceTfms>
     <SkUiAppTfms>$([MSBuild]::Unescape($([System.Text.RegularExpressions.Regex]::Replace($([System.Text.RegularExpressions.Regex]::Replace(';$(SkUiAppTfms);', '$(_SkUiDropTfm)', '')), ';{2,}', ';').Trim(';'))))</SkUiAppTfms>

@@ -20,4 +20,13 @@
       IL3046;IL3047;IL3048;IL3049;IL3050;IL3051;IL3052;IL3053;IL3054;IL3055;IL3056;IL3057;IL3058;IL3059;IL3060;
     </WarningsAsErrors>
   </PropertyGroup>
+
+  <!--
+    CsWinRT1032 (CsWinRT's analyzer in SDK 11's Windows SDK projection) flags every collection expression that targets a
+    read-only interface (IEnumerable<T>, IReadOnlyList<T>) in case it is marshalled to WinRT. These collections are the
+    library's own (picker items, selections, animations) and never cross into WinRT, so the warning does not apply.
+  -->
+  <PropertyGroup Condition="'$(TargetFramework)' != '' and $([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">
+    <NoWarn>$(NoWarn);CsWinRT1032</NoWarn>
+  </PropertyGroup>
 </Project>

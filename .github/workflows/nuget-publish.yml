@@ -186,7 +186,7 @@ jobs:
         uses: android-actions/setup-android@v4
         with:
           # net10.0-android / net11.0-android default to API 36 / 37.
-          packages: platform-tools platforms;android-36 platforms;android-37 build-tools;36.0.0 build-tools;37.0.0
+          packages: platform-tools platforms;android-36 platforms;android-37.0 build-tools;36.0.0 build-tools;37.0.0
 
       - name: Extract release notes
         env:

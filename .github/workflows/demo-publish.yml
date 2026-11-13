@@ -126,7 +126,7 @@ jobs:
         uses: android-actions/setup-android@v4
         with:
           # net11.0-android defaults to API 37; net10.0-android (a 1.10.x tag) to API 36.
-          packages: platform-tools platforms;android-36 platforms;android-37 build-tools;36.0.0 build-tools;37.0.0
+          packages: platform-tools platforms;android-36 platforms;android-37.0 build-tools;36.0.0 build-tools;37.0.0
 
       - name: Decode keystore (optional)
         id: keystore
