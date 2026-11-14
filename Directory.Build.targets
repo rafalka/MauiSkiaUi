@@ -34,4 +34,19 @@
     <MakeDir Directories="$(IntermediateOutputPath)" Condition="'$(_SkUiSkiaChanged)' == 'true'" />
     <WriteLinesToFile File="$(_SkUiSkiaVersionFile)" Lines="$(SkiaSharpVersion)" Overwrite="true" Condition="'$(_SkUiSkiaChanged)' == 'true'" />
   </Target>
+
+  <!--
+    SkUiNet / SkUiPlatforms (Directory.Build.props) can leave a project with no target framework (the headless tests with
+    -p:SkUiPlatforms=android): say why, instead of the SDK's "TargetFramework property is empty" (NETSDK1241). Build the
+    projects that have one of the kept TFMs, not the whole solution.
+  -->
+  <Target Name="_SkUiNoTargetFrameworks" BeforeTargets="_CheckForUnsupportedTargetFramework"
+          Condition="'$(_SkUiTfmLists)' == 'true' and '$(TargetFrameworks)' == '' and '$(TargetFramework)' == ''">
+    <Error Text="$(MSBuildProjectName) has no target framework left with SkUiNet='$(SkUiNet)' SkUiPlatforms='$(SkUiPlatforms)' (Directory.Build.props): build only the projects that target the kept platforms." />
+  </Target>
+
+  <!-- Directory.Build.props reads the SDK's major version from its folder name; an unknown layout builds both lines. -->
+  <Target Name="_SkUiUnknownSdk" BeforeTargets="Build" Condition="'$(_SkUiTfmLists)' == 'true' and '$(_SkUiSdkMajor)' == '' and '$(TargetFramework)' == ''">
+    <Warning Text="Could not tell the .NET SDK's major version from '$(CustomAfterDirectoryBuildProps)': building both lines, without net10 iOS / Mac Catalyst app heads (Directory.Build.props)." />
+  </Target>
 </Project>

@@ -35,6 +35,15 @@ internal static class SkUiTestHelpers
     /// <summary>As <see cref="UseTestDispatcher()"/>, with <paramref name="dispatcher"/> answering.</summary>
     public static IDisposable UseTestDispatcher(IDispatcher dispatcher) => TestDispatcherProvider.Enable(dispatcher);
 
+    /// <summary>
+    /// As <see cref="UseTestDispatcher()"/>, with the calling thread as the UI thread: work dispatched from it runs inline,
+    /// work dispatched from other threads (a background build or load finishing) is queued, as a UI thread's dispatcher
+    /// queues it, and runs on <see cref="TestDispatcherProvider.RunDispatched"/>. For synchronous tests that tear a tree
+    /// down while background work may still finish: the inline dispatcher would change the tree from a pool thread.
+    /// </summary>
+    public static IDisposable UseUiThreadDispatcher() =>
+        TestDispatcherProvider.Enable(new TestDispatcherProvider.TestDispatcher(Environment.CurrentManagedThreadId));
+
     /// <summary>The lines the text engine breaks <paramref name="text"/> into for a stock <paramref name="mode"/>, as strings.</summary>
     public static IReadOnlyList<string> BreakLines(string text, double width, LineBreakMode mode, SKTypeface typeface, double fontSize = 16, int maxLines = -1, double characterSpacing = 0)
     {
@@ -226,17 +235,60 @@ internal sealed class TestDispatcherProvider : IDispatcherProvider
             action();
     }
 
-    /// <summary>Runs dispatched work inline; delayed work (gesture timers) is queued, and runs only on <see cref="RunDelayed"/>.</summary>
-    private sealed class TestDispatcher : IDispatcher
+    /// <summary>Whether work dispatched from another thread waits for <see cref="RunDispatched"/> (<see cref="SkUiTestHelpers.UseUiThreadDispatcher"/>).</summary>
+    public static bool HasDispatched => _dispatcher.Value is TestDispatcher dispatcher && dispatcher.HasDispatched;
+
+    /// <summary>Runs the work other threads dispatched to this flow's UI-thread dispatcher so far, on the calling thread.</summary>
+    public static void RunDispatched()
+    {
+        if (_dispatcher.Value is TestDispatcher dispatcher)
+            dispatcher.RunDispatched();
+    }
+
+    /// <summary>
+    /// Runs dispatched work inline, or, with a UI thread, inline only on that thread and queued from others (run by
+    /// <see cref="RunDispatched"/>); delayed work (gesture timers) is queued, and runs only on <see cref="RunDelayed"/>.
+    /// </summary>
+    internal sealed class TestDispatcher(int? uiThread = null) : IDispatcher
     {
         public readonly List<Action> Delayed = [];
+        private readonly Queue<Action> _dispatched = new();
 
-        public bool IsDispatchRequired => false;
+        public bool IsDispatchRequired => uiThread is { } thread && thread != Environment.CurrentManagedThreadId;
+
+        public bool HasDispatched
+        {
+            get
+            {
+                lock (_dispatched)
+                    return _dispatched.Count > 0;
+            }
+        }
 
         public bool Dispatch(Action action)
         {
+            if (IsDispatchRequired)
+            {
+                lock (_dispatched)
+                    _dispatched.Enqueue(action);
+                return true;
+            }
             action();
             return true;
+        }
+
+        public void RunDispatched()
+        {
+            while (true)
+            {
+                Action action;
+                lock (_dispatched)
+                {
+                    if (!_dispatched.TryDequeue(out action!))
+                        return;
+                }
+                action();
+            }
         }
 
         public bool DispatchDelayed(TimeSpan delay, Action action)

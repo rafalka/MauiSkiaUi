@@ -1,0 +1,19 @@
+<!-- Generated from ../SkiaUi.slnx by scripts/net10_solution.py: edit SkiaUi.slnx and run the script. -->
+<Solution>
+  <Folder Name="/tests/">
+    <Project Path="../tests/MauiSkiaUi.Tests/MauiSkiaUi.Tests.csproj" />
+    <Project Path="../tests/MauiSkiaUi.DeviceTests/MauiSkiaUi.DeviceTests.csproj" />
+  </Folder>
+  <Folder Name="/benchmarks/">
+    <Project Path="../benchmarks/MauiSkiaUi.Benchmarks/MauiSkiaUi.Benchmarks.csproj" />
+    <Project Path="../benchmarks/MauiSkiaUiBench/MauiSkiaUiBench.csproj" />
+  </Folder>
+  <Folder Name="/samples/">
+    <Project Path="../samples/MauiSkiaUiSamples/MauiSkiaUiSamples.csproj" />
+  </Folder>
+  <Project Path="../MauiSkiaUi/MauiSkiaUi.csproj" />
+  <Project Path="../MauiSkiaUi.CommunityToolkit/MauiSkiaUi.CommunityToolkit.csproj" />
+  <Project Path="../MauiSkiaUi.Markdown/MauiSkiaUi.Markdown.csproj" />
+  <Project Path="../MauiSkiaUi.Markdown.Math/MauiSkiaUi.Markdown.Math.csproj" />
+  <Project Path="../MauiSkiaUiDemo/MauiSkiaUiDemo.csproj" />
+</Solution>

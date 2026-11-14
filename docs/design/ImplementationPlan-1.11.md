@@ -8,7 +8,7 @@
 
 **Baseline:** 1.10.0 (MAUI 10.0.120, SDK 10.0.402, SkiaSharp 4.154.0, Xcode 26.6 / 27.1).
 
-**Status:** Step 1 is done on branch `feature/net11-support` and verified on SDK 10 (net10 only). The rest is not started. Step 0 needs Xcode 27.2 and the .NET 11 workloads (set 11.0.100.1) on the build machine.
+**Status:** Steps 0 (one SDK) and 1 are done on branch `feature/net11-support`. The headless part of Steps 2 and 3 is done: the library builds for `net11.0` with 0 warnings and the headless suite is green on `net10.0` and `net11.0` with MAUI 11.0.10 (findings below). Step 2 is done on macOS: the solution builds with 0 warnings on SDK 11 (net10 Apple app heads on SDK 10), and the net11 demo runs on an iOS 27.2 simulator (CoreCLR, Metal). Windows builds wait for CI (Step 5). Steps 4 (API check script) and 5 (CI, packing, scripts) are done and CI is green, Windows included; the net10 floor is MAUI 10.0.130 (below). Next: Step 6 (docs).
 
 ## Decisions
 
@@ -16,7 +16,7 @@
 - **Release:** `1.11.0-Prerelease01` first, then `1.11.0` after device checks on both runtimes.
 - **SkiaSharp stays on 4.154.0 for both lines.** Move to 4.156 (the first release with net11 assets) in a later release, once it is stable.
 - **API differences:** use the compiler's `NET11_0_OR_GREATER`, inside small shims rather than in controls. The `SKUI_NET11` define the roadmap planned is not needed.
-- **One build switch:** `-p:SkUiNet=10` or `-p:SkUiNet=11` limits a build to one line. The .NET SDK version is not yet known when `Directory.Build.props` is read, so net11 can't be switched off automatically on SDK 10. CI jobs on SDK 10 pass `SkUiNet=10`.
+- **Build switches:** `-p:SkUiNet=10` or `-p:SkUiNet=11` limits a build to one line; SDK 10 builds the net10 line by itself (`Directory.Build.props` reads the SDK's major version from MSBuild's path). `-p:SkUiPlatforms=…` limits it to some platforms (Step 5).
 
 ## Facts that shape the plan
 
@@ -29,9 +29,14 @@ These were checked against the release notes, nuget.org and the workload manifes
 - **SkiaSharp views:** SkiaSharp.Views.Maui.Controls 4.154 has net10 assets only (it needs MAUI 10.0.20 or newer). net11 builds use that net10 assembly on MAUI 11, so it must be checked on devices.
 - **Runtime:** CoreCLR replaces Mono on Android, iOS and Mac Catalyst in .NET 11. Runtime, GC and finalizer timing change under the render thread, so device checks run on both runtimes.
 - **No blockers in our code:** SkiaUi uses no MAUI internals (no `UnsafeAccessor` or non-public reflection) and no iOS 26+ APIs. The only Android 36 checks are runtime `IsAndroidVersionAtLeast` calls.
-- **New MAUI 11 public API the parity test will flag:**
+- **Behavior changes found by the headless suite** (each handled where it lands, both lines keep their own MAUI's behavior):
+  - **.NET 11 converts `double` to `decimal` exactly** (`(decimal)0.1` is `0.1000000000000000055511151231`; .NET 10 rounds to 15 significant digits). `SkUiDecimal.FromDouble` keeps the .NET 10 result on both lines, for a screen reader setting a decimal stepper (both layers) and the numeric entry writing out a large double.
+  - **MAUI 11 leaves room for a shape's stroke only when it has one** (dotnet/maui#37319, in 11.0.10): a shape without `Stroke` no longer measures or insets by `StrokeThickness`. MAUI 10.0.130 backports it, so once the net10 floor rose to 10.0.130 `SkUiShapeGeometry.StrokeInset` behaves the same on both lines and layers, and a stroke appearing or going measures the shape again.
+  - **Effective visibility:** MAUI 11.0.0 dropped it (`IView.Visibility` was the view's own `IsVisible`); 11.0.10 brought it back (dotnet/maui#37546). The net11 floor is 11.0.10, so both lines behave as MAUI 10.
+- **New MAUI 11 public API** (`BoxView.Fill` and `Editor.ReturnCommand` / `ReturnCommandParameter` are net11 known gaps in `MauiApiParityTests.Planned`; the others are not drawn-control members the test compares):
   - `LongPressGestureRecognizer` (on drawn views)
   - `BoxView.Fill`
+  - `Editor.ReturnCommand` / `ReturnCommandParameter`
   - the `CancellationToken` overloads of `FadeToAsync` and the other animation extensions
   - `VisualElement.InvalidateStyle` / `VisualStateManager.InvalidateVisualStates`
 
@@ -43,6 +48,16 @@ Work in a scratch worktree with `global.json` set to 11.0.100:
 2. Compare the net10 Apple assemblies built this way with the 1.10.0 nupkg using ApiCompat. The public API must be identical.
 3. Build the iOS demo for `net10.0-ios` with SDK 10.0.402 and Xcode 27.2 (workload set 10.0.404) against the library built on SDK 11, and run it on a simulator.
 
+Results (13 November 2026, Xcode 27.2, SDK 11.0.100, workload set 11.0.100.1):
+
+1. **Pass.** Every TFM builds with 0 warnings once `NSObject.SuperHandle` (obsolete on net11 Apple) is replaced by our own `objc_super` struct in `SkUiViewHandler`'s accessibility hit test (one code path on both lines; check VoiceOver's explore by touch on devices). The net10 Apple TFMs use the 26.0 packs (26.0.11017), the net11 ones 27.2.11039; net10 / net11 Android target API 36 / 37.
+2. **Pass.** Package validation (the SDK's ApiCompat: `EnablePackageValidation`, `PackageValidationBaselineVersion=1.10.3`) finds no difference from 1.10.3 for `net10.0`, Android, iOS and Mac Catalyst, and none between the net10 and net11 assets. The only reports are the Windows-only types (`SkUiAppBuilderExtensions`, `SkUiViewHandler`) because a Mac pack has no Windows assembly; the baseline's Windows framework has to be ignored through the `PackageValidationBaselineFrameworkToIgnore` item (not a property) for Step 4.
+3. **Pass.** A minimal net10 iOS app built with SDK 10.0.404 (workload set 10.0.404) and Xcode 27.2 restores the SDK 11-built package from a local feed and runs on an iPhone 18 Pro simulator (iOS 27.2): drawn controls render, taps, the typed stepper and the entry with the software keyboard work, as with the same commit packed by SDK 10. SDK 10's workload set 10.0.404 builds `net10.0-ios` against the same 26.0 pack, so the pack is not a difference between the SDKs. (Install workloads from a folder whose `global.json` selects the SDK meant: `dotnet workload install` under SDK 10 pins SDK 10's band to whatever set it is given.)
+
+**Decision: one SDK for the packages.** `global.json` is on 11.0.100 and builds every package TFM; SDK 10 builds the net10 line by itself (`Directory.Build.props` reads the SDK's major version from MSBuild's path and sets `SkUiNet=10`).
+
+**App heads (found in Step 2):** SDK 11's workload carries the net10 Apple packs for Xcode 26 (26.0.11017), which refuse to build an *app* with Xcode 27.2 ("requires Xcode 26.0"); libraries have no such check. SDK 10's own workload set builds net10 Apple apps with its Xcode 27.2 packs (27.2.10000), as .NET 10 apps do. So on SDK 11 the app heads (`SkUiAppTfms`, `SkUiDeviceTfms`) leave out `net10.0-ios` / `net10.0-maccatalyst`, and those are built with SDK 10 (run `dotnet` from `net10/`, whose `global.json` selects SDK 10.0.4xx). Skipping the Xcode check instead (`ValidateXcodeVersion=false`) was not chosen: it would test a toolchain no .NET 10 app uses.
+
 Outcome:
 
 - **All pass → one SDK:** `global.json` moves to 11.0.100 and builds every TFM.
@@ -50,7 +65,7 @@ Outcome:
 
 ## Step 1: MSBuild, one place for TFMs and versions (done)
 
-- **`Directory.Build.props`, pins:** `Maui10Version` 10.0.120 and `Maui11Version` 11.0.0. The net10 floor stays at 10.0.120; also check it with 10.0.130.
+- **`Directory.Build.props`, pins:** `Maui10Version` 10.0.120 and `Maui11Version` 11.0.10 (the first servicing release; 11.0.0 went GA with the SDK). The net10 floor stays at 10.0.120 until the .NET 11 work is in, then rises to 10.0.130 (done, see below).
 - **`Directory.Build.props`, more pins:** `CommunityToolkitMaui10Version` 15.0.1 / `CommunityToolkitMaui11Version` 17.0.0, and `MicrosoftExtensions10Version` / `11` for the demo's `Logging.Debug`.
 - **`Directory.Build.props`, TFM lists**, net11 first and with the OS conditions:
   - `SkUiLibraryTfms`: packages
@@ -79,34 +94,34 @@ Each difference becomes a shim with a short comment. No control-level `#if`.
 - `MauiApiParityTests`: on net11, a known-gap list under `NET11_0_OR_GREATER` holds the new MAUI 11 members, each linked to the backlog entry. `ImplicitStyleTests` and the memory-leak scenarios run on both lines.
 - When a test fails only under MAUI 11, find the behavior change and fix the cause. Never loosen the assertion.
 
-## Step 4: API compatibility check
+## Step 4: API compatibility check (done)
 
-- `scripts/api_compat.sh` runs `Microsoft.DotNet.ApiCompat.Tool` (`apicompat package`) on each merged nupkg, with `--baseline-package` set to the 1.10.0 package from nuget.org. It checks two things:
-  - net10 and net11 expose the same API.
-  - Nothing from 1.10 was removed (the 1.x API promise).
-- If reference resolution fails for the Apple assemblies, check `net10.0` / `net11.0` / Android only, and say so in the script.
+- `scripts/api_compat.sh` packs the four packages with `-p:SkUiApiBaseline=<version>` (default: the newest release tag), which turns on the SDK's package validation (`Directory.Build.props`). It checks two things:
+  - Nothing public from the baseline release on nuget.org was removed (the 1.x API promise).
+  - Each framework keeps the API of the older one it is compatible with: net11.0-ios has everything net10.0-ios has, and so on. Not strict, since the platform TFMs add platform types (`SkUiViewHandler`, `SkUiAppBuilderExtensions`, Android's `Resource`) to `net10.0` / `net11.0` by design, so an API added only on net11 would pass; the parity test's net11 gap list is what keeps the lines equal.
+- A pack holds the TFMs its OS builds, so the baseline's frameworks that pack has no TFM for are ignored (`PackageValidationBaselineFrameworkToIgnore`, with `%2A` as the wildcard: a bare `*` in `Include` is a file glob and drops the item). CI runs it on macOS (net10.0, Android, iOS, Mac Catalyst) and on Windows (the Windows TFMs).
+- Result (macOS, 13 November 2026): no differences for all four packages against 1.10.3 (about 7 minutes, a full Release pack). Making `SkUiMarkdownMath` internal fails it with `CP0001` on each baseline framework.
+- The standalone `Microsoft.DotNet.ApiCompat.Tool` on the merged nupkg was not needed: package validation resolves the Apple references through the build.
 
-## Step 5: CI, packing, scripts
+## Step 5: CI, packing, scripts (done, waiting for the first CI run)
 
-- **`.github/actions/setup-dotnet-maui/action.yml`:**
-  - An `sdk-version` input overrides `global.json` for net10-only jobs.
-  - The default workload set follows the SDK band: 11.0.100.1, or 10.0.404 for SDK 10.
-  - The Xcode probe takes its TFMs from the SDK instead of the hard-coded net10 ones.
-  - The pin printout greps the new version properties.
+- **`Directory.Build.props`:** `-p:SkUiPlatforms=ios+maccatalyst` (joined by `+`, since `,` and `;` split `-p` values) keeps only those platforms' TFMs in the shared lists. CI jobs use it instead of a `TargetFrameworks` override: an escaped list reaches the inner builds as one TFM (NETSDK1046), and restore needs no other platform's workload (NETSDK1147).
+- **`.github/actions/setup-dotnet-maui`:**
+  - `sdk-version` (e.g. 10.0.404) rewrites `global.json` for net10-only jobs; `Directory.Build.props` then builds the net10 line by itself.
+  - The default workload set follows the SDK: 11.0.100.1 on SDK 11, 10.0.404 on SDK 10.
+  - The Xcode probe uses the SDK's own line (net11 Apple TFMs on SDK 11); the pin printout shows both MAUI and toolkit pins.
 - **`ci.yml`:**
-  - Headless tests run on both TFMs.
-  - Apple: a new SDK 11 / Xcode 27.2 entry builds both lines and the iOS demo for each.
-  - The existing Xcode 27.2 (10.0.404) and Xcode 26.6 (10.0.401, `macos-26`) entries become net10-only jobs on SDK 10 with `SkUiNet=10`. They prove that .NET 10 users' toolchains still build.
-  - The Android and Windows jobs build both lines. The newest-AndroidX.Core check runs per line.
-  - The Mac Catalyst device tests run on net11 and net10.
-  - The `xcode-27` runner image has Xcode 27.2 (not its default); CI moved to it in 1.10.2.
-- **`nuget-pack.yml` / `nuget-publish.yml`:**
-  - With one SDK, the macOS pack holds both lines, and the Windows pack uses both Windows TFMs instead of `-p:TargetFrameworks`.
-  - With two SDKs, `pack-apple` splits into net10 (SDK 10) and net11 (SDK 11) jobs, and `scripts/merge_nupkgs.py` merges N packs instead of two.
-  - The merge job then runs `api_compat.sh`.
-  - A `consumer-check` job (Ubuntu, Android only) restores the merged packages into a minimal net10 app with SDK 10.0.402 and a net11 app with SDK 11. It asserts that each gets its own assets and that net10 never pulls MAUI 11.
-- **`demo-publish.yml`:** the attached apps are built for net11.
-- **Scripts:** `--net 10|11` (default 11, or `SKUI_NET`) in `device_verify.sh`, `device_tests.sh` (including its `Microsoft.iOS.Sdk.net10*` mlaunch glob) and `page_tour.sh`.
+  - Headless: the library builds for `net10.0` and `net11.0`; `dotnet test` runs both TFMs (one trx each).
+  - Apple: SDK 11 / Xcode 27.2 builds both lines' libraries and the net11 iOS demo; SDK 10 / Xcode 27.2 (10.0.404) and SDK 10 / Xcode 26.6 (10.0.401, `macos-26`) build the net10 libraries and the net10 iOS demo, the toolchains .NET 10 users have.
+  - Mac Catalyst device tests (Native AOT) run on net11 (SDK 11) and net10 (SDK 10).
+  - Android builds each line on SDK 11 (API 36 / build-tools 36.0.0 and API 37 / 37.0.0), each also against the newest AndroidX.Core.
+  - Windows builds both lines' Windows TFMs.
+- **`nuget-pack.yml` / `nuget-publish.yml`:** one SDK, so the macOS pack holds both lines and the Windows pack both Windows TFMs (`SkUiPlatforms=windows`); `merge_nupkgs.py` is unchanged. Every pack runs the API check (`-p:SkUiApiBaseline`, the newest stable release on nuget.org other than the version being packed: `scripts/api_baseline.py`), so the merge job needs no separate step. `nuget-pack.yml` ends with a `consumer-check` job per line (`scripts/consumer_check.sh`): the merged packages restored into a minimal Android app with SDK 10 (net10) and SDK 11 (net11), asserting each gets its own line's assets and MAUI.
+- **`demo-publish.yml`:** publishes the newest line the tag's project targets (net11 from 1.11 on), so a 1.10.x tag still publishes.
+- **Scripts:** `--net 10|11` (default: `SKUI_NET`, else net11; net10 on SDK 10) in `device_verify.sh`, `device_tests.sh` (its mlaunch glob follows the TFM) and `page_tour.sh`. net10 iOS / Mac Catalyst apps run `dotnet` from `net10/`, whose `global.json` selects SDK 10.0.4xx.
+- **Working on the .NET 10 line:** `net10/` holds that `global.json` and `SkiaUi.Net10.slnx`, the same projects through `../` paths (generated by `scripts/net10_solution.py`, checked in CI). Rider takes the SDK from the solution's folder, so it opens with SDK 10 alone (checked; Visual Studio not checked). VS Code's C# Dev Kit always builds with the root `global.json`'s SDK, so there the root `global.json` is replaced by `net10/global.json` for the session (`net10/README.md`). `Directory.Build.props` reads the SDK's major version from the path SDK's `Sdk.props` appends to `CustomAfterDirectoryBuildProps`, the only early sign SDK 10 gives that also works under Visual Studio's own MSBuild (`MSBuildBinPath` is then Visual Studio's, and SDK 10 sets `NETCoreSdkVersion` after `Directory.Build.props`).
+- **Checked locally:** the CI Apple library build with `SkUiPlatforms` on SDK 11; the consumer check on both lines against a local pack (net10: `lib/net10.0-android36.0` + MAUI 10.0.120 on SDK 10.0.404; net11: `lib/net11.0-android37.0` + MAUI 11.0.10). Restoring with `UseMaui` fails on both lines with NU1605: it adds `Microsoft.Maui.Controls` at the workload's version (10.0.110 / 11.0.0), below the packages' floors, as in 1.10 (apps reference a newer Controls).
+- **Mac Catalyst device tests (Release, local):** net11 (CoreCLR) passes 47 of 47 once `device_tests.sh` runs the signed universal `.app` without `--aot`: the per-architecture bundle has only the linker's ad-hoc signature (no `allow-jit`), and CoreCLR, which JIT-compiles, is killed on its first JIT page ("Code Signature Invalid"); Mono never hit it. net10 (Mono, SDK 10) passes 46 of 47: `NativeOverlays` keeps a `MauiTextField` alive in about half the runs, and 1.10.3 does the same (4 of 4), so it is not a 1.11 change. net11 Native AOT (the CI job) builds without trim / AOT warnings and shows the same intermittent `NativeOverlays` leak (2 of 4 runs), so the new net11 device-test job may flake on it until that scenario is fixed.
 
 ## Step 6: docs
 
@@ -120,15 +135,28 @@ Each difference becomes a shim with a short comment. No control-level `#if`.
 - **`README.md`:**
   - Requirements for each line.
   - Recheck the Native AOT note on net11.
-  - Add a .NET 11 row to the Stress-page table after measuring.
+  - Add a .NET 11 row to the Stress-page table after measuring (done: both lines on the Galaxy S9 and iPhone 8, 14 November 2026).
 - **`Development.md`:** SDK 11, Xcode 27.2, the workload set, `SkUiNet`, per-TFM project table and CI table.
 - **`CLAUDE.md`:** the toolchain pin paragraph, and `-f net11.0` commands.
 - **[Migration.md](../Migration.md):**
-  - Say it was checked against MAUI 10.0.120 and 11.0.0.
+  - Say it was checked against MAUI 10.0.130 and 11.0.10.
   - List the MAUI 11 members under "Not available yet".
   - Android 24 on net11.
 - **Migration skills in `plugins/skiaui-migration`:** update the MAUI version statements.
 - **Others:** [Testing.md](Testing.md) (running per TFM), [Releasing.md](../Releasing.md) if the pack jobs change, and the bug report template's version placeholder.
+
+## Device benchmarks (Stress page, 14 November 2026)
+
+Release builds of the demo, each line with its own SDK (net10: SDK 10.0.404, Mono; net11: SDK 11.0.100, CoreCLR), 4 launches × 3 rounds per layer, the two lines alternated (each run once first); the table is in the README. Measured twice: the first run had MAUI's visual tree diagnostics on (see below), the second, which the README shows, has them off.
+
+- **Galaxy S9:** native MAUI overall 6,040 → 4,327 ms on net11; SkUi* about the same overall (426 → 427 ms: generate 224 → 171 ms, but the first frame 151 → 216 ms); Core 267 → 245 ms. Render thread per scrolled frame 6.5 → 3.7 ms on both drawn layers. The diagnostics cost little here: the first run gave nearly the same numbers.
+- **iPhone 8:** SkUi* 165 → 133 ms overall on net11 (generate 109 → 80 ms), Core 92 → 84 ms, native MAUI about the same (2,803 → 2,816 ms). The first run showed SkUi* about 60 % slower on net11 (118 → 188 ms generate, 245 ms overall), in every round; that was the diagnostics.
+- **Cause of the first run's iPhone 8 SkUi\* slowdown:** the demo's `EnableProfiling` default sets a diagnostic endpoint, so `EnableDiagnostics` is true, and that turns on MAUI's visual tree diagnostics in Release. With them on, every `AddLogicalChild` runs `VisualDiagnostics.OnChildAdded`, which looks up the child's index with `parent.GetVisualChildren().IndexOf(child)`: building 1,000 children is O(N²). Timing each step of the build loop on the iPhone 8: `Children.Add` took 131 ms on net11 against 38 ms on net10, nearly all of it in MAUI's `AddLogicalChild`. Everything else was faster on net11 (constructing the buttons 13 vs 35 ms). With the diagnostics off, net11 `AddLogicalChild` takes 16 ms. On net10 (Mono) the switch barely changes anything. crossgen2 had precompiled every SkiaUi method on the path, generic-math instantiations included; the only methods it skipped were 6 generated type-map proxies. Core wasn't affected because `SkUiCoreHost` adds one MAUI child, not 1,000. Fix: the demo sets `Microsoft.Maui.RuntimeFeature.EnableMauiDiagnostics=false` in non-Debug builds with profiling on (the endpoint stays); [Testing.md](Testing.md#device-profiling-dotnet-trace) says why.
+- iOS 16 devices launch through Xcode 26.6 (`mlaunch --sdkroot`); Xcode 27.2 can't mount their developer image (HE0032).
+
+## After .NET 11: net10 floor to MAUI 10.0.130 (done)
+
+Done after Step 5: `Maui10Version` is 10.0.130. Community Toolkit 15.0.1 needs MAUI 10.0.90 or later, and MAUI 10.0.130 depends on Microsoft.Extensions 10.0.0, so `CommunityToolkitMaui10Version` (15.0.1) and `MicrosoftExtensions10Version` (10.0.13) stay. 10.0.130 backports the stroke inset change (dotnet/maui#37319), which 12 shape tests caught on net10: `SkUiShapeGeometry.StrokeInset` no longer depends on the line. The device benchmarks above were not rerun. Originally planned: once Steps 4 to 6 are in, raise `Maui10Version` from 10.0.120 to 10.0.130 (and check the Community Toolkit 15.x and `MicrosoftExtensions10Version` pins against it), run the headless suite on `net10.0` and the net10 device checks, and note it in the changelog. It ships with 1.11.0.
 
 ## Step 7: release
 
@@ -141,8 +169,8 @@ Each difference becomes a shim with a short comment. No control-level `#if`.
 - `dotnet build SkiaUi.slnx -v q -clp:ErrorsOnly` builds both lines with 0 warnings (macOS with Xcode 27.2).
 - The headless suite is green on `net10.0` and `net11.0`.
 - `scripts/bench.sh --baseline HEAD` (net10) shows no regression. `--net 11` gives a first net11 baseline; expect runtime and GC differences, not code ones.
-- `scripts/api_compat.sh` finds no difference between the two lines and nothing removed since 1.10.0.
-- Consumer check: the net10 app on SDK 10.0.402 gets the net10 assets and MAUI 10.0.120. The net11 app gets the net11 assets and MAUI 11.0.0.
+- `scripts/api_compat.sh` finds no difference between the two lines and nothing removed since the newest 1.x release (the pack workflows take it from `scripts/api_baseline.py`).
+- Consumer check: the net10 app on SDK 10.0.4xx (CI: 10.0.404) gets the net10 assets and MAUI 10.0.130. The net11 app gets the net11 assets and MAUI 11.0.10.
 - Devices, with `scripts/device_verify.sh -l --net 11` and `--net 10`:
   - Run on an iOS simulator, a Mac Catalyst device, and Android emulators at API 24 (net11) and API 21 (net10).
   - Check GPU surfaces (Metal / GL), the software surface (the SkiaSharp net10 view assembly on MAUI 11), text input, native overlays, render-thread animations and Reduce Motion.

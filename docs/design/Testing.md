@@ -59,6 +59,10 @@ start:
 - **Headless loads have no dispatcher.** A load that is not a memory-cache hit completes on the thread pool, where
   views skip what must not run off the UI thread (an image fade, for one). Use `SkUiTestHelpers.UseTestDispatcher()`
   in xUnit tests, or put the image in the memory cache first (shared scenarios: `ImageFadingIn`).
+  `UseTestDispatcher()` runs dispatched work inline on whatever thread dispatches it, so background work that finishes
+  while a synchronous test still works on the tree (a Markdown build handing its result back) changes the tree from a
+  pool thread. Such tests use `SkUiTestHelpers.UseUiThreadDispatcher()`: work dispatched from other threads is queued
+  until `TestDispatcherProvider.RunDispatched()` runs it on the test thread (`SamplesTests`).
 - **CI devices may have Reduce Motion on.** Transitions and fades then jump to their end. A device scenario that is
   about an animation sets `SkUiMotion.ReduceMotion = false` while it starts it (devices only: headless test classes
   set the override themselves) and restores it.
@@ -177,10 +181,12 @@ Always profile **Release** builds. The demo enables emulator/simulator diagnosti
 
 ```bash
 # Android emulator (runtime profiling)
-dotnet build MauiSkiaUiDemo/MauiSkiaUiDemo.csproj -t:Run -c Release -f net10.0-android
+dotnet build MauiSkiaUiDemo/MauiSkiaUiDemo.csproj -t:Run -c Release -f net11.0-android
 
 # iOS simulator
-dotnet build MauiSkiaUiDemo/MauiSkiaUiDemo.csproj -t:Run -c Release -f net10.0-ios
+dotnet build MauiSkiaUiDemo/MauiSkiaUiDemo.csproj -t:Run -c Release -f net11.0-ios
+
+# The .NET 10 line (net10.0-*): the same from net10/ (SDK 10, net10/README.md), e.g. cd net10 && dotnet build ../MauiSkiaUiDemo/... -f net10.0-ios
 
 # Startup profiling: -p:DiagnosticSuspend=true
 # Physical Android device: -p:DiagnosticAddress=127.0.0.1
@@ -188,6 +194,8 @@ dotnet build MauiSkiaUiDemo/MauiSkiaUiDemo.csproj -t:Run -c Release -f net10.0-i
 ```
 
 Collect with `dotnet-trace collect --dsrouter android-emu --format speedscope` (or `ios-sim` / `android` / `ios`). Do not ship packages built with profiling enabled.
+
+A diagnostic endpoint sets `EnableDiagnostics`, which by default also turns on MAUI's visual tree diagnostics (`Microsoft.Maui.RuntimeFeature.EnableMauiDiagnostics`). Those look up the new child's index among its parent's children on every logical child add, so building a layout with N children costs O(N²): with them on, a 1,000-button grid took 4× longer to build on .NET 11 iOS (CoreCLR); on .NET 10 (Mono) it barely changed. The demo turns them off in non-Debug builds that have profiling on, and keeps the endpoint. Do the same in your own app before you measure.
 
 ## Device acceptance checklists (still open)
 

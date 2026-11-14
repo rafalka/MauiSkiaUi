@@ -56,8 +56,10 @@ Why plain strings instead of HTML:
 ## Running
 
 ```bash
-dotnet build samples/MauiSkiaUiSamples/MauiSkiaUiSamples.csproj -f net10.0-maccatalyst -t:Run
-dotnet build samples/MauiSkiaUiSamples/MauiSkiaUiSamples.csproj -f net10.0-android -t:Run
+dotnet build samples/MauiSkiaUiSamples/MauiSkiaUiSamples.csproj -f net11.0-maccatalyst -t:Run
+dotnet build samples/MauiSkiaUiSamples/MauiSkiaUiSamples.csproj -f net11.0-android -t:Run
 ```
+
+The .NET 10 line (`net10.0-*`) runs the same way; its iOS and Mac Catalyst heads build from [net10/](../net10/README.md) (SDK 10).
 
 `-t:Run` can launch the previous build without rebuilding. After changes, build first, then run.

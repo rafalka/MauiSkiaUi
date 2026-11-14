@@ -8,8 +8,8 @@ A straight stroke between two points, as MAUI's `Line`.
 
 Draws from (`X1`, `Y1`) to (`X2`, `Y2`) in local DIPs with the `Stroke` brush. As MAUI's `Line` (no stretch by default):
 
-- **Measure:** the intrinsic size reaches the far end points plus the stroke (`max(X1, X2) + StrokeThickness` × `max(Y1, Y2) + StrokeThickness`), so a line sizes itself.
-- **Placement:** the drawing area is the bounds inset by half the stroke; the line moves only to bring an end that sticks out back in, so a line starting at 0 is not cut in half. `Aspect` stretches it like any shape.
+- **Measure:** the intrinsic size reaches the far end points plus the stroke (`max(X1, X2) + StrokeThickness` × `max(Y1, Y2) + StrokeThickness`), so a line sizes itself. Without a `Stroke` the thickness is not added (as MAUI 10.0.130 and 11).
+- **Placement:** the drawing area is the bounds inset by half the stroke (none without a `Stroke`); the line moves only to bring an end that sticks out back in, so a line starting at 0 is not cut in half. `Aspect` stretches it like any shape.
 - Points are not mirrored in right-to-left layouts. Round and square caps reach past the ends.
 
 Hit region is the full arranged rectangle. `SkUiCoreLine` is the same on the Core layer (`SetPoints`, `SetX1` …).

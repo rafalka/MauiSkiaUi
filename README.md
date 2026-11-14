@@ -55,7 +55,7 @@ Parity with MAUI is the starting point. What drawn controls add on top of it:
 
 Package on nuget.org: **[SkiaUi.Maui](https://www.nuget.org/packages/SkiaUi.Maui/)**.
 
-**Requirements:** .NET 10 with .NET MAUI 10.0.120 or a later 10.x (SDK 10.0.402 or newer); Android 5.0 (API 21), iOS 15, Mac Catalyst 17 and Windows 10 1809 or newer. iOS and Mac Catalyst builds work with Xcode 26.6 (workload set 10.0.401), Xcode 27.1 (workload set 10.0.402.1) or Xcode 27.2 (workload set 10.0.404), macOS 26.6 or newer for Xcode 27; apps built with Xcode 27 must use the UIKit scene lifecycle ([migration guide](docs/Migration.md#ios-and-mac-catalyst-scene-lifecycle)). SkiaUi 1.0.x builds with MAUI 10.0.110, Mac Catalyst 15 and Xcode 26.
+**Requirements:** .NET 10 with .NET MAUI 10.0.130 or a later 10.x (SDK 10.0.402 or newer); Android 5.0 (API 21), iOS 15, Mac Catalyst 17 and Windows 10 1809 or newer. iOS and Mac Catalyst builds work with Xcode 26.6 (workload set 10.0.401), Xcode 27.1 (workload set 10.0.402.1) or Xcode 27.2 (workload set 10.0.404), macOS 26.6 or newer for Xcode 27; apps built with Xcode 27 must use the UIKit scene lifecycle ([migration guide](docs/Migration.md#ios-and-mac-catalyst-scene-lifecycle)). SkiaUi 1.0.x builds with MAUI 10.0.110, Mac Catalyst 15 and Xcode 26.
 
 ```bash
 dotnet add package SkiaUi.Maui
@@ -171,20 +171,26 @@ Per-control guides (behavior vs MAUI, XAML samples, limits): **[docs/controls/](
 
 ## Stress results (device)
 
-The demo's Stress page: **1,000 buttons** in a two-column grid under one scroll view, animation off; SkUi* and Core on a GPU surface. Release builds on **.NET 10** (MAUI 10.0.110), measured in October 2026; average of 6 rounds (2 launches × 3 rounds after a warm-up round). Times in milliseconds.
+The demo's Stress page: **1,000 buttons** in a two-column grid under one scroll view, animation off; SkUi* and Core on a GPU surface. Release builds of each line, with MAUI's visual tree diagnostics off ([why](docs/design/Testing.md#device-profiling-dotnet-trace)): **.NET 10** (SDK 10.0.404, MAUI 10.0.120, Mono) and **.NET 11** (SDK 11.0.100, MAUI 11.0.10, CoreCLR), measured in November 2026; average of 12 rounds (4 launches × 3 rounds after a warm-up round; the two lines alternated, each run once first). Times in milliseconds.
 
 The Galaxy S9 (2018) and iPhone 8 (2017) were chosen to represent old, slow devices: a UI that is fast on them is fast on the phones most apps support.
 
-| Device | Layer | Generate UI | Add to page | First frame | Overall (start → UI idle) | Scrolling |
-| --- | --- | ---: | ---: | ---: | ---: | --- |
-| Galaxy S9 (Android 10) | Native MAUI | 388 | 5,235 | 805 | 6,428 | — |
-| | SkUi* | 208 | 36 | 167 | 413 | 59 fps |
-| | Core | 76 | 11 | 169 | 257 | 59 fps |
-| iPhone 8 (iOS 16) | Native MAUI | 237 | 1,683 | 965 | 2,885 | — |
-| | SkUi* | 114 | 14 | 37 | 164 | 60 fps |
-| | Core | 50 | 4 | 35 | 89 | 60 fps |
+| Device | Layer | .NET | Generate UI | Add to page | First frame | Overall (start → UI idle) | Scrolling |
+| --- | --- | --- | ---: | ---: | ---: | ---: | --- |
+| Galaxy S9 (Android 10) | Native MAUI | 10 | 429 | 4,831 | 780 | 6,040 | — |
+| | | 11 | 217 | 3,287 | 822 | 4,327 | — |
+| | SkUi* | 10 | 224 | 48 | 151 | 426 | 59 fps |
+| | | 11 | 171 | 40 | 216 | 427 | 60 fps |
+| | Core | 10 | 68 | 9 | 189 | 267 | 59 fps |
+| | | 11 | 81 | 17 | 146 | 245 | 60 fps |
+| iPhone 8 (iOS 16) | Native MAUI | 10 | 223 | 1,639 | 941 | 2,803 | — |
+| | | 11 | 104 | 1,689 | 1,024 | 2,816 | — |
+| | SkUi* | 10 | 109 | 14 | 42 | 165 | 60 fps |
+| | | 11 | 80 | 27 | 26 | 133 | 60 fps |
+| | Core | 10 | 50 | 3 | 39 | 92 | 60 fps |
+| | | 11 | 42 | 5 | 37 | 84 | 60 fps |
 
-The drawn tree is ready **16× (SkUi\*) and 25× (Core) faster** than native MAUI on the S9, and **18× and 32× faster** on the iPhone 8, and scrolls at the display's 60 fps. What gradients, shadows, clips, shaped borders and animated content cost while scrolling, and which of them to avoid in long lists: **[docs/Performance.md](docs/Performance.md)**.
+The drawn tree is ready **14× (SkUi\*) and 23× (Core) faster** than native MAUI on the S9 on .NET 10 (10× and 18× on .NET 11, where native MAUI itself gains more than a quarter), and **17× and 30× faster** on the iPhone 8 (21× and 34× on .NET 11), and scrolls at the display's 60 fps on both lines. On .NET 11 the iPhone 8 builds and shows the SkUi* tree faster (133 ms instead of 165 ms), and on the S9 the render thread spends less per scrolled frame (3.7 ms instead of 6.5 ms). What gradients, shadows, clips, shaped borders and animated content cost while scrolling, and which of them to avoid in long lists: **[docs/Performance.md](docs/Performance.md)**.
 
 ## Contributing / developing SkiaUi
 

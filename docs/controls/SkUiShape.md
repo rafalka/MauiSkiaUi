@@ -10,7 +10,7 @@ Abstract base of the drawn shapes, with MAUI's [`Shape`](https://learn.microsoft
 | --- | --- | --- |
 | `Fill` | `null` | `Brush`: `Fill="Red"`, `LinearGradientBrush`, `RadialGradientBrush`. A fill gradient spans the view's bounds |
 | `Stroke` | `null` | `Brush` of the outline; a stroke gradient spans the outline's bounds (as MAUI's `ShapeDrawable`) |
-| `StrokeThickness` | 1 | DIPs; part of the measured size |
+| `StrokeThickness` | 1 | DIPs; part of the measured size when there is a `Stroke` |
 | `StrokeDashArray` | empty | Dashes and gaps in multiples of `StrokeThickness` (`"4,2"`); an odd count repeats once more, as in SVG. Edits of the collection redraw |
 | `StrokeDashPattern` | empty | Read-only, as MAUI's: `StrokeDashArray` as a new `float[]` on every read |
 | `StrokeDashOffset` | 0 | Where the pattern starts, in multiples of `StrokeThickness` |
@@ -25,8 +25,8 @@ Fluent setters: `SetFill`, `SetStroke`, `SetStrokeThickness`, `SetStrokeDashArra
 
 Shapes measure, stretch and place their geometry as MAUI's `Shape` does:
 
-- **Measure:** the geometry's bounds plus the stroke. Unstretched geometry (`Aspect="None"`: lines, paths, polygons) reaches from the origin to its far points, so a shape sizes itself without `WidthRequest` / `HeightRequest`. `Fill` takes the whole constraint; `Uniform` / `UniformToFill` scale the geometry to it. Rectangles and ellipses have no size of their own: they fill what they are given (and measure as the stroke in an unbounded direction).
-- **Placement:** the drawing area is the bounds inset by half the stroke, so the stroke stays inside. Without stretch the geometry keeps its coordinates and only moves to bring an edge that sticks out over the left / top (or else the right / bottom) back in. `Uniform` centers the scaled geometry; `UniformToFill` anchors it at the top-left.
+- **Measure:** the geometry's bounds plus the stroke. Unstretched geometry (`Aspect="None"`: lines, paths, polygons) reaches from the origin to its far points, so a shape sizes itself without `WidthRequest` / `HeightRequest`. `Fill` takes the whole constraint; `Uniform` / `UniformToFill` scale the geometry to it. Rectangles and ellipses have no size of their own: they fill what they are given (and measure as the stroke in an unbounded direction). A shape without `Stroke` leaves no room for one, as MAUI 10.0.130 and 11 (earlier MAUI 10 releases always added `StrokeThickness`).
+- **Placement:** the drawing area is the bounds inset by half the stroke (none without a `Stroke`), so the stroke stays inside. Without stretch the geometry keeps its coordinates and only moves to bring an edge that sticks out over the left / top (or else the right / bottom) back in. `Uniform` centers the scaled geometry; `UniformToFill` anchors it at the top-left.
 - **Drawing:** the fill, then the stroke over it, recorded once and replayed by the compositor until a property changes. Brush, dash-array, point and geometry changes redraw; shared brushes (resources) are listened to weakly and never keep a shape alive.
 - Shapes are MAUI `IShape`s (`PathForBounds`), so any of them shapes a [`SkUiBorder`](SkUiBorder.md) (`StrokeShape`).
 
