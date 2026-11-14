@@ -126,7 +126,7 @@ public abstract class SkUiShape : SkUiView, IShape, ISkUiShapeOutline
     {
         if (!ReferenceEquals(_stroke, _fill))
             ReleaseBrush(_stroke, value);
-        var insetChanged = SkUiShapeGeometry.StrokeChangesInset && _stroke is null != value is null;
+        var insetChanged = _stroke is null != value is null;
         _stroke = value;
         StrokeListener.Listen(value);
         InheritBindingContext(value);

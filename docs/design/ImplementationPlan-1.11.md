@@ -31,7 +31,7 @@ These were checked against the release notes, nuget.org and the workload manifes
 - **No blockers in our code:** SkiaUi uses no MAUI internals (no `UnsafeAccessor` or non-public reflection) and no iOS 26+ APIs. The only Android 36 checks are runtime `IsAndroidVersionAtLeast` calls.
 - **Behavior changes found by the headless suite** (each handled where it lands, both lines keep their own MAUI's behavior):
   - **.NET 11 converts `double` to `decimal` exactly** (`(decimal)0.1` is `0.1000000000000000055511151231`; .NET 10 rounds to 15 significant digits). `SkUiDecimal.FromDouble` keeps the .NET 10 result on both lines, for a screen reader setting a decimal stepper (both layers) and the numeric entry writing out a large double.
-  - **MAUI 11 leaves room for a shape's stroke only when it has one** (dotnet/maui#37319, in 11.0.10): a shape without `Stroke` no longer measures or insets by `StrokeThickness`. `SkUiShapeGeometry.StrokeInset` follows each line on both layers, and a stroke appearing or going measures the shape again on net11.
+  - **MAUI 11 leaves room for a shape's stroke only when it has one** (dotnet/maui#37319, in 11.0.10): a shape without `Stroke` no longer measures or insets by `StrokeThickness`. MAUI 10.0.130 backports it, so once the net10 floor rose to 10.0.130 `SkUiShapeGeometry.StrokeInset` behaves the same on both lines and layers, and a stroke appearing or going measures the shape again.
   - **Effective visibility:** MAUI 11.0.0 dropped it (`IView.Visibility` was the view's own `IsVisible`); 11.0.10 brought it back (dotnet/maui#37546). The net11 floor is 11.0.10, so both lines behave as MAUI 10.
 - **New MAUI 11 public API the parity test flags** (net11 known gaps in `MauiApiParityTests.Planned`):
   - `LongPressGestureRecognizer` (on drawn views)
@@ -65,7 +65,7 @@ Outcome:
 
 ## Step 1: MSBuild, one place for TFMs and versions (done)
 
-- **`Directory.Build.props`, pins:** `Maui10Version` 10.0.120 and `Maui11Version` 11.0.10 (the first servicing release; 11.0.0 went GA with the SDK). The net10 floor stays at 10.0.120; also check it with 10.0.130.
+- **`Directory.Build.props`, pins:** `Maui10Version` 10.0.120 and `Maui11Version` 11.0.10 (the first servicing release; 11.0.0 went GA with the SDK). The net10 floor stays at 10.0.120 until the .NET 11 work is in, then rises to 10.0.130 (done, see below).
 - **`Directory.Build.props`, more pins:** `CommunityToolkitMaui10Version` 15.0.1 / `CommunityToolkitMaui11Version` 17.0.0, and `MicrosoftExtensions10Version` / `11` for the demo's `Logging.Debug`.
 - **`Directory.Build.props`, TFM lists**, net11 first and with the OS conditions:
   - `SkUiLibraryTfms`: packages
@@ -139,7 +139,7 @@ Each difference becomes a shim with a short comment. No control-level `#if`.
 - **`Development.md`:** SDK 11, Xcode 27.2, the workload set, `SkUiNet`, per-TFM project table and CI table.
 - **`CLAUDE.md`:** the toolchain pin paragraph, and `-f net11.0` commands.
 - **[Migration.md](../Migration.md):**
-  - Say it was checked against MAUI 10.0.120 and 11.0.10.
+  - Say it was checked against MAUI 10.0.130 and 11.0.10.
   - List the MAUI 11 members under "Not available yet".
   - Android 24 on net11.
 - **Migration skills in `plugins/skiaui-migration`:** update the MAUI version statements.
@@ -154,9 +154,9 @@ Release builds of the demo, each line with its own SDK (net10: SDK 10.0.404, Mon
 - **Cause of the first run's iPhone 8 SkUi\* slowdown:** the demo's `EnableProfiling` default sets a diagnostic endpoint, so `EnableDiagnostics` is true, and that turns on MAUI's visual tree diagnostics in Release. With them on, every `AddLogicalChild` runs `VisualDiagnostics.OnChildAdded`, which looks up the child's index with `parent.GetVisualChildren().IndexOf(child)`: building 1,000 children is O(N²). Timing each step of the build loop on the iPhone 8: `Children.Add` took 131 ms on net11 against 38 ms on net10, nearly all of it in MAUI's `AddLogicalChild`. Everything else was faster on net11 (constructing the buttons 13 vs 35 ms). With the diagnostics off, net11 `AddLogicalChild` takes 16 ms. On net10 (Mono) the switch barely changes anything. crossgen2 had precompiled every SkiaUi method on the path, generic-math instantiations included; the only methods it skipped were 6 generated type-map proxies. Core wasn't affected because `SkUiCoreHost` adds one MAUI child, not 1,000. Fix: the demo sets `Microsoft.Maui.RuntimeFeature.EnableMauiDiagnostics=false` in non-Debug builds with profiling on (the endpoint stays); [Testing.md](Testing.md#device-profiling-dotnet-trace) says why.
 - iOS 16 devices launch through Xcode 26.6 (`mlaunch --sdkroot`); Xcode 27.2 can't mount their developer image (HE0032).
 
-## After .NET 11: net10 floor to MAUI 10.0.130
+## After .NET 11: net10 floor to MAUI 10.0.130 (done)
 
-Once Steps 4 to 6 are in, raise `Maui10Version` from 10.0.120 to 10.0.130 (and check the Community Toolkit 15.x and `MicrosoftExtensions10Version` pins against it), run the headless suite on `net10.0` and the net10 device checks, and note it in the changelog. It ships with 1.11.0.
+Done after Step 5: `Maui10Version` is 10.0.130. Community Toolkit 15.0.1 needs MAUI 10.0.90 or later, and MAUI 10.0.130 depends on Microsoft.Extensions 10.0.0, so `CommunityToolkitMaui10Version` (15.0.1) and `MicrosoftExtensions10Version` (10.0.13) stay. 10.0.130 backports the stroke inset change (dotnet/maui#37319), which 12 shape tests caught on net10: `SkUiShapeGeometry.StrokeInset` no longer depends on the line. The device benchmarks above were not rerun. Originally planned: once Steps 4 to 6 are in, raise `Maui10Version` from 10.0.120 to 10.0.130 (and check the Community Toolkit 15.x and `MicrosoftExtensions10Version` pins against it), run the headless suite on `net10.0` and the net10 device checks, and note it in the changelog. It ships with 1.11.0.
 
 ## Step 7: release
 
@@ -170,7 +170,7 @@ Once Steps 4 to 6 are in, raise `Maui10Version` from 10.0.120 to 10.0.130 (and c
 - The headless suite is green on `net10.0` and `net11.0`.
 - `scripts/bench.sh --baseline HEAD` (net10) shows no regression. `--net 11` gives a first net11 baseline; expect runtime and GC differences, not code ones.
 - `scripts/api_compat.sh` finds no difference between the two lines and nothing removed since 1.10.0.
-- Consumer check: the net10 app on SDK 10.0.402 gets the net10 assets and MAUI 10.0.120. The net11 app gets the net11 assets and MAUI 11.0.10.
+- Consumer check: the net10 app on SDK 10.0.402 gets the net10 assets and MAUI 10.0.130. The net11 app gets the net11 assets and MAUI 11.0.10.
 - Devices, with `scripts/device_verify.sh -l --net 11` and `--net 10`:
   - Run on an iOS simulator, a Mac Catalyst device, and Android emulators at API 24 (net11) and API 21 (net10).
   - Check GPU surfaces (Metal / GL), the software surface (the SkiaSharp net10 view assembly on MAUI 11), text input, native overlays, render-thread animations and Reduce Motion.

@@ -23,7 +23,7 @@ The property names are MAUI's: each drawn control has its MAUI counterpart's API
 
 ## MAUI parity at a glance
 
-Checked against .NET MAUI 10.0.120 (`MauiApiParityTests` compares every drawn control's public API with MAUI's). Controls marked SkUi\* + Core exist on both layers. The [control pages](controls/README.md) list each control's differences; [Not available yet](#not-available-yet) has the gaps.
+Checked against .NET MAUI 10.0.130 (`MauiApiParityTests` compares every drawn control's public API with MAUI's). Controls marked SkUi\* + Core exist on both layers. The [control pages](controls/README.md) list each control's differences; [Not available yet](#not-available-yet) has the gaps.
 
 | MAUI | SkiaUi | Status |
 | --- | --- | --- |

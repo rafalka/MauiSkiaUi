@@ -6,7 +6,7 @@
       Inner builds get $(TargetFramework) as a global property, so it is known here; the outer build gets the net10 values.
     -->
     <!-- Microsoft.Maui.Controls (and the MAUI workload's implicit packages). net10 stays at its floor: apps may use any later 10.x. -->
-    <Maui10Version>10.0.120</Maui10Version>
+    <Maui10Version>10.0.130</Maui10Version>
     <Maui11Version>11.0.10</Maui11Version>
 
     <!-- Pin SkiaSharp and its companion packages (HarfBuzz, Views, native assets) via $(SkiaSharpVersion); keep them in lockstep. One

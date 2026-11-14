@@ -15,6 +15,7 @@ Publishing (the NuGet publish workflow, [docs/Releasing.md](docs/Releasing.md)) 
 
 ### Other
 
+- **net10 builds with MAUI 10.0.130:** the `net10.0-*` assets of SkiaUi.Maui and SkiaUi.Maui.CommunityToolkit now reference MAUI 10.0.130 (was 10.0.120), so .NET 10 apps restore MAUI 10.0.130 or a later 10.x. MAUI 10.0.130 leaves room for a shape's stroke only when it has one (dotnet/maui#37319): a drawn shape without `Stroke` (both layers) now fills its bounds and measures without `StrokeThickness`, as MAUI's shapes do, and a stroke appearing or going measures it again.
 - **Headless test suite flake:** `SamplesTests.EveryExamplePageIsOneDrawnSurfaceThatLaysOutAndDraws` failed about one run in three with `Collection was modified` while disposing a surface. The Markdown example's background build handed its result to `SkUiTestHelpers.UseTestDispatcher()`, whose `Dispatch` ran it inline on the calling pool thread, so the document's Core tree changed while the test tore it down. The package is unchanged (with a real dispatcher the result goes on the UI thread); the test now uses the new `SkUiTestHelpers.UseUiThreadDispatcher()`, which queues work dispatched from other threads until `TestDispatcherProvider.RunDispatched()`, plus a `TestUiContext` for the examples' own async continuations, and `ABackgroundMarkdownBuildChangesTheTreeOnlyOnTheUiThread` checks the hand-over.
 
 ## 1.10.3

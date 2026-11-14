@@ -60,7 +60,7 @@ public abstract class SkUiCoreShape : SkUiCoreNode, IShape, ISkUiShapeOutline
     /// <summary>Sets the stroke paint.</summary>
     public SkUiCoreShape SetStroke(Paint? value)
     {
-        var insetChanged = SkUiShapeGeometry.StrokeChangesInset && _stroke is null != value is null;
+        var insetChanged = _stroke is null != value is null;
         if (!SetProperty(ref _stroke, value, nameof(Stroke))) return this;
         if (insetChanged)
             InvalidateMeasure();
