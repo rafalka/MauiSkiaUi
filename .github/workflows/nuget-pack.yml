@@ -116,7 +116,8 @@ jobs:
           set -euo pipefail
           # API check while packing (Directory.Build.props): nothing public removed since the newest stable release on nuget.org,
           # and net11 keeps net10's API. Each pack compares the baseline frameworks it builds.
-          BASELINE="$(python3 scripts/api_baseline.py "$(sed -n 's/^[[:space:]]*<Version>\([^<]*\)<\/Version>/\1/p' Directory.Build.props | head -1)")"
+          # Baseline for the version being packed: the input / tag version, else Directory.Build.props' (what -p:Version leaves).
+          BASELINE="$(python3 scripts/api_baseline.py "${PACKAGE_VERSION:-$(sed -n 's/^[[:space:]]*<Version>\([^<]*\)<\/Version>/\1/p' Directory.Build.props | head -1)}")"
           mkdir -p artifacts/nuget
           ARGS=(
             -p:SkUiApiBaseline="$BASELINE"
@@ -189,7 +190,8 @@ jobs:
           set -euo pipefail
           # API check while packing (Directory.Build.props): nothing public removed since the newest stable release on nuget.org,
           # and net11 keeps net10's API. Each pack compares the baseline frameworks it builds.
-          BASELINE="$(python3 scripts/api_baseline.py "$(sed -n 's/^[[:space:]]*<Version>\([^<]*\)<\/Version>/\1/p' Directory.Build.props | head -1)")"
+          # Baseline for the version being packed: the input / tag version, else Directory.Build.props' (what -p:Version leaves).
+          BASELINE="$(python3 scripts/api_baseline.py "${PACKAGE_VERSION:-$(sed -n 's/^[[:space:]]*<Version>\([^<]*\)<\/Version>/\1/p' Directory.Build.props | head -1)}")"
           mkdir -p artifacts/nuget-win
           ARGS=(
             -p:SkUiApiBaseline="$BASELINE"
