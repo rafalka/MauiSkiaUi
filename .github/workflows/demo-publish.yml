@@ -225,6 +225,8 @@ jobs:
           # absolute project path, and the universal .app is built into bin/<config>/<tfm> anyway.
           # No `.pkg` (CreatePackage): it needs a signing identity the runner does not have.
           # The newest line the tag's project targets (net11 from 1.11 on; the lists put it first).
+          # AllowReadyToRunWithoutRuntimeIdentifier / UseCurrentRuntimeIdentifier: the net11 universal ReadyToRun publish
+          # workaround Directory.Build.props carries after 1.11.0, passed here too so the 1.11.0 tag still publishes.
           TFM="$(dotnet msbuild "${{ matrix.project }}" -getProperty:TargetFrameworks | tr ';' '\n' | grep -- '-maccatalyst$' | head -1)"
           echo "Publishing $TFM"
           dotnet publish "${{ matrix.project }}" \
@@ -233,7 +235,9 @@ jobs:
             -p:TargetFrameworks="$TFM" \
             -p:EnableProfiling=false \
             -p:ContinuousIntegrationBuild=true \
-            -p:CreatePackage=false
+            -p:CreatePackage=false \
+            -p:AllowReadyToRunWithoutRuntimeIdentifier=true \
+            -p:UseCurrentRuntimeIdentifier=false
           bin="$(dirname "${{ matrix.project }}")/bin/$CONFIG/$TFM"
           app="$(find "$bin" -maxdepth 1 -name '*.app' -print -quit)"
           [[ -n "$app" ]] || { echo "No .app in $bin" >&2; ls -la "$bin"; exit 1; }

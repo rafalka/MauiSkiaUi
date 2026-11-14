@@ -117,6 +117,19 @@
   </PropertyGroup>
 
   <!--
+    Mac Catalyst Release publish on net11 (CoreCLR): the Mac Catalyst SDK turns ReadyToRun on, but fills in the universal
+    RuntimeIdentifiers (maccatalyst-x64;maccatalyst-arm64) after the checks that read them. Without these, the RID-less outer
+    publish fails with NETSDK1191, and past that the .NET SDK gives it the host RID, so the universal .app lands in
+    bin/<config>/<tfm>/osx-arm64. Here because RuntimeIdentifierInference.targets reads UseCurrentRuntimeIdentifier before
+    Directory.Build.targets is imported. No-ops on net10 (Mono, no ReadyToRun), with an explicit RuntimeIdentifier, for
+    builds, and in the per-RID inner builds, which still compile ReadyToRun.
+  -->
+  <PropertyGroup Condition="'$(_SkUiTfmPlatform)' == 'maccatalyst'">
+    <AllowReadyToRunWithoutRuntimeIdentifier Condition="'$(AllowReadyToRunWithoutRuntimeIdentifier)' == ''">true</AllowReadyToRunWithoutRuntimeIdentifier>
+    <UseCurrentRuntimeIdentifier Condition="'$(UseCurrentRuntimeIdentifier)' == ''">false</UseCurrentRuntimeIdentifier>
+  </PropertyGroup>
+
+  <!--
     API check (scripts/api_compat.sh): -p:SkUiApiBaseline=<released version> turns on the SDK's package validation for pack.
     It compares the package with that release from nuget.org (nothing public may be removed in 1.x) and each framework in the
     package with the newer ones it is compatible with (net10.0-ios with net11.0-ios: net11 drops nothing net10 has; not strict,
