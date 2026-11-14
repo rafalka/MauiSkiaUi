@@ -77,9 +77,18 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
+[[ "$NET" =~ ^1[01]$ ]] || { echo "--net takes 10 or 11" >&2; exit 2; }
 OUT="${OUT:-$REPO_ROOT/artifacts/bench/$(date +%Y%m%d-%H%M%S)}"
 mkdir -p "$OUT"
+OUT="$(cd "$OUT" && pwd)" # absolute: dotnet may run from net10 below
 log() { echo "[bench] $*" >&2; }
+
+# net10 iOS / Mac Catalyst apps only build with SDK 10's workload (Directory.Build.props): select it through net10. Both
+# sides build from here, so a baseline commit older than 1.11 (net10 only) builds with SDK 10 too.
+if [[ "$NET" == 10 && ( "$TARGET" == ios || "$TARGET" == maccatalyst ) && "$(dotnet --version)" != 10.* ]]; then
+    cd "$REPO_ROOT/net10"
+    [[ "$(dotnet --version)" == 10.* ]] || { echo "net10 $TARGET apps need a .NET SDK 10.0.4xx with its iOS / Mac Catalyst workloads" >&2; exit 1; }
+fi
 # macOS without coreutils has no `timeout`; run unbounded there.
 command -v timeout >/dev/null || timeout() { shift; "$@"; }
 
@@ -227,7 +236,9 @@ run_ios() { # label dir round
 run_maccatalyst() { # label dir round
     local label="$1" dir="$2" round="$3" logfile="$OUT/$1.round$3.log" binary
     read -r -a args <<<"$(app_args "$label")"
-    binary="$(find_output "$dir" "*-maccatalyst/maccatalyst-$(uname -m | sed 's/x86_64/x64/')/*.app/Contents/MacOS/MauiSkiaUiBench")"
+    # The universal .app (no RID): only it is signed with the entitlements (allow-jit), and CoreCLR (net11) JIT-compiles and
+    # is killed on its first JIT page in the unsigned per-architecture one.
+    binary="$(find_output "$dir" "*-maccatalyst/*.app/Contents/MacOS/MauiSkiaUiBench")"
     timeout "$TIMEOUT" "$binary" --autorun --exit "${args[@]}" 2>&1 | grep "SKUIBENCH" | sed 's/.*SKUIBENCH/SKUIBENCH/' >"$logfile" || true
     echo "$logfile"
 }

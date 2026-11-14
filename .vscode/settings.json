@@ -1,6 +1,5 @@
 {
     "chat.tools.terminal.autoApprove": {
         "git describe": true
-    },
-    "dotnet.defaultSolution": "net10/SkiaUi.Net10.slnx"
+    }
 }

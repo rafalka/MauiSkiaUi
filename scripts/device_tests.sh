@@ -191,7 +191,8 @@ build() {
 output() { # glob below bin/<config>/<tfm> (or its <rid> folder, where a publish puts it)
     local match
     # shellcheck disable=SC2086
-    match="$(ls -d "$APP_DIR"/bin/$CONFIG/$TFM/$1 "$APP_DIR"/bin/$CONFIG/$TFM/*/$1 2>/dev/null | head -1)"
+    # Top level first, in its own ls: one ls sorts both globs together by locale, which can put a RID folder's match first.
+    match="$({ ls -d "$APP_DIR"/bin/$CONFIG/$TFM/$1 2>/dev/null; ls -d "$APP_DIR"/bin/$CONFIG/$TFM/*/$1 2>/dev/null; } | head -1)"
     [[ -n "$match" ]] || { echo "build output $1 not found under $APP_DIR/bin/$CONFIG/$TFM" >&2; exit 1; }
     echo "$match"
 }

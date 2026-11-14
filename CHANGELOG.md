@@ -13,9 +13,17 @@ Publishing (the NuGet publish workflow, [docs/Releasing.md](docs/Releasing.md)) 
 
 ## Unreleased
 
+### New features
+
+- **.NET 11 and MAUI 11:** SkiaUi.Maui, SkiaUi.Maui.CommunityToolkit, SkiaUi.Maui.Markdown and SkiaUi.Maui.Markdown.Math target `net11.0-*` with MAUI 11.0.10 (Community Toolkit 17.0.0) next to `net10.0-*` with MAUI 10, so .NET 10 apps keep restoring the net10 assets and never see MAUI 11. The net11 assets need Android 7.0 (API 24) and build with .NET SDK 11.0.100 and Xcode 27.2; the other minimum OS versions are unchanged. Details and the behaviour differences between the lines: [ImplementationPlan-1.11.md](docs/design/ImplementationPlan-1.11.md).
+
+### Breaking changes
+
+- **The net10 assets need MAUI 10.0.130:** all four packages' `net10.0-*` assets now reference MAUI 10.0.130 (was 10.0.120). A .NET 10 app with its own `Microsoft.Maui.Controls` reference below 10.0.130 must raise it, or restore fails with NU1605 (package downgrade). MAUI 10.0.130 leaves room for a shape's stroke only when it has one (dotnet/maui#37319): a drawn shape without `Stroke` (both layers) now fills its bounds and measures without `StrokeThickness`, as MAUI's shapes do, and a stroke appearing or going measures it again.
+
 ### Other
 
-- **net10 builds with MAUI 10.0.130:** the `net10.0-*` assets of SkiaUi.Maui and SkiaUi.Maui.CommunityToolkit now reference MAUI 10.0.130 (was 10.0.120), so .NET 10 apps restore MAUI 10.0.130 or a later 10.x. MAUI 10.0.130 leaves room for a shape's stroke only when it has one (dotnet/maui#37319): a drawn shape without `Stroke` (both layers) now fills its bounds and measures without `StrokeThickness`, as MAUI's shapes do, and a stroke appearing or going measures it again.
+- **Demo Release builds measure without MAUI's visual tree diagnostics:** the demo's profiling default sets a diagnostic endpoint, which also turned on MAUI's visual tree diagnostics; those look up each new child's index among its siblings, so building a layout of N children cost O(N²) (a 1,000-button grid built 4× slower on .NET 11 iOS). Non-Debug builds with profiling on now set `EnableMauiDiagnostics=false` and keep the endpoint; [Testing.md](docs/design/Testing.md#device-profiling-dotnet-trace) explains how to do the same in an app.
 - **Headless test suite flake:** `SamplesTests.EveryExamplePageIsOneDrawnSurfaceThatLaysOutAndDraws` failed about one run in three with `Collection was modified` while disposing a surface. The Markdown example's background build handed its result to `SkUiTestHelpers.UseTestDispatcher()`, whose `Dispatch` ran it inline on the calling pool thread, so the document's Core tree changed while the test tore it down. The package is unchanged (with a real dispatcher the result goes on the UI thread); the test now uses the new `SkUiTestHelpers.UseUiThreadDispatcher()`, which queues work dispatched from other threads until `TestDispatcherProvider.RunDispatched()`, plus a `TestUiContext` for the examples' own async continuations, and `ABackgroundMarkdownBuildChangesTheTreeOnlyOnTheUiThread` checks the hand-over.
 
 ## 1.10.3

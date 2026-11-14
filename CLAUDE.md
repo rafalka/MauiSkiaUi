@@ -8,8 +8,8 @@ SkiaUi (NuGet `SkiaUi.Maui`, namespace `MauiSkiaUi`) is a .NET MAUI library that
 
 ```bash
 dotnet build SkiaUi.slnx                                   # everything (needs the MAUI workload + platform SDKs)
-dotnet build MauiSkiaUi/MauiSkiaUi.csproj -f net10.0       # fast library-only build (the TFM the tests use)
-dotnet build MauiSkiaUiDemo -f net10.0-maccatalyst         # demo app; also samples/MauiSkiaUiSamples
+dotnet build MauiSkiaUi/MauiSkiaUi.csproj -f net10.0       # fast library-only build (the tests run net10.0 and net11.0)
+dotnet build MauiSkiaUiDemo -f net11.0-maccatalyst         # demo app; also samples/MauiSkiaUiSamples (net10 Apple heads: from net10/)
 
 dotnet test tests/MauiSkiaUi.Tests/MauiSkiaUi.Tests.csproj                                     # headless suite (~10 s)
 dotnet test tests/MauiSkiaUi.Tests/MauiSkiaUi.Tests.csproj --filter "FullyQualifiedName~LabelShrinkToFitTests"

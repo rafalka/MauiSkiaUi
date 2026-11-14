@@ -69,8 +69,8 @@ public class ShapeTests
     [MemberData(nameof(MeasureCases))]
     public void AStrokeGivenLaterMeasuresLikeMauiShapes(string kind, double width, double height)
     {
-        // MAUI 11 leaves room for the stroke only when there is one (MAUI 10 always does): a stroke given after a measure
-        // measures the shape again.
+        // MAUI 10.0.130 and 11 leave room for the stroke only when there is one: a stroke given after a measure measures the
+        // shape again.
         var (skia, maui) = Pair(kind);
         Assert.Equal(Measure(maui, width, height), Measure(skia, width, height));
         maui.Stroke = skia.Stroke = new SolidColorBrush(Colors.Red);
@@ -96,9 +96,6 @@ public class ShapeTests
         pair.Item1.StrokeThickness = pair.Item2.StrokeThickness = 3;
         return pair;
     }
-
-    /// <summary>What a shape without a stroke adds for its default 1-DIP stroke: 1 on MAUI 10, nothing on MAUI 11.</summary>
-    internal static readonly double UnstrokedInset = SkUiShapeGeometry.StrokeInset(hasStroke: false, strokeThickness: 1);
 
     private static Geometry Geometry(string markup) => (Geometry)new PathGeometryConverter().ConvertFromInvariantString(markup)!;
 
@@ -289,9 +286,9 @@ public class ShapeTests
         polygon.PaintInvalidated += (_, _) => paints++;
         brush.Color = Colors.Blue;
         Assert.Equal(1, paints);
-        Assert.Equal(new Size(10 + UnstrokedInset, 10 + UnstrokedInset), Measure(polygon, double.PositiveInfinity, double.PositiveInfinity));
+        Assert.Equal(new Size(10, 10), Measure(polygon, double.PositiveInfinity, double.PositiveInfinity));
         polygon.Points.Add(new Point(40, 40));
-        Assert.Equal(new Size(40 + UnstrokedInset, 40 + UnstrokedInset), Measure(polygon, double.PositiveInfinity, double.PositiveInfinity));
+        Assert.Equal(new Size(40, 40), Measure(polygon, double.PositiveInfinity, double.PositiveInfinity));
 
         var gradient = new LinearGradientBrush([new GradientStop(Colors.Red, 0)], new Point(0, 0), new Point(1, 0));
         polygon.Fill = gradient;
@@ -304,9 +301,9 @@ public class ShapeTests
 
         var geometry = new EllipseGeometry(new Point(10, 10), 5, 5);
         var path = new SkUiPath(geometry);
-        Assert.Equal(15 + UnstrokedInset, Measure(path, double.PositiveInfinity, double.PositiveInfinity).Width, 0);
+        Assert.Equal(15, Measure(path, double.PositiveInfinity, double.PositiveInfinity).Width, 0);
         geometry.RadiusX = 8;
-        Assert.Equal(18 + UnstrokedInset, Measure(path, double.PositiveInfinity, double.PositiveInfinity).Width, 0);
+        Assert.Equal(18, Measure(path, double.PositiveInfinity, double.PositiveInfinity).Width, 0);
     }
 
     [Fact]
@@ -407,11 +404,28 @@ public class ShapeTests
     }
 
     [Fact]
+    public void CoreStrokeGivenLaterMeasuresAgain()
+    {
+        // As AStrokeGivenLaterMeasuresLikeMauiShapes on the SkUi layer: the stroke's room comes and goes with the stroke.
+        var line = new SkUiCoreLine(10, 5, 50, 25);
+        Assert.Equal(new Size(50, 25), line.Measure(double.PositiveInfinity, double.PositiveInfinity));
+        line.SetStroke(Colors.Red);
+        Assert.Equal(new Size(51, 26), line.Measure(double.PositiveInfinity, double.PositiveInfinity));
+        line.SetStroke((Paint?)null);
+        Assert.Equal(new Size(50, 25), line.Measure(double.PositiveInfinity, double.PositiveInfinity));
+
+        var path = (SkUiCorePath)new SkUiCorePath("M 0,0 L 40,0 L 40,20 Z").SetAspect(SkUiCoreStretch.Uniform).SetStrokeThickness(4);
+        var unstroked = path.Measure(100, 100);
+        path.SetStroke(Colors.Red);
+        Assert.NotEqual(unstroked, path.Measure(100, 100));
+    }
+
+    [Fact]
     public void CorePathMarkupAndTransform()
     {
         var path = new SkUiCorePath("F1 M 0,0 L 10,0 L 10,10 Z"); // the fill-rule prefix is skipped, as by MAUI's parser
         Assert.Equal(WindingMode.EvenOdd, path.FillRule);
-        Assert.Equal(new Size(10 + UnstrokedInset, 10 + UnstrokedInset), path.Measure(double.PositiveInfinity, double.PositiveInfinity));
+        Assert.Equal(new Size(10, 10), path.Measure(double.PositiveInfinity, double.PositiveInfinity));
         path.SetRenderTransform(Matrix3x2.CreateTranslation(20, 0)).SetFill(Colors.Red);
         using var bitmap = Render(path, 40, 20);
         Assert.Equal(Red, bitmap.GetPixel(29, 2));

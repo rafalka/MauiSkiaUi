@@ -30,7 +30,7 @@ cd net10
 sudo dotnet workload install maui --version 10.0.404
 ```
 
-The device scripts use this folder by themselves for net10 iOS / Mac Catalyst apps (`--net 10`), and so does `scripts/consumer_check.sh --net 10`.
+The device scripts (`scripts/device_tests.sh`, `scripts/device_verify.sh`, `scripts/bench.sh`) use this folder by themselves for net10 iOS / Mac Catalyst apps (`--net 10`), and so does `scripts/consumer_check.sh --net 10`.
 
 ## Keeping it in sync
 

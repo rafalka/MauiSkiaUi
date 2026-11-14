@@ -54,7 +54,8 @@
     net10/ has a global.json selecting SDK 10 and a solution with the same projects, to work on the .NET 10 line (net10/README.md).
   -->
   <PropertyGroup>
-    <_SkUiSdkMajor>$([System.Text.RegularExpressions.Regex]::Match('$(CustomAfterDirectoryBuildProps)', '[/\\]sdk[/\\](\d+)\.\d+\.\d+[/\\]Sdks[/\\]').Groups[1].Value)</_SkUiSdkMajor>
+    <!-- A preview SDK's folder has a suffix (sdk/12.0.100-preview.1/Sdks). -->
+    <_SkUiSdkMajor>$([System.Text.RegularExpressions.Regex]::Match('$(CustomAfterDirectoryBuildProps)', '[/\\]sdk[/\\](\d+)\.\d+\.\d+[^/\\]*[/\\]Sdks[/\\]').Groups[1].Value)</_SkUiSdkMajor>
     <SkUiNet Condition="'$(SkUiNet)' == '' and '$(_SkUiSdkMajor)' == '10'">10</SkUiNet>
     <_SkUiNet11 Condition="'$(SkUiNet)' != '10'">true</_SkUiNet11>
     <_SkUiNet10 Condition="'$(SkUiNet)' != '11'">true</_SkUiNet10>
@@ -65,12 +66,15 @@
     <_SkUiDevice11 Condition="'$(_SkUiNet11)' == 'true' and '$(_SkUiApple)' == 'true'">$(_SkUiDevice11);net11.0-ios;net11.0-maccatalyst</_SkUiDevice11>
     <_SkUiDevice10 Condition="'$(_SkUiNet10)' == 'true'">net10.0-android</_SkUiDevice10>
     <_SkUiApple10 Condition="'$(_SkUiNet10)' == 'true' and '$(_SkUiApple)' == 'true'">net10.0-ios;net10.0-maccatalyst</_SkUiApple10>
-    <_SkUiApple10Apps Condition="'$(_SkUiSdkMajor)' == '' or '$(_SkUiSdkMajor)' == '10'">$(_SkUiApple10)</_SkUiApple10Apps>
+    <_SkUiApple10Apps Condition="'$(_SkUiSdkMajor)' == '10'">$(_SkUiApple10)</_SkUiApple10Apps>
     <_SkUiWin11 Condition="'$(_SkUiNet11)' == 'true' and '$(_SkUiWindows)' == 'true'">net11.0-windows10.0.19041.0</_SkUiWin11>
     <_SkUiWin10 Condition="'$(_SkUiNet10)' == 'true' and '$(_SkUiWindows)' == 'true'">net10.0-windows10.0.19041.0</_SkUiWin10>
     <_SkUiHeadless11 Condition="'$(_SkUiNet11)' == 'true'">net11.0</_SkUiHeadless11>
     <_SkUiHeadless10 Condition="'$(_SkUiNet10)' == 'true'">net10.0</_SkUiHeadless10>
 
+    <!-- Projects that fall back to their own TFMs when these lists don't exist (a bench baseline commit older than 1.11) test
+         this marker, not an empty list: SkUiNet / SkUiPlatforms can empty a list on purpose. -->
+    <_SkUiTfmLists>true</_SkUiTfmLists>
     <!-- Joined with ';' and trimmed (empty segments dropped); unescaped, as MSBuild escapes the ';' in a property function's result. -->
     <SkUiHeadlessTfms>$([MSBuild]::Unescape($([System.Text.RegularExpressions.Regex]::Replace('$(_SkUiHeadless11);$(_SkUiHeadless10)', ';{2,}', ';').Trim(';'))))</SkUiHeadlessTfms>
     <SkUiDeviceTfms>$([MSBuild]::Unescape($([System.Text.RegularExpressions.Regex]::Replace('$(_SkUiDevice11);$(_SkUiDevice10);$(_SkUiApple10Apps)', ';{2,}', ';').Trim(';'))))</SkUiDeviceTfms>
@@ -125,10 +129,12 @@
     <PackageValidationBaselineVersion>$(SkUiApiBaseline)</PackageValidationBaselineVersion>
   </PropertyGroup>
   <ItemGroup Condition="'$(SkUiApiBaseline)' != ''">
-    <PackageValidationBaselineFrameworkToIgnore Include="net10.0" Condition="!$([System.String]::new(';$(TargetFrameworks);').Contains(';net10.0;'))" />
-    <PackageValidationBaselineFrameworkToIgnore Include="net10.0-android%2A" Condition="!$(TargetFrameworks.Contains('net10.0-android'))" />
-    <PackageValidationBaselineFrameworkToIgnore Include="net10.0-ios%2A" Condition="!$(TargetFrameworks.Contains('net10.0-ios'))" />
-    <PackageValidationBaselineFrameworkToIgnore Include="net10.0-maccatalyst%2A" Condition="!$(TargetFrameworks.Contains('net10.0-maccatalyst'))" />
-    <PackageValidationBaselineFrameworkToIgnore Include="net10.0-windows%2A" Condition="!$(TargetFrameworks.Contains('net10.0-windows'))" />
+    <!-- Ignored only when no line's TFM for that platform is packed: with -p:SkUiNet=11 the baseline's net10.0-ios is compared
+         with net11.0-ios (compatible), so the net11-only pack still proves nothing was removed since the baseline. -->
+    <PackageValidationBaselineFrameworkToIgnore Include="net10.0" Condition="!$([System.Text.RegularExpressions.Regex]::IsMatch(';$(TargetFrameworks);', ';net\d+\.0;'))" />
+    <PackageValidationBaselineFrameworkToIgnore Include="net10.0-android%2A" Condition="!$(TargetFrameworks.Contains('.0-android'))" />
+    <PackageValidationBaselineFrameworkToIgnore Include="net10.0-ios%2A" Condition="!$(TargetFrameworks.Contains('.0-ios'))" />
+    <PackageValidationBaselineFrameworkToIgnore Include="net10.0-maccatalyst%2A" Condition="!$(TargetFrameworks.Contains('.0-maccatalyst'))" />
+    <PackageValidationBaselineFrameworkToIgnore Include="net10.0-windows%2A" Condition="!$(TargetFrameworks.Contains('.0-windows'))" />
   </ItemGroup>
 </Project>

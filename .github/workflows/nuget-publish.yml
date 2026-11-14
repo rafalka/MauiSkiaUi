@@ -291,9 +291,58 @@ jobs:
             artifacts/nuget-win/*.snupkg
           if-no-files-found: error
 
+  # Before anything is published: the merged packages in a minimal Android app of each line, restored with that line's SDK
+  # (net10: SDK 10, as .NET 10 apps build). Each app must get its own line's assets and MAUI, and a net10 app never MAUI 11
+  # (scripts/consumer_check.sh; nuget-pack.yml runs the same check).
+  consumer-check:
+    name: Consumer check (net${{ matrix.net }})
+    needs: [prepare, pack-apple, pack-windows]
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - net: "10"
+            sdk-version: "10.0.404"
+          - net: "11"
+            sdk-version: ""
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.prepare.outputs.ref }}
+
+      - name: Setup .NET MAUI
+        uses: ./.github/actions/setup-dotnet-maui
+        with:
+          workloads: maui-android
+          java-version: ""
+          sdk-version: ${{ matrix.sdk-version }}
+
+      - name: Download macOS package
+        uses: actions/download-artifact@v8
+        with:
+          name: nuget-macos
+          path: incoming/macos
+
+      - name: Download Windows package
+        uses: actions/download-artifact@v8
+        with:
+          name: nuget-windows
+          path: incoming/windows
+
+      - name: Merge nupkg / snupkg
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 scripts/merge_nupkgs.py incoming/macos incoming/windows incoming/nuget
+
+      - name: Restore into a net${{ matrix.net }} app
+        run: scripts/consumer_check.sh -f incoming/nuget --net ${{ matrix.net }}
+
   publish:
     name: Merge and publish
-    needs: [prepare, pack-apple, pack-windows]
+    needs: [prepare, pack-apple, pack-windows, consumer-check]
     runs-on: ubuntu-24.04
     environment: nuget.org
     permissions:

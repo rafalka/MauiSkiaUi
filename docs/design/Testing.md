@@ -181,10 +181,12 @@ Always profile **Release** builds. The demo enables emulator/simulator diagnosti
 
 ```bash
 # Android emulator (runtime profiling)
-dotnet build MauiSkiaUiDemo/MauiSkiaUiDemo.csproj -t:Run -c Release -f net10.0-android
+dotnet build MauiSkiaUiDemo/MauiSkiaUiDemo.csproj -t:Run -c Release -f net11.0-android
 
 # iOS simulator
-dotnet build MauiSkiaUiDemo/MauiSkiaUiDemo.csproj -t:Run -c Release -f net10.0-ios
+dotnet build MauiSkiaUiDemo/MauiSkiaUiDemo.csproj -t:Run -c Release -f net11.0-ios
+
+# The .NET 10 line (net10.0-*): the same from net10/ (SDK 10, net10/README.md), e.g. cd net10 && dotnet build ../MauiSkiaUiDemo/... -f net10.0-ios
 
 # Startup profiling: -p:DiagnosticSuspend=true
 # Physical Android device: -p:DiagnosticAddress=127.0.0.1

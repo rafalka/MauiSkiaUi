@@ -8,7 +8,7 @@
 
 **Baseline:** 1.10.0 (MAUI 10.0.120, SDK 10.0.402, SkiaSharp 4.154.0, Xcode 26.6 / 27.1).
 
-**Status:** Steps 0 (one SDK) and 1 are done on branch `feature/net11-support`. The headless part of Steps 2 and 3 is done: the library builds for `net11.0` with 0 warnings and the headless suite is green on `net10.0` and `net11.0` with MAUI 11.0.10 (findings below). Step 2 is done on macOS: the solution builds with 0 warnings on SDK 11 (net10 Apple app heads on SDK 10), and the net11 demo runs on an iOS 27.2 simulator (CoreCLR, Metal). Windows builds wait for CI (Step 5). Steps 4 (API check script) and 5 (CI, packing, scripts) are done; Step 5 waits for its first CI run, which also builds Windows. Next: Step 6 (docs), then the net10 bump to MAUI 10.0.130.
+**Status:** Steps 0 (one SDK) and 1 are done on branch `feature/net11-support`. The headless part of Steps 2 and 3 is done: the library builds for `net11.0` with 0 warnings and the headless suite is green on `net10.0` and `net11.0` with MAUI 11.0.10 (findings below). Step 2 is done on macOS: the solution builds with 0 warnings on SDK 11 (net10 Apple app heads on SDK 10), and the net11 demo runs on an iOS 27.2 simulator (CoreCLR, Metal). Windows builds wait for CI (Step 5). Steps 4 (API check script) and 5 (CI, packing, scripts) are done and CI is green, Windows included; the net10 floor is MAUI 10.0.130 (below). Next: Step 6 (docs).
 
 ## Decisions
 
@@ -33,7 +33,7 @@ These were checked against the release notes, nuget.org and the workload manifes
   - **.NET 11 converts `double` to `decimal` exactly** (`(decimal)0.1` is `0.1000000000000000055511151231`; .NET 10 rounds to 15 significant digits). `SkUiDecimal.FromDouble` keeps the .NET 10 result on both lines, for a screen reader setting a decimal stepper (both layers) and the numeric entry writing out a large double.
   - **MAUI 11 leaves room for a shape's stroke only when it has one** (dotnet/maui#37319, in 11.0.10): a shape without `Stroke` no longer measures or insets by `StrokeThickness`. MAUI 10.0.130 backports it, so once the net10 floor rose to 10.0.130 `SkUiShapeGeometry.StrokeInset` behaves the same on both lines and layers, and a stroke appearing or going measures the shape again.
   - **Effective visibility:** MAUI 11.0.0 dropped it (`IView.Visibility` was the view's own `IsVisible`); 11.0.10 brought it back (dotnet/maui#37546). The net11 floor is 11.0.10, so both lines behave as MAUI 10.
-- **New MAUI 11 public API the parity test flags** (net11 known gaps in `MauiApiParityTests.Planned`):
+- **New MAUI 11 public API** (`BoxView.Fill` and `Editor.ReturnCommand` / `ReturnCommandParameter` are net11 known gaps in `MauiApiParityTests.Planned`; the others are not drawn-control members the test compares):
   - `LongPressGestureRecognizer` (on drawn views)
   - `BoxView.Fill`
   - `Editor.ReturnCommand` / `ReturnCommandParameter`
@@ -56,7 +56,7 @@ Results (13 November 2026, Xcode 27.2, SDK 11.0.100, workload set 11.0.100.1):
 
 **Decision: one SDK for the packages.** `global.json` is on 11.0.100 and builds every package TFM; SDK 10 builds the net10 line by itself (`Directory.Build.props` reads the SDK's major version from MSBuild's path and sets `SkUiNet=10`).
 
-**App heads (found in Step 2):** SDK 11's workload carries the net10 Apple packs for Xcode 26 (26.0.11017), which refuse to build an *app* with Xcode 27.2 ("requires Xcode 26.0"); libraries have no such check. SDK 10's own workload set builds net10 Apple apps with its Xcode 27.2 packs (27.2.10000), as .NET 10 apps do. So on SDK 11 the app heads (`SkUiAppTfms`, `SkUiDeviceTfms`) leave out `net10.0-ios` / `net10.0-maccatalyst`, and those are built with SDK 10 (run `dotnet` from a folder whose `global.json` selects 10.0.402). Skipping the Xcode check instead (`ValidateXcodeVersion=false`) was not chosen: it would test a toolchain no .NET 10 app uses.
+**App heads (found in Step 2):** SDK 11's workload carries the net10 Apple packs for Xcode 26 (26.0.11017), which refuse to build an *app* with Xcode 27.2 ("requires Xcode 26.0"); libraries have no such check. SDK 10's own workload set builds net10 Apple apps with its Xcode 27.2 packs (27.2.10000), as .NET 10 apps do. So on SDK 11 the app heads (`SkUiAppTfms`, `SkUiDeviceTfms`) leave out `net10.0-ios` / `net10.0-maccatalyst`, and those are built with SDK 10 (run `dotnet` from `net10/`, whose `global.json` selects SDK 10.0.4xx). Skipping the Xcode check instead (`ValidateXcodeVersion=false`) was not chosen: it would test a toolchain no .NET 10 app uses.
 
 Outcome:
 
@@ -169,8 +169,8 @@ Done after Step 5: `Maui10Version` is 10.0.130. Community Toolkit 15.0.1 needs M
 - `dotnet build SkiaUi.slnx -v q -clp:ErrorsOnly` builds both lines with 0 warnings (macOS with Xcode 27.2).
 - The headless suite is green on `net10.0` and `net11.0`.
 - `scripts/bench.sh --baseline HEAD` (net10) shows no regression. `--net 11` gives a first net11 baseline; expect runtime and GC differences, not code ones.
-- `scripts/api_compat.sh` finds no difference between the two lines and nothing removed since 1.10.0.
-- Consumer check: the net10 app on SDK 10.0.402 gets the net10 assets and MAUI 10.0.130. The net11 app gets the net11 assets and MAUI 11.0.10.
+- `scripts/api_compat.sh` finds no difference between the two lines and nothing removed since the newest 1.x release (the pack workflows take it from `scripts/api_baseline.py`).
+- Consumer check: the net10 app on SDK 10.0.4xx (CI: 10.0.404) gets the net10 assets and MAUI 10.0.130. The net11 app gets the net11 assets and MAUI 11.0.10.
 - Devices, with `scripts/device_verify.sh -l --net 11` and `--net 10`:
   - Run on an iOS simulator, a Mac Catalyst device, and Android emulators at API 24 (net11) and API 21 (net10).
   - Check GPU surfaces (Metal / GL), the software surface (the SkiaSharp net10 view assembly on MAUI 11), text input, native overlays, render-thread animations and Reduce Motion.

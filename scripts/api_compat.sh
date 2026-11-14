@@ -5,7 +5,8 @@
 #   - each framework keeps what the older one it is compatible with has (net11.0-ios has all of net10.0-ios's API).
 # Each package is packed with -p:SkUiApiBaseline (Directory.Build.props), which downloads the baseline from nuget.org.
 # A pack holds the TFMs its OS builds (macOS: net10.0 / net11.0, Android, iOS, Mac Catalyst; Windows: the Windows TFMs and
-# the others it can build), so the baseline's frameworks it has no TFM for are skipped; CI runs this on both OSes.
+# the others it can build), so the baseline's frameworks it has no TFM for are skipped. The pack workflows (nuget-pack.yml,
+# nuget-publish.yml) run the same check on both OSes with scripts/api_baseline.py's baseline; ci.yml does not.
 # Packages land in artifacts/api-compat/ (gitignored). Exits non-zero on the first difference.
 #
 #   scripts/api_compat.sh                        # baseline: the newest release tag (v1.10.3 → 1.10.3)
