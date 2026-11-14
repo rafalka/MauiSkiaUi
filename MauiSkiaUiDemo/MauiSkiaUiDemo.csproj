@@ -82,6 +82,16 @@
 		<DiagnosticListenMode Condition="'$(DiagnosticListenMode)' == ''">listen</DiagnosticListenMode>
 	</PropertyGroup>
 
+	<!--
+	  A diagnostic endpoint sets EnableDiagnostics, which also turns on MAUI's visual tree diagnostics (the live visual
+	  tree and XAML source info for the debugger). Those scan the parent's children on every logical child add, so
+	  building N children costs O(N²): a 1,000-button grid took 4× longer to build on .NET 11 iOS. Release builds are
+	  for measuring, so they keep the endpoint (dotnet-trace, dotnet-gcdump) and turn the visual tree diagnostics off.
+	-->
+	<ItemGroup Condition="'$(EnableProfiling)' == 'true' and '$(Configuration)' != 'Debug'">
+		<RuntimeHostConfigurationOption Include="Microsoft.Maui.RuntimeFeature.EnableMauiDiagnostics" Value="false" Trim="true" />
+	</ItemGroup>
+
 	<PropertyGroup Condition="'$(Configuration)' == 'Debug'">
 		<DefineConstants>$(DefineConstants);MAUI_DEVFLOW;SKUI_DIAGNOSTICS</DefineConstants>
 	</PropertyGroup>

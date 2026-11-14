@@ -193,6 +193,8 @@ dotnet build MauiSkiaUiDemo/MauiSkiaUiDemo.csproj -t:Run -c Release -f net10.0-i
 
 Collect with `dotnet-trace collect --dsrouter android-emu --format speedscope` (or `ios-sim` / `android` / `ios`). Do not ship packages built with profiling enabled.
 
+A diagnostic endpoint sets `EnableDiagnostics`, which by default also turns on MAUI's visual tree diagnostics (`Microsoft.Maui.RuntimeFeature.EnableMauiDiagnostics`). Those look up the new child's index among its parent's children on every logical child add, so building a layout with N children costs O(N²): with them on, a 1,000-button grid took 4× longer to build on .NET 11 iOS (CoreCLR); on .NET 10 (Mono) it barely changed. The demo turns them off in non-Debug builds that have profiling on, and keeps the endpoint. Do the same in your own app before you measure.
+
 ## Device acceptance checklists (still open)
 
 Automated device inspection is blocked by `MSB4099` in the installed MAUI extension's DevFlow injection targets on some machines; use [`scripts/device_verify.sh`](../../scripts/device_verify.sh) for plain CLI launches. No screenshot, contrast, or GPU frame-rate result is claimed until checked on-device.
