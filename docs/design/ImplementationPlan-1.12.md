@@ -74,7 +74,12 @@ Checked against the code on `devel` (16 November 2026).
   - The wheel claims vertical drags without the edge hand-off, including a non-looping wheel at its first or last row. Horizontal drags still go to the parent (a sheet that swipes sideways, a carousel).
   - Implementation goes through the existing arena (a per-scroller "no edge hand-off" flag) and needs no platform code.
   - Check headless with nested `SkUiScrollView`, and on devices inside a native `ScrollView` and a bottom sheet (Community Toolkit popup) on iOS and Android.
-- **W5 Accessibility.** Size: S.
+- **W5 Accessibility.** Size: S. **Done headless** on `1.12-implementation`. What the audit found:
+  - The semantics were already right. The view adds no element of its own, each wheel is one adjustable element with its value, increment / decrement go through the existing wheel code, and disabled wheels report as disabled with no actions (the bridges send `EnabledActions`).
+  - Fixed: the keyboard focus ring was drawn around the whole control. It is now on the active column's wheel (rounded as the band) and follows Left / Right, taps and screen reader moves. `SkUiWheelsView.ShowFocusRing`; the popup still shows none.
+  - Decided: Page Up / Page Down stay "visible rows less one", as in the popup (4 rows by default), not the issue's fixed ±5, so the two keep one behavior.
+  - A wheel without a `Header` or description has no name. Documented as the app's job; no fallback.
+  - Tests: `TheFocusRingIsOnTheActiveColumn`, `ScreenReadersSeeOnlyTheWheels`, `PageKeysMoveByTheVisibleRowsLessOne`. Device checks with VoiceOver, TalkBack and Narrator are still to do.
   - Each column stays one adjustable element: VoiceOver swipe up / down and TalkBack's scroll actions (increment / decrement exist), and the value text is the visible label (exists).
   - Add Page Up / Page Down as ±5 rows on the inline control if the popup's paging is a different step (check).
   - Device checks: VoiceOver (iPhone, iPad), TalkBack (tablet), Narrator.

@@ -360,6 +360,78 @@ public sealed class PickerWheelsTests : IDisposable
         }
     }
 
+    [Fact]
+    public void TheFocusRingIsOnTheActiveColumn()
+    {
+        var wheels = Create(0, 0);
+        Place(wheels);
+        var focus = (ISkUiAccessibleNode)wheels;
+
+        focus.SetKeyboardFocus(true, true);
+        Assert.False(wheels.IsFocusRingVisible);
+        Assert.True(wheels.Wheels.Wheel(0).IsFocusRingVisible);
+        Assert.False(wheels.Wheels.Wheel(1).IsFocusRingVisible);
+
+        Assert.True(Key(wheels, SkUiKey.Right));
+        Assert.False(wheels.Wheels.Wheel(0).IsFocusRingVisible);
+        Assert.True(wheels.Wheels.Wheel(1).IsFocusRingVisible);
+
+        // Built again (a column added): the ring stays on the active column.
+        wheels.AddColumn(new SkUiPickerColumn { ItemsSource = new[] { "a", "b" } });
+        Assert.True(wheels.Wheels.Wheel(wheels.Wheels.ActiveColumn).IsFocusRingVisible);
+
+        // Focus from a pointer shows no ring; losing focus hides it.
+        focus.SetKeyboardFocus(true, false);
+        Assert.All(Enumerable.Range(0, 3), column => Assert.False(wheels.Wheels.Wheel(column).IsFocusRingVisible));
+        focus.SetKeyboardFocus(true, true);
+        focus.SetKeyboardFocus(false, false);
+        Assert.All(Enumerable.Range(0, 3), column => Assert.False(wheels.Wheels.Wheel(column).IsFocusRingVisible));
+    }
+
+    [Fact]
+    public void ScreenReadersSeeOnlyTheWheels()
+    {
+        var wheels = Create(1, 0);
+        var stack = new SkUiVerticalStackLayout();
+        stack.Children.Add(new SkUiLabel { Text = "Every 2 days" });
+        stack.Children.Add(wheels);
+        using var surface = new SkUiTestSurface(stack, 360, 400);
+        surface.Frame();
+
+        // The view itself is no element: the readout, then one adjustable element per column.
+        var nodes = SkUiSemanticsTree.Build(stack).Flatten().Where(node => node.Source is not null).ToList();
+        Assert.Equal([SkUiSemanticsRole.Text, SkUiSemanticsRole.Slider, SkUiSemanticsRole.Slider], nodes.Select(node => node.Role));
+        Assert.Equal("days, 1 of 4", nodes[2].Value);
+
+        // Disabled: read as disabled, with no adjustment offered, and an adjustment does nothing.
+        wheels.IsEnabled = false;
+        surface.Frame();
+        var hour = SkUiSemanticsTree.Build(stack).Flatten().First(node => node.Source is SkUiCarouselView);
+        Assert.False(hour.IsEnabled);
+        Assert.Equal(SkUiSemanticsActions.None, hour.EnabledActions);
+        Assert.False(new SkUiSemanticsOwner(stack).Perform(hour.Id, SkUiSemanticsActions.Increment));
+        Assert.False(Key(wheels, SkUiKey.Down));
+        Assert.Equal(1, wheels.Columns[0].SelectedIndex);
+    }
+
+    [Fact]
+    public void PageKeysMoveByTheVisibleRowsLessOne()
+    {
+        var wheels = Create(0, 0).SetCommitDelay(TimeSpan.Zero);
+        wheels.Columns[0].ItemsSource = Enumerable.Range(1, 20).Select(number => number.ToString(System.Globalization.CultureInfo.InvariantCulture)).ToList();
+        wheels.Columns[0].SelectedIndex = 0;
+        Place(wheels);
+
+        Assert.True(Key(wheels, SkUiKey.PageDown));
+        Assert.Equal(4, wheels.Columns[0].SelectedIndex);
+        Assert.True(Key(wheels, SkUiKey.End));
+        Assert.Equal(19, wheels.Columns[0].SelectedIndex);
+        Assert.True(Key(wheels, SkUiKey.PageUp));
+        Assert.Equal(15, wheels.Columns[0].SelectedIndex);
+        Assert.True(Key(wheels, SkUiKey.Home));
+        Assert.Equal(0, wheels.Columns[0].SelectedIndex);
+    }
+
     private sealed class FuncConverter(Func<object?, bool> convert) : IValueConverter
     {
         public object Convert(object? value, Type targetType, object? parameter, System.Globalization.CultureInfo culture) => convert(value);

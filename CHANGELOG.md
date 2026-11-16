@@ -19,7 +19,7 @@ Publishing (the NuGet publish workflow, [docs/Releasing.md](docs/Releasing.md)) 
   - `Columns` of `SkUiPickerColumn` (the XAML content), the same columns as `SkUiMultiColumnPicker`: two-way `SelectedIndex` / `SelectedItem`, `Loop`, `Width`, `Header`, `ItemTemplate`, items that cannot be chosen.
   - The wheels write the columns once they have settled (`CommitDelay`, default 100 ms), not for each row passed; the app's choice moves them.
   - `VisibleRows`, `RowHeight`, the items' font and `TextColor`; `SelectedIndices`, `SelectedItems`, `SelectionChanged`, `SelectionChangedCommand`.
-  - Keyboard (one tab stop) and screen readers (each wheel one adjustable element) as in the popup.
+  - Keyboard (one tab stop, the focus ring on the active column's wheel) and screen readers (each wheel one adjustable element, the view itself none) as in the popup.
   - A vertical drag on a wheel always turns it, also at its first or last row: inside a scrolling page, a native scroll view or a sheet, neither the rest of the drag nor its fling scrolls the page.
   - Haptics (1.12 W3): a light tick per row while a wheel turns, as native wheel pickers do, with `IsHapticFeedbackEnabled` or app-wide `SkUiGestureSettings.IsWheelHapticFeedbackEnabled` (default off; also for the popups' wheels). The platform's feedback (Android, iOS, Mac Catalyst), so the system's setting applies and no permission is needed.
   - The popup's wheels and the inline ones are one implementation; a gallery page in the demo.

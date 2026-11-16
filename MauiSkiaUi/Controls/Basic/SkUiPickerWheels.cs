@@ -33,6 +33,7 @@ public class SkUiPickerWheels : SkUiView, ISkUiFontElement, ISkUiKeyHandler, ISk
     private SkUiWheelsView? _wheels;
     private bool _dirty = true;
     private int[]? _pending;
+    private bool _focusRing;
     private IDisposable? _commitTimer;
 
     /// <summary>Creates wheels without columns.</summary>
@@ -289,6 +290,7 @@ public class SkUiPickerWheels : SkUiView, ISkUiFontElement, ISkUiKeyHandler, ISk
         wheels.ScrollingChanged += OnScrollingChanged;
         _wheels = wheels;
         AttachChild(wheels);
+        wheels.ShowFocusRing(_focusRing);
         return wheels;
     }
 
@@ -440,6 +442,17 @@ public class SkUiPickerWheels : SkUiView, ISkUiFontElement, ISkUiKeyHandler, ISk
 
     /// <inheritdoc />
     internal override bool TakesKeyboardFocus => true;
+
+    /// <inheritdoc />
+    /// <remarks>The ring is drawn on the active column's wheel instead (Left / Right move it).</remarks>
+    internal override bool ShowsFocusRing => false;
+
+    /// <inheritdoc />
+    private protected override void OnKeyboardFocusChanged(bool focused, bool ringVisible)
+    {
+        _focusRing = ringVisible;
+        _wheels?.ShowFocusRing(ringVisible);
+    }
 
     /// <inheritdoc />
     bool ISkUiKeyHandler.OnKeyDown(in SkUiKeyEvent key) => IsEnabled && EnsureWheels().OnKeyDown(key);

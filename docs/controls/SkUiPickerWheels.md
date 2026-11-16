@@ -24,6 +24,7 @@ The wheels of [SkUiMultiColumnPicker](SkUiMultiColumnPicker.md)'s popup as a vie
 - **Building.** Changing the columns (adding, removing, replacing), a column's items, `Loop`, `Width`, `Header` or `ItemTemplate`, or `VisibleRows`, `RowHeight`, the font or `TextColor` builds the wheels again. Properties and columns set before the view is in a tree (XAML, object initializers) build them once.
 - **Size.** As wide as the columns' widest texts (or their `Width`s) within the width it gets. As tall as `VisibleRows` × `RowHeight` plus the tallest header.
 - **Keyboard** (one tab stop):
+  - The focus ring is drawn on the active column's wheel, rounded like the band, and follows it.
   - Left / Right change the column (mirrored right to left).
   - Up / Down, Page Up / Page Down (by the visible rows less one) and Home / End move its wheel.
   - Typing jumps to the next item starting with what was typed.
@@ -32,6 +33,8 @@ The wheels of [SkUiMultiColumnPicker](SkUiMultiColumnPicker.md)'s popup as a vie
   - It is named by its column's `Header`, or MAUI's `SemanticProperties.Description` set on the column.
   - Its value is the visible item and its place ("weeks, 2 of 4").
   - Increment / decrement step to the next or previous item that can be chosen (VoiceOver swipe up / down, TalkBack's scroll actions, Narrator's range value).
+  - The view itself is no element, so a readout above it and the wheels are read in order. Give each column a `Header` or a `SemanticProperties.Description`; otherwise its wheel has no name.
+  - Disabled wheels are read as disabled and offer no adjustment.
 
 ## How to use
 

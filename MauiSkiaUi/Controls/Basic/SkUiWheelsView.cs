@@ -101,6 +101,7 @@ internal sealed class SkUiWheelsView : SkUiContentView
     private SkUiTypeAhead _typeAhead;
     private int _active;
     private bool _syncing;
+    private bool _focusRing;
 
     /// <param name="texts">The item texts of each column.</param>
     /// <param name="loops">Whether each column's wheel loops (with more than one item).</param>
@@ -278,6 +279,24 @@ internal sealed class SkUiWheelsView : SkUiContentView
 
     /// <summary>The column the keyboard moves (the last one tapped or moved).</summary>
     internal int ActiveColumn => _active;
+
+    /// <summary>The keyboard moves <paramref name="column"/> from now on; the focus ring (if shown) follows.</summary>
+    private void SetActive(int column)
+    {
+        _active = column;
+        ShowFocusRing(_focusRing);
+    }
+
+    /// <summary>
+    /// Draws the look's focus ring on the active column's wheel (<paramref name="visible"/>), or on none: the host has keyboard focus
+    /// from the keyboard (the inline wheels; a popup shows none).
+    /// </summary>
+    public void ShowFocusRing(bool visible)
+    {
+        _focusRing = visible;
+        for (var column = 0; column < _wheels.Length; column++)
+            _wheels[column].SetFocusRingVisible(visible && column == _active);
+    }
 
     /// <summary>Whether a wheel is turning (dragged, flung or scrolled to an item); see <see cref="ScrollingChanged"/>.</summary>
     public bool IsScrolling => _wheels.Any(wheel => wheel.IsScrolling);
@@ -462,7 +481,7 @@ internal sealed class SkUiWheelsView : SkUiContentView
     /// <summary>A tap on an item: its wheel scrolls it to the middle, and chooses it (also when it is the one shown).</summary>
     private void OnItemTapped(int column, int index)
     {
-        _active = column;
+        SetActive(column);
         if (index < 0 || index >= _texts[column].Length || !SkUiItemStates.IsEnabled(_states[column], index))
             return;
         _ = _wheels[column].ScrollToIndex(index);
@@ -515,7 +534,7 @@ internal sealed class SkUiWheelsView : SkUiContentView
             var step = key.Key == SkUiKey.Right ? 1 : -1;
             if (_rightToLeft)
                 step = -step;
-            _active = Math.Clamp(column + step, 0, _wheels.Length - 1);
+            SetActive(Math.Clamp(column + step, 0, _wheels.Length - 1));
             return true;
         }
         if (target == int.MinValue || count == 0)
@@ -531,7 +550,7 @@ internal sealed class SkUiWheelsView : SkUiContentView
     /// <summary>The keyboard or a screen reader moves the wheel of <paramref name="column"/> to <paramref name="index"/> at once, and chooses it.</summary>
     private void MoveTo(int column, int index)
     {
-        _active = column;
+        SetActive(column);
         _ = _wheels[column].ScrollToIndex(index, animated: false);
         Choose(column, index);
     }
@@ -638,6 +657,9 @@ internal sealed class SkUiWheelsView : SkUiContentView
             owner.PerformWheelAction(column, action) || base.OnSemanticsAction(action);
 
         protected override bool OnSemanticsSetValue(double value) => owner.SetWheelValue(column, value);
+
+        /// <summary>The ring is rounded as the band.</summary>
+        internal override CornerRadius FocusRingCornerRadii => SkUiLook.Current.PickerWheelBandCornerRadius;
     }
 
     /// <summary>What a wheel shows for an item: its index (equal texts stay apart), text and whether it can be chosen.</summary>
