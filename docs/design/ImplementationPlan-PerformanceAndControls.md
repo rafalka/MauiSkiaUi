@@ -1,6 +1,6 @@
 # SkiaUi implementation plan: allocation pass and new controls
 
-**Status:** from a review of the architecture, the implementation and the .NET 10 / 11 and C# 14 / 15 feature use (16 November 2026). The findings are agreed and on the [roadmap](Roadmap.md): track A is release 1.13, planned step by step in [ImplementationPlan-1.13.md](ImplementationPlan-1.13.md) (which wins where the two differ), and track F is on the backlog. [D1](#decisions) is agreed; the other decisions are still proposed, each to be agreed before its package starts.
+**Status:** from [a review](Review-2026-11.md) of the architecture, the implementation and the .NET 10 / 11 and C# 14 / 15 feature use (16 November 2026). The findings are agreed and on the [roadmap](Roadmap.md): track A is release 1.13, planned step by step in [ImplementationPlan-1.13.md](ImplementationPlan-1.13.md) (which wins where the two differ), and track F is on the backlog. [D1](#decisions) is agreed; the other decisions are still proposed, each to be agreed before its package starts.
 
 **Goal:**
 
@@ -21,11 +21,53 @@
 - Chrome is drawn by the look from a paint struct passed with `in`. A control in the core package adds look members to `SkUiLook` with defaults in `DefaultSkUiLook`; a control in an optional package uses a style object over `SkUiColorScheme`, as `SkUiMarkdownStyle` does ([D4](#decisions)).
 - Motion honors `SkUiMotion` (reduce motion). What moves every frame is a composite-time property or an `SkUiRenderDrawable`, never a re-recorded picture.
 - Accessibility is part of "done": a semantics role, a name, actions, keyboard focus and keys ([Accessibility.md](Accessibility.md): grep for the role you need).
-- Tests are headless xUnit (`tests/MauiSkiaUi.Tests`). Text tests register the bundled font; XAML-loading classes join `RuntimeXamlCollection`. A new drawn control is added to `ImplicitStyleTests` and gets a leak scenario in `tests/Shared/MemoryLeaks`.
+- Tests are headless xUnit (`tests/MauiSkiaUi.Tests`). Text tests register the bundled font; XAML-loading classes join `RuntimeXamlCollection`. `ImplicitStyleTests` finds every public drawn control by reflection and must pass for a new one; a new control gets a leak scenario in `tests/Shared/MemoryLeaks`.
 - Performance: a feature a view does not use costs nothing per frame. Run `scripts/bench.sh --baseline HEAD` (and `--quiet-gc` when one phase jumps). New bench scenarios set new options through `TrySet` / `TrySetOption`.
 - The build stays at 0 warnings on `net10.0` and `net11.0`: `dotnet build MauiSkiaUi/MauiSkiaUi.csproj -f net10.0 -v q -clp:ErrorsOnly`, then the same for `net11.0`, then `dotnet test tests/MauiSkiaUi.Tests/MauiSkiaUi.Tests.csproj --logger "console;verbosity=minimal"`.
 - When a feature ships: an entry under `## Unreleased` in the changelog, a page in `docs/controls/`, a gallery page in `MauiSkiaUiDemo/ComponentPages` (next to the native control where MAUI has one), the status in [Roadmap.md](Roadmap.md) and [Requirements.md](Requirements.md), and [Migration.md](../Migration.md) plus `plugins/skiaui-migration` when a MAUI or vendor conversion path changes.
 - An agent reports what it measured and what it could not check (devices, screen readers). Device checks go to the roadmap's verification backlog; they are not claimed as done.
+
+## Working rules for an agent
+
+Written for an agent that follows steps rather than designs. They apply to every package.
+
+1. Do the steps in their order. One commit per step, after the step's check passes.
+2. Implement the brief's API table as written: these names, types and defaults, and no other public member. A member the table does not explain is copied from the pattern control named in the brief.
+3. Copy the pattern, do not invent one. Before writing a file, open the pattern file the recipe or the brief names and keep its structure (regions, order of members, how properties are declared).
+4. After every step run, in this order: `dotnet build MauiSkiaUi/MauiSkiaUi.csproj -f net10.0 -v q -clp:ErrorsOnly`, the step's own tests (`dotnet test tests/MauiSkiaUi.Tests/MauiSkiaUi.Tests.csproj --filter "FullyQualifiedName~<TestClass>" --logger "console;verbosity=minimal"`), and before the last step's commit the whole suite on both lines.
+5. Stop and report, without guessing, when: a symbol or file the brief names does not exist; a test outside the package still fails after two attempts to fix it; a step needs a file another running package owns ([Order and parallel work](#order-and-parallel-work)); the bench shows a phase more than 5 % slower in two runs; a step would change or remove an existing public member.
+6. The final report lists: the steps done, the tests added (class names), the bench table, the files changed outside the brief's list and why, and what was not checked (devices, screen readers).
+
+### Which agent for which package
+
+| Agent | Packages |
+| --- | --- |
+| A simple agent, from the brief as written | A1, A2, A4, A5, A6, A7 steps 1 and 2, F5, F6 |
+| A simple agent, after step 1 (the control page) is reviewed by a stronger agent or a person | F1, F7, F8 steps 2 and 4 to 6 |
+| A stronger agent | A3 (objects crossing threads), A7 steps 3 and 4 (measuring), F2, F3 steps 2 and 4, F4 steps 2 to 5, F8 steps 1 and 3, F9, F10 |
+
+## Control recipe
+
+What a new drawn control `X` touches, in build order. The pattern is the stepper: `rg -l Stepper -g '*.cs' MauiSkiaUi tests MauiSkiaUiDemo` lists the same places.
+
+| # | File | What goes there | Pattern |
+| --- | --- | --- | --- |
+| 1 | `docs/controls/SkUiX.md` | API table, behavior, keys, semantics | `docs/controls/SkUiStepper.md` |
+| 2 | `MauiSkiaUi/Helpers/SkUiXEngine.cs` (or `…Model.cs`, `…Math.cs`) | State machine and geometry shared by both layers; no view types | `SkUiStepperModel.cs`, `SkUiStepperMath.cs` |
+| 3 | `MauiSkiaUi/Look/SkUiLookPaints.cs` | The paint struct (`SkUiXPaint`): resolved colors, state, transition progress | The stepper's paint struct |
+| 4 | `MauiSkiaUi/Look/SkUiLook.cs`, `DefaultSkUiLook.cs` | `MeasureX` and `DrawX`; default sizes. Platform looks (`WindowsSkUiLook.cs` and the others in `Look/`) only where the platform differs; a row in `SkUiLookComparisonPage.cs` | grep `Stepper` in each |
+| 5 | `MauiSkiaUi/Controls/Basic/SkUiX.cs` | The SkUi\* control: bindable properties, fluent setters, input, `WriteBack` | `SkUiStepper.cs`, `SkUiStepperBase.cs` |
+| 6 | `MauiSkiaUi/Core/SkUiCoreX.cs` | The Core twin: `SetX` validates, `SetProperty`, invalidates | `SkUiCoreStepper.cs` |
+| 7 | `MauiSkiaUi/Accessibility/SkUiSemanticsOwner.cs`, `SkUiFocusManager.cs` | Role, value, actions; focus and keys | grep `Stepper` |
+| 8 | `tests/MauiSkiaUi.Tests/XEngineTests.cs`, `XTests.cs` | Engine tests; control tests on both layers; a test that draws both layers and compares pixels | `StepperTests.cs` (both layers), `ControlParityTests.cs` (its `Render` helper) |
+| 9 | `OneWayBindingTests.cs`, `BindableStoreTests.cs`, `ElementInterfaceTests.cs`, `PlatformLookShapeTests.cs` | One entry each for the new control | grep `Stepper` in each |
+| 9a | `ImplicitStyleTests.cs` | Nothing for a control in an assembly it already scans (it finds every public `SkUiView` by reflection, so the new control must pass it); a new package adds its assembly to `DrawnViewTypes` | The Markdown assembly's line |
+| 10 | `tests/Shared/MemoryLeaks/LeakScenarios.cs` | A leak scenario | The stepper's or the picker wheels' |
+| 11 | `MauiSkiaUiDemo/ComponentPages/Basic/XDemoPage.cs`, `ComponentDemos.cs` | A gallery page; `ComponentDemoTests` fails without it | `StepperDemoPage.cs` |
+| 12 | `benchmarks/Scenarios/Scenarios.cs` | `skui-x` and `core-x` when the control appears in lists; new options through `TrySet` | `skui-picker-wheels` |
+| 13 | `docs/controls/README.md`, `CHANGELOG.md`, `Roadmap.md`, `Requirements.md`, `docs/Migration.md`, `plugins/skiaui-migration` | Index row, changelog entry, status, conversion rows for vendor controls | grep `Stepper` in the scripts |
+
+`MauiApiParityTests` gets an entry only when MAUI has the control (none of track F's do). A control in an optional package skips rows 3 and 4 and uses a style object ([D4](#decisions)).
 
 ## Decisions
 
@@ -119,111 +161,300 @@ One package per agent, each in its own worktree and branch. `SkUiViewHandler.cs`
 
 ## Track F: features
 
-Each package starts with a short design note in its control page (`docs/controls/SkUiX.md`: API table, behavior, keys, semantics) before code, so the reviewer can check the API against MAUI's naming.
+Every package follows the [control recipe](#control-recipe) and the [working rules](#working-rules-for-an-agent). The API tables below are the contract: an agent implements these members with these names, types and defaults, and adds no other public member. Colors typed `Color?` default to `null`, meaning the look's or the color scheme's value. "Two-way" means the control writes the value through `WriteBack` and the property's default binding mode is two-way.
+
+Step 1 of every package is the control page (`docs/controls/SkUiX.md`) with the API table copied from here, the keys and the semantics. It is reviewed before step 2 starts. A change the review makes to the table is copied back into this plan.
 
 ### F1 Segmented control and tab view
 
-- **Size:** M. **Depends on:** track A. **Layers:** both for the segmented control; the tab view is SkUi\* only (the carousel has no Core twin).
-- **Read first:** `SkUiToggleControl.cs`, `SkUiToggleDrawing.cs`, `SkUiRadioButton.cs` (group semantics), [ControlLook.md](ControlLook.md#state-change-transitions-fr-26), `docs/controls/SkUiCarouselView.md`, `docs/controls/SkUiContentView.md` (grep "WhenShown").
-- **Build:**
-  1. `SkUiSegmentedEngine` in `Helpers`: segment measuring (equal or by content), hit-testing, the selection's animated position (`SkUiTween`), keys (Left / Right, Home / End).
-  2. `SkUiSegmentedControl` / `SkUiCoreSegmentedControl`: `ItemsSource` or inline segments (text, icon, both), `SelectedIndex` / `SelectedItem` (two-way through `WriteBack`), `SelectionChanged`, `Command`, disabled segments. Look members: track, selection pill, separators, per platform look.
-  3. `SkUiTabView`: a tab strip (fixed or scrolling, top or bottom, an underline or pill indicator that follows the swipe through a render link) over a carousel of panes created when first shown. `SelectedIndex`, `TabItems` with header text, icon and badge text, `IsSwipeEnabled`.
-- **Accessibility:** the strip is one tab stop with a current item (as the collection view's keyboard model); role tab / tab list; "selected, 2 of 4".
-- **Tests:** engine geometry, selection by tap and keys, two-way binding kept by `WriteBack`, right-to-left mirroring, implicit styles, XAML, a leak scenario per control.
-- **Bench:** 200 segmented controls in a list; a tab view of 5 heavy panes must create only the first.
-- **Docs:** control pages, gallery pages, Migration.md rows for the vendor tab views and segmented controls.
-- **Report:** the number of lines duplicated between the two segmented layers ([D3](#decisions)).
+- **Size:** M. **Depends on:** track A. **Agent:** design step reviewed, then a simple agent.
+- **Layers:** both for the segmented control; the tab view is SkUi\* only (the carousel has no Core twin).
+- **Pattern to copy:** the stepper for the file layout; `SkUiToggleControl.cs`, `SkUiToggleDrawing.cs` and `SkUiTween` for the animated selection; `SkUiRadioButton.cs` for one-of-many semantics.
+- **Read first:** [ControlLook.md](ControlLook.md#state-change-transitions-fr-26), `docs/controls/SkUiCarouselView.md`, `docs/controls/SkUiContentView.md` (grep "WhenShown").
+
+`SkUiSegmentedControl` / `SkUiCoreSegmentedControl`:
+
+| Member | Type | Default | Notes |
+| --- | --- | --- | --- |
+| `Segments` | `IList<SkUiSegment>` | empty | XAML content property. `SkUiSegment`: `Text`, `Icon` (`ImageSource`), `IsEnabled`, `AutomationId` |
+| `ItemsSource` | `IEnumerable?` | `null` | Used when `Segments` is empty; text through `ItemDisplayBinding` (`SkUiDisplayBinding`) |
+| `SelectedIndex` | `int` | `-1` | Two-way. Coerced to `-1`…count−1 before `WriteBack` |
+| `SelectedItem` | `object?` | `null` | Two-way; kept in step with `SelectedIndex` |
+| `SegmentWidthMode` | `SkUiSegmentWidthMode` | `Equal` | `Equal` or `Content` |
+| `TextColor`, `SelectedTextColor`, `SelectionColor`, `TrackColor` | `Color?` | `null` | |
+| `CornerRadius` | `double` | `-1` | `-1`: the look's |
+| Font members | as `ISkUiFontElement` | | |
+| `Command`, `CommandParameter` | `ICommand?`, `object?` | `null` | Run after a user selection |
+| `SelectionChanged` | event | | Previous and new index |
+
+`SkUiTabView`:
+
+| Member | Type | Default | Notes |
+| --- | --- | --- | --- |
+| `Tabs` | `IList<SkUiTabItem>` | empty | Content property. `SkUiTabItem`: `Header`, `Icon`, `BadgeText`, `Content` (`View`) or `ContentTemplate`, `IsEnabled` |
+| `SelectedIndex` | `int` | `0` | Two-way |
+| `TabStripPlacement` | `SkUiTabStripPlacement` | `Top` | `Top` or `Bottom` |
+| `TabWidthMode` | `SkUiSegmentWidthMode` | `Equal` | `Content` makes the strip scroll |
+| `IndicatorStyle` | `SkUiTabIndicatorStyle` | `Underline` | `Underline`, `Pill`, `None` |
+| `IsSwipeEnabled` | `bool` | `true` | |
+| `SelectionChanged` | event | | |
+
+Files to create: `Helpers/SkUiSegmentedEngine.cs`, `Controls/Basic/SkUiSegmentedControl.cs`, `Controls/Basic/SkUiSegment.cs`, `Core/SkUiCoreSegmentedControl.cs`, `Controls/Layouts/SkUiTabView.cs`, `Controls/Layouts/SkUiTabItem.cs`, `tests/…/SegmentedEngineTests.cs`, `SegmentedControlTests.cs`, `TabViewTests.cs`, the two demo pages and the two control pages.
+
+Steps:
+
+1. Control pages. *Check:* reviewed.
+2. `SkUiSegmentedEngine`: input is the segment sizes, the available width, the width mode and the direction; output is each segment's rectangle and the selection rectangle at a progress 0…1 between two indices. No MAUI view types. *Check:* `SegmentedEngineTests` (equal and content widths, right to left, zero segments, more content than width).
+3. Look: `SkUiSegmentedPaint` in `SkUiLookPaints.cs`; `MeasureSegmented` and `DrawSegmented` in `SkUiLook`, drawn by `DefaultSkUiLook` (track, selection pill, separators, pressed and disabled states). *Check:* builds with 0 warnings; `PlatformLookShapeTests` entry.
+4. `SkUiSegmentedControl`: properties per the table, tap selects, the pill animates with `SkUiTween` (snaps under reduce motion). *Check:* `SegmentedControlTests` (tap, binding stays one-way after a tap, disabled segment, `ItemsSource` change).
+5. `SkUiCoreSegmentedControl` on the same engine and look. *Check:* a test drawing both layers and comparing pixels.
+6. Keys and semantics: Left / Right (mirrored in right to left), Home / End; one tab stop; each segment a selectable element ("selected, 2 of 4"). *Check:* key and semantics tests.
+7. `SkUiTabView`: a grid of a segmented strip and a `SkUiCarouselView`; panes are created when first shown; the strip's indicator follows the carousel's offset; `SelectedIndex` is the one source of truth. *Check:* `TabViewTests` (only the first pane created, swipe changes `SelectedIndex`, strip placement, badge text).
+8. Registrations, leak scenarios (`SegmentedControlShown`, `TabViewSwiped`), demo pages, bench `skui-segmented` and `core-segmented` (200 controls), docs, changelog.
+
+**Done when:** all checks pass and the PR reports the lines duplicated between the two segmented layers ([D3](#decisions)).
 
 ### F2 Scroll-linked effects
 
-- **Size:** M. **Depends on:** track A.
-- **Read first:** `SkUiRenderLink` and `SkUiItemEffectLink` in `SkUiRenderProps.cs`, how `SkUiCompositor` evaluates `Link`, and the pinned-header code in the scroll views (grep `Link =`). [ScrollingAndCollectionViews.md](ScrollingAndCollectionViews.md): grep "pinned" and "sticky".
-- **Build:**
-  1. Generalize the internal link: per property (translation X / Y, opacity, scale, clip height), `clamp(factor · offset + base, min, max)` with an optional easing, evaluated by the compositor against the source scroller's offset each frame.
-  2. Public API on both layers: `SkUiScrollEffect` (source scroller, input range in DIPs, output property and range), attached to any drawn view or Core node inside or outside the scroller. The UI side writes the same values for hit-testing, as the link does today.
-  3. Ready-made recipes in the docs and the gallery: collapsing header with a title that shrinks, parallax image, a toolbar that fades in, a floating button that hides on scroll.
-- **Take in from the backlog:** "render-thread effects linked to overscroll" uses the same mechanism: an effect's input range may extend past the scroll range.
-- **Tests:** compositor tests through `SkUiFrameRenderer` (offset in, props out, no recording: assert zero re-records with the diagnostics counters), immediate-painter parity, reduce motion (effects snap to their end state where they are decorative).
-- **Bench:** a list with a collapsing header: render time per frame against the same list without it.
+- **Size:** M. **Depends on:** track A. **Agent:** a stronger agent throughout (compositor and cross-thread values).
+- **Read first:** `SkUiRenderLink` and `SkUiItemEffectLink` in `SkUiRenderProps.cs`, where `SkUiCompositor` evaluates `Link`, the pinned-header code in the scroll views (grep `Link =`), [ScrollingAndCollectionViews.md](ScrollingAndCollectionViews.md) (grep "pinned").
+
+`SkUiScrollEffect` (a plain class, used by both layers; added to `SkUiView.ScrollEffects` or with `SkUiCoreNode.AddScrollEffect`):
+
+| Member | Type | Default | Notes |
+| --- | --- | --- | --- |
+| `Source` | scroll view or Core scroll node | `null` | `null`: the nearest scrolling ancestor |
+| `Orientation` | `ScrollOrientation` | `Vertical` | Which offset drives it |
+| `InputStart`, `InputEnd` | `double` | `0`, `0` | Offset range in DIPs; may extend past the scroll range (overscroll) |
+| `Property` | `SkUiScrollEffectProperty` | `TranslationY` | `TranslationX`, `TranslationY`, `Opacity`, `Scale`, `ScaleX`, `ScaleY`, `ClipHeight` |
+| `From`, `To` | `double` | `0`, `0` | Output at `InputStart` and `InputEnd`; clamped outside |
+| `Easing` | `Easing?` | `null` | Linear when `null`; sampled into a small table for the render thread |
+
+Steps:
+
+1. Control page section in `docs/controls/SkUiScrollView.md` plus recipes. *Check:* reviewed.
+2. Replace the single translation link with a list of links per node, each `clamp(factor · offset + base)` onto one property. Existing users (scroll bar thumb, pinned headers) move to the list unchanged. *Check:* every scrolling and collection view test passes; bench shows no slower frame.
+3. Compositor: evaluate the list each frame against the source's children offset. Nothing is recorded. *Check:* a `SkUiFrameRenderer` test: offset in, properties out, zero re-records (diagnostics counters).
+4. UI side: write the same values for hit-testing and the immediate painter. *Check:* immediate painter equals compositor output.
+5. Public `SkUiScrollEffect` on both layers; effects detach when the node leaves the tree. *Check:* API tests, a leak scenario (`ScrollEffectsAttached`).
+6. Reduce motion: decorative effects (`Opacity`, `Scale`) hold their `To` value; layout-like ones (`ClipHeight`, translation) still run. *Check:* test.
+7. Gallery page with four recipes (collapsing header, parallax image, fading toolbar, hiding button), bench `skui-scroll-effects`, docs, changelog, roadmap (the overscroll-linked effects item is taken in).
+
+**Done when:** a 1,000-row list with a collapsing header scrolls with zero re-records and the render time per frame is within 5 % of the same list without it.
 
 ### F3 In-surface sheet
 
-- **Size:** M to L. **Depends on:** F2.
+- **Size:** M to L. **Depends on:** F2. **Agent:** a stronger agent for steps 2 and 4; a simple agent for the rest.
 - **Read first:** `SkUiScrollController.cs` (fling, snap points, nested hand-off), `SkUiDraggerInput.cs`, `ISkUiPopupPresenter.cs`, [Popups.md](Popups.md), [EventMechanism.md](EventMechanism.md) (grep "nested").
-- **Build:**
-  1. `SkUiSheetEngine`: detents (fractions, DIPs, fit content), the drag with velocity to the nearest detent, dismissal past the lowest, all as render-thread translation.
-  2. `SkUiSheet` (SkUi\*), placed as the last child of the surface root's layout: `Edge` (bottom, start, end), `Detents`, `SelectedDetent` (two-way), `IsOpen` (two-way), `IsModal` (scrim, tap outside dismisses), `HasGrabber`, `Content`. Scrolling content hands the drag to the sheet at its top edge.
-  3. `SkUiSheetPopupPresenter`: an `ISkUiPopupPresenter` that shows picker popups in a sheet, for apps without a popup system.
-- **Accessibility:** modal sheets trap focus and are announced; Escape and the back gesture close; the grabber has "expand" / "collapse" actions.
-- **Limits to document:** it cannot cover hosted native views ([D5](#decisions)); keyboard avoidance uses the viewport insets from 1.6.
-- **Tests:** detent math, drag and fling to detents, nested scroll hand-off, modal focus, `IsOpen` binding, a leak scenario (`SheetOpenedAndClosed`).
-- **Device checks (verification backlog):** feel on the S9 and the iPhone 8, the Android back gesture, the keyboard over a sheet.
+
+`SkUiSheet` (SkUi\* only; placed as the last child of the surface root's layout):
+
+| Member | Type | Default | Notes |
+| --- | --- | --- | --- |
+| `Content` | `View?` | `null` | Content property |
+| `Edge` | `SkUiSheetEdge` | `Bottom` | `Bottom`, `Start`, `End` |
+| `Detents` | `IList<SkUiSheetDetent>` | half, full | `SkUiSheetDetent.Fraction(d)`, `.Height(dips)`, `.FitContent` |
+| `SelectedDetentIndex` | `int` | `0` | Two-way |
+| `IsOpen` | `bool` | `false` | Two-way |
+| `IsModal` | `bool` | `true` | Scrim, focus trap |
+| `ScrimColor` | `Color?` | `null` | |
+| `DismissOnScrimTap`, `IsDragEnabled`, `HasGrabber` | `bool` | `true` | |
+| `CornerRadius` | `double` | `-1` | The look's |
+| `OpenAsync()`, `CloseAsync()` | `Task` | | Complete when the animation ends |
+| `Opened`, `Closed`, `DetentChanged` | events | | |
+
+Steps:
+
+1. Control page. *Check:* reviewed.
+2. `Helpers/SkUiSheetEngine.cs`: detent positions from the surface size, the nearest detent for a position and a velocity, dismissal past the lowest. *Check:* `SheetEngineTests`.
+3. Look members (`SkUiSheetPaint`: surface, corner radius, grabber, scrim) and `SkUiSheet` with `IsOpen` and programmatic detents as render-thread translation. *Check:* open, close and detent tests.
+4. Drag: a pan recognizer on the sheet; scrolling content inside hands the drag over at its top edge (bottom sheet) through the existing nested-scroll hand-off. *Check:* tests for drag to each detent, fling, hand-off from a `SkUiScrollView` inside.
+5. Modal behavior: scrim opacity linked to the sheet's position (F2), tap outside, focus trap, Escape and the back gesture close. *Check:* focus and key tests.
+6. `SkUiSheetPopupPresenter : ISkUiPopupPresenter`, showing a request's content in a sheet. *Check:* a picker opens and commits through it.
+7. Leak scenario `SheetOpenedAndClosed`, gallery page, docs with the limits (cannot cover hosted native views; keyboard avoidance through viewport insets), changelog; device checks added to the verification backlog.
 
 ### F4 Charts package, phase 1
 
-- **Size:** L. **Depends on:** track A. **New project:** `MauiSkiaUi.Charts` (`SkiaUi.Maui.Charts`), set up like `MauiSkiaUi.Markdown` (csproj, README, both lines, in `SkiaUi.slnx` and the generated net10 solution, pack and consumer-app CI).
-- **Read first:** `MauiSkiaUi.Markdown/MauiSkiaUi.Markdown.csproj` and `SkUiMarkdownStyle.cs` (the package and style pattern), `SkUiShapePainter.cs`, `SkUiTextLayout` usage in `SkUiCoreLabel.cs`, the `SkUiWeakListener` example in its doc comment (a chart model).
-- **Build:**
-  1. Model: `SkUiChartSeries` (line, area, bar, stacked bar) over `ItemsSource` with X / Y bindings read through compiled accessors (AOT-safe, as `SkUiDisplayBinding`), numeric, date and category axes with "nice" ticks, a legend, `SkUiChartStyle`.
-  2. `SkUiCoreChart` draws plot, axes and series as separate render nodes, so a data change re-records the series only; `SkUiChart` is the SkUi\* twin. `SkUiSparkline` / `SkUiCoreSparkline`: one series, no axes, sized for list rows.
-  3. Interaction: a tooltip and crosshair on press or hover; selection of a point.
-  4. Motion: series animate in and between data sets on the UI clock, off under reduce motion.
-- **Accessibility:** the chart is a group with a summary; points are reachable elements ("March, 42 units").
-- **Tests:** tick generation, scaling, hit-testing, decimation of long series (min / max per pixel column), empty and NaN data, right-to-left.
-- **Bench:** 200 sparklines in a list (record and scroll), one chart of 10,000 points (first frame under 16 ms headless is the target to measure against).
-- **Out of scope (phase 2):** pie, donut, radial gauge, pan and zoom, financial series, trackball across charts.
+- **Size:** L. **Depends on:** track A. **Agent:** a stronger agent for steps 2 to 5; a simple agent for the project setup and the rest.
+- **Pattern to copy:** `MauiSkiaUi.Markdown` (project file, README, style object, both layers in a package).
+- **Read first:** `MauiSkiaUi.Markdown/MauiSkiaUi.Markdown.csproj`, `SkUiMarkdownStyle.cs`, `SkUiShapePainter.cs`, the chart-model example in `SkUiWeakListener.cs`'s doc comment.
+
+`SkUiChart` / `SkUiCoreChart`:
+
+| Member | Type | Default | Notes |
+| --- | --- | --- | --- |
+| `Series` | `IList<SkUiChartSeries>` | empty | Content property |
+| `XAxis`, `YAxis` | `SkUiChartAxis` | numeric, auto range | `Kind` (`Numeric`, `DateTime`, `Category`), `Minimum`, `Maximum` (`double?`, `null`: from data), `Title`, `LabelFormat`, `ShowsGridLines` |
+| `ShowsLegend` | `bool` | `false` | |
+| `LegendPlacement` | `SkUiChartLegendPlacement` | `Bottom` | `Top`, `Bottom`, `Start`, `End` |
+| `IsTooltipEnabled` | `bool` | `true` | Press or hover |
+| `SelectedPoint` | `SkUiChartPoint?` | `null` | Two-way |
+| `Style` | `SkUiChartStyle?` | `null` | Colors, fonts, paddings; defaults from the color scheme |
+| `PointSelected` | event | | |
+
+`SkUiChartSeries`: `Kind` (`Line`, `Area`, `Bar`, `StackedBar`), `ItemsSource`, `XValue` and `YValue` (`Func<object, double>`, or `XBinding` / `YBinding` read as `SkUiDisplayBinding` reads), `Name`, `Color`, `StrokeWidth` (2), `ShowsMarkers` (false), `IsSmooth` (false).
+
+`SkUiSparkline` / `SkUiCoreSparkline`: `Values` (`IReadOnlyList<double>`), `Kind` (`Line`, `Area`, `Bar`), `Color`, `StrokeWidth` (1.5), `ShowsLastPoint` (false).
+
+Steps:
+
+1. New project `MauiSkiaUi.Charts` copied from the Markdown project (package id `SkiaUi.Maui.Charts`), added to `SkiaUi.slnx`, the net10 solution regenerated with `scripts/net10_solution.py`, the pack and consumer-app CI lists. *Check:* builds on both lines with 0 warnings.
+2. Scales and ticks (`SkUiChartScale`, "nice" numeric and date ticks, category bands). *Check:* `ChartScaleTests`, including empty, single-value and NaN data.
+3. Series geometry: points to paths, bar rectangles, stacking, decimation to one min / max pair per pixel column. *Check:* `ChartGeometryTests`.
+4. `SkUiCoreChart`: plot, axes and each series as separate render nodes, so a data change re-records one series. Listens to `INotifyCollectionChanged` through `SkUiWeakListener`. *Check:* a re-record count test.
+5. `SkUiChart` (SkUi\* twin), legend, tooltip and selection, transitions between data sets on the UI clock. *Check:* layer pixel comparison, selection tests.
+6. `SkUiSparkline` on both layers. *Check:* tests; bench `skui-sparklines` (200 in a list).
+7. Semantics (a group with a summary, points as elements), right to left, leak scenarios, gallery pages, control pages, README of the package, changelog. Bench `core-chart-10k` (one line series of 10,000 points).
+
+**Out of scope (phase 2):** pie, donut, radial gauge, pan and zoom, financial series.
 
 ### F5 Chips
 
-- **Size:** S to M. **Depends on:** track A. **Layers:** both.
-- **Read first:** `SkUiButton.cs`, `SkUiToggleControl.cs`, the picker's token drawing in `SkUiLook.cs` (grep "token"), `SkUiWrapEngine.cs`.
-- **Build:** `SkUiChip` (text, leading icon or avatar, optional remove button, `IsSelected` for filter chips, `Command`) and `SkUiChipGroup` (wrap or one scrolling row, `ItemsSource`, `SelectionMode` none / single / multiple, `SelectedItems`, `ChipRemoved`). Look members for the four kinds: action, filter, input, suggestion.
-- **Accessibility:** a filter chip is a toggle; remove is a custom action; arrow keys move within the group.
-- **Then:** note in the roadmap that the pickers' token template can build on it.
+- **Size:** S to M. **Depends on:** track A. **Agent:** simple.
+- **Pattern to copy:** `SkUiButton.cs` (press, command), `SkUiToggleControl.cs` (selected state), the picker's token drawing in `SkUiLook.cs` (grep "token"), `SkUiWrapEngine.cs`.
+
+`SkUiChip` / `SkUiCoreChip`:
+
+| Member | Type | Default | Notes |
+| --- | --- | --- | --- |
+| `Text` | `string?` | `null` | |
+| `ImageSource` | `ImageSource?` | `null` | Leading icon or avatar |
+| `Kind` | `SkUiChipKind` | `Action` | `Action`, `Filter`, `Input`, `Suggestion` |
+| `IsSelected` | `bool` | `false` | Two-way; toggled by a tap when `Kind` is `Filter` |
+| `ShowsRemoveButton` | `bool` | `false` | `true` by default for `Input` (a virtual default, not a property write) |
+| `Command`, `CommandParameter`, `RemoveCommand` | | `null` | |
+| `TextColor`, `BackgroundColor`, `SelectedColor`, `StrokeColor` | `Color?` | `null` | |
+| `Clicked`, `Removed` | events | | |
+
+`SkUiChipGroup` / `SkUiCoreChipGroup`:
+
+| Member | Type | Default | Notes |
+| --- | --- | --- | --- |
+| `ItemsSource`, `ItemDisplayBinding` | | `null` | One chip per item |
+| `ChipKind` | `SkUiChipKind` | `Filter` | |
+| `SelectionMode` | `SkUiChipSelectionMode` | `Multiple` | `None`, `Single`, `Multiple` |
+| `SelectedItem` | `object?` | `null` | Two-way |
+| `SelectedItems` | `IList<object>` | empty | Two-way as the picker's multiple selection |
+| `Wraps` | `bool` | `true` | `false`: one horizontally scrolling row |
+| `Spacing`, `RowSpacing` | `double` | `8` | |
+| `SelectionChanged`, `ChipRemoved` | events | | |
+
+Steps: (1) control pages; (2) look: `SkUiChipPaint`, `MeasureChip`, `DrawChip` for the four kinds and states; (3) `SkUiChip`; (4) `SkUiCoreChip`, pixel comparison; (5) `SkUiChipGroup` on `SkUiWrapEngine` (or a scroll view when `Wraps` is false) and its Core twin; (6) semantics (a filter chip is a toggle, remove is a custom action, arrow keys move in the group); (7) registrations, leak scenarios, demo pages, bench `skui-chips` (500 chips), docs, changelog, and a roadmap note that the pickers' token template can build on chips. Each step's check is its test class (`ChipTests`, `ChipGroupTests`) passing.
 
 ### F6 Range slider and rating
 
-- **Size:** S each. **Depends on:** track A. **Layers:** both.
-- **Read first:** `SkUiSlider.cs`, `SkUiSliderInput.cs`, the slider's look members.
-- **Build:**
-  1. `SkUiRangeSlider`: `RangeStart`, `RangeEnd` (two-way, clamped and coerced before `WriteBack`), `MinimumRange`, `Step`, both orientations, the thumb nearest the press moves, drag of the range itself (optional).
-  2. `SkUiRating`: `Value`, `Maximum`, `Precision` (full, half, exact), `IsReadOnly`, a shape from a path or the look's star, drawn with a clip for partial fill.
-- **Accessibility:** each thumb is an adjustable element with its own label; the rating is one adjustable element.
+- **Size:** S each. **Depends on:** track A. **Agent:** simple.
+- **Pattern to copy:** `SkUiSlider.cs`, `SkUiSliderInput.cs`, the slider's look members and tests.
+
+`SkUiRangeSlider` / `SkUiCoreRangeSlider`:
+
+| Member | Type | Default | Notes |
+| --- | --- | --- | --- |
+| `Minimum`, `Maximum` | `double` | `0`, `1` | |
+| `RangeStart`, `RangeEnd` | `double` | `0`, `1` | Two-way. Coerce before `WriteBack`: clamp to the limits, then keep `RangeEnd − RangeStart ≥ MinimumRange` by moving the thumb that is not being dragged only when it must |
+| `MinimumRange` | `double` | `0` | |
+| `Step` | `double` | `0` | `0`: continuous |
+| Orientation, track and thumb colors | as `SkUiSlider` | | Same names as the slider's |
+| `IsRangeDraggable` | `bool` | `false` | Drag the filled range to move both |
+| `RangeChanged`, `DragStarted`, `DragCompleted` | events | | |
+
+`SkUiRating` / `SkUiCoreRating`:
+
+| Member | Type | Default | Notes |
+| --- | --- | --- | --- |
+| `Value` | `double` | `0` | Two-way; coerced to 0…`Maximum` and to `Precision` |
+| `Maximum` | `int` | `5` | |
+| `Precision` | `SkUiRatingPrecision` | `Full` | `Full`, `Half`, `Exact` |
+| `IsReadOnly` | `bool` | `false` | |
+| `ItemSize`, `Spacing` | `double` | `24`, `4` | |
+| `Shape` | `Geometry?` | `null` | `null`: the look's star |
+| `FilledColor`, `EmptyColor` | `Color?` | `null` | |
+| `ValueChanged` | event | | |
+
+Steps for each control: (1) control page; (2) engine or math in `Helpers` with tests (thumb picking: the nearest thumb, the end thumb when both sit at the minimum; rating value from a point for each precision, right to left); (3) look members; (4) SkUi\* control; (5) Core twin and pixel comparison; (6) keys (arrows, Page Up / Down, Home / End) and semantics (each thumb an adjustable element with its own label; the rating one adjustable element); (7) registrations, leak scenario, demo page, docs, changelog.
 
 ### F7 Autocomplete
 
-- **Size:** M. **Depends on:** track A; reads F5 for tokens later.
+- **Size:** M. **Depends on:** track A. **Agent:** design step reviewed (how it derives from the entry), then a simple agent.
 - **Read first:** [CustomPickers.md](../controls/CustomPickers.md), `SkUiPopups.ShowContentAsync`, `SkUiEntry.cs`, the picker's searchable list (grep `IsSearchEnabled`).
-- **Build:** `SkUiAutoComplete` (SkUi\*, then Core): a drawn entry whose suggestions open in an anchored drawn list through the popup presenter. `ItemsSource` with a filter mode (starts with, contains, custom), or `SuggestionsProvider` (`Func<string, CancellationToken, Task<IReadOnlyList<object>>>`, debounced, the previous request cancelled), `ItemDisplayBinding`, `ItemTemplate`, matched text highlighted with spans, `SelectedItem`, free text allowed or not.
-- **Accessibility and keys:** Down opens and moves, Enter chooses, Escape closes; the list is announced with its count.
-- **Edits `SkUiTextFieldModel.cs` only if needed,** and then alone in its wave.
+
+`SkUiAutoComplete` (SkUi\* first; the Core twin is step 7). It has the entry's members (text, placeholder, fonts, field chrome) plus:
+
+| Member | Type | Default | Notes |
+| --- | --- | --- | --- |
+| `ItemsSource`, `ItemDisplayBinding`, `ItemTemplate` | | `null` | |
+| `FilterMode` | `SkUiAutoCompleteFilterMode` | `StartsWith` | `StartsWith`, `Contains`, `Custom`; comparisons ignore case and are culture-aware |
+| `Filter` | `Func<object, string, bool>?` | `null` | For `Custom` |
+| `SuggestionsProvider` | `Func<string, CancellationToken, Task<IReadOnlyList<object>>>?` | `null` | Replaces `ItemsSource` filtering; the previous call is cancelled |
+| `MinimumPrefixLength` | `int` | `1` | |
+| `DebounceMilliseconds` | `int` | `150` | Provider only |
+| `MaxSuggestions` | `int` | `8` | |
+| `HighlightsMatch` | `bool` | `true` | Matched text drawn bold through spans |
+| `SelectedItem` | `object?` | `null` | Two-way |
+| `AllowsFreeText` | `bool` | `true` | `false`: text reverts to the selected item on unfocus |
+| `IsOpen` | `bool` | `false` | Two-way |
+| `SuggestionChosen` | event | | |
+
+Steps: (1) control page, with the decision whether it derives from `SkUiEntry` or composes one; (2) `Helpers/SkUiAutoCompleteModel.cs`: filtering, debounce, cancellation, the highlighted ranges, with tests using a fake clock; (3) the suggestion list as popup content (`SkUiPickerPopupContent` subclass) shown with the anchored placement; (4) the control: typing opens, choosing writes text and `SelectedItem`; (5) keys (Down opens and moves, Enter chooses, Escape closes) and semantics (the list announced with its count); (6) tests, leak scenario, demo page with a slow fake provider, docs, changelog; (7) the Core twin. `SkUiTextFieldModel.cs` is edited only if step 1's review says so.
 
 ### F8 Lottie package
 
-- **Size:** S to M. **Depends on:** track A. **New project:** `MauiSkiaUi.Lottie` (`SkiaUi.Maui.Lottie`) on `SkiaSharp.Skottie`.
-- **First step:** check that `SkiaSharp.Skottie` has a version matching `$(SkiaSharpVersion)`, is trim and AOT clean, and what it adds to an app's size on Android and iOS. Stop and report if any of the three fails.
-- **Read first:** `SkUiRenderDrawable.cs` and `SkUiShimmerRendering.cs` (the one drawable in the library), [RenderingPipeline.md](RenderingPipeline.md) (grep "drawable").
-- **Build:** `SkUiLottieView` / `SkUiCoreLottie`: `Source` (asset, stream, URI through the image loader's download cache), `IsPlaying`, `RepeatCount`, `Speed`, `Progress` (two-way), `AnimationCompleted`. The animation is an `SkUiRenderDrawable` the compositor seeks and draws from `SkUiRenderClock`; the UI thread records nothing per frame. Under reduce motion it shows the first or a chosen frame.
-- **Untrusted files:** size and layer limits, no external assets unless allowed, as the SVG reader's rules.
-- **Bench:** 20 playing animations in a scrolling list: render time per frame, zero re-records.
+- **Size:** S to M. **Depends on:** track A. **Agent:** step 1 and 3 by a stronger agent; the rest simple.
+- **Pattern to copy:** `MauiSkiaUi.Markdown` for the project; `SkUiShimmerRendering.cs` for the drawable.
+
+`SkUiLottieView` / `SkUiCoreLottie`:
+
+| Member | Type | Default | Notes |
+| --- | --- | --- | --- |
+| `Source` | `SkUiLottieSource?` | `null` | `FromAsset(name)`, `FromStream(factory)`, `FromUri(uri)` |
+| `IsPlaying` | `bool` | `true` | |
+| `RepeatCount` | `int` | `-1` | `-1`: forever |
+| `RepeatMode` | `SkUiLottieRepeatMode` | `Restart` | `Restart`, `Reverse` |
+| `Speed` | `double` | `1` | |
+| `Progress` | `double` | `0` | 0…1. Setting it seeks. Written back when playback pauses or ends, not every frame |
+| `Aspect` | `Aspect` | `AspectFit` | |
+| `ReducedMotionProgress` | `double` | `0` | The frame shown under reduce motion |
+| `AnimationLoaded`, `AnimationFailed`, `AnimationCompleted` | events | | |
+
+Steps:
+
+1. Feasibility: `SkiaSharp.Skottie` at `$(SkiaSharpVersion)` exists, builds trim- and AOT-clean in a test project, and its size cost per platform is measured. *Stop and report if any fails.*
+2. New project `MauiSkiaUi.Lottie` as in F4 step 1.
+3. `SkUiLottieDrawable : SkUiRenderDrawable`: owns the Skottie animation, seeks from `SkUiRenderClock` and draws on the render thread; disposed by the compositor. *Check:* a `SkUiFrameRenderer` test with zero re-records across 60 frames.
+4. Loading off the UI thread with limits (file size 2 MB by default, no external assets), through the image loader's download cache for URIs. *Check:* tests with a valid, an oversized and a malformed file.
+5. The two controls per the table; reduce motion. *Check:* `LottieTests`, pixel comparison of the two layers at a fixed progress.
+6. Leak scenario `LottiePlayed`, gallery page, bench `skui-lottie` (20 playing in a list), docs, package README, changelog.
 
 ### F9 Data grid
 
-- **Size:** L. **Depends on:** F2 (frozen columns are links), [D7](#decisions).
+- **Size:** L. **Depends on:** F2, [D7](#decisions). **Agent:** a stronger agent throughout; simple agents for column types and docs.
 - **Read first:** `docs/controls/SkUiCoreTable.md`, `docs/controls/SkUiVirtualVerticalStackLayout.md`, `docs/controls/SkUiGridSplitter.md`, the collection view's selection and keyboard code.
-- **Build:** `SkUiDataGrid` (SkUi\*): text, numeric, date, check box and template columns; rows virtualized on the virtual stack, each row one drawn node whose cells are laid out by shared column widths; horizontal scrolling with a frozen header row and frozen leading columns; sort by header tap (the grid sorts a view, never the app's list); column resize with the splitter engine; row selection (the collection view's modes); `ItemsSource` change animations off by default.
-- **Accessibility:** table, row and cell roles; arrow keys move by cell.
-- **Bench:** 10,000 rows × 20 columns: first frame, fling, allocated KB per recycled row.
-- **Out of scope:** editing, grouping, filtering UI, column reordering, export.
+
+`SkUiDataGrid` (SkUi\* only):
+
+| Member | Type | Default | Notes |
+| --- | --- | --- | --- |
+| `ItemsSource` | `IEnumerable?` | `null` | |
+| `Columns` | `IList<SkUiDataGridColumn>` | empty | Content property. Column: `Header`, `Binding` or `ValueAccessor`, `Width` (`GridLength`), `MinimumWidth` (40), `CanSort`, `CanResize` (true), `TextAlignment`, `Format`. Types: text, numeric, date, check box, template (`CellTemplate`) |
+| `FrozenColumnCount` | `int` | `0` | Leading columns that do not scroll horizontally |
+| `RowHeight`, `HeaderHeight` | `double` | `-1` | The look's |
+| `SelectionMode`, `SelectedItem`, `SelectedItems` | as the collection view's | | |
+| `SortDescriptions` | `IList<SkUiDataGridSort>` | empty | Column and direction; the grid sorts a view, never the app's list |
+| `GridLinesVisibility` | `SkUiGridLines` | `Horizontal` | `None`, `Horizontal`, `Vertical`, `Both` |
+| `Sorting` (cancelable), `SelectionChanged`, `CellTapped` | events | | |
+
+Steps: (1) control page and the [D7](#decisions) decision; (2) column width resolution (fixed, auto from header and visible rows, star) with tests; (3) rows on the virtual stack, each row one drawn node that paints text cells itself and hosts template cells; (4) horizontal scrolling with a frozen header and frozen columns as scroll links; (5) sorting through a sorted index view; (6) column resize with the splitter engine; (7) selection, keys by cell, table semantics; (8) leak scenario, gallery page, bench `skui-datagrid` (10,000 × 20), docs, changelog.
+
+**Out of scope:** editing, grouping, filter UI, column reordering, export.
 
 ### F10 Backdrop blur
 
-- **Size:** M. **Depends on:** F2 merged (same files), [D8](#decisions).
-- **Read first:** `SkUiRenderProps.cs`, the layer handling in `SkUiCompositor.cs` and `SkUiRenderRecorder.cs` (grep `_layerPaint`), `SkUiGpuWarmUp.cs` (blur warm-up), [Performance.md](../Performance.md#drawing-effects).
-- **Build:** a composite-time property (`BackdropBlurRadius`, `BackdropTint`) on both layers: the compositor draws the node through a save-layer with a backdrop blur filter, clipped to the node's shape. Software surfaces and reduce transparency fall back to the tint alone.
-- **Measure first:** a spike on the S9 and the iPhone 8 with one blurred bar over the effects stress list. Ship only on [D8](#decisions)'s terms; put the numbers and the "one or two per screen" advice in Performance.md.
-- **Tests:** compositor output against the immediate painter; the fallback path; no re-recording when the content behind changes.
+- **Size:** M. **Depends on:** F2 merged, [D8](#decisions). **Agent:** a stronger agent throughout.
+- **Read first:** `SkUiRenderProps.cs`, the layer handling in `SkUiCompositor.cs` and `SkUiRenderRecorder.cs` (grep `_layerPaint`), `SkUiGpuWarmUp.cs`, [Performance.md](../Performance.md#drawing-effects).
+
+Members on `SkUiView` and `SkUiCoreNode`: `BackdropBlurRadius` (`double`, default `0`: off) and `BackdropTint` (`Color?`, default `null`).
+
+Steps: (1) a spike branch: one blurred bar over the effects stress list, measured on the Galaxy S9 and the iPhone 8, numbers into Performance.md. *Stop here unless [D8](#decisions) holds.* (2) the two composite-time properties; (3) the compositor draws the node through a save-layer with a backdrop blur, clipped to the node's shape; (4) fallback to the tint alone on software surfaces and under reduce transparency; (5) the immediate painter draws the fallback; (6) tests (output, fallback, no re-recording when content behind changes), gallery page, docs with "one or two per screen", changelog.
 
 ## What this plan leaves alone
 

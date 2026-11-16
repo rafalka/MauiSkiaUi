@@ -24,6 +24,7 @@
 | [Architecture](design/Architecture.md) | How SkiaUi works: start here |
 | [Requirements](design/Requirements.md) | Goals, scope, principles, requirement status |
 | [Roadmap](design/Roadmap.md) | What shipped in each release, the next release (1.12: inline picker wheels and pickers of your own) and the backlog |
+| [Review, November 2026](design/Review-2026-11.md) | A review of the architecture, the implementation and the .NET 10 / 11 and C# 14 / 15 feature use at 1.12.0, with ten proposed additions; its work packages are in the [review plan](design/ImplementationPlan-PerformanceAndControls.md) |
 
 Design docs, by mechanism:
 
