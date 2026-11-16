@@ -2602,7 +2602,24 @@ public static class LeakScenarios
         private SkUiPickerWheels? _inline;
         private LeakValuePicker? _valuePicker;
         private LeakCustomPicker? _customPicker;
+        private LeakCoreValuePicker? _coreValuePicker;
         private int _changes;
+
+        /// <summary>The Core twin of the value picker, its popup body holding the picker too.</summary>
+        private sealed class LeakCoreValuePicker : SkUiCoreValuePicker<string?>
+        {
+            protected override SkUiValuePopupContent<string?> CreateValueContent(SkUiPickerPopupContext context) => new Body(this);
+
+            private sealed class Body(LeakCoreValuePicker picker) : SkUiValuePopupContent<string?>
+            {
+                protected override SkUiView CreateBody()
+                {
+                    var button = new SkUiButton { Text = "Pick" };
+                    button.Clicked += (_, _) => Complete(picker.Title);
+                    return button;
+                }
+            }
+        }
 
         /// <summary>Requests kept past the page, as a presenter with a popup stack keeps them: they must hold no popup or picker once completed.</summary>
         private static readonly List<SkUiPopupRequest> KeptRequests = [];
@@ -2717,6 +2734,8 @@ public static class LeakScenarios
             _customPicker = context.Track(new LeakCustomPicker { Title = "Custom", PopupPresenter = LeakPopupPresenter.Shared }, "custom picker of the app's");
             stack.Children.Add(_valuePicker);
             stack.Children.Add(_customPicker);
+            _coreValuePicker = context.Track(new LeakCoreValuePicker { Title = "Core value", PopupPresenter = LeakPopupPresenter.Shared }, "core value picker of the app's");
+            stack.Children.Add(new SkUiCoreHost().SetContent(_coreValuePicker));
             return Root(stack);
         }
 
@@ -2793,6 +2812,12 @@ public static class LeakScenarios
             KeptRequests.Add(LeakPopupPresenter.Shared.Last!);
             LeakPopupPresenter.Shared.Last!.Accept();
             await context.SettleAsync();
+            await context.TapAsync(_coreValuePicker!);
+            Track(context);
+            var coreValue = (SkUiValuePopupRequest<string?>)LeakPopupPresenter.Shared.Last!;
+            KeptRequests.Add(coreValue);
+            coreValue.Complete("core");
+            await context.SettleAsync();
             // The inline wheels: a key, the app's choice, then built again with a column added and taken away.
             ((ISkUiKeyHandler)_inline!).OnKeyDown(new SkUiKeyEvent(SkUiKey.Down, SkUiKeyModifiers.None, false));
             _inline.Columns[0].SelectedIndex = 7;
@@ -2820,6 +2845,7 @@ public static class LeakScenarios
             : _inline?.SelectedIndices.SequenceEqual([7]) != true ? "the inline wheels did not follow the app's choice"
             : _valuePicker?.Value != "draft" ? "the value picker's draft was not accepted"
             : _customPicker?.Choice != "accepted" ? "the custom picker's content was not accepted"
+            : _coreValuePicker?.Value != "core" ? "the Core value picker's choice was not applied"
             : _single?.SelectedIndex != 5 || _single.FieldView is null ? "the field template's picker did not show its choice"
             : _changes == 0 ? "no change was reported"
             : null;

@@ -274,6 +274,7 @@ public class SkUiPickerWheels : SkUiView, ISkUiFontElement, ISkUiKeyHandler, ISk
         if (!_dirty && _wheels is not null)
             return _wheels;
         // A choice still waiting for CommitDelay is written first: the new wheels start from it, and nothing the user chose is lost.
+        // (A change of the columns or their items dropped it already: ColumnsRebuilt.)
         CancelCommit();
         if (_pending is { } pending)
         {
@@ -356,7 +357,16 @@ public class SkUiPickerWheels : SkUiView, ISkUiFontElement, ISkUiKeyHandler, ISk
     #region ISkUiColumnsHost
 
     /// <inheritdoc />
-    void ISkUiColumnsHost.ColumnsRebuilt() => InvalidateWheels();
+    /// <remarks>
+    /// A choice still waiting for <see cref="CommitDelay"/> was made against the old columns or items: it is dropped (the app's change
+    /// wins), not written into columns it was not made for. Rebuilds for the look (font, rows, colors) keep it (<see cref="EnsureWheels"/>).
+    /// </remarks>
+    void ISkUiColumnsHost.ColumnsRebuilt()
+    {
+        CancelCommit();
+        _pending = null;
+        InvalidateWheels();
+    }
 
     /// <inheritdoc />
     /// <remarks>The app's choice wins over one that waits; the wheels show it.</remarks>

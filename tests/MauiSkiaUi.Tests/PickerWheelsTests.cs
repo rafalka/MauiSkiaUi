@@ -96,6 +96,52 @@ public sealed class PickerWheelsTests : IDisposable
     }
 
     [Fact]
+    public void AWaitingChoiceIsDroppedWhenTheColumnsChange()
+    {
+        var wheels = Create(2, 1);
+        Place(wheels);
+
+        // A column inserted in front: the waiting [3, 1] was made for the old columns and is not written into the new ones.
+        Assert.True(Key(wheels, SkUiKey.Down));
+        wheels.Columns.Insert(0, new SkUiPickerColumn { ItemsSource = new[] { "AM", "PM" }, SelectedIndex = 0 });
+        Assert.False(wheels.HasPendingChoice);
+        _clock.Advance(TimeSpan.FromSeconds(1));
+        Assert.Equal([0, 2, 1], wheels.SelectedIndices);
+
+        // A column's items replaced: the waiting choice goes too (its index named an item the user no longer sees).
+        Assert.True(Key(wheels, SkUiKey.Right));
+        Assert.True(Key(wheels, SkUiKey.Down));
+        Assert.True(wheels.HasPendingChoice);
+        wheels.Columns[1].ItemsSource = new[] { "10", "20", "30", "40", "50" };
+        Assert.False(wheels.HasPendingChoice);
+        _clock.Advance(TimeSpan.FromSeconds(1));
+        Assert.Equal(2, wheels.Columns[1].SelectedIndex);
+    }
+
+    [Fact]
+    public void AHandlerThatThrowsStillLeavesTheChoiceReported()
+    {
+        var wheels = Create(0, 0);
+        Place(wheels);
+        var changes = new List<int>();
+        wheels.SelectionChanged += (_, args) => changes.Add(args.ColumnIndex);
+        wheels.Columns[1].PropertyChanged += (_, args) =>
+        {
+            if (args.PropertyName == nameof(SkUiPickerColumn.SelectedIndex))
+                throw new InvalidOperationException("the app's handler");
+        };
+
+        Assert.True(Key(wheels, SkUiKey.Down));
+        Assert.True(Key(wheels, SkUiKey.Right));
+        Assert.True(Key(wheels, SkUiKey.Down));
+        Assert.Throws<InvalidOperationException>(wheels.CommitNow);
+
+        // The first column was written before the throw: it is reported, and the picker's indices are not stale.
+        Assert.Equal(1, wheels.SelectedIndices[0]);
+        Assert.Contains(0, changes);
+    }
+
+    [Fact]
     public void HandlersSeeTheWholeChoice()
     {
         var wheels = Create(0, 0);

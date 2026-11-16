@@ -345,6 +345,29 @@ public sealed class ValuePickerTests : IDisposable
         Assert.Equal("3 ITEMS", FieldValue(root, picker));
     }
 
+    /// <summary>The Core twin of <see cref="CountPicker"/>.</summary>
+    private sealed class CoreCountPicker : SkUiCoreValuePicker<int>
+    {
+        private readonly string _unit;
+
+        public CoreCountPicker(string unit) => _unit = unit;
+
+        protected override string? FormatValue(int value) => $"{value} {_unit.ToUpperInvariant()}";
+
+        protected override SkUiValuePopupContent<int> CreateValueContent(SkUiPickerPopupContext context) => throw new NotSupportedException();
+    }
+
+    [Fact]
+    public void TheCoreFieldTextWaitsForTheDerivedConstructor()
+    {
+        var picker = new CoreCountPicker("items");
+        var root = Root(new SkUiCoreHost().SetContent(picker));
+
+        Assert.Equal("0 ITEMS", FieldValue(root, picker));
+        picker.Value = 3;
+        Assert.Equal("3 ITEMS", FieldValue(root, picker));
+    }
+
     /// <summary>The Core twin.</summary>
     private sealed class CoreDurationPicker : SkUiCoreValuePicker<TimeSpan?>
     {

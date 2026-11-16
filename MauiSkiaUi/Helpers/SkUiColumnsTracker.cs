@@ -95,7 +95,9 @@ internal sealed class SkUiColumnsTracker
             case SkUiPickerColumn.TextsChanged or nameof(SkUiPickerColumn.Loop) or nameof(SkUiPickerColumn.Width) or nameof(SkUiPickerColumn.Header)
                 or nameof(SkUiPickerColumn.ItemTemplate):
                 _host.ColumnsRebuilt();
-                Refresh(raise: true);
+                // While Apply writes the columns (an app's handler changing items), its own refresh at the end raises the changes.
+                if (!_applying)
+                    Refresh(raise: true);
                 break;
         }
     }
@@ -126,7 +128,9 @@ internal sealed class SkUiColumnsTracker
 
     /// <summary>
     /// The wheels chose these indices (one per column): they become the columns' selection (written as handler values). Every column
-    /// is written before the changes are raised, so a handler never sees half a choice (new hours with old minutes).
+    /// is written before the host hears of the changes, so the picker's <c>SelectionChanged</c> never reports half a choice (new hours
+    /// with old minutes). Each column's own property changes (and bindings to them) still come one column at a time. The host is told
+    /// also when writing a column throws (an app's handler), for the columns written before it.
     /// </summary>
     public void Apply(IReadOnlyList<int> indices)
     {
@@ -139,7 +143,7 @@ internal sealed class SkUiColumnsTracker
         finally
         {
             _applying = false;
+            Refresh(raise: true);
         }
-        Refresh(raise: true);
     }
 }
