@@ -27,6 +27,11 @@ Publishing (the NuGet publish workflow, [docs/Releasing.md](docs/Releasing.md)) 
   - `SetFieldText(text)` says what the field shows (`null`: the placeholder); `OnClearSelection()` is what clearing does (the field's and the popup's Clear, `ClearSelection()`); `ClosePopup()` is now protected on both layers.
   - `CreatePopupContent(context)` returns an `SkUiPickerPopupContent`, a drawn body of the app's that SkiaUi shows in its popup chrome (title, the app's header and footer templates, OK / Cancel, Clear, the bottom pane's toolbar). It applies each choice at once, or keeps a draft for `OnAccepted` with `UpdateMode="WhenFinished"`, and hears `OnCleared`, `OnPickerChanged` and `OnClosed`. `SkUiPickerPopupContext` carries the placement, title, the picker's text style and buttons.
   - Presenters see an `SkUiCustomPopupRequest`: `Accept()` runs the content's `OnAccepted` and closes, `Clear()` clears the picker and closes.
+  - `SetFieldText(text, description)`: what screen readers read when it differs from what the field shows.
+- **Value pickers (1.12 P3):** `SkUiValuePicker<T>` and `SkUiCoreValuePicker<T>` pick one value of a type of the app's, on the pickers of your own. Derive a closed type (`class ColorPicker : SkUiValuePicker<Color?>`) and return its popup body from `CreateValueContent`.
+  - `Value` (two-way; `null` is none, so a value type that can be empty is picked as its nullable), `ValueChanged`, `SelectionChangedCommand`; the field's text from `ValueFormat` or `FormatValue`, what screen readers read from `DescribeValue`.
+  - The body derives `SkUiValuePopupContent<T>`: `Value`, `SetValue` (at once, or a draft that OK applies), `Complete` (choose and close), `OnValueChanged` (follow the user, the Clear button, the app).
+  - Presenters with their own UI read `SkUiValuePopupRequest<T>`: `Value`, `SetValue`, `Complete(value)`, `Clear()`.
 
 ### Other
 

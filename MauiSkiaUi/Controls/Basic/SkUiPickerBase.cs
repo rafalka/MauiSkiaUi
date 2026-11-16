@@ -59,7 +59,7 @@ public abstract class SkUiPickerBase : SkUiView, ISkUiFontElement, ISkUiFieldChr
     /// <summary>
     /// Creates a picker. For a picker of your own: say what the field shows with <see cref="SetFieldText"/>, what the popup holds with
     /// <see cref="CreatePopupContent"/> (or show your own UI in <see cref="ShowPopupAsync"/>), and what clearing does with
-    /// <see cref="OnClearSelection"/>. <c>SkUiValuePicker&lt;T&gt;</c> does this for a value of one type.
+    /// <see cref="OnClearSelection"/>. <see cref="SkUiValuePicker{T}"/> does this for a value of one type.
     /// </summary>
     protected SkUiPickerBase() { }
 
@@ -691,11 +691,19 @@ public abstract class SkUiPickerBase : SkUiView, ISkUiFontElement, ISkUiFieldChr
     /// <c>Placeholder</c>, else <c>Title</c>, and no clear button). Screen readers read it as the field's value, and an open popup's
     /// content hears of the change (<see cref="SkUiPickerPopupContent.OnPickerChanged"/>). SkiaUi extension.
     /// </summary>
-    protected void SetFieldText(string? text)
+    protected void SetFieldText(string? text) => SetFieldText(text, null);
+
+    /// <summary>
+    /// As <see cref="SetFieldText(string?)"/>, with what screen readers read as the field's value when it differs from what the field
+    /// shows (<paramref name="description"/>: a color's name for a swatch's hex code; <c>null</c>: <paramref name="text"/>). SkiaUi extension.
+    /// </summary>
+    protected void SetFieldText(string? text, string? description)
     {
         Model.UsesValueText = true;
         Model.ClosedFieldSelects = false;
-        Model.ValueText = text;
+        // The model shows SelectedFieldText and reads ValueText: the field's text over the read one, when they differ.
+        Model.ValueText = text is null ? null : description ?? text;
+        Model.SelectedFieldText = text is null || description is null ? null : text;
         Model.SelectionChanged();
     }
 
@@ -704,7 +712,7 @@ public abstract class SkUiPickerBase : SkUiView, ISkUiFontElement, ISkUiFieldChr
     /// <c>PopupHeaderTemplate</c> / <c>PopupFooterTemplate</c>, OK / Cancel with <c>UpdateMode</c> <see cref="SkUiPickerUpdateMode.WhenFinished"/>,
     /// Clear, the bottom pane's toolbar) on the popup presenter, placed and sized as the other pickers' popups. Called on the UI
     /// thread once per opening; <c>null</c> (default): the picker's own content. A presenter that shows its own UI reads the request
-    /// (<see cref="SkUiCustomPopupRequest"/>) instead. SkiaUi extension.
+    /// (<see cref="SkUiCustomPopupRequest"/>, or a value picker's <see cref="SkUiValuePopupRequest{T}"/>) instead. SkiaUi extension.
     /// </summary>
     /// <param name="context">Where the popup goes, its title, the picker's text style and whether a choice waits for OK.</param>
     protected virtual SkUiPickerPopupContent? CreatePopupContent(SkUiPickerPopupContext context) => null;

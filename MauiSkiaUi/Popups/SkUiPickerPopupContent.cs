@@ -156,6 +156,19 @@ public abstract class SkUiPickerPopupContent
 
     internal void Attach(SkUiPopupRequest? request) => Request = request;
 
+    /// <summary>The request that carries this content (<paramref name="surface"/>: SkiaUi's chrome around it); typed content creates its own.</summary>
+    internal virtual SkUiPopupRequest CreateRequest(View anchor, View? platformAnchor, View surface, in SkUiPopupLayout layout, in SkUiPopupRequestOptions options,
+        Action accept, Action clear) =>
+        new SkUiCustomPopupRequest(anchor, platformAnchor, surface, layout, accept, clear)
+        {
+            Title = options.Title,
+            OverlayColor = options.OverlayColor,
+            IsAnimated = options.IsAnimated,
+            RequiresAccept = options.Chrome.RequiresAccept,
+            AcceptText = options.Chrome.AcceptText,
+            CancelText = options.Chrome.CancelText
+        };
+
     internal void RaiseAccepted() => OnAccepted();
 
     internal void RaiseCleared() => OnCleared();
@@ -238,16 +251,7 @@ internal sealed class SkUiCustomPopup : SkUiContentView, ISkUiKeyHandler, ISkUiP
     /// <inheritdoc />
     public SkUiPopupRequest CreateRequest(View anchor, View? platformAnchor, in SkUiPopupLayout layout, in SkUiPopupRequestOptions options)
     {
-        var chrome = options.Chrome;
-        var request = new SkUiCustomPopupRequest(anchor, platformAnchor, this, layout, Accepted, Cleared)
-        {
-            Title = options.Title,
-            OverlayColor = options.OverlayColor,
-            IsAnimated = options.IsAnimated,
-            RequiresAccept = chrome.RequiresAccept,
-            AcceptText = chrome.AcceptText,
-            CancelText = chrome.CancelText
-        };
+        var request = _content!.CreateRequest(anchor, platformAnchor, this, layout, options, Accepted, Cleared);
         _request = request;
         _content?.Attach(request);
         return request;

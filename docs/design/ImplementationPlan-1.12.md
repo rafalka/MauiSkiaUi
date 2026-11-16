@@ -125,7 +125,13 @@ Checked against the code on `devel` (16 November 2026).
   - It's built on the internal `ISkUiPickerPopupContent` and `SkUiPopupParts`, so the chrome (title, header / footer templates, buttons, bottom-pane toolbar, safe-area padding, rounded clip) is the same as the built-in popups'.
   - The request is `SkUiValuePopupRequest<T>` (public, sealed, a `SkUiPopupRequest<T>`), for presenters that show their own UI: `Value` (as it opened), `SetValue(T)` (live, or a draft until `Accept()`), `Complete(T)`, `Clear()`. The popup session must apply a result for this request type (today `Ended` only reads `SkUiListPopupRequest`). Add a typed result hook to the session, not one more `is` branch per type.
   - Tests: content measured and placed in each placement, draft and immediate modes, Clear, Escape, focus back to the field, a presenter completing the typed request without showing the content, the picker closing the popup (`IsOpen = false`, disabled, removed) while a custom body is open, the content released after close (leak scenario).
-- **P3 `SkUiValuePicker<T>` / `SkUiCoreValuePicker<T>`.** Size: M.
+- **P3 `SkUiValuePicker<T>` / `SkUiCoreValuePicker<T>`.** Size: M. **Done** on `1.12-implementation`. Changes from the plan:
+  - Both classes are abstract: the app must supply the popup body (`CreateValueContent`).
+  - "None" is `null`: a value type that can be empty is picked as its nullable (`SkUiValuePicker<TimeSpan?>`), instead of a separate `DefaultValue`.
+  - The field's text comes from `ValueFormat`, else `FormatValue`, else `ToString()`. There is no `ValueDisplayBinding` (a binding path is not trimming-safe for an open `T`, and `FormatValue` covers it). No separate `ValueChangedCommand`: the picker's `SelectionChangedCommand` runs before `ValueChanged`.
+  - `T` carries `[DynamicallyAccessedMembers(PublicParameterlessConstructor)]`, as `BindableProperty.Create` asks under trimming.
+  - The draft lives in the typed request (`SkUiValuePopupRequest<T>`), so the content (`SkUiValuePopupContent<T>`) and a presenter's own UI share one path. The base gained `SetFieldText(text, description)` for `DescribeValue`.
+  - Tests: `ValuePickerTests`, with XAML of a closed type and the Core twin.
   - Built only on P1 and P2 (D5).
   - SkUi\*: bindable `Value` (`T?`, two-way by default, written back with `WriteBack`; the `BindableProperty` is a static on the generic type, so one for each closed type), `ValueChanged` (old / new), `ValueChangedCommand`, `DefaultValue`.
   - The field's text comes from `ValueDisplayBinding` or `ValueFormat` (`string.Format`), else `protected virtual string? FormatValue(T value)`, else `ToString()`.
