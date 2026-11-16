@@ -81,6 +81,38 @@ public sealed class PickerWheelsTests : IDisposable
     }
 
     [Fact]
+    public void AChoiceWaitingForTheDelayIsKeptWhenTheWheelsAreBuiltAgain()
+    {
+        var wheels = Create(0, 1);
+        Place(wheels);
+
+        Assert.True(Key(wheels, SkUiKey.Down));
+        Assert.True(wheels.HasPendingChoice);
+        wheels.TextColor = Colors.Red; // a theme switch builds the wheels again
+
+        Assert.False(wheels.HasPendingChoice);
+        Assert.Equal(1, wheels.Columns[0].SelectedIndex);
+        Assert.Equal(1, wheels.Wheels.Wheel(0).Position);
+    }
+
+    [Fact]
+    public void HandlersSeeTheWholeChoice()
+    {
+        var wheels = Create(0, 0);
+        Place(wheels);
+        var seen = new List<string>();
+        wheels.SelectionChanged += (_, _) => seen.Add(string.Join(",", wheels.Columns.Select(column => column.SelectedIndex)));
+
+        Assert.True(Key(wheels, SkUiKey.Down));
+        Assert.True(Key(wheels, SkUiKey.Right));
+        Assert.True(Key(wheels, SkUiKey.Down));
+        wheels.CommitNow();
+
+        // Two columns changed in one commit: both events see both new indices, never "1,0".
+        Assert.Equal(["1,1", "1,1"], seen);
+    }
+
+    [Fact]
     public void ZeroDelayWritesAtOnce()
     {
         var wheels = Create(0, 0).SetCommitDelay(TimeSpan.Zero);

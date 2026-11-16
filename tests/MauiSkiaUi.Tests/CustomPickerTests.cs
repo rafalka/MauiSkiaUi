@@ -248,6 +248,38 @@ public sealed class CustomPickerTests : IDisposable
         Assert.IsType<SkUiListPopupRequest>(_presenter.Current);
     }
 
+    /// <summary>Content whose size cannot be worked out: the popup does not open, and the content still hears it is closed.</summary>
+    private sealed class FailingPicker : SkUiPickerBase
+    {
+        public FailingContent? LastContent { get; private set; }
+
+        protected override SkUiPickerPopupContent CreatePopupContent(SkUiPickerPopupContext context) => LastContent = new FailingContent();
+    }
+
+    private sealed class FailingContent : SkUiPickerPopupContent
+    {
+        public int Closes { get; private set; }
+
+        protected override SkUiView CreateBody() => new SkUiBox();
+
+        public override Size PreferredSize(double minimumWidth, double maximumWidth, double maximumHeight) => throw new InvalidOperationException("no size");
+
+        protected override void OnClosed() => Closes++;
+    }
+
+    [Fact]
+    public void ContentThatFailsToBuildIsStillClosed()
+    {
+        var picker = new FailingPicker();
+        Root(picker);
+
+        picker.IsOpen = true;
+
+        Assert.False(picker.IsOpen);
+        Assert.Empty(_presenter.Requests);
+        Assert.Equal(1, picker.LastContent!.Closes);
+    }
+
     /// <summary>The Core twin: the same contract on <see cref="SkUiCorePickerBase"/>.</summary>
     private sealed class CoreColorPicker : SkUiCorePickerBase
     {

@@ -171,11 +171,38 @@ public abstract class SkUiPickerPopupContent
 
     internal void RaiseAccepted() => OnAccepted();
 
-    internal void RaiseCleared() => OnCleared();
+    internal void RaiseCleared()
+    {
+        ClearedCore();
+        OnCleared();
+    }
 
-    internal void RaisePickerChanged() => OnPickerChanged();
+    internal void RaisePickerChanged()
+    {
+        PickerChangedCore();
+        OnPickerChanged();
+    }
 
-    internal void RaiseClosed() => OnClosed();
+    internal void RaiseClosed()
+    {
+        ClosedCore();
+        OnClosed();
+    }
+
+    /// <summary>What a typed content keeps track of when the picker was cleared, before <see cref="OnCleared"/> (so overrides need not call the base).</summary>
+    internal virtual void ClearedCore()
+    {
+    }
+
+    /// <summary>What a typed content keeps track of when the picker changed, before <see cref="OnPickerChanged"/>.</summary>
+    internal virtual void PickerChangedCore()
+    {
+    }
+
+    /// <summary>What a typed content lets go of when the popup has gone, before <see cref="OnClosed"/>.</summary>
+    internal virtual void ClosedCore()
+    {
+    }
 }
 
 /// <summary>
@@ -185,8 +212,9 @@ public abstract class SkUiPickerPopupContent
 /// </summary>
 public sealed class SkUiCustomPopupRequest : SkUiPopupRequest
 {
-    private readonly Action _accept;
-    private readonly Action _clear;
+    // Dropped once the request completed: a presenter that keeps it (a popup stack) keeps neither the popup nor the picker.
+    private Action? _accept;
+    private Action? _clear;
 
     internal SkUiCustomPopupRequest(View anchor, View? platformAnchor, View content, in SkUiPopupLayout layout, Action accept, Action clear)
         : base(anchor, platformAnchor, content, layout)
@@ -197,16 +225,22 @@ public sealed class SkUiCustomPopupRequest : SkUiPopupRequest
 
     private protected override bool AcceptCore()
     {
-        _accept();
+        _accept?.Invoke();
         Close();
         return true;
     }
 
     private protected override bool ClearCore()
     {
-        _clear();
+        _clear?.Invoke();
         Close();
         return true;
+    }
+
+    private protected override void OnCompleted()
+    {
+        _accept = null;
+        _clear = null;
     }
 }
 

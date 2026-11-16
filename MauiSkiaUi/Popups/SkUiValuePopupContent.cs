@@ -9,9 +9,10 @@ namespace MauiSkiaUi;
 /// <typeparam name="T">The picker's value type.</typeparam>
 public sealed class SkUiValuePopupRequest<T> : SkUiPopupRequest<T>
 {
-    private readonly Action<T> _apply;
-    private readonly Action _accepted;
-    private readonly Action _clear;
+    // Dropped once the request completed: a presenter that keeps it keeps neither the popup nor the picker.
+    private Action<T>? _apply;
+    private Action? _accepted;
+    private Action? _clear;
 
     internal SkUiValuePopupRequest(View anchor, View? platformAnchor, View? content, in SkUiPopupLayout layout, T value, Action<T> apply, Action accepted,
         Action clear)
@@ -43,7 +44,7 @@ public sealed class SkUiValuePopupRequest<T> : SkUiPopupRequest<T>
             return false;
         Show(value);
         if (!RequiresAccept)
-            _apply(value);
+            _apply?.Invoke(value);
         return true;
     }
 
@@ -61,12 +62,12 @@ public sealed class SkUiValuePopupRequest<T> : SkUiPopupRequest<T>
     private protected override void OnCompleting(T result)
     {
         Show(result);
-        _apply(result);
+        _apply?.Invoke(result);
     }
 
     private protected override bool AcceptCore()
     {
-        _accepted();
+        _accepted?.Invoke();
         if (Complete(Value))
             return true;
         Close();
@@ -75,12 +76,18 @@ public sealed class SkUiValuePopupRequest<T> : SkUiPopupRequest<T>
 
     private protected override bool ClearCore()
     {
-        _clear();
+        _clear?.Invoke();
         Close();
         return true;
     }
 
-    private protected override void OnCompleted() => ValueChanged = null;
+    private protected override void OnCompleted()
+    {
+        ValueChanged = null;
+        _apply = null;
+        _accepted = null;
+        _clear = null;
+    }
 }
 
 /// <summary>
@@ -95,6 +102,7 @@ public abstract class SkUiValuePopupContent<T> : SkUiPickerPopupContent
     private Func<T>? _current;
     private Action<T>? _apply;
     private T _value = default!;
+    private T _followed = default!;
     private SkUiValuePopupRequest<T>? _request;
 
     /// <summary>What the popup shows: the picker's value when it opened, then the user's changes (a draft until OK, when the popup waits for it).</summary>
@@ -118,12 +126,19 @@ public abstract class SkUiValuePopupContent<T> : SkUiPickerPopupContent
     {
     }
 
-    /// <inheritdoc />
-    /// <remarks>The picker's value is followed (<see cref="Value"/>, <see cref="OnValueChanged"/>); call the base when overriding.</remarks>
-    protected override void OnPickerChanged()
+    /// <summary>
+    /// The picker changed while open: when its value changed (the app, or a choice applied), the popup shows it. A refresh of the field
+    /// alone (a format, a culture) keeps a draft that waits for OK.
+    /// </summary>
+    internal override void PickerChangedCore()
     {
-        if (_request is { } request && _current is { } current)
-            request.Follow(current());
+        if (_request is not { } request || _current is not { } current)
+            return;
+        var value = current();
+        if (EqualityComparer<T>.Default.Equals(value, _followed))
+            return;
+        _followed = value;
+        request.Follow(value);
     }
 
     internal void Bind(Func<T> current, Action<T> apply)
@@ -148,25 +163,27 @@ public abstract class SkUiValuePopupContent<T> : SkUiPickerPopupContent
         };
         request.ValueChanged += (_, _) => OnValueChanged();
         _request = request;
+        _followed = request.Value;
         return request;
     }
 
-    /// <inheritdoc />
-    /// <remarks>The Clear button cleared the picker: <see cref="Value"/> follows it; call the base when overriding.</remarks>
-    protected override void OnCleared()
+    /// <summary>The Clear button cleared the picker: <see cref="Value"/> shows it (also over a draft).</summary>
+    internal override void ClearedCore()
     {
-        if (_request is { } request && _current is { } current)
-            request.Follow(current());
+        if (_request is not { } request || _current is not { } current)
+            return;
+        _followed = current();
+        request.Follow(_followed);
     }
 
-    /// <inheritdoc />
-    /// <remarks>Lets go of the request and the picker; call the base when overriding.</remarks>
-    protected override void OnClosed()
+    /// <summary>The popup has gone: lets go of the request and the picker (whatever the app's <c>OnClosed</c> does).</summary>
+    internal override void ClosedCore()
     {
         if (_request is { } request)
             _value = request.Value;
         _request = null;
         _current = null;
         _apply = null;
+        _followed = default!;
     }
 }

@@ -36,10 +36,15 @@ public abstract class SkUiValuePicker<[DynamicallyAccessedMembers(DynamicallyAcc
 
     /// <summary>Bindable property for <see cref="ValueFormat"/>.</summary>
     public static readonly BindableProperty ValueFormatProperty = BindableProperty.Create(nameof(ValueFormat), typeof(string), typeof(SkUiValuePicker<T>), null,
-        propertyChanged: (picker, _, _) => ((SkUiValuePicker<T>)picker).RefreshFieldText());
+        propertyChanged: (picker, _, _) => ((SkUiValuePicker<T>)picker).FieldTextChanged());
 
-    /// <summary>Creates a picker with no value.</summary>
-    protected SkUiValuePicker() => RefreshFieldText();
+    private bool _fieldTextShown;
+
+    /// <summary>
+    /// Creates a picker with no value. The field's text is worked out when the picker is first measured (or the value changes after
+    /// that), so <see cref="FormatValue"/> and the other overrides never run before the derived constructor.
+    /// </summary>
+    protected SkUiValuePicker() => SetFieldText(null);
 
     /// <summary>The chosen value; <c>null</c> (or <c>default</c>): none. Two-way by default.</summary>
     public T Value { get => (T)GetValue(ValueProperty)!; set => SetValue(ValueProperty, value); }
@@ -92,6 +97,7 @@ public abstract class SkUiValuePicker<[DynamicallyAccessedMembers(DynamicallyAcc
     /// <summary>Shows the field's text again (what <see cref="FormatValue"/> or <see cref="DescribeValue"/> read changed: a culture switch).</summary>
     protected void RefreshFieldText()
     {
+        _fieldTextShown = true;
         var value = Value;
         if (HasValue(value))
             SetFieldText(FormatValue(value), DescribeValue(value));
@@ -111,9 +117,24 @@ public abstract class SkUiValuePicker<[DynamicallyAccessedMembers(DynamicallyAcc
         return content;
     }
 
+    /// <inheritdoc />
+    protected override Size MeasureContent(double widthConstraint, double heightConstraint)
+    {
+        if (!_fieldTextShown)
+            RefreshFieldText();
+        return base.MeasureContent(widthConstraint, heightConstraint);
+    }
+
+    /// <summary>The value or its format changed: the field's text, once the picker shows one (before its first measure, that measure works it out).</summary>
+    private void FieldTextChanged()
+    {
+        if (_fieldTextShown)
+            RefreshFieldText();
+    }
+
     private void OnValueChanged(T oldValue, T newValue)
     {
-        RefreshFieldText();
+        FieldTextChanged();
         if (SelectionChangedCommand is { } command && command.CanExecute(SelectionChangedCommandParameter))
             command.Execute(SelectionChangedCommandParameter);
         ValueChanged?.Invoke(this, new SkUiValueChangedEventArgs<T>(oldValue, newValue));

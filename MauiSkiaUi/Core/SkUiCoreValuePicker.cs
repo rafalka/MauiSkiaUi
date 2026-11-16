@@ -12,9 +12,13 @@ public abstract class SkUiCoreValuePicker<T> : SkUiCorePickerBase
 {
     private T _value = default!;
     private string? _valueFormat;
+    private bool _fieldTextShown;
 
-    /// <summary>Creates a picker with no value.</summary>
-    protected SkUiCoreValuePicker() => RefreshFieldText();
+    /// <summary>
+    /// Creates a picker with no value. The field's text is worked out when the picker is first measured (or the value changes after
+    /// that), so <see cref="FormatValue"/> and the other overrides never run before the derived constructor.
+    /// </summary>
+    protected SkUiCoreValuePicker() => SetFieldText(null);
 
     /// <summary>The chosen value; <c>null</c> (or <c>default</c>): none.</summary>
     public T Value { get => _value; set => SetValue(value); }
@@ -31,7 +35,8 @@ public abstract class SkUiCoreValuePicker<T> : SkUiCorePickerBase
         var old = _value;
         if (!SetProperty(ref _value, value, nameof(Value)))
             return this;
-        RefreshFieldText();
+        if (_fieldTextShown)
+            RefreshFieldText();
         if (SelectionChangedCommand is { } command && command.CanExecute(SelectionChangedCommandParameter))
             command.Execute(SelectionChangedCommandParameter);
         ValueChanged?.Invoke(this, new SkUiValueChangedEventArgs<T>(old, value));
@@ -41,7 +46,7 @@ public abstract class SkUiCoreValuePicker<T> : SkUiCorePickerBase
     /// <summary>Sets <see cref="ValueFormat"/>.</summary>
     public SkUiCoreValuePicker<T> SetValueFormat(string? value)
     {
-        if (SetProperty(ref _valueFormat, value, nameof(ValueFormat)))
+        if (SetProperty(ref _valueFormat, value, nameof(ValueFormat)) && _fieldTextShown)
             RefreshFieldText();
         return this;
     }
@@ -75,10 +80,19 @@ public abstract class SkUiCoreValuePicker<T> : SkUiCorePickerBase
     /// <summary>Shows the field's text again (what <see cref="FormatValue"/> or <see cref="DescribeValue"/> read changed).</summary>
     protected void RefreshFieldText()
     {
+        _fieldTextShown = true;
         if (HasValue(_value))
             SetFieldText(FormatValue(_value), DescribeValue(_value));
         else
             SetFieldText(null);
+    }
+
+    /// <inheritdoc />
+    protected override Size MeasureContent(double widthConstraint, double heightConstraint)
+    {
+        if (!_fieldTextShown)
+            RefreshFieldText();
+        return base.MeasureContent(widthConstraint, heightConstraint);
     }
 
     /// <inheritdoc />

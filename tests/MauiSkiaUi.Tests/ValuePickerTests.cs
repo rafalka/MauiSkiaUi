@@ -260,6 +260,91 @@ public sealed class ValuePickerTests : IDisposable
         Assert.Equal(Colors.Blue.ToHex(), FieldValue(root, color));
     }
 
+    /// <summary>Overrides that do not call the base: the content still follows the picker and lets go of it.</summary>
+    private sealed class NoBasePicker : SkUiValuePicker<TimeSpan?>
+    {
+        public NoBaseContent? LastContent { get; private set; }
+
+        protected override SkUiValuePopupContent<TimeSpan?> CreateValueContent(SkUiPickerPopupContext context) => LastContent = new NoBaseContent();
+    }
+
+    private sealed class NoBaseContent : SkUiValuePopupContent<TimeSpan?>
+    {
+        public int Closes { get; private set; }
+
+        protected override SkUiView CreateBody() => new SkUiBox { HeightRequest = 40 };
+
+        public void Drag(TimeSpan value) => SetValue(value);
+
+        protected override void OnPickerChanged() { }
+
+        protected override void OnCleared() { }
+
+        protected override void OnClosed() => Closes++;
+    }
+
+    [Fact]
+    public void OverridesNeedNotCallTheBase()
+    {
+        var picker = new NoBasePicker { IsPopupClearButtonVisible = true };
+        Root(picker);
+        picker.IsOpen = true;
+        var content = picker.LastContent!;
+
+        picker.Value = TimeSpan.FromHours(2);
+        Assert.Equal(TimeSpan.FromHours(2), content.Value);
+        Shown<TimeSpan?>().Clear();
+        _ui.RunPending();
+
+        Assert.Null(content.Value);
+        Assert.Equal(1, content.Closes);
+        Assert.Null(content.Request);
+    }
+
+    [Fact]
+    public void ADraftSurvivesARefreshOfTheField()
+    {
+        var picker = new TestDurationPicker { UpdateMode = SkUiPickerUpdateMode.WhenFinished, Value = TimeSpan.FromMinutes(15) };
+        Root(picker);
+        picker.IsOpen = true;
+        var content = picker.LastContent!;
+        content.Tap(TimeSpan.FromHours(1));
+
+        // The field's text changes (a format, a culture switch), the value does not: the draft stays.
+        picker.ValueFormat = "{0:hh\\:mm}";
+        Assert.Equal(TimeSpan.FromHours(1), content.Value);
+
+        // The app changes the value: the popup shows it.
+        picker.Value = TimeSpan.FromMinutes(30);
+        Assert.Equal(TimeSpan.FromMinutes(30), content.Value);
+        Assert.True(Shown<TimeSpan?>().Accept());
+        _ui.RunPending();
+        Assert.Equal(TimeSpan.FromMinutes(30), picker.Value);
+    }
+
+    /// <summary>A picker whose default is a choice (0) and whose text depends on its own constructor.</summary>
+    private sealed class CountPicker : SkUiValuePicker<int>
+    {
+        private readonly string _unit;
+
+        public CountPicker(string unit) => _unit = unit;
+
+        protected override string? FormatValue(int value) => $"{value} {_unit.ToUpperInvariant()}";
+
+        protected override SkUiValuePopupContent<int> CreateValueContent(SkUiPickerPopupContext context) => throw new NotSupportedException();
+    }
+
+    [Fact]
+    public void TheFieldTextWaitsForTheDerivedConstructor()
+    {
+        var picker = new CountPicker("items");
+        var root = Root(picker);
+
+        Assert.Equal("0 ITEMS", FieldValue(root, picker));
+        picker.Value = 3;
+        Assert.Equal("3 ITEMS", FieldValue(root, picker));
+    }
+
     /// <summary>The Core twin.</summary>
     private sealed class CoreDurationPicker : SkUiCoreValuePicker<TimeSpan?>
     {

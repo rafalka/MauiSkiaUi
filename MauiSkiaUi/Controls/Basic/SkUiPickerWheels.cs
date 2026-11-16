@@ -273,9 +273,14 @@ public class SkUiPickerWheels : SkUiView, ISkUiFontElement, ISkUiKeyHandler, ISk
     {
         if (!_dirty && _wheels is not null)
             return _wheels;
-        _dirty = false;
+        // A choice still waiting for CommitDelay is written first: the new wheels start from it, and nothing the user chose is lost.
         CancelCommit();
-        _pending = null;
+        if (_pending is { } pending)
+        {
+            _pending = null;
+            Tracker.Apply(pending);
+        }
+        _dirty = false;
         if (_wheels is { } old)
         {
             old.ScrollingChanged -= OnScrollingChanged;

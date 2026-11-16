@@ -32,6 +32,7 @@ internal sealed class SkUiColumnsTracker
     private readonly ISkUiColumnsHost _host;
     private readonly List<SkUiWeakListener<SkUiColumnsTracker>> _listeners = [];
     private int[] _indices = [];
+    private bool _applying;
 
     public SkUiColumnsTracker(ISkUiColumnsHost host)
     {
@@ -85,7 +86,7 @@ internal sealed class SkUiColumnsTracker
         switch (change.PropertyName)
         {
             // Once the index and the item agree (the column's selection notice, not the index's change).
-            case SkUiPickerColumn.SelectionChanged:
+            case SkUiPickerColumn.SelectionChanged when !_applying:
                 Refresh(raise: true);
                 break;
             case SkUiPickerColumn.ItemStatesChanged when change.Sender is SkUiPickerColumn column && Columns.IndexOf(column) is var index and >= 0:
@@ -123,10 +124,22 @@ internal sealed class SkUiColumnsTracker
         return (texts, loops, widths, states, parts);
     }
 
-    /// <summary>The wheels chose these indices (one per column): they become the columns' selection (written as handler values).</summary>
+    /// <summary>
+    /// The wheels chose these indices (one per column): they become the columns' selection (written as handler values). Every column
+    /// is written before the changes are raised, so a handler never sees half a choice (new hours with old minutes).
+    /// </summary>
     public void Apply(IReadOnlyList<int> indices)
     {
-        for (var column = 0; column < indices.Count && column < Columns.Count; column++)
-            Columns[column].Choose(indices[column]);
+        _applying = true;
+        try
+        {
+            for (var column = 0; column < indices.Count && column < Columns.Count; column++)
+                Columns[column].Choose(indices[column]);
+        }
+        finally
+        {
+            _applying = false;
+        }
+        Refresh(raise: true);
     }
 }

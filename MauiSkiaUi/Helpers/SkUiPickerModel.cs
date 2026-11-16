@@ -1037,6 +1037,8 @@ internal sealed class SkUiPickerModel
             var context = new SkUiPickerPopupSetup(placement, placement == SkUiPopupPlacement.Anchored ? null : model.Title, rightToLeft, rowStyle, chrome, extras);
             // A picker of the app's own content first (SkUiPickerBase.CreatePopupContent), then the derived picker's, then the list.
             var content = model._owner.CreateCustomContent(context) ?? (model.ContentFactory is { } factory ? factory(context) : BuildList(context));
+            // Kept at once: a failure measuring or placing it (an app's PreferredSize) still releases it (Abort).
+            _content = content;
             var maximumHeight = model.MaxPopupHeight >= 0 ? model.MaxPopupHeight : double.PositiveInfinity;
             // A bottom pane is as wide as the window, inside the safe area's sides (the app's widths do not apply).
             var (minimumWidth, maximumWidth) = !pane ? model.PopupWidthRange(windowSize.Width > 0 ? windowSize.Width : double.PositiveInfinity)
@@ -1051,7 +1053,6 @@ internal sealed class SkUiPickerModel
             var layout = SkUiPopupGeometry.Layout(new SkUiPopupPlacementInput(anchorBounds, rootBounds, windowSize,
                 safeArea, look.PopupMargin, look.PopupAnchorGap, placement, look.PopupHorizontalOptions,
                 look.PopupVerticalOptions, preferred, maximumHeight, model.PopupBounds, rightToLeft, minimumWidth, maximumWidth));
-            _content = content;
             var request = content.CreateRequest(anchor, surfaceRoot, layout,
                 new SkUiPopupRequestOptions(model.Title, look.GetPopupOverlayColor(layout.Placement), !SkUiMotion.IsMotionReduced, chrome));
             request.CornerRadius = look.GetPopupCornerRadius(layout.Placement);
