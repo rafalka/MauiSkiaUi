@@ -123,7 +123,7 @@ internal sealed class SkUiDateTimeModel
         }
     }
 
-    private ISkUiPickerPopupContent CreateContent(SkUiPickerPopupContext context)
+    private ISkUiPickerPopupContent CreateContent(SkUiPickerPopupSetup context)
     {
         var wheels = SkUiDateTimeWheels.Create(new SkUiDateTimeSettings(Kind, WheelFormat, Minimum, Maximum, Value, Highlighted, HourInterval, MinuteInterval,
             SecondInterval, BlackoutDates, DateEnabled, Loop, ShowsHeaders), CultureInfo.CurrentCulture, SkUiStrings.Current);

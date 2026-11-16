@@ -247,7 +247,7 @@ public partial class SkUiCorePicker
         ApplyChoice(items.ToArray());
     }
 
-    private ISkUiPickerPopupContent BuildMultipleContent(SkUiPickerPopupContext context)
+    private ISkUiPickerPopupContent BuildMultipleContent(SkUiPickerPopupSetup context)
     {
         // Weak: a request kept by a presenter (a popup still shown after its page went) keeps no picker alive.
         var weak = new WeakReference<SkUiCorePicker>(this);

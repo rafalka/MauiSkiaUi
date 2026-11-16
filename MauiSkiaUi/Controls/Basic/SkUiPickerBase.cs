@@ -56,7 +56,12 @@ public abstract class SkUiPickerBase : SkUiView, ISkUiFontElement, ISkUiFieldChr
         }
     }
 
-    private protected SkUiPickerBase() { }
+    /// <summary>
+    /// Creates a picker. For a picker of your own: say what the field shows with <see cref="SetFieldText"/>, what the popup holds with
+    /// <see cref="CreatePopupContent"/> (or show your own UI in <see cref="ShowPopupAsync"/>), and what clearing does with
+    /// <see cref="OnClearSelection"/>. <c>SkUiValuePicker&lt;T&gt;</c> does this for a value of one type.
+    /// </summary>
+    protected SkUiPickerBase() { }
 
     /// <summary>Sets up a derived picker's part of the engine once it exists, before any property is applied to it.</summary>
     private protected virtual void OnModelCreated(SkUiPickerModel model) { }
@@ -670,8 +675,39 @@ public abstract class SkUiPickerBase : SkUiView, ISkUiFontElement, ISkUiFieldChr
     /// </summary>
     public void ClearSelection() => ClearChoice();
 
-    /// <summary>What <see cref="ClearSelection"/> clears, for this kind of picker.</summary>
-    private protected abstract void ClearChoice();
+    /// <summary>What <see cref="ClearSelection"/> clears, for this kind of picker (a picker of your own: <see cref="OnClearSelection"/>).</summary>
+    private protected virtual void ClearChoice() => OnClearSelection();
+
+    /// <summary>
+    /// A picker of your own: the choice is cleared (<see cref="ClearSelection"/>, the field's clear button, Delete on the field, the
+    /// popup's Clear button). Set the value to none and call <see cref="SetFieldText"/> with <c>null</c>. SkiaUi extension.
+    /// </summary>
+    protected virtual void OnClearSelection()
+    {
+    }
+
+    /// <summary>
+    /// A picker of your own: what the field shows for the current choice; <c>null</c> when nothing is chosen (the field shows
+    /// <c>Placeholder</c>, else <c>Title</c>, and no clear button). Screen readers read it as the field's value, and an open popup's
+    /// content hears of the change (<see cref="SkUiPickerPopupContent.OnPickerChanged"/>). SkiaUi extension.
+    /// </summary>
+    protected void SetFieldText(string? text)
+    {
+        Model.UsesValueText = true;
+        Model.ClosedFieldSelects = false;
+        Model.ValueText = text;
+        Model.SelectionChanged();
+    }
+
+    /// <summary>
+    /// A picker of your own: the content of the popup for this opening, which SkiaUi shows in its popup chrome (the title, the app's
+    /// <c>PopupHeaderTemplate</c> / <c>PopupFooterTemplate</c>, OK / Cancel with <c>UpdateMode</c> <see cref="SkUiPickerUpdateMode.WhenFinished"/>,
+    /// Clear, the bottom pane's toolbar) on the popup presenter, placed and sized as the other pickers' popups. Called on the UI
+    /// thread once per opening; <c>null</c> (default): the picker's own content. A presenter that shows its own UI reads the request
+    /// (<see cref="SkUiCustomPopupRequest"/>) instead. SkiaUi extension.
+    /// </summary>
+    /// <param name="context">Where the popup goes, its title, the picker's text style and whether a choice waits for OK.</param>
+    protected virtual SkUiPickerPopupContent? CreatePopupContent(SkUiPickerPopupContext context) => null;
 
     /// <summary>Removes the chosen item at <paramref name="index"/> (several choices shown as tokens); nothing for other pickers.</summary>
     private protected virtual void RemoveChoice(int index)
@@ -822,8 +858,8 @@ public abstract class SkUiPickerBase : SkUiView, ISkUiFontElement, ISkUiFieldChr
         }
     }
 
-    /// <summary>The picker can no longer show its popup: it closes (<see cref="IsOpen"/> goes to <c>false</c>, raising <see cref="Closed"/>).</summary>
-    private protected void ClosePopup()
+    /// <summary>Closes the popup, if it is open (<see cref="IsOpen"/> goes to <c>false</c>, raising <see cref="Closed"/>): a choice of your popup content that ends it.</summary>
+    protected void ClosePopup()
     {
         if (IsOpen)
             WriteBack(IsOpenProperty, false);
@@ -897,6 +933,12 @@ public abstract class SkUiPickerBase : SkUiView, ISkUiFontElement, ISkUiFieldChr
     Task ISkUiPickerOwner.ShowPopupAsync(SkUiPopupRequest request, CancellationToken cancellationToken) => ShowPopupAsync(request, cancellationToken);
 
     void ISkUiPickerOwner.ClearChoice() => ClearChoice();
+
+    ISkUiPickerPopupContent? ISkUiPickerOwner.CreateCustomContent(in SkUiPickerPopupSetup setup)
+    {
+        var context = new SkUiPickerPopupContext(setup);
+        return CreatePopupContent(context) is { } content ? new SkUiCustomPopup(content, context, setup, this) : null;
+    }
 
     void ISkUiPickerOwner.RemoveChoice(int index) => RemoveChoice(index);
 

@@ -122,7 +122,7 @@ internal sealed class SkUiColumnsModel : ISkUiColumnsHost
 
     #region Popup
 
-    private ISkUiPickerPopupContent CreateContent(SkUiPickerPopupContext context)
+    private ISkUiPickerPopupContent CreateContent(SkUiPickerPopupSetup context)
     {
         var (texts, loops, widths, states, columns) = _tracker.Snapshot();
         // Weak: a request kept by a presenter (a popup still shown after its page went) keeps no picker alive.

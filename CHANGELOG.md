@@ -23,6 +23,10 @@ Publishing (the NuGet publish workflow, [docs/Releasing.md](docs/Releasing.md)) 
   - A vertical drag on a wheel always turns it, also at its first or last row: inside a scrolling page, a native scroll view or a sheet, neither the rest of the drag nor its fling scrolls the page.
   - Haptics (1.12 W3): a light tick per row while a wheel turns, as native wheel pickers do, with `IsHapticFeedbackEnabled` or app-wide `SkUiGestureSettings.IsWheelHapticFeedbackEnabled` (default off; also for the popups' wheels). The platform's feedback (Android, iOS, Mac Catalyst), so the system's setting applies and no permission is needed.
   - The popup's wheels and the inline ones are one implementation; a gallery page in the demo.
+- **Pickers of your own (1.12 P1, P2):** `SkUiPickerBase` and `SkUiCorePickerBase` can be derived from outside the library, for values SkiaUi has no picker for (a color, a duration). The field, `IsOpen`, placement, presenters, OK / Cancel, keyboard and screen readers stay SkiaUi's.
+  - `SetFieldText(text)` says what the field shows (`null`: the placeholder); `OnClearSelection()` is what clearing does (the field's and the popup's Clear, `ClearSelection()`); `ClosePopup()` is now protected on both layers.
+  - `CreatePopupContent(context)` returns an `SkUiPickerPopupContent`, a drawn body of the app's that SkiaUi shows in its popup chrome (title, the app's header and footer templates, OK / Cancel, Clear, the bottom pane's toolbar). It applies each choice at once, or keeps a draft for `OnAccepted` with `UpdateMode="WhenFinished"`, and hears `OnCleared`, `OnPickerChanged` and `OnClosed`. `SkUiPickerPopupContext` carries the placement, title, the picker's text style and buttons.
+  - Presenters see an `SkUiCustomPopupRequest`: `Accept()` runs the content's `OnAccepted` and closes, `Clear()` clears the picker and closes.
 
 ### Other
 

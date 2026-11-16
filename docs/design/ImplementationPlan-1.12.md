@@ -97,7 +97,11 @@ Checked against the code on `devel` (16 November 2026).
 
 ## Phase P: pickers of your own
 
-- **P1 Open the picker base classes.** Size: M.
+- **P1 Open the picker base classes.** Size: M. **Done** on `1.12-implementation`. Changes from the plan:
+  - Clearing is `protected virtual void OnClearSelection()`, not an abstract `ClearChoice`. The built-in pickers keep their internal `ClearChoice` overrides (now a virtual whose default calls `OnClearSelection`), and simple pickers need not implement it.
+  - The model asks the picker first (`ISkUiPickerOwner.CreateCustomContent`), then the derived picker's factory, then the list, so a built-in picker's own factory (several choices, wheels) cannot drop an app's content.
+  - A picker with neither content nor a `ShowPopupAsync` override opens an empty list; no `Trace` line yet.
+  - The test is `CustomPickerTests` (a color picker on both layers). No reflection check: the samples (P4) have no `InternalsVisibleTo` and prove the API is enough.
   - `SkUiPickerBase()` and `SkUiCorePickerBase()` become `protected`.
   - The contract derived pickers implement, on both layers:
     - `protected abstract void ClearChoice()` (exists, `private protected` today): what `ClearSelection()`, the field's clear button and the popup's Clear do.
@@ -106,7 +110,10 @@ Checked against the code on `devel` (16 November 2026).
     - `protected void ClosePopup()` (exists, `private protected`).
   - What stays internal: the model and the list or columns logic. The built-in pickers keep their internal overrides.
   - Tests: a test-only subclass in `tests/MauiSkiaUi.Tests` that uses only public / protected members (a reflection check that its base calls touch no internal member).
-- **P2 Public popup content and request.** Size: M–L.
+- **P2 Public popup content and request.** Size: M–L. **Done** on `1.12-implementation`, except the typed request, which comes with P3. Changes from the plan:
+  - The internal record `SkUiPickerPopupContext` was renamed `SkUiPickerPopupSetup`. The public `SkUiPickerPopupContext` is a sealed read-only class built from it.
+  - `SkUiPickerPopupContent` is not a view: the internal `SkUiCustomPopup` hosts its body in the chrome. Its hooks are `OnAccepted`, `OnCleared`, `OnPickerChanged` and `OnClosed`, with `Close()` / `Accept()` for the body. There is no `OnKeyDown` hook (`SkUiKeyEvent` is internal): Enter accepts and Escape cancels.
+  - Content of the app's gets a non-generic `SkUiCustomPopupRequest`. `SkUiValuePopupRequest<T>` comes with `SkUiValuePicker<T>` (P3), whose request the library creates.
   - `SkUiPickerPopupContext` becomes public, read-only: `Placement`, `Title`, `IsRightToLeft`, the picker's text style (font, size, attributes, color, character spacing, selection background), `RequiresAccept`, `AcceptText`, `CancelText`, `ShowsClear`.
   - `SkUiPickerPopupContent` is a new public abstract class that SkiaUi hosts in the popup chrome (D6):
     - `protected abstract SkUiView CreateBody()` builds the content once per opening.
