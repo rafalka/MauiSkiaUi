@@ -2,7 +2,9 @@
 
 .NET MAUI library of **SkiaSharp-drawn UI**. Controls are drawn on one GPU surface instead of each owning a platform view, in two layers you can mix in one tree: **`SkUi*` controls** that replace MAUI's by changing the XAML prefix, and a lightweight **Core** layer for building controls of your own. WebView, maps, media and other native views stay native, as overlays in **`SkUiMauiContentView`**.
 
-> **1.0.0 is the first stable release.** Its public API is kept by every `1.x` release; prereleases of the next version (`1.1.0-PrereleaseNN`) are published from the `devel` branch. What's next: [roadmap](docs/design/Roadmap.md).
+[![NuGet](https://img.shields.io/nuget/v/SkiaUi.Maui?label=release)](https://www.nuget.org/packages/SkiaUi.Maui/) [![NuGet prerelease](https://img.shields.io/nuget/vpre/SkiaUi.Maui?label=prerelease)](https://www.nuget.org/packages/SkiaUi.Maui/#versions-body-tab)
+
+> Stable since 1.0.0: the public API is kept by every `1.x` release; prereleases of the next version (`-PrereleaseNN`) are published from the `devel` branch. What's next: [roadmap](https://github.com/rafalka/MauiSkiaUi/blob/devel/docs/design/Roadmap.md).
 
 ## Who it's for
 
