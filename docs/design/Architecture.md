@@ -95,7 +95,7 @@ One loader and cache for both layers (`MauiSkiaUi/Imaging`): MAUI image sources 
 
 ## Popups
 
-SkiaUi ships no pages or popup windows. Drawn controls that need a popup (the pickers) ask the app's popup system through `ISkUiPopupPresenter`, with a request that carries the anchor, its bounds through every drawn transform, a placement and ready content. Details: [Popups.md](Popups.md).
+SkiaUi ships no pages or popup windows. Since 1.12 apps can write pickers of their own on the same engine ([CustomPickers.md](../controls/CustomPickers.md)). Drawn controls that need a popup (the pickers) ask the app's popup system through `ISkUiPopupPresenter`, with a request that carries the anchor, its bounds through every drawn transform, a placement and ready content. Details: [Popups.md](Popups.md).
 
 ## Accessibility and localization
 

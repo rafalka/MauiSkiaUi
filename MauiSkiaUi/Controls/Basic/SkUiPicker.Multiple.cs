@@ -363,7 +363,7 @@ public partial class SkUiPicker
         ReplaceSelectedItems(items);
     }
 
-    private ISkUiPickerPopupContent BuildMultipleContent(SkUiPickerPopupContext context)
+    private ISkUiPickerPopupContent BuildMultipleContent(SkUiPickerPopupSetup context)
     {
         // Weak: a request kept by a presenter (a popup still shown after its page went) keeps no picker alive.
         var weak = new WeakReference<SkUiPicker>(this);

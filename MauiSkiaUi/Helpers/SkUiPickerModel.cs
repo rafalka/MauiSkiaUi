@@ -36,7 +36,7 @@ internal readonly record struct SkUiPopupExtras(DataTemplate? HeaderTemplate, Da
 }
 
 /// <summary>What a popup's content is built for: where it goes, its title, the picker's text style, its buttons and the app's views.</summary>
-internal readonly record struct SkUiPickerPopupContext(SkUiPopupPlacement Placement, string? Title, bool RightToLeft, SkUiPickerRowStyle RowStyle,
+internal readonly record struct SkUiPickerPopupSetup(SkUiPopupPlacement Placement, string? Title, bool RightToLeft, SkUiPickerRowStyle RowStyle,
     SkUiPickerPopupChrome Chrome, SkUiPopupExtras Extras = default);
 
 /// <summary>What every request a picker creates carries besides its content and geometry.</summary>
@@ -102,6 +102,9 @@ internal interface ISkUiPickerOwner : ISkUiTransitionHost
     /// default on its presenter).
     /// </summary>
     Task ShowPopupAsync(SkUiPopupRequest request, CancellationToken cancellationToken);
+
+    /// <summary>The popup content of a picker of the app's own (<c>CreatePopupContent</c>), hosted in SkiaUi's chrome; <c>null</c>: the picker's own.</summary>
+    ISkUiPickerPopupContent? CreateCustomContent(in SkUiPickerPopupSetup setup);
 
     /// <summary>The user chose <paramref name="index"/> (in the popup, or with an arrow key on the closed field).</summary>
     void Choose(int index);
@@ -331,7 +334,7 @@ internal sealed class SkUiPickerModel
     /// Builds the popup's content; <c>null</c> (default): the list of <see cref="Items"/> to choose one from. Called for each
     /// opening, with the items as they are then.
     /// </summary>
-    public Func<SkUiPickerPopupContext, ISkUiPickerPopupContent>? ContentFactory;
+    public Func<SkUiPickerPopupSetup, ISkUiPickerPopupContent>? ContentFactory;
 
     /// <summary>The selected item's text, or <c>null</c> without a selection (the title shows then).</summary>
     public string? SelectedText => UsesValueText ? ValueText
@@ -1031,8 +1034,11 @@ internal sealed class SkUiPickerModel
             var chrome = new SkUiPickerPopupChrome(requiresAccept, model.AcceptText ?? (pane ? strings.DoneText : strings.AcceptText),
                 model.CancelText ?? strings.CancelText, model.ShowsPopupClearButton, model.ClearText ?? strings.ClearText, IsToolbar: pane);
             var extras = new SkUiPopupExtras(model.PopupHeaderTemplate, model.PopupFooterTemplate, model._owner.PopupBindingContext);
-            var context = new SkUiPickerPopupContext(placement, placement == SkUiPopupPlacement.Anchored ? null : model.Title, rightToLeft, rowStyle, chrome, extras);
-            var content = model.ContentFactory is { } factory ? factory(context) : BuildList(context);
+            var context = new SkUiPickerPopupSetup(placement, placement == SkUiPopupPlacement.Anchored ? null : model.Title, rightToLeft, rowStyle, chrome, extras);
+            // A picker of the app's own content first (SkUiPickerBase.CreatePopupContent), then the derived picker's, then the list.
+            var content = model._owner.CreateCustomContent(context) ?? (model.ContentFactory is { } factory ? factory(context) : BuildList(context));
+            // Kept at once: a failure measuring or placing it (an app's PreferredSize) still releases it (Abort).
+            _content = content;
             var maximumHeight = model.MaxPopupHeight >= 0 ? model.MaxPopupHeight : double.PositiveInfinity;
             // A bottom pane is as wide as the window, inside the safe area's sides (the app's widths do not apply).
             var (minimumWidth, maximumWidth) = !pane ? model.PopupWidthRange(windowSize.Width > 0 ? windowSize.Width : double.PositiveInfinity)
@@ -1047,7 +1053,6 @@ internal sealed class SkUiPickerModel
             var layout = SkUiPopupGeometry.Layout(new SkUiPopupPlacementInput(anchorBounds, rootBounds, windowSize,
                 safeArea, look.PopupMargin, look.PopupAnchorGap, placement, look.PopupHorizontalOptions,
                 look.PopupVerticalOptions, preferred, maximumHeight, model.PopupBounds, rightToLeft, minimumWidth, maximumWidth));
-            _content = content;
             var request = content.CreateRequest(anchor, surfaceRoot, layout,
                 new SkUiPopupRequestOptions(model.Title, look.GetPopupOverlayColor(layout.Placement), !SkUiMotion.IsMotionReduced, chrome));
             request.CornerRadius = look.GetPopupCornerRadius(layout.Placement);
@@ -1064,7 +1069,7 @@ internal sealed class SkUiPickerModel
         }
 
         /// <summary>The default content: the items to choose one from (in a bottom pane, as a wheel when the look shows one and there is no search).</summary>
-        private ISkUiPickerPopupContent BuildList(in SkUiPickerPopupContext context)
+        private ISkUiPickerPopupContent BuildList(in SkUiPickerPopupSetup context)
         {
             var items = model._items.ToArray();
             _texts = items;
@@ -1079,7 +1084,7 @@ internal sealed class SkUiPickerModel
             if (search is null && context.Placement == SkUiPopupPlacement.BottomPane && SkUiLook.Current.PickerPaneShowsWheel)
                 return new SkUiColumnsPopup([items], [false], [-1], [model.SelectedIndex], SkUiColumnsModel.DefaultVisibleRows, context.RowStyle, context.Title,
                     context.RightToLeft, context.Chrome, indices => model._owner.Choose(indices[0]), () => [model.SelectedIndex], [model._itemEnabled],
-                    [new SkUiColumnsPopup.ColumnParts(null, model.ItemTemplate, model._owner.ItemsSource, Name: context.Title)], context.Extras, singleList: true);
+                    [new SkUiWheelsView.ColumnParts(null, model.ItemTemplate, model._owner.ItemsSource, Name: context.Title)], context.Extras, singleList: true);
             return new SkUiPickerPopup(items, model.SelectedIndex, model.ItemTemplate, model._owner.ItemsSource, context.RowStyle, context.Title, context.RightToLeft,
                 context.Chrome, itemEnabled: model._itemEnabled, extras: context.Extras, choose: model._owner.Choose, search: search);
         }

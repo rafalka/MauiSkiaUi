@@ -33,6 +33,7 @@ public static class SampleCatalog
         SampleEntry.For<AlarmClockSample>(),
         SampleEntry.For<DateOfBirthSample>(),
         SampleEntry.For<BookingSample>(),
+        SampleEntry.For<CustomPickersSample>(),
         SampleEntry.For<CrossCheckBoxSample>(),
         SampleEntry.For<BrandLookSample>(),
         SampleEntry.For<FieldStylesSample>(),

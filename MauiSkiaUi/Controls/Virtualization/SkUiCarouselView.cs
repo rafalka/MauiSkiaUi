@@ -151,6 +151,16 @@ public partial class SkUiCarouselView : SkUiView, ISkUiScrollStepper
 
     private SkUiScrollController Controller => ((ISkUiScrollHost)Scroller).Scroller;
 
+    /// <summary>
+    /// Whether drags along the carousel's axis stay with it, also at its ends: they are not handed to scrollers around it, drawn or
+    /// native (a picker's wheel inside a scrolling sheet). See <see cref="SkUiScrollController.KeepsDrags"/>.
+    /// </summary>
+    internal bool KeepsDrags
+    {
+        get => Controller.KeepsDrags;
+        set => Controller.KeepsDrags = value;
+    }
+
     #region Items
 
     /// <summary>Bindable property for <see cref="ItemsSource"/>.</summary>

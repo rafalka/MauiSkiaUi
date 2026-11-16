@@ -115,6 +115,15 @@ A fixed width for the first column (its `Width`); -1 sizes it as the other colum
 
 A header text above each column's wheel (the columns' `Header`).
 
+## PickerWheelsDemoPage.Columns
+
+Two sets of columns from a recurring-schedule editor: "every [n] [unit]" (two wheels) and "distribute [n] [unit] before [start / due
+date]" (three). The readout below the preview follows the columns' choice.
+
+## PickerWheelsDemoPage.Number column loops
+
+The first column's wheel wraps around from its last number to its first (the column's `Loop`).
+
 ## DatePickerDemoPage.Range (MinimumDate / MaximumDate)
 
 The dates that can be chosen, from `MinimumDate` to `MaximumDate`: MAUI's default range (1900 to 2100), this year, or today

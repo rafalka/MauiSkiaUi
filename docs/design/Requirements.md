@@ -95,7 +95,7 @@ Status: **Shipped** (in the current release line), **Partly** (shipped, with ope
 | FR-26 | State-change animations drawn by the look | Shipped | [ControlLook](ControlLook.md#state-change-transitions-fr-26) |
 | FR-27 | Composition layouts: flex, wrap, shrink, align stack; draggers and grid splitters (1.3); equal tiles with an overflow tile (1.9); the Community Toolkit's dock and uniform items layouts (1.10) | Shipped | [SkUiFlexLayout](../controls/SkUiFlexLayout.md), [SkUiWrapLayout](../controls/SkUiWrapLayout.md), [SkUiTileLayout](../controls/SkUiTileLayout.md), [SkUiDragger](../controls/SkUiDragger.md), [SkUiGridSplitter](../controls/SkUiGridSplitter.md), [SkUiShrinkLayout](../controls/SkUiShrinkLayout.md), [SkUiDockLayout](../controls/SkUiDockLayout.md), [SkUiUniformItemsLayout](../controls/SkUiUniformItemsLayout.md) |
 | FR-28 | Accessibility, keyboard focus, font scaling | Shipped | [Accessibility](Accessibility.md) |
-| FR-29 | Pickers on the app's popup system | Shipped | [SkUiPicker](../controls/SkUiPicker.md), [Popups](Popups.md) |
+| FR-29 | Pickers on the app's popup system; their wheels inline, and pickers of the app's own on the same engine (1.12) | Shipped (1.12 parts on `1.12-implementation`) | [SkUiPicker](../controls/SkUiPicker.md), [Popups](Popups.md), [SkUiPickerWheels](../controls/SkUiPickerWheels.md), [CustomPickers](../controls/CustomPickers.md) |
 | FR-30 | Avatar view | Shipped | [SkUiAvatarView](../controls/SkUiAvatarView.md) |
 | FR-31 | Shimmer (skeleton loading) | Shipped | [SkUiShimmer](../controls/SkUiShimmer.md) |
 | FR-32 | Carousel and indicator view | Shipped | [SkUiCarouselView](../controls/SkUiCarouselView.md) |

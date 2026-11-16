@@ -44,6 +44,8 @@ Shared pipelines: [Architecture.md](../design/Architecture.md) · [LayoutSystem.
 | `SkUiNumericEntry` / `SkUiCoreNumericEntry`, `SkUiNumericEntry<T>` / `SkUiCoreNumericEntry<T>` | [SkUiNumericEntry.md](SkUiNumericEntry.md) | — (replaces an `Entry` with `Keyboard.Numeric` and component libraries' numeric entries: numbers only, − / + in the field, a formatted value, typed values) |
 | `SkUiPicker` / `SkUiCorePicker` | [SkUiPicker.md](SkUiPicker.md) | Picker (the list on the app's popup system: `ISkUiPopupPresenter`; plus several choices) |
 | `SkUiMultiColumnPicker` / `SkUiCoreMultiColumnPicker` | [SkUiMultiColumnPicker.md](SkUiMultiColumnPicker.md) | — (wheels of several columns on the app's popup system) |
+| `SkUiPickerWheels` | [SkUiPickerWheels.md](SkUiPickerWheels.md) | — (the same wheels inline, always open, no field) |
+| `SkUiValuePicker<T>` / `SkUiCoreValuePicker<T>`, pickers on `SkUiPickerBase` | [CustomPickers.md](CustomPickers.md) | — (pickers of your own: a value of your type, your popup body, SkiaUi's field and popups) |
 | `SkUiDatePicker` / `SkUiCoreDatePicker` | [SkUiDatePicker.md](SkUiDatePicker.md) | DatePicker (wheels of the day, month and year) |
 | `SkUiTimePicker` / `SkUiCoreTimePicker` | [SkUiTimePicker.md](SkUiTimePicker.md) | TimePicker (wheels of the hour, minute, AM / PM) |
 | `SkUiDateTimePicker` / `SkUiCoreDateTimePicker` | [SkUiDateTimePicker.md](SkUiDateTimePicker.md) | — (a day and a time on one popup) |

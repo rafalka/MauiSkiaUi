@@ -129,6 +129,8 @@ The drawn arena runs inside one platform view. Native ancestors (a MAUI `ScrollV
 
 This gives native "nested scrolling" too: a drawn scroller inside a native one scrolls first, and the native one takes over at the drawn edge.
 
+The exception is a scroller with `SkUiScrollController.KeepsDrags` (internal; picker wheels since 1.12, through `SkUiCarouselView.KeepsDrags`). It claims every drag along its axis past the slop, also at its edge or when it cannot scroll, so native ancestors fail through the `Claimed` state. Neither the drag's rest nor its fling chains to outer drawn scrollers; at the edge the drag pulls (overscroll) instead. Drags across its axis and mouse wheel or trackpad scrolling are unchanged, so a wheel inside a sheet never scrolls the sheet by a vertical drag, but a horizontal swipe or the mouse wheel past its end still reaches it. Tests: `PickerWheelsTests.DragsOnAWheelAtItsEndDoNotScrollThePage`.
+
 **Windows** (touch / pen; mouse drags never pan a WinUI `ScrollViewer`): SkiaSharp captures every pointer and sets `ManipulationMode = All`, which keeps DirectManipulation off. When the state becomes `None` past the slop, the handler hands the contact to an ancestor `ScrollViewer` that can scroll: it releases the capture, sets `ManipulationMode = System` and calls `TryStartDirectManipulation` (one attempt per contact). If that fails, SkiaSharp's capture and mode are restored. A surface contact that loses capture while still down (DirectManipulation, another capture, a system gesture) is cancelled in the drawn tree, so no drawn gesture keeps tracking a lost pointer.
 
 ### Native ancestor taps (iOS / Mac Catalyst)

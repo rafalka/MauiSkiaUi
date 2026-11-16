@@ -496,6 +496,14 @@ internal sealed class SkUiScrollController(ISkUiRenderable owner, Action<SkUiRen
     /// </summary>
     public bool IsUserScrollEnabled { get; set; } = true;
 
+    /// <summary>
+    /// Whether a drag along an axis this scroller drives stays with it, also at its edge (or when it cannot scroll): it claims the drag
+    /// past the slop, so native ancestors give it up, and neither the drag's rest nor its fling goes to outer drawn scrollers; at the
+    /// edge the drag pulls (overscroll) instead. Off (default): a scroller at its edge hands the drag over (nested scrolling). On for
+    /// picker wheels. Mouse wheel and trackpad scrolling still chain outwards.
+    /// </summary>
+    internal bool KeepsDrags { get; set; }
+
     /// <summary>Steps of the owner's own for the keyboard and screen readers (a carousel's items); <c>null</c>: lines and pages.</summary>
     public ISkUiScrollStepper? Stepper { get; set; }
 
@@ -1532,7 +1540,7 @@ internal sealed class SkUiScrollGestureRecognizer(SkUiScrollController scroller)
             if (scroller.StartFling(velocity))
                 flung = scroller;
         }
-        else
+        else if (!scroller.KeepsDrags)
         {
             foreach (var outer in OuterScrollers())
                 if (outer.CanScroll(velocity.X, velocity.Y))
@@ -1571,7 +1579,8 @@ internal sealed class SkUiScrollGestureRecognizer(SkUiScrollController scroller)
     /// </summary>
     private bool CanTake(double dx, double dy, SkUiPointer pointer)
     {
-        if (scroller.CanScroll(dx, dy))
+        // dx / dy are masked to this scroller's axes: any movement left is along one it drives.
+        if (scroller.CanScroll(dx, dy) || (scroller.KeepsDrags && (dx != 0 || dy != 0)))
             return true;
         if (!scroller.CanOverscroll(dx, dy))
             return false;
@@ -1586,7 +1595,7 @@ internal sealed class SkUiScrollGestureRecognizer(SkUiScrollController scroller)
         // Axes this scroller does not drive are masked out, so a vertical drag never scrolls an outer horizontal scroller.
         var delta = scroller.Unpull(scroller.Horizontal ? dx : 0, scroller.Vertical ? dy : 0);
         var remainder = scroller.ScrollBy(delta.X, delta.Y);
-        foreach (var outer in OuterScrollers())
+        foreach (var outer in scroller.KeepsDrags ? Enumerable.Empty<SkUiScrollController>() : OuterScrollers())
         {
             if (remainder.X == 0 && remainder.Y == 0)
                 return;

@@ -13,6 +13,26 @@ Publishing (the NuGet publish workflow, [docs/Releasing.md](docs/Releasing.md)) 
 
 ## Unreleased
 
+### New features
+
+- **Inline picker wheels (1.12 W2, [#98](https://github.com/rafalka/MauiSkiaUi/issues/98)):** `SkUiPickerWheels` shows the multi-column picker's wheels in the page, always open, with no field to tap ([SkUiPickerWheels.md](docs/controls/SkUiPickerWheels.md)).
+  - `Columns` of `SkUiPickerColumn` (the XAML content), the same columns as `SkUiMultiColumnPicker`: two-way `SelectedIndex` / `SelectedItem`, `Loop`, `Width`, `Header`, `ItemTemplate`, items that cannot be chosen.
+  - The wheels write the columns once they have settled (`CommitDelay`, default 100 ms), not for each row passed; the app's choice moves them.
+  - `VisibleRows`, `RowHeight`, the items' font and `TextColor`; `SelectedIndices`, `SelectedItems`, `SelectionChanged`, `SelectionChangedCommand`.
+  - Keyboard (one tab stop, the focus ring on the active column's wheel) and screen readers (each wheel one adjustable element, the view itself none) as in the popup.
+  - A vertical drag on a wheel always turns it, also at its first or last row: inside a scrolling page, a native scroll view or a sheet, neither the rest of the drag nor its fling scrolls the page.
+  - Haptics (1.12 W3): a light tick per row while a wheel turns, as native wheel pickers do, with `IsHapticFeedbackEnabled` or app-wide `SkUiGestureSettings.IsWheelHapticFeedbackEnabled` (default off; also for the popups' wheels). The platform's feedback (Android, iOS, Mac Catalyst), so the system's setting applies and no permission is needed.
+  - The popup's wheels and the inline ones are one implementation; a gallery page in the demo.
+- **Pickers of your own (1.12 P1, P2):** `SkUiPickerBase` and `SkUiCorePickerBase` can be derived from outside the library, for values SkiaUi has no picker for (a color, a duration). The field, `IsOpen`, placement, presenters, OK / Cancel, keyboard and screen readers stay SkiaUi's.
+  - `SetFieldText(text)` says what the field shows (`null`: the placeholder); `OnClearSelection()` is what clearing does (the field's and the popup's Clear, `ClearSelection()`); `ClosePopup()` is now protected on both layers.
+  - `CreatePopupContent(context)` returns an `SkUiPickerPopupContent`, a drawn body of the app's that SkiaUi shows in its popup chrome (title, the app's header and footer templates, OK / Cancel, Clear, the bottom pane's toolbar). It applies each choice at once, or keeps a draft for `OnAccepted` with `UpdateMode="WhenFinished"`, and hears `OnCleared`, `OnPickerChanged` and `OnClosed`. `SkUiPickerPopupContext` carries the placement, title, the picker's text style and buttons.
+  - Presenters see an `SkUiCustomPopupRequest`: `Accept()` runs the content's `OnAccepted` and closes, `Clear()` clears the picker and closes.
+  - `SetFieldText(text, description)`: what screen readers read when it differs from what the field shows.
+- **Value pickers (1.12 P3):** `SkUiValuePicker<T>` and `SkUiCoreValuePicker<T>` pick one value of a type of the app's, on the pickers of your own. Derive a closed type (`class ColorPicker : SkUiValuePicker<Color?>`) and return its popup body from `CreateValueContent`.
+  - `Value` (two-way; `null` is none, so a value type that can be empty is picked as its nullable), `ValueChanged`, `SelectionChangedCommand`; the field's text from `ValueFormat` or `FormatValue`, what screen readers read from `DescribeValue`.
+  - The body derives `SkUiValuePopupContent<T>`: `Value`, `SetValue` (at once, or a draft that OK applies), `Complete` (choose and close), `OnValueChanged` (follow the user, the Clear button, the app).
+  - Presenters with their own UI read `SkUiValuePopupRequest<T>`: `Value`, `SetValue`, `Complete(value)`, `Clear()`.
+
 ### Other
 
 - Demo and samples: a Release publish of the net11 Mac Catalyst apps (universal, ReadyToRun on CoreCLR) no longer fails with NETSDK1191 or puts the `.app` under an `osx-arm64` folder; the repository's `Directory.Build.props` works around the Mac Catalyst SDK filling in the universal runtime identifiers after the checks that read them. Apps built on SkiaUi that hit the same error can set `AllowReadyToRunWithoutRuntimeIdentifier=true` and `UseCurrentRuntimeIdentifier=false` for `net11.0-maccatalyst`, or publish with `-r maccatalyst-arm64`.
