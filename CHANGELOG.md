@@ -13,6 +13,8 @@ Publishing (the NuGet publish workflow, [docs/Releasing.md](docs/Releasing.md)) 
 
 ## Unreleased
 
+## 1.12.0
+
 ### New features
 
 - **Inline picker wheels (1.12 W2, [#98](https://github.com/rafalka/MauiSkiaUi/issues/98)):** `SkUiPickerWheels` shows the multi-column picker's wheels in the page, always open, with no field to tap ([SkUiPickerWheels.md](docs/controls/SkUiPickerWheels.md)).
