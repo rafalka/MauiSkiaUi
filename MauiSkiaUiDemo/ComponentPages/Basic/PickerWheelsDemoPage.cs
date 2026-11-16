@@ -35,6 +35,8 @@ public sealed class PickerWheelsDemoPage : ComponentDemoPage
         Number("CommitDelay (ms)", 0, 1000, 100, value => _wheels.CommitDelay = TimeSpan.FromMilliseconds(value),
             () => _wheels.CommitDelay.TotalMilliseconds, whole: true);
         Toggle("Number column loops", false, value => { _loop = value; ApplyLoop(); }, () => _loop);
+        Toggle(nameof(SkUiPickerWheels.IsHapticFeedbackEnabled), false, value => _wheels.IsHapticFeedbackEnabled = value,
+            () => _wheels.IsHapticFeedbackEnabled == true);
         ColorEditor(nameof(SkUiPickerWheels.TextColor), DemoColors.Ink, value => _wheels.TextColor = value, () => _wheels.TextColor ?? DemoColors.Ink);
         Number(nameof(SkUiPickerWheels.FontSize), 10, 30, 16, value => _wheels.FontSize = value, () => _wheels.FontSize);
         ActionButton("Set from the app: 2 weeks", () =>

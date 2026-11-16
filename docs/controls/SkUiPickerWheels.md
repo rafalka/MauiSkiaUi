@@ -17,6 +17,8 @@ The wheels of [SkUiMultiColumnPicker](SkUiMultiColumnPicker.md)'s popup as a vie
   - Rows passed on the way are never written, so a binding to a view model sees one change per settle, not one per row.
   - A column with nothing chosen shows its first item until the wheels choose. Then every column takes what its wheel shows, so a choice is never half made.
   - Writes are handler values: an app's one-way binding to `SelectedIndex` keeps working after the user turns the wheel.
+- **Inside a page or sheet that scrolls**, a vertical drag that starts on a wheel always turns the wheel. It stays with the wheel also at its first or last row, and the rest of a long drag or its fling never scrolls the page. The same holds inside native scroll views and bottom sheets. Horizontal drags still go to the page (a sheet that swipes sideways), and the mouse wheel past a wheel's end scrolls the page as usual.
+- **Haptics.** With `IsHapticFeedbackEnabled` (or the app-wide `SkUiGestureSettings.IsWheelHapticFeedbackEnabled`), each row passing the middle while a wheel turns gives a light tick, as native wheel pickers do. It uses the platform's own feedback, so the system's haptics setting still applies, and Android needs no permission: Android's `PerformHapticFeedback` (`SegmentFrequentTick` on Android 14+, else `ClockTick`), iOS's and Mac Catalyst's `UISelectionFeedbackGenerator`. There is no tick on Windows, at most one per frame, and none for keys or screen readers.
 - **The app's choice** moves the wheels without animating. It wins over a choice that is still waiting to be written.
 - **Items that cannot be chosen** (a column's `ItemEnabledBinding`) are dimmed. A wheel passes them, and one that stops on one rolls on to the nearest item that can be chosen.
 - **Building.** Changing the columns (adding, removing, replacing), a column's items, `Loop`, `Width`, `Header` or `ItemTemplate`, or `VisibleRows`, `RowHeight`, the font or `TextColor` builds the wheels again. Properties and columns set before the view is in a tree (XAML, object initializers) build them once.
@@ -63,6 +65,7 @@ wheels.SelectionChanged += (_, args) => UpdateReadout();
 | `VisibleRows` | 5 | Rows of each wheel (1–9); odd numbers put the chosen row in the middle |
 | `RowHeight` | -1 | A row's height; -1: the look's `PickerWheelRowHeight` |
 | `CommitDelay` | 100 ms | How long the wheels stay still before the columns are written |
+| `IsHapticFeedbackEnabled` | `null` | A tick per row while turning; `null`: `SkUiGestureSettings.IsWheelHapticFeedbackEnabled` (default `false`) |
 | `TextColor`, `FontFamily`, `FontSize`, `FontAttributes`, `FontAutoScalingEnabled`, `CharacterSpacing` | the look's | The items' text |
 | `SelectedIndices` / `SelectedItems` | | One per column (read-only; set the columns) |
 | `SelectionChanged` | | `SkUiColumnSelectionChangedEventArgs`: `ColumnIndex`, `PreviousIndex`, `CurrentIndex` |

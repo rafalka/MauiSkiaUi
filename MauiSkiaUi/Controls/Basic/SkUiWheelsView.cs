@@ -231,7 +231,9 @@ internal sealed class SkUiWheelsView : SkUiContentView
             ItemTemplate = new DataTemplate(() => new WheelItem(_style, this, column, _parts[column].ItemTemplate)),
             ItemsSource = _entries[column],
             HeightRequest = _rows * _rowHeight,
-            VerticalOptions = LayoutOptions.Center
+            VerticalOptions = LayoutOptions.Center,
+            // A drag on a wheel turns it, also at its first or last row: it never scrolls the page or sheet around it.
+            KeepsDrags = true
         };
         if (_start[column] > 0 && _start[column] < count)
             wheel.Position = _start[column];
@@ -283,6 +285,14 @@ internal sealed class SkUiWheelsView : SkUiContentView
     /// <summary>Raised when a wheel starts or stops turning.</summary>
     public event EventHandler? ScrollingChanged;
 
+    /// <summary>
+    /// Whether a row passing the middle of a turning wheel gives a light tick (<see cref="SkUiHaptics"/>); <c>null</c> (default): the
+    /// app-wide <see cref="SkUiGestureSettings.IsWheelHapticFeedbackEnabled"/>, read at each row.
+    /// </summary>
+    public bool? IsHapticFeedbackEnabled { get; set; }
+
+    private bool HapticsOn => IsHapticFeedbackEnabled ?? SkUiGestureSettings.IsWheelHapticFeedbackEnabled;
+
     /// <summary>Which items of <paramref name="column"/> can be chosen now (<c>null</c>: all).</summary>
     public IReadOnlyList<bool>? StatesOf(int column) => _states[column];
 
@@ -303,8 +313,13 @@ internal sealed class SkUiWheelsView : SkUiContentView
         if (sender is not SkUiCarouselView wheel || Array.IndexOf(_wheels, wheel) is not (>= 0 and var column))
             return;
         WheelPositionChanged?.Invoke(column);
-        if (!_syncing)
-            Choose(column, args.CurrentPosition);
+        if (_syncing)
+            return;
+        // A row passing the middle of a turning wheel (a drag, a fling, a tap's scroll): the native picker's tick. Keys and screen
+        // readers move the wheel at once and give none.
+        if (wheel.IsScrolling && HapticsOn)
+            SkUiHaptics.SelectionTick(this);
+        Choose(column, args.CurrentPosition);
     }
 
     /// <summary>A wheel stopped: on a disabled item it rolls on to the nearest one that can be chosen, and chooses it.</summary>
@@ -312,6 +327,8 @@ internal sealed class SkUiWheelsView : SkUiContentView
     {
         if (args.PropertyName != nameof(SkUiCarouselView.IsScrolling) || sender is not SkUiCarouselView wheel)
             return;
+        if (wheel.IsScrolling && HapticsOn)
+            SkUiHaptics.Prepare();
         if (!wheel.IsScrolling && Array.IndexOf(_wheels, wheel) is var column and >= 0)
             Stopped(wheel, column);
         // After a stop's own correction (which may turn the wheel again): the host sees where it settled.

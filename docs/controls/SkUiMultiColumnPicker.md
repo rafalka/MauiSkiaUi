@@ -20,7 +20,7 @@ A drawn picker with several columns: a field that shows the chosen item of each 
 
 ## Inline wheels
 
-To show the wheels in the page, always open and without a field, use [SkUiPickerWheels](SkUiPickerWheels.md). It takes the same `SkUiPickerColumn`s, and writes them once the wheels have settled.
+To show the wheels in the page, always open and without a field, use [SkUiPickerWheels](SkUiPickerWheels.md). The popup's wheels tick as rows pass when `SkUiGestureSettings.IsWheelHapticFeedbackEnabled` is on (default off), as the inline ones do. It takes the same `SkUiPickerColumn`s, and writes them once the wheels have settled.
 
 ## Presenters
 

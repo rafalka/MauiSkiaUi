@@ -70,6 +70,14 @@ public class SkUiPickerWheels : SkUiView, ISkUiFontElement, ISkUiKeyHandler, ISk
     public static readonly BindableProperty CommitDelayProperty = BindableProperty.Create(nameof(CommitDelay), typeof(TimeSpan), typeof(SkUiPickerWheels),
         DefaultCommitDelay, validateValue: (_, value) => (TimeSpan)value >= TimeSpan.Zero);
 
+    /// <summary>Bindable property for <see cref="IsHapticFeedbackEnabled"/>.</summary>
+    public static readonly BindableProperty IsHapticFeedbackEnabledProperty = BindableProperty.Create(nameof(IsHapticFeedbackEnabled), typeof(bool?),
+        typeof(SkUiPickerWheels), null, propertyChanged: (view, _, value) =>
+        {
+            if (((SkUiPickerWheels)view)._wheels is { } wheels)
+                wheels.IsHapticFeedbackEnabled = (bool?)value;
+        });
+
     /// <summary>Bindable property for <see cref="TextColor"/>.</summary>
     public static readonly BindableProperty TextColorProperty = BindableProperty.Create(nameof(TextColor), typeof(Color), typeof(SkUiPickerWheels), null,
         propertyChanged: (view, _, _) => ((SkUiPickerWheels)view).InvalidateWheels());
@@ -120,6 +128,13 @@ public class SkUiPickerWheels : SkUiView, ISkUiFontElement, ISkUiKeyHandler, ISk
     /// stop). Rows passed while a wheel turns are never written.
     /// </summary>
     public TimeSpan CommitDelay { get => (TimeSpan)GetValue(CommitDelayProperty); set => SetValue(CommitDelayProperty, value); }
+
+    /// <summary>
+    /// Whether a row passing the middle of a turning wheel gives a light tick, as native wheel pickers do; <c>null</c> (default): the
+    /// app-wide <see cref="SkUiGestureSettings.IsWheelHapticFeedbackEnabled"/> (off unless the app turns it on). The platform's
+    /// feedback (Android, iOS, Mac Catalyst), so the system's haptics setting still applies.
+    /// </summary>
+    public bool? IsHapticFeedbackEnabled { get => (bool?)GetValue(IsHapticFeedbackEnabledProperty); set => SetValue(IsHapticFeedbackEnabledProperty, value); }
 
     /// <summary>The items' text color; <c>null</c>: the color scheme's foreground.</summary>
     public Color? TextColor { get => (Color?)GetValue(TextColorProperty); set => SetValue(TextColorProperty, value); }
@@ -194,6 +209,9 @@ public class SkUiPickerWheels : SkUiView, ISkUiFontElement, ISkUiKeyHandler, ISk
         return this;
     }
 
+    /// <summary>Sets <see cref="IsHapticFeedbackEnabled"/> (same as the property setter; <c>null</c>: the app-wide setting).</summary>
+    public SkUiPickerWheels SetIsHapticFeedbackEnabled(bool? value) { IsHapticFeedbackEnabled = value; return this; }
+
     /// <summary>Sets <see cref="TextColor"/> (same as the property setter).</summary>
     public SkUiPickerWheels SetTextColor(Color? value) { TextColor = value; return this; }
 
@@ -267,7 +285,7 @@ public class SkUiPickerWheels : SkUiView, ISkUiFontElement, ISkUiKeyHandler, ISk
         var style = new SkUiPickerRowStyle(FontFamily, IsSet(FontSizeProperty) ? FontSize : SkUiPickerModel.DefaultFontSize, FontAttributes,
             FontAutoScalingEnabled, CharacterSpacing, TextColor);
         var wheels = new SkUiWheelsView(texts, loops, widths, Tracker.SelectedIndices, VisibleRows, style, IsRightToLeft,
-            Chosen, Select, states, parts, rowHeight: RowHeight);
+            Chosen, Select, states, parts, rowHeight: RowHeight) { IsHapticFeedbackEnabled = IsHapticFeedbackEnabled };
         wheels.ScrollingChanged += OnScrollingChanged;
         _wheels = wheels;
         AttachChild(wheels);

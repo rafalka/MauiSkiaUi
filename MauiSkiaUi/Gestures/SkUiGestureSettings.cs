@@ -38,6 +38,14 @@ public static class SkUiGestureSettings
     /// <summary>Maximum fling velocity (DIPs / s).</summary>
     public static double FlingMaximumVelocity { get; set; } = 3000;
 
+    /// <summary>
+    /// Whether picker wheels give a light tick as each row passes their middle while they turn, as native wheel pickers do (default
+    /// <c>false</c>): the popups' wheels and <see cref="SkUiPickerWheels"/> without its own <see cref="SkUiPickerWheels.IsHapticFeedbackEnabled"/>.
+    /// The platform's feedback, so the system's haptics setting still applies (Android's touch feedback, iOS's system haptics); none on
+    /// Windows.
+    /// </summary>
+    public static bool IsWheelHapticFeedbackEnabled { get; set; }
+
     /// <summary>Timer override for tests (per thread).</summary>
     [ThreadStatic]
     internal static Func<TimeSpan, Action, IDisposable>? Scheduler;

@@ -241,6 +241,125 @@ public sealed class PickerWheelsTests : IDisposable
         Assert.Equal(1, wheels.Wheels.ActiveColumn);
     }
 
+    /// <summary>Press, move in steps, release — 10 ms per sample.</summary>
+    private static void Drag(ISkUiView root, Point from, Point to, long id = 1, int steps = 10)
+    {
+        root.Touch(new(id, SkUiTouchAction.Pressed, from, TimeSpan.Zero));
+        for (var step = 1; step <= steps; step++)
+        {
+            var t = (double)step / steps;
+            root.Touch(new(id, SkUiTouchAction.Moved, new Point(from.X + (to.X - from.X) * t, from.Y + (to.Y - from.Y) * t),
+                TimeSpan.FromMilliseconds(step * 10)));
+        }
+        root.Touch(new(id, SkUiTouchAction.Released, to, TimeSpan.FromMilliseconds(steps * 10 + 500)));
+    }
+
+    /// <summary>The wheels at the top of a page that scrolls (as a sheet), the first column without a header.</summary>
+    private static (SkUiScrollView Page, SkUiPickerWheels Wheels) InScrollingPage(params int[] selected)
+    {
+        var wheels = Create(selected).SetCommitDelay(TimeSpan.Zero);
+        wheels.Columns[0].Header = null;
+        var column = new SkUiVerticalStackLayout();
+        column.Children.Add(wheels);
+        column.Children.Add(new SkUiBox { HeightRequest = 1000 });
+        var page = new SkUiScrollView { Content = column };
+        SkUiTestHelpers.Arrange(page, 300, 400);
+        return (page, wheels);
+    }
+
+    [Fact]
+    public void DragsOnAWheelAtItsEndDoNotScrollThePage()
+    {
+        var (page, wheels) = InScrollingPage(4, 0);
+        using var surface = new SkUiTestSurface(page, 300, 400);
+        surface.Frame();
+        var middle = wheels.Height / 2;
+
+        // Up on the first column's wheel, which shows its last item: the page stays.
+        Drag(page, new Point(40, middle), new Point(40, middle - 120));
+        surface.Frame();
+        Assert.Equal(0, page.ScrollY);
+        Assert.Equal(4, wheels.Columns[0].SelectedIndex);
+
+        // A long drag from the start: the wheel turns to its end, and the rest of the drag does not go to the page.
+        wheels.Columns[0].SelectedIndex = 1;
+        surface.Frame();
+        Drag(page, new Point(40, middle), new Point(40, middle - 380));
+        surface.Frame();
+        Assert.Equal(0, page.ScrollY);
+
+        // Below the wheels, the page scrolls as before.
+        Drag(page, new Point(150, wheels.Height + 100), new Point(150, wheels.Height));
+        Assert.Equal(100, page.ScrollY);
+    }
+
+    [Fact]
+    public void TicksWhileTurningWhenHapticsAreOn()
+    {
+        var ticks = 0;
+        SkUiHaptics.TestHook = _ => ticks++;
+        try
+        {
+            var (page, wheels) = InScrollingPage(0, 0);
+            using var surface = new SkUiTestSurface(page, 300, 400);
+            surface.Frame();
+            var middle = wheels.Height / 2;
+
+            // Off by default (the app-wide setting).
+            SkUiHaptics.ResetForTests();
+            Drag(page, new Point(40, middle), new Point(40, middle - 100));
+            surface.Frame();
+            Assert.Equal(0, ticks);
+
+            wheels.IsHapticFeedbackEnabled = true;
+            SkUiHaptics.ResetForTests();
+            Drag(page, new Point(40, middle), new Point(40, middle + 100));
+            surface.Frame();
+            Assert.True(ticks >= 1);
+
+            // Keys move the wheel at once and give no tick.
+            ticks = 0;
+            SkUiHaptics.ResetForTests();
+            Assert.True(Key(wheels, SkUiKey.Down));
+            Assert.Equal(0, ticks);
+        }
+        finally
+        {
+            SkUiHaptics.TestHook = null;
+        }
+    }
+
+    [Fact]
+    public void TheAppWideSettingTurnsTicksOn()
+    {
+        var ticks = 0;
+        SkUiHaptics.TestHook = _ => ticks++;
+        SkUiGestureSettings.IsWheelHapticFeedbackEnabled = true;
+        try
+        {
+            var (page, wheels) = InScrollingPage(0, 0);
+            using var surface = new SkUiTestSurface(page, 300, 400);
+            surface.Frame();
+            SkUiHaptics.ResetForTests();
+            Drag(page, new Point(40, wheels.Height / 2), new Point(40, wheels.Height / 2 - 100));
+            surface.Frame();
+            Assert.True(ticks >= 1);
+
+            // The view's own setting wins.
+            ticks = 0;
+            wheels.IsHapticFeedbackEnabled = false;
+            SkUiHaptics.ResetForTests();
+            Drag(page, new Point(40, wheels.Height / 2), new Point(40, wheels.Height / 2 + 100));
+            surface.Frame();
+            Assert.Equal(0, ticks);
+        }
+        finally
+        {
+            SkUiGestureSettings.IsWheelHapticFeedbackEnabled = false;
+            SkUiHaptics.TestHook = null;
+        }
+    }
+
     private sealed class FuncConverter(Func<object?, bool> convert) : IValueConverter
     {
         public object Convert(object? value, Type targetType, object? parameter, System.Globalization.CultureInfo culture) => convert(value);
