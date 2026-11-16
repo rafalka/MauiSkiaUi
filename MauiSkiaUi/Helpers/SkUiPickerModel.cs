@@ -1079,7 +1079,7 @@ internal sealed class SkUiPickerModel
             if (search is null && context.Placement == SkUiPopupPlacement.BottomPane && SkUiLook.Current.PickerPaneShowsWheel)
                 return new SkUiColumnsPopup([items], [false], [-1], [model.SelectedIndex], SkUiColumnsModel.DefaultVisibleRows, context.RowStyle, context.Title,
                     context.RightToLeft, context.Chrome, indices => model._owner.Choose(indices[0]), () => [model.SelectedIndex], [model._itemEnabled],
-                    [new SkUiColumnsPopup.ColumnParts(null, model.ItemTemplate, model._owner.ItemsSource, Name: context.Title)], context.Extras, singleList: true);
+                    [new SkUiWheelsView.ColumnParts(null, model.ItemTemplate, model._owner.ItemsSource, Name: context.Title)], context.Extras, singleList: true);
             return new SkUiPickerPopup(items, model.SelectedIndex, model.ItemTemplate, model._owner.ItemsSource, context.RowStyle, context.Title, context.RightToLeft,
                 context.Chrome, itemEnabled: model._itemEnabled, extras: context.Extras, choose: model._owner.Choose, search: search);
         }

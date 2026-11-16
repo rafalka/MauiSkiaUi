@@ -46,7 +46,7 @@ Checked against the code on `devel` (16 November 2026).
 
 ## Phase W: inline wheels (#98)
 
-- **W1 Separate the wheels from the popup.** Size: M–L.
+- **W1 Separate the wheels from the popup.** Size: M–L. **Done** on `1.12-implementation`: `SkUiWheelsView` (`Controls/Basic/SkUiWheelsView.cs`, with `SkUiWheelEffect` and `ISkUiColumnsRules`) chooses through three host callbacks (what is chosen, select, item states changed); `SkUiColumnsPopup` keeps the chrome, the request, Enter / Escape / Tab, focus and release. The existing suite passes unchanged on `net10.0` and `net11.0`; `WheelsViewTests` covers the wheels on their own. Not done yet: the bench has no picker or popup-opening scenario, so the "no slower" check waits for one (W2 adds it).
   - Move the wheel part of `SkUiColumnsPopup` into one internal class, `SkUiWheelsView`: the grid of `WheelView`s, entries, band, fade, keys, type-ahead, semantics, item states and rules.
   - `SkUiColumnsPopup` keeps the chrome and the `ISkUiPickerPopupContent` role, and hosts a `SkUiWheelsView`.
   - Behavior does not change. The existing wheel tests pass unchanged; add tests only where the split adds a seam (the wheels view on its own: positions, keys, semantics).
