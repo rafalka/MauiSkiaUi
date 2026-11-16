@@ -391,9 +391,11 @@ public sealed class PickerWheelsTests : IDisposable
     [Fact]
     public void ScreenReadersSeeOnlyTheWheels()
     {
+        // The readout needs a font that measures on Linux CI (no system fonts there: a 0-wide label is no element).
+        using var font = SkUiTestHelpers.UseBundledFont();
         var wheels = Create(1, 0);
         var stack = new SkUiVerticalStackLayout();
-        stack.Children.Add(new SkUiLabel { Text = "Every 2 days" });
+        stack.Children.Add(new SkUiLabel { Text = "Every 2 days", FontFamily = SkUiTestHelpers.BundledFontFamily });
         stack.Children.Add(wheels);
         using var surface = new SkUiTestSurface(stack, 360, 400);
         surface.Frame();
