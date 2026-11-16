@@ -23,6 +23,7 @@ What the next releases bring, and the work after them. What has shipped is in th
 | **1.10.3** | 10.0.120 | 27 | 10.0.402 | As 1.1.0 | `master`, released 12 November 2026 |
 | **1.11.0** | 10.0.130 (net10) and 11.0.10 (net11) | 27 (net10), 27.2 (net11) | 11.0.100 | As 1.1.0; Android 7.0 (API 24) on net11 | `master`, released 14 November 2026 |
 | **1.12.0** | As 1.11.0 | As 1.11.0 | 11.0.100 | As 1.11.0 | Planned |
+| **1.13.0** | As 1.11.0 | As 1.11.0 | 11.0.100 | As 1.11.0 | Planned |
 
 SkiaUi up to 1.10 targets MAUI 10.x only; 1.11 adds net11 targets with MAUI 11 next to them ([1.11.0](#1110-net-11-and-maui-11-shipped)). Development happens on `devel`; `master` holds stable releases ([Releasing.md](../Releasing.md#branches-and-versions)).
 
@@ -131,6 +132,13 @@ Additive only. Steps, decisions and verification: [ImplementationPlan-1.12.md](I
 - **Inline wheels** ([#98](https://github.com/rafalka/MauiSkiaUi/issues/98)) (done on `1.12-implementation`, device checks pending: [SkUiPickerWheels](../controls/SkUiPickerWheels.md)): `SkUiPickerWheels`, the popup's wheels as a public control placed in a layout and always open. It has `SkUiPickerColumn` columns, commits once the wheel settles, has optional haptics, keeps vertical drags from scrolling a parent, and gives each column screen reader and keyboard support. The multi-column and date / time popups use it, so there is one implementation. SkUi\* only until a Core carousel exists.
 - **Pickers of your own** (done on `1.12-implementation`: [CustomPickers.md](../controls/CustomPickers.md)): the picker base classes can be derived from outside the library, with a public popup content class (SkiaUi's popup chrome around the app's drawn body) and a typed request for presenters. Built on them: `SkUiValuePicker<T>` / `SkUiCoreValuePicker<T>`, for value types SkiaUi does not ship (a color, a duration). Samples are built on public API only, with a guide.
 
+### 1.13.0: allocation pass (planned)
+
+No new control and no behavior change: the allocations a review of the code found on input events, on frames that re-record and on first frames of large trees (16 November 2026). Steps, decisions and verification: [ImplementationPlan-1.13.md](ImplementationPlan-1.13.md); the review's findings and briefs: [ImplementationPlan-PerformanceAndControls.md](ImplementationPlan-PerformanceAndControls.md).
+
+- **Wave 1** (independent steps): `System.Threading.Lock` for the ten `object` gates (compositor, frame renderer, Metal surface, image caches, fonts); the gesture arena without an array per pointer event; the text plain-path check without a dictionary lookup per character; image memory-cache hits without a `Task` or a load context.
+- **Wave 2:** pooled render batches and updates; shared scratch paints in looks and painters; `LangVersion` 14 for both lines, `params ReadOnlySpan<T>` overloads of the `params` setters, a runtime-async trial on net11, and [Performance.md](../Performance.md) measured again on .NET 11.
+
 ## Backlog (1.x)
 
 Taken up when a real app needs it, roughly in this order within each area. Items name the control or mechanism; their designs are in the linked docs.
@@ -139,6 +147,15 @@ Taken up when a real app needs it, roughly in this order within each area. Items
 
 - **Calendar** (`SkUiCalendar` + `SkUiCoreCalendar`, [FR-33](Requirements.md#functional-requirements)): one drawn node per month, render-thread swiping on the carousel's engine, year / decade / century views, single, multiple and range selection, per-day styles; then a calendar popup for the date pickers and a date range picker. Steps F1–F7 in the [archived plan](../archive/ImplementationPlan-1.0.md#phase-f--calendar-skuicalendar).
 - **Full SVG** in an optional `SkiaUi.Maui.Svg` package on Svg.Skia, for what [1.7's icon reader](ImplementationPlan-1.7.md) leaves out: gradients, `<use>`, filters and CSS in downloaded files and rich illustrations. Needs a vector entry in the image cache and protection against hostile files (design and a spike's findings: [the full SVG plan](ImplementationPlan-FullSvg.md)).
+- **From the November 2026 review** (briefs, order and open decisions: [ImplementationPlan-PerformanceAndControls.md](ImplementationPlan-PerformanceAndControls.md#track-f-features)), after 1.13, roughly in this order. Each is the common pattern on SkiaUi's own API, not a copy of one vendor's control:
+  - **Segmented control and tab view** (F1): a tab strip over panes created when first shown, swiped on the carousel's engine.
+  - **Scroll-linked effects** (F2): a public link from a scroller's offset to translation, opacity, scale and a clipped height on the render thread (collapsing headers, parallax); takes in the overscroll-linked effects under [Lists and scrolling](#lists-and-scrolling).
+  - **Sheet** (F3): a bottom or side sheet inside a surface, with detents, a scrim and a popup presenter for the pickers. A drawn container, not a window.
+  - **Charts** (F4) in an optional `SkiaUi.Maui.Charts` package: sparkline, line, area and bar first; pie, donut, gauges, pan and zoom later.
+  - **Chips** (F5), which the pickers' token template can then use; **range slider and rating** (F6); **autocomplete** (F7).
+  - **Lottie** (F8) in an optional `SkiaUi.Maui.Lottie` package on Skottie, drawn by the compositor.
+  - **Data grid** (F9): virtualized rows, frozen header and columns, sorting, column resize; waits for the virtual stack's horizontal layout.
+  - **Backdrop blur** (F10): only if it holds 50 fps on the Galaxy S9.
 
 ### MAUI parity
 
@@ -182,6 +199,7 @@ Taken up when a real app needs it, roughly in this order within each area. Items
 - Recording Core-only subtrees off the UI thread (the look, the color scheme and the text and image caches would have to be safe to read from it); hit-testing against render-thread transforms while animations run.
 - Overlay masks, so drawn popups can cover hosted native controls (mostly WebView, media and maps now that text fields are drawn); cheaper overlay bookkeeping on Android.
 - Windows GPU surfaces can still flash the window's backdrop for a frame when their swap chain panel changes size (rare since `SkUiSurfaceSlack`). `SKSwapChainPanel` handles a size change by presenting an empty buffer before the real frame (`pendingSizeChange` in SkiaSharp's `AngleSwapChainPanel`), and that blank can reach the screen. The fix needs a way around that swap: our own ANGLE panel, or a SkiaSharp change.
+- From the November 2026 review: a source generator for what the SkUi\* and Core twins of a control write twice (properties, fluent setters), decided from the duplication the segmented control measures; a way for optional packages to take part in the look (today a package carries its own style object, as Markdown does).
 - A test that keeps the Core layer to [FR-C1](Requirements.md#core-layer-fr-c): no Core node derives from `BindableObject` or `Element`, and the `Microsoft.Maui.Controls` types the Core API uses (`FontAttributes`, `DataTemplate` for picker popups, the host's `SkUiView`) are a list a new one has to join.
 
 ## Verification backlog
