@@ -83,15 +83,17 @@ Checked against the code on `devel` (16 November 2026).
   - Each column stays one adjustable element: VoiceOver swipe up / down and TalkBack's scroll actions (increment / decrement exist), and the value text is the visible label (exists).
   - Add Page Up / Page Down as ±5 rows on the inline control if the popup's paging is a different step (check).
   - Device checks: VoiceOver (iPhone, iPad), TalkBack (tablet), Narrator.
-- **W6 The popup uses the public control.** Size: S.
+- **W6 The popup uses the public control.** Size: S. **Done** with W1 and W2: the popup (`SkUiColumnsPopup`) and `SkUiPickerWheels` both host `SkUiWheelsView`, the option this step allowed. The popup keeps its draft / immediate choice in the request; the inline view keeps its settle timer. The multi-column, date and time and bottom-pane wheel tests pass unchanged.
   - `SkUiColumnsPopup` hosts a `SkUiPickerWheels` (or the shared `SkUiWheelsView` underneath it, whichever keeps the draft / immediate logic simpler) so there is one implementation, as #98 asks.
   - The multi-column picker, the date and time pickers and the bottom pane's single-list wheel stay green.
-- **W7 Docs, demo, changelog.** Size: S.
+- **W7 Docs, demo, changelog.** Size: S. **Done**: the control page, controls index and multi-column link, the gallery page with both layouts, and the changelog came with W2–W5. W7 added the wheels to [Accessibility.md](Accessibility.md#picker-wheels), `KeepsDrags` to [EventMechanism.md](EventMechanism.md#native-coordination), FR-29 in [Requirements.md](Requirements.md), the roadmap status, and the inline mapping in the migration skill (`skiaui-migrate` controls reference). A Syncfusion line in Migration.md was dropped: the doc lists no third-party pickers.
   - Control page `docs/controls/SkUiPickerWheels.md` and the controls index.
   - The multi-column picker's page links to it ("Inline wheels").
   - A gallery page with the issue's two examples: "every [n] [unit]" with a live readout, and the 3-column "distribute [n] [unit] before [start / due date]" in a sheet.
   - Changelog under `### New features`.
   - No MAUI counterpart, so no Migration row.
+
+**Phase W status:** done headless on `1.12-implementation` (W1–W7). Still open before 1.12.0: the device checks in [Verification](#verification) (haptics on iOS and Android, drags inside a native `ScrollView` and a Community Toolkit sheet, VoiceOver / TalkBack / Narrator on the inline wheels, the built-in pickers' popups unchanged).
 
 ## Phase P: pickers of your own
 
