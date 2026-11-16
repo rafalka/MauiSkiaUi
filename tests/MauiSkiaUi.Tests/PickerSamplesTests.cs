@@ -133,6 +133,46 @@ public sealed class PickerSamplesTests : IDisposable
     }
 
     [Fact]
+    public void ThePickersOfYourOwnPickAColorADurationAndARating()
+    {
+        var sample = new CustomPickersSample();
+        var root = Content(sample);
+
+        // Swatches: a tap on Teal chooses it and closes; the field shows its name with the swatch in front.
+        sample.LabelColor.IsOpen = true;
+        var colors = Assert.IsType<SkUiValuePopupRequest<Color?>>(_presenter.Current);
+        var teal = Descendants((SkUiView)colors.Content!).OfType<SkUiButton>().Single(button => SemanticProperties.GetDescription(button) == "Teal");
+        Assert.True(((ISkUiAccessibleNode)teal).PerformSemanticsAction(SkUiSemanticsActions.Activate));
+        _ui.RunPending();
+        Assert.Equal(ColorPicker.Swatches[4].Color, sample.LabelColor.Value);
+        Assert.False(sample.LabelColor.IsOpen);
+        Assert.True(sample.LabelColor.LeadingView is SkUiBox { IsVisible: true });
+
+        // Wheels with OK: the inline wheels are the body; a change is a draft until OK.
+        sample.MeetingLength.IsOpen = true;
+        var length = Assert.IsType<SkUiValuePopupRequest<TimeSpan?>>(_presenter.Current);
+        Assert.Single(Descendants((SkUiView)length.Content!).OfType<SkUiPickerWheels>());
+        Assert.True(length.SetValue(TimeSpan.FromMinutes(90)));
+        Assert.Equal(TimeSpan.FromMinutes(45), sample.MeetingLength.Value);
+        Assert.True(length.Accept());
+        _ui.RunPending();
+        Assert.Equal(TimeSpan.FromMinutes(90), sample.MeetingLength.Value);
+
+        // Core: four stars, read as "4 of 5 stars".
+        sample.Rating.IsOpen = true;
+        Assert.True(Assert.IsType<SkUiValuePopupRequest<int?>>(_presenter.Current).Complete(4));
+        _ui.RunPending();
+        Assert.Equal(4, sample.Rating.Value);
+        Assert.Equal("4 of 5 stars", SkUiSemanticsTree.Build(root).Flatten().First(node => ReferenceEquals(node.Source, sample.Rating)).Value);
+
+        // Without a page to show its action sheet on, the action-sheet picker falls back to the drawn swatches.
+        sample.FolderColor.IsOpen = true;
+        Assert.IsType<SkUiValuePopupRequest<Color?>>(_presenter.Current).Clear();
+        _ui.RunPending();
+        Assert.Null(sample.FolderColor.Value);
+    }
+
+    [Fact]
     public void TheDateOfBirthDropsDaysAMonthDoesNotHave()
     {
         var root = Content(new DateOfBirthSample());

@@ -23,7 +23,7 @@ public abstract class SkUiCorePickerBase : SkUiCoreNode, ISkUiFontElement, ISkUi
     private SkUiCoreNode? _leadingView;
 
     /// <summary>
-    /// Creates a picker. For a picker of your own: say what the field shows with <see cref="SetFieldText"/>, what the popup holds with
+    /// Creates a picker. For a picker of your own: say what the field shows with <see cref="SetFieldText(string)"/>, what the popup holds with
     /// <see cref="CreatePopupContent"/> (or show your own UI in <see cref="ShowPopupAsync"/>), and what clearing does with
     /// <see cref="OnClearSelection"/>. <see cref="SkUiCoreValuePicker{T}"/> does this for a value of one type.
     /// </summary>
@@ -444,7 +444,7 @@ public abstract class SkUiCorePickerBase : SkUiCoreNode, ISkUiFontElement, ISkUi
 
     /// <summary>
     /// A picker of your own: the choice is cleared (<see cref="ClearSelection"/>, the field's clear button, Delete on the field, the
-    /// popup's Clear button). Set the value to none and call <see cref="SetFieldText"/> with <c>null</c>. SkiaUi extension.
+    /// popup's Clear button). Set the value to none and call <see cref="SetFieldText(string)"/> with <c>null</c>. SkiaUi extension.
     /// </summary>
     protected virtual void OnClearSelection()
     {

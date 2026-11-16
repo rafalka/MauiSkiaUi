@@ -140,14 +140,14 @@ Checked against the code on `devel` (16 November 2026).
   - Everything else (placeholder, title, `UpdateMode`, placement, presenter, `LeadingView`, field chrome, keyboard, semantics) comes from the base.
   - Screen readers: the field reads the formatted value. `protected virtual string? DescribeValue(T value)` gives a spoken text that differs from the shown one (a color's name for a swatch).
   - Tests: the generic statics for each closed type (two closed types side by side), the binding round trip, the change events, the text sources in order, XAML for a closed subclass (`RuntimeXamlCollection`), implicit styles.
-- **P4 Samples built on public API only.** Size: S–M.
+- **P4 Samples built on public API only.** Size: S–M. **Done** on `1.12-implementation`: the samples app's **Pickers of your own** page (`CustomPickersSample`, with `ColorPicker`, `ActionSheetColorPicker`, `DurationPicker` and `CoreRatingPicker` in their own files). The samples project has no `InternalsVisibleTo`, and it compiles: the API is enough. Test: `PickerSamplesTests.ThePickersOfYourOwnPickAColorADurationAndARating`. There is no demo gallery page: the value pickers are abstract, so the demo check doesn't ask for one, and the samples page shows them better.
   - In `samples/MauiSkiaUiSamples`:
     - `ColorPicker : SkUiValuePicker<Color>`, a swatch grid body;
     - `DurationPicker : SkUiValuePicker<TimeSpan>`, whose body is a `SkUiPickerWheels` (hours | minutes), showing that phase W's control is also a popup body;
     - a Core variant of one of them.
   - Plus one `ShowPopupAsync` override that answers `SkUiValuePopupRequest<Color>` with the app's own UI (the presenter path).
   - The samples project has no `InternalsVisibleTo`, so this proves D5. Gallery pages in the demo too.
-- **P5 Docs.** Size: S.
+- **P5 Docs.** Size: S. **Done**: the [CustomPickers.md](../controls/CustomPickers.md) guide, linked from the controls index, [SkUiPicker.md](../controls/SkUiPicker.md), [Architecture.md](Architecture.md#popups), [Popups.md](Popups.md#pickers-of-your-own), the roadmap, FR-29 and the migration skill; the changelog entries came with P1–P3.
   - A new guide `docs/controls/CustomPickers.md` ("Pickers of your own"):
     - when to override `ShowPopupAsync` / `SelectItemsAsync` (new UI, existing types);
     - when to derive `SkUiValuePicker<T>` (a new value type);
@@ -156,6 +156,8 @@ Checked against the code on `devel` (16 November 2026).
   - Link it from [SkUiPicker.md](../controls/SkUiPicker.md#popups-on-your-popup-system), [Popups.md](Popups.md), the controls index and [Architecture.md](Architecture.md#popups).
   - Changelog under `### New features`.
   - The migration skills: a MAUI app's own picker controls (custom `Picker` handlers) can be pointed at the guide (a note in `skiaui-migrate`, no checker rule).
+
+**Phase P status:** done headless on `1.12-implementation` (P1–P5). Device checks of the samples' pickers in each placement are still open ([Verification](#verification)).
 
 ## Order
 

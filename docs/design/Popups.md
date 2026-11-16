@@ -29,3 +29,8 @@ SkiaUi does not replace navigation, so it ships no pages and no popup windows of
 
 `SkUiPopups.ShowContentAsync(anchor, content, preferredSize)` shows any drawn view in the window through the same presenter, under the same contract: placed by the look's popup margin inside the safe area, closed by its request's `Cancel`, and it returns `false` when no presenter is registered. The Markdown view's `AllowImageZoom` uses it.
 
+## Pickers of your own
+
+Since 1.12 a picker derived from outside the library (`SkUiPickerBase.CreatePopupContent`, or `SkUiValuePicker<T>.CreateValueContent`) supplies an `SkUiPickerPopupContent`. The popup session asks the picker for it first, then the built-in picker's own content factory, then the list. The internal `SkUiCustomPopup` hosts the content's body in the same chrome as the built-in popups (`SkUiPopupParts`: title, the app's header and footer, buttons, the bottom pane's toolbar) and implements `ISkUiPickerPopupContent`, so placement, sizing, closing and focus are the session's as for every picker.
+
+The request is an `SkUiCustomPopupRequest` (`Accept` runs the content's `OnAccepted`, `Clear` clears the picker); a value picker's content creates `SkUiValuePopupRequest<T>`, which holds the draft for both the drawn body and a presenter's own UI. The host holds the picker weakly and lets go of the content when the popup has gone. Guide: [CustomPickers.md](../controls/CustomPickers.md).

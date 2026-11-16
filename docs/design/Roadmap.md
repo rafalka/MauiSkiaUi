@@ -129,7 +129,7 @@ Every package targets `net11.0-*` with MAUI 11 next to `net10.0-*` with MAUI 10,
 Additive only. Steps, decisions and verification: [ImplementationPlan-1.12.md](ImplementationPlan-1.12.md).
 
 - **Inline wheels** ([#98](https://github.com/rafalka/MauiSkiaUi/issues/98)) (done on `1.12-implementation`, device checks pending: [SkUiPickerWheels](../controls/SkUiPickerWheels.md)): `SkUiPickerWheels`, the popup's wheels as a public control placed in a layout and always open. It has `SkUiPickerColumn` columns, commits once the wheel settles, has optional haptics, keeps vertical drags from scrolling a parent, and gives each column screen reader and keyboard support. The multi-column and date / time popups use it, so there is one implementation. SkUi\* only until a Core carousel exists.
-- **Pickers of your own:** the picker base classes can be derived from outside the library, with a public popup content class (SkiaUi's popup chrome around the app's drawn body) and a typed request for presenters. Built on them: `SkUiValuePicker<T>` / `SkUiCoreValuePicker<T>`, for value types SkiaUi does not ship (a color, a duration). Samples are built on public API only, with a guide.
+- **Pickers of your own** (done on `1.12-implementation`: [CustomPickers.md](../controls/CustomPickers.md)): the picker base classes can be derived from outside the library, with a public popup content class (SkiaUi's popup chrome around the app's drawn body) and a typed request for presenters. Built on them: `SkUiValuePicker<T>` / `SkUiCoreValuePicker<T>`, for value types SkiaUi does not ship (a color, a duration). Samples are built on public API only, with a guide.
 
 ## Backlog (1.x)
 
