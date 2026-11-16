@@ -18,9 +18,13 @@ What the next releases bring, and the work after them. What has shipped is in th
 | **1.8.0** | 10.0.120 | 27 | 10.0.402 | As 1.1.0 | `master`, released 6 November 2026 |
 | **1.9.0** | 10.0.120 | 27 | 10.0.402 | As 1.1.0 | `master`, released 10 November 2026 |
 | **1.10.0** | 10.0.120 | 27 | 10.0.402 | As 1.1.0 | `master`, released 11 November 2026 |
-| **1.11.0** | 10.0.130 (net10) and 11.0.10 (net11) | 27 (net10), 27.2 (net11) | 11.0.100 | As 1.1.0; Android 7.0 (API 24) on net11 | Planned |
+| **1.10.1** | 10.0.120 | 27 | 10.0.402 | As 1.1.0 | `master`, released 11 November 2026 |
+| **1.10.2** | 10.0.120 | 27 | 10.0.402 | As 1.1.0 | `master`, released 11 November 2026 |
+| **1.10.3** | 10.0.120 | 27 | 10.0.402 | As 1.1.0 | `master`, released 12 November 2026 |
+| **1.11.0** | 10.0.130 (net10) and 11.0.10 (net11) | 27 (net10), 27.2 (net11) | 11.0.100 | As 1.1.0; Android 7.0 (API 24) on net11 | `master`, released 14 November 2026 |
+| **1.12.0** | As 1.11.0 | As 1.11.0 | 11.0.100 | As 1.11.0 | Planned |
 
-SkiaUi up to 1.10 targets MAUI 10.x only; 1.11 adds net11 targets with MAUI 11 next to them ([1.11.0](#1110-net-11-and-maui-11-planned)). Development happens on `devel`; `master` holds stable releases ([Releasing.md](../Releasing.md#branches-and-versions)).
+SkiaUi up to 1.10 targets MAUI 10.x only; 1.11 adds net11 targets with MAUI 11 next to them ([1.11.0](#1110-net-11-and-maui-11-shipped)). Development happens on `devel`; `master` holds stable releases ([Releasing.md](../Releasing.md#branches-and-versions)).
 
 ### 1.0.0: first stable release (shipped)
 
@@ -103,7 +107,7 @@ Moved from 1.6, then from 1.8. Built on the branch `1.9-implementation`. Steps, 
 - **Layouts and containers:** a tile layout for galleries of equal tiles, with an overflow tile (done: [SkUiTileLayout](../controls/SkUiTileLayout.md)); Core twins of the state container and the expander (done: `SkUiCoreStateContainer`, `SkUiCoreExpander`; with independent `ScaleX` / `ScaleY` and `AnchorX` / `AnchorY` on Core nodes, so animating one scale axis of a Core node no longer scales both).
 - **Text input:** password reveal (show / hide) in drawn password fields (done: `IsPasswordRevealed`, `ShowsPasswordRevealButton`, `HidesPasswordOnUnfocus`, `PasswordRevealMode` (toggle or hold) on both entries; device checks in the [verification backlog](#verification-backlog)).
 
-.NET 11 / MAUI 11 is planned for [1.11.0](#1110-net-11-and-maui-11-planned).
+.NET 11 / MAUI 11 shipped in [1.11.0](#1110-net-11-and-maui-11-shipped).
 
 ### 1.10.0: Community Toolkit layouts and collection view parity (shipped)
 
@@ -112,13 +116,20 @@ Built on the branch `1.10-implementation`. Steps, order and open decisions: [Imp
 - **Community Toolkit layouts** in `SkiaUi.Maui.CommunityToolkit`: drawn `SkUiDockLayout` and `SkUiUniformItemsLayout` on the toolkit's layout managers, with the toolkit's attached `DockPosition`; `SkUiLayout.AffectsChildLayout` and `OnChildrenChanged` made public for them (and for app layouts on other managers) (done: [SkUiDockLayout](../controls/SkUiDockLayout.md), [SkUiUniformItemsLayout](../controls/SkUiUniformItemsLayout.md)).
 - **Collection view parity:** keyboard item navigation (the list as one tab stop with a current item), extended (Shift / Ctrl) selection, a selected-item template, and animated inserts, removes and moves (opt-in in 1.x) (done: [Keyboard](../controls/SkUiCollectionView.md#keyboard), [Animated changes](../controls/SkUiCollectionView.md#animated-changes), `SelectedItemTemplate`; device checks in the [verification backlog](#verification-backlog)).
 
-### 1.11.0: .NET 11 and MAUI 11 (planned)
+### 1.11.0: .NET 11 and MAUI 11 (shipped)
 
-Every package targets `net11.0-*` with MAUI 11 next to `net10.0-*` with MAUI 10, so apps that stay on .NET 10 keep restoring the net10 assets and never see MAUI 11; no net10 target framework is dropped. Platform support only: the MAUI 11 members new to the API go to [MAUI parity](#maui-parity). Ships as `1.11.0-Prerelease01`, then `1.11.0` after device checks on both runtimes (CoreCLR replaces Mono on mobile in .NET 11). Steps, decisions and verification: [ImplementationPlan-1.11.md](ImplementationPlan-1.11.md); Steps 0 to 5 (TFM lists and pins, builds, the API check, CI and packing) are done on the branch `feature/net11-support`.
+Every package targets `net11.0-*` with MAUI 11 next to `net10.0-*` with MAUI 10, so apps that stay on .NET 10 keep restoring the net10 assets and never see MAUI 11; no net10 target framework is dropped. Platform support only: the MAUI 11 members new to the API go to [MAUI parity](#maui-parity). Built on the branch `feature/net11-support`, with device checks on both runtimes (CoreCLR replaces Mono on mobile in .NET 11). Steps, decisions and verification: [ImplementationPlan-1.11.md](ImplementationPlan-1.11.md).
 
 - Per-TFM MAUI (10.0.130 / 11.0.10), Community Toolkit (15.0.1 / 17.0.0) and minimum Android (API 21 / 24); SkiaSharp 4.154.0 on both lines.
 - .NET SDK 11.0.100 and Xcode 27.2 build both lines' packages (decided in step 0); SDK 10 builds the net10 iOS / Mac Catalyst app heads and the .NET 10 line alone (`net10/`).
 - CI over both lines (the Xcode 26.6 / 27.2 jobs stay as net10-only jobs on SDK 10), headless tests on `net10.0` and `net11.0`, an API comparison between the lines and against the newest 1.x release, and net10 / net11 consumer apps restoring the packed packages.
+
+### 1.12.0: inline picker wheels and pickers of your own (planned)
+
+Additive only. Steps, decisions and verification: [ImplementationPlan-1.12.md](ImplementationPlan-1.12.md).
+
+- **Inline wheels** ([#98](https://github.com/rafalka/MauiSkiaUi/issues/98)): `SkUiPickerWheels`, the popup's wheels as a public control placed in a layout and always open. It has `SkUiPickerColumn` columns, commits once the wheel settles, has optional haptics, keeps vertical drags from scrolling a parent, and gives each column screen reader and keyboard support. The multi-column and date / time popups use it, so there is one implementation. SkUi\* only until a Core carousel exists.
+- **Pickers of your own:** the picker base classes can be derived from outside the library, with a public popup content class (SkiaUi's popup chrome around the app's drawn body) and a typed request for presenters. Built on them: `SkUiValuePicker<T>` / `SkUiCoreValuePicker<T>`, for value types SkiaUi does not ship (a color, a duration). Samples are built on public API only, with a guide.
 
 ## Backlog (1.x)
 

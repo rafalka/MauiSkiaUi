@@ -23,7 +23,7 @@
 | [Releasing](Releasing.md) | Versions, branches, the changelog and the publish workflow |
 | [Architecture](design/Architecture.md) | How SkiaUi works: start here |
 | [Requirements](design/Requirements.md) | Goals, scope, principles, requirement status |
-| [Roadmap](design/Roadmap.md) | What shipped in each release, the next release (1.11: .NET 11 and MAUI 11) and the backlog |
+| [Roadmap](design/Roadmap.md) | What shipped in each release, the next release (1.12: inline picker wheels and pickers of your own) and the backlog |
 
 Design docs, by mechanism:
 
