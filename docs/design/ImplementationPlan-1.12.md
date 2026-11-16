@@ -46,12 +46,18 @@ Checked against the code on `devel` (16 November 2026).
 
 ## Phase W: inline wheels (#98)
 
-- **W1 Separate the wheels from the popup.** Size: M–L. **Done** on `1.12-implementation`: `SkUiWheelsView` (`Controls/Basic/SkUiWheelsView.cs`, with `SkUiWheelEffect` and `ISkUiColumnsRules`) chooses through three host callbacks (what is chosen, select, item states changed); `SkUiColumnsPopup` keeps the chrome, the request, Enter / Escape / Tab, focus and release. The existing suite passes unchanged on `net10.0` and `net11.0`; `WheelsViewTests` covers the wheels on their own. Not done yet: the bench has no picker or popup-opening scenario, so the "no slower" check waits for one (W2 adds it).
+- **W1 Separate the wheels from the popup.** Size: M–L. **Done** on `1.12-implementation`: `SkUiWheelsView` (`Controls/Basic/SkUiWheelsView.cs`, with `SkUiWheelEffect` and `ISkUiColumnsRules`) chooses through three host callbacks (what is chosen, select, item states changed); `SkUiColumnsPopup` keeps the chrome, the request, Enter / Escape / Tab, focus and release. The existing suite passes unchanged on `net10.0` and `net11.0`; `WheelsViewTests` covers the wheels on their own. The bench has no popup-opening scenario: W2 added `skui-picker-wheels` (inline wheels, which build the same `SkUiWheelsView`), and the popup gained only one content view, so no popup scenario was added.
   - Move the wheel part of `SkUiColumnsPopup` into one internal class, `SkUiWheelsView`: the grid of `WheelView`s, entries, band, fade, keys, type-ahead, semantics, item states and rules.
   - `SkUiColumnsPopup` keeps the chrome and the `ISkUiPickerPopupContent` role, and hosts a `SkUiWheelsView`.
   - Behavior does not change. The existing wheel tests pass unchanged; add tests only where the split adds a seam (the wheels view on its own: positions, keys, semantics).
   - Check that opening the popup is no slower (bench).
-- **W2 `SkUiPickerWheels`, the public inline control.** Size: M.
+- **W2 `SkUiPickerWheels`, the public inline control.** Size: M. **Done** on `1.12-implementation`:
+  - `SkUiPickerWheels : SkUiView` hosts a `SkUiWheelsView` as its only child, built again when the columns or the look-affecting properties change (once, when the view reaches a tree, for XAML).
+  - The column bookkeeping moved from `SkUiColumnsModel` to `SkUiColumnsTracker` (`ISkUiColumnsHost`), shared by the pickers and the inline wheels.
+  - Tests: `PickerWheelsTests` (with XAML), the implicit-style and demo checks, and the leak scenario `PickerWheelsOpened`.
+  - Docs ([SkUiPickerWheels.md](../controls/SkUiPickerWheels.md), the controls index, a link from the multi-column picker's page), the changelog and the gallery page (`PickerWheelsDemoPage`, the issue's two layouts) came early from W7, because the demo check requires a page for every control.
+  - Bench `skui-picker-wheels` (12 wheels × 3 columns, headless): measure 6.8 ms, record 1.2 ms, about 10.5 MB allocated, mostly the carousels and their items. Column widths are measured once per build (8.6 ms before).
+  - Not done: `SelectionBackground` (the band stays the look's `PickerWheelBandColor`); `IsHapticFeedbackEnabled` comes with W3's haptics.
   - `SkUiPickerWheels : SkUiView`. `Columns` (`SkUiPickerColumn`, the XAML content property) works as on `SkUiMultiColumnPicker`, with the same selection rules for each column. Columns can be shared, through `SkUiColumnsModel`.
   - Properties: `VisibleRows` (odd, 3–9, default 5), `RowHeight` (default: the look's `PickerWheelRowHeight`), `CommitDelay` (D2), `IsHapticFeedbackEnabled` (D3), `IsLoopEnabled` is per column (exists).
   - The row text style follows the pickers: font properties, `TextColor`, `SelectionBackground` (the band).
@@ -60,7 +66,7 @@ Checked against the code on `devel` (16 November 2026).
   - It measures to the column widths × (`VisibleRows` × `RowHeight`).
   - It is one tab stop: Left / Right move between columns, and focus is drawn on the active column.
   - Tests: two-way bindings for each column, `CommitDelay` (no writes while scrolling, one write after it settles), columns added and removed at runtime, items changed while scrolling, right to left, implicit styles (`ImplicitStyleTests`), measuring, and a leak scenario in `tests/Shared/MemoryLeaks`.
-- **W3 Settle commit and haptics.** Size: S–M.
+- **W3 Settle commit and haptics.** Size: S–M. **Settle commit done** with W2. One change from the plan: keys and screen reader steps also write after `CommitDelay` (it starts when no wheel turns), so holding a key doesn't write every row. Haptics are still to do.
   - D2 on the inline control: the wheel's `IsScrolling` going false starts a timer that `CommitDelay` cancels on renewed scrolling. Keyboard and screen reader steps commit at once.
   - D3: the platform helper `SkUiHaptics.SelectionTick(view)`, called when the row under the band changes during a drag or fling. It is limited to one tick per frame so a fast fling does not buzz. The popup's wheels use it too.
   - Tests: the timer through the frame clock used in tests (headless, no real waiting); the haptics call counted through an internal test hook.

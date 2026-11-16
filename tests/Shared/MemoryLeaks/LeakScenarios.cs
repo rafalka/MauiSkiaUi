@@ -57,7 +57,7 @@ public static class LeakScenarios
         new("CarouselSwiped", Scrolling, "SkUiCarouselView over a long-lived collection with a long-lived shared cover flow effect, a long-lived position command and a linked indicator view: swiped and flung forward past the middle of its looping strip (moved back by corrections), an indicator tapped, the position set by code, items added and removed, the effect switched, looping turned off and the end reached (load-more command); closed mid-fling.", () => new CarouselRun()),
         new("PickerOpened", Controls, "SkUiPicker and SkUiCorePicker over a long-lived collection (a display binding, an item template), opened on a long-lived presenter that keeps the last request (as a popup stack does): tapped open and an item chosen in the drawn list, dismissed, closed by IsOpen = false and by hiding the picker, opened by the keyboard, the Core picker chosen; closed with a popup open.", () => new PickerRun()),
         new("DisplayBindingChips", Controls, "Chips an app control builds from view-model items through a long-lived SkUiDisplayBinding over a long-lived binding (as one in app resources), fading on press: texts read from a list, from a sequence and one item alone, chips tapped, the items replaced and read again.", () => new DisplayBindingRun()),
-        new("PickerWheelsOpened", Controls, "SkUiPicker with several choices and SkUiMultiColumnPicker, and their Core twins, over long-lived collections (columns' items, a long-lived presenter that keeps the last request): tapped open, rows toggled and wheels set through the request, completed with a selection, a draft accepted (UpdateMode WhenFinished), dismissed, closed by IsOpen = false and by hiding, columns removed while open; closed with a popup open.", () => new PickerWheelsRun()),
+        new("PickerWheelsOpened", Controls, "SkUiPicker with several choices and SkUiMultiColumnPicker, and their Core twins, over long-lived collections (columns' items, a long-lived presenter that keeps the last request): tapped open, rows toggled and wheels set through the request, completed with a selection, a draft accepted (UpdateMode WhenFinished), dismissed, closed by IsOpen = false and by hiding, columns removed while open; inline SkUiPickerWheels over the same items: chosen with a key, set by the app, built again when a column comes and goes; closed with a popup open.", () => new PickerWheelsRun()),
         new("DateTimePickersOpened", Controls, "SkUiDatePicker, SkUiTimePicker and SkUiDateTimePicker, and the Core date and time pickers, with long-lived blackout dates and a long-lived day rule, on a long-lived presenter that keeps the last request: tapped open, wheels turned (a month without the chosen day, a time before the minimum), a date and a time set and completed through the typed requests, a draft accepted (UpdateMode WhenFinished), cleared, dismissed, the range changed while open; closed with a popup open.", () => new DateTimePickersRun()),
         new("GesturesMixed", Input, "Tap, double tap, long press, swipe, pan and pinch recognizers (drawn and Core); closed with a finger still down.", () => new GesturesRun()),
         new("AnimationsRunning", Rendering, "Render-thread animations (fade-in from 0, move, rotate, scale), a spinner; closed while they run; a node detached mid-animation.", () => new AnimationsRun()),
@@ -2599,6 +2599,7 @@ public static class LeakScenarios
         private SkUiCorePicker? _coreMultiple;
         private SkUiMultiColumnPicker? _columns;
         private SkUiCoreMultiColumnPicker? _coreColumns;
+        private SkUiPickerWheels? _inline;
         private int _changes;
 
         public override View Build(LeakScenarioContext context)
@@ -2656,6 +2657,12 @@ public static class LeakScenarios
             stack.Children.Add(new SkUiCoreHost().SetContent(_coreMultiple));
             stack.Children.Add(_columns);
             stack.Children.Add(new SkUiCoreHost().SetContent(_coreColumns));
+            // Inline wheels over the long-lived items: every set of wheels they build must go with them.
+            _inline = context.Track(new SkUiPickerWheels { VisibleRows = 3, CommitDelay = TimeSpan.Zero, SelectionChangedCommand = LeakCommands.Shared }, "inline wheels");
+            _inline.Columns.Add(new SkUiPickerColumn { ItemsSource = LeakItems.Shared, Loop = true, Header = "Inline" });
+            _inline.SelectionChanged += (_, _) => _changes++;
+            context.Track(_inline.Wheels, "inline wheels' first build");
+            stack.Children.Add(_inline);
             return Root(stack);
         }
 
@@ -2718,6 +2725,13 @@ public static class LeakScenarios
             coreWheels.SetSelectedIndex(0, 6);
             coreWheels.Accept();
             await context.SettleAsync();
+            // The inline wheels: a key, the app's choice, then built again with a column added and taken away.
+            ((ISkUiKeyHandler)_inline!).OnKeyDown(new SkUiKeyEvent(SkUiKey.Down, SkUiKeyModifiers.None, false));
+            _inline.Columns[0].SelectedIndex = 7;
+            _inline.Columns.Add(new SkUiPickerColumn { ItemsSource = LeakItems.Shared });
+            context.Track(_inline.Wheels, "inline wheels' second build");
+            _inline.Columns.RemoveAt(1);
+            await context.SettleAsync();
             // Closed with popups open (their content goes once the UI thread has seen the popups close, after the page).
             _multiple.IsOpen = true;
             await context.SettleAsync();
@@ -2735,6 +2749,7 @@ public static class LeakScenarios
             : _columns?.SelectedIndices.SequenceEqual([2]) != true ? "the wheels' selection was not applied"
             : _coreMultiple?.SelectedIndices.SequenceEqual([1]) != true ? "the Core list with several choices was not chosen"
             : _coreColumns?.SelectedIndices.SequenceEqual([6]) != true ? "the Core wheels' selection was not applied"
+            : _inline?.SelectedIndices.SequenceEqual([7]) != true ? "the inline wheels did not follow the app's choice"
             : _single?.SelectedIndex != 5 || _single.FieldView is null ? "the field template's picker did not show its choice"
             : _changes == 0 ? "no change was reported"
             : null;

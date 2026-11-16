@@ -77,6 +77,7 @@ public static class Scenarios
         new CollectionSnapFling(),
         new CollectionChanges(animated: false),
         new CollectionChanges(animated: true),
+        new PickerWheels(),
         new Spinners(),
         new ToggleTransitions(),
         new ToggleTransitions(busy: true),
@@ -1535,4 +1536,52 @@ public sealed class NestedExpanders(bool scroll = false, string? variant = null)
     {
         public void Dispose() => timer.Stop();
     }
+}
+
+/// <summary>
+/// Inline picker wheels (1.12 W2): twelve <c>SkUiPickerWheels</c> of three columns (hours, minutes, AM / PM), each wheel a
+/// virtualized carousel with the wheel effect. Baselines before 1.12 have no inline wheels and build an empty stack.
+/// </summary>
+public sealed class PickerWheels : BenchScenario
+{
+    private const int Count = 12;
+
+    private static readonly string[] Hours = [.. Enumerable.Range(1, 12).Select(hour => hour.ToString("00", System.Globalization.CultureInfo.InvariantCulture))];
+    private static readonly string[] Minutes = [.. Enumerable.Range(0, 60).Select(minute => minute.ToString("00", System.Globalization.CultureInfo.InvariantCulture))];
+    private static readonly string[] DayParts = ["AM", "PM"];
+
+    public override string Name => "skui-picker-wheels";
+    public override string Description => "12 SkUiPickerWheels of 3 columns (12 / 60 / 2 items) in a scroll view (none before 1.12); update = every column chooses its next item";
+
+    // Release builds trim: keep the reflected control's constructor and properties.
+    [System.Diagnostics.CodeAnalysis.DynamicDependency(System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.PublicConstructors
+        | System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.PublicProperties, "MauiSkiaUi.SkUiPickerWheels", "MauiSkiaUi")]
+    public override View Build()
+    {
+        var stack = new SkUiVerticalStackLayout { Spacing = 8 };
+        // Created by name: baseline commits without inline wheels measure an empty stack.
+        if (typeof(SkUiView).Assembly.GetType("MauiSkiaUi.SkUiPickerWheels") is { } type)
+            for (var index = 0; index < Count; index++)
+            {
+                var wheels = (SkUiView)Activator.CreateInstance(type)!;
+                if (type.GetProperty("Columns")?.GetValue(wheels) is IList<SkUiPickerColumn> columns)
+                {
+                    columns.Add(new SkUiPickerColumn { ItemsSource = Hours, SelectedIndex = index % Hours.Length, Loop = true });
+                    columns.Add(new SkUiPickerColumn { ItemsSource = Minutes, SelectedIndex = index * 5 % Minutes.Length, Loop = true });
+                    columns.Add(new SkUiPickerColumn { ItemsSource = DayParts, SelectedIndex = index % 2 });
+                }
+                stack.Children.Add(wheels);
+            }
+        return Scenarios.Scroll(stack);
+    }
+
+    public override Action<View>? Update => root =>
+    {
+        if (((SkUiScrollView)root).Content is not SkUiVerticalStackLayout stack)
+            return;
+        foreach (var child in stack.Children)
+            if (child.GetType().GetProperty("Columns")?.GetValue(child) is IList<SkUiPickerColumn> columns)
+                foreach (var column in columns)
+                    column.SelectedIndex = (column.SelectedIndex + 1) % Math.Max(1, column.ItemsSource?.Count ?? 1);
+    };
 }

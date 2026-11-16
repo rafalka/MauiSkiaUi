@@ -13,6 +13,15 @@ Publishing (the NuGet publish workflow, [docs/Releasing.md](docs/Releasing.md)) 
 
 ## Unreleased
 
+### New features
+
+- **Inline picker wheels (1.12 W2, [#98](https://github.com/rafalka/MauiSkiaUi/issues/98)):** `SkUiPickerWheels` shows the multi-column picker's wheels in the page, always open, with no field to tap ([SkUiPickerWheels.md](docs/controls/SkUiPickerWheels.md)).
+  - `Columns` of `SkUiPickerColumn` (the XAML content), the same columns as `SkUiMultiColumnPicker`: two-way `SelectedIndex` / `SelectedItem`, `Loop`, `Width`, `Header`, `ItemTemplate`, items that cannot be chosen.
+  - The wheels write the columns once they have settled (`CommitDelay`, default 100 ms), not for each row passed; the app's choice moves them.
+  - `VisibleRows`, `RowHeight`, the items' font and `TextColor`; `SelectedIndices`, `SelectedItems`, `SelectionChanged`, `SelectionChangedCommand`.
+  - Keyboard (one tab stop) and screen readers (each wheel one adjustable element) as in the popup.
+  - The popup's wheels and the inline ones are one implementation; a gallery page in the demo.
+
 ### Other
 
 - Demo and samples: a Release publish of the net11 Mac Catalyst apps (universal, ReadyToRun on CoreCLR) no longer fails with NETSDK1191 or puts the `.app` under an `osx-arm64` folder; the repository's `Directory.Build.props` works around the Mac Catalyst SDK filling in the universal runtime identifiers after the checks that read them. Apps built on SkiaUi that hit the same error can set `AllowReadyToRunWithoutRuntimeIdentifier=true` and `UseCurrentRuntimeIdentifier=false` for `net11.0-maccatalyst`, or publish with `-r maccatalyst-arm64`.

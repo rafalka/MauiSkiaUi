@@ -41,6 +41,7 @@ public static class ComponentDemos
         new(typeof(SkUiPicker), typeof(PickerMultipleDemoPage), nameof(Picker), ComponentCategory.BasicControls,
             () => new PickerMultipleDemoPage(), Key: "SkUiPickerMultiple", Scenario: "several choices (SelectionMode = Multiple)"),
         new(typeof(SkUiMultiColumnPicker), typeof(MultiColumnPickerDemoPage), ComponentDemo.SkUiOnlyCounterpart, ComponentCategory.BasicControls, () => new MultiColumnPickerDemoPage()),
+        new(typeof(SkUiPickerWheels), typeof(PickerWheelsDemoPage), ComponentDemo.SkUiOnlyCounterpart, ComponentCategory.BasicControls, () => new PickerWheelsDemoPage()),
         new(typeof(SkUiDatePicker), typeof(DatePickerDemoPage), nameof(DatePicker), ComponentCategory.BasicControls, () => new DatePickerDemoPage()),
         new(typeof(SkUiTimePicker), typeof(TimePickerDemoPage), nameof(TimePicker), ComponentCategory.BasicControls, () => new TimePickerDemoPage()),
         new(typeof(SkUiDateTimePicker), typeof(DateTimePickerDemoPage), ComponentDemo.SkUiOnlyCounterpart, ComponentCategory.BasicControls, () => new DateTimePickerDemoPage()),

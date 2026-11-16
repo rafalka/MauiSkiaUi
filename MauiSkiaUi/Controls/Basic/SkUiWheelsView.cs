@@ -95,6 +95,7 @@ internal sealed class SkUiWheelsView : SkUiContentView
     private readonly ColumnParts[] _parts;
     private readonly SkUiLabel?[] _headers;
     private readonly double _rowHeight;
+    private readonly double[] _columnWidths;
     private readonly ISkUiColumnsRules? _rules;
     private readonly int[] _start;
     private SkUiTypeAhead _typeAhead;
@@ -115,9 +116,11 @@ internal sealed class SkUiWheelsView : SkUiContentView
     /// <param name="rules">The rules of columns that depend on each other.</param>
     /// <param name="positions">Where wheels with nothing chosen start (-1: the first item).</param>
     /// <param name="statesChanged">Told when the rules changed which items of a column can be chosen.</param>
+    /// <param name="rowHeight">The height of a row (-1: the look's <see cref="SkUiLook.PickerWheelRowHeight"/>).</param>
     public SkUiWheelsView(string[][] texts, bool[] loops, double[] widths, IReadOnlyList<int> selected, int rows, SkUiPickerRowStyle style, bool rightToLeft,
         Func<IReadOnlyList<int>?> chosen, Action<int[]> select, IReadOnlyList<bool>?[]? states = null, ColumnParts[]? parts = null,
-        ISkUiColumnsRules? rules = null, IReadOnlyList<int>? positions = null, Action<int, IReadOnlyList<bool>?>? statesChanged = null)
+        ISkUiColumnsRules? rules = null, IReadOnlyList<int>? positions = null, Action<int, IReadOnlyList<bool>?>? statesChanged = null,
+        double rowHeight = -1)
     {
         _texts = texts;
         _rules = rules;
@@ -144,7 +147,7 @@ internal sealed class SkUiWheelsView : SkUiContentView
         _select = select;
         _statesChanged = statesChanged;
         var look = SkUiLook.Current;
-        _rowHeight = look.PickerWheelRowHeight;
+        _rowHeight = rowHeight > 0 ? rowHeight : look.PickerWheelRowHeight;
         // Not an element itself: screen readers read its wheels.
         AutomationProperties.SetIsInAccessibleTree(this, false);
 
@@ -158,7 +161,9 @@ internal sealed class SkUiWheelsView : SkUiContentView
             InputTransparent = true
         };
         grid.Children.Add(band);
-        var widthOf = ColumnWidths();
+        // Measured once: the texts do not change for the wheels' lifetime (new texts build new wheels).
+        _columnWidths = ColumnWidths();
+        var widthOf = _columnWidths;
         _wheels = new WheelView[texts.Length];
         _headers = new SkUiLabel?[texts.Length];
         // Headers above the wheels when a column has one.
@@ -272,11 +277,17 @@ internal sealed class SkUiWheelsView : SkUiContentView
     /// <summary>The column the keyboard moves (the last one tapped or moved).</summary>
     internal int ActiveColumn => _active;
 
+    /// <summary>Whether a wheel is turning (dragged, flung or scrolled to an item); see <see cref="ScrollingChanged"/>.</summary>
+    public bool IsScrolling => _wheels.Any(wheel => wheel.IsScrolling);
+
+    /// <summary>Raised when a wheel starts or stops turning.</summary>
+    public event EventHandler? ScrollingChanged;
+
     /// <summary>Which items of <paramref name="column"/> can be chosen now (<c>null</c>: all).</summary>
     public IReadOnlyList<bool>? StatesOf(int column) => _states[column];
 
     /// <summary>The width the wheels want: their texts' (or set) widths and the room beside them.</summary>
-    public double PreferredWidth() => SkUiLook.Current.PopupItemPadding.Left + ColumnWidths().Sum();
+    public double PreferredWidth() => SkUiLook.Current.PopupItemPadding.Left + _columnWidths.Sum();
 
     /// <summary>The height the wheels want at <paramref name="width"/>: their rows and the tallest header.</summary>
     public double PreferredHeight(double width)
@@ -299,11 +310,16 @@ internal sealed class SkUiWheelsView : SkUiContentView
     /// <summary>A wheel stopped: on a disabled item it rolls on to the nearest one that can be chosen, and chooses it.</summary>
     private void OnWheelPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs args)
     {
-        if (args.PropertyName != nameof(SkUiCarouselView.IsScrolling) || sender is not SkUiCarouselView { IsScrolling: false } wheel)
+        if (args.PropertyName != nameof(SkUiCarouselView.IsScrolling) || sender is not SkUiCarouselView wheel)
             return;
-        var column = Array.IndexOf(_wheels, wheel);
-        if (column < 0)
-            return;
+        if (!wheel.IsScrolling && Array.IndexOf(_wheels, wheel) is var column and >= 0)
+            Stopped(wheel, column);
+        // After a stop's own correction (which may turn the wheel again): the host sees where it settled.
+        ScrollingChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    private void Stopped(SkUiCarouselView wheel, int column)
+    {
         if (_rules is not null)
         {
             // A wheel that stopped on an item that cannot be chosen, or that was moved while it turned: the rules decide.
