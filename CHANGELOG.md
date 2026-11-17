@@ -13,9 +13,13 @@ Publishing (the NuGet publish workflow, [docs/Releasing.md](docs/Releasing.md)) 
 
 ## Unreleased
 
+### New features
+
+- **`params ReadOnlySpan<T>` overloads (1.14):** beside each `params T[]` member, so a list of values passes without an array: `SetStrokeDashArray` (`SkUiShape`, `SkUiBorder`, `SkUiCoreShape`, `SkUiCoreBorder`), `SetPoints` (`SkUiPolyShape`, `SkUiCorePolyShape`), `SetTransformations` (`SkUiImage`, `SkUiCoreImage`), the `SkUiCorePolygon` and `SkUiCorePolyline` constructors and `SkUiImageCacheKeys.IgnoreQueryParameters`. An array still binds to the array overload.
+
 ### Other
 
-- **Fewer allocations (1.14, NFR-2):** pointer events no longer copy the gesture arena per event (a drag allocated an array per move), the render, image, font and trace gates are `System.Threading.Lock`, text measuring looks a font's glyph coverage up once per string instead of once per character, a memory-cache hit of an image allocates no task and no load context, a frame that changes nothing or only moves nodes allocates nothing (render batches and updates are reused), and looks and painters draw with reused paints instead of a new `SKPaint` per call.
+- **Fewer allocations (1.14, NFR-2):** pointer events no longer copy the gesture arena per event (a drag allocated an array per move), the render, image, font and trace gates are `System.Threading.Lock`, text measuring looks a font's glyph coverage up once per string instead of once per character, a memory-cache hit of an image allocates no task and no load context, a frame that changes nothing or only moves nodes allocates nothing (render batches and updates are reused), and looks and painters draw with reused paints instead of a new `SKPaint` per call. Both .NET lines compile the source as C# 14 (`LangVersion`).
 
 ## 1.13.0
 

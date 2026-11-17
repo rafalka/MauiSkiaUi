@@ -135,6 +135,8 @@ Size: M. After A3 and A4.
 
 **Done when:** steps 1 to 3 are in with their numbers, and step 4 is on the verification backlog or done by a person.
 
+**Status: steps 1 to 3 done; step 4 on the verification backlog.** C# 14 for every project (library, tests, benchmarks, demo and samples build on net11 with 0 warnings). Span overloads for the eleven members (`SpanParamsOverloadTests`); `scripts/api_compat.sh --baseline 1.13.0` reports no differences. Runtime async: the assembly 1.3 % smaller, allocations and timings unchanged, so not kept (numbers in [Benchmarks.md](Benchmarks.md#114-runtime-async-trial-17-november-2026)).
+
 ## Wave 3: from the backlog
 
 Independent of waves 1 and 2 except where noted. B2 is the only step in 1.14 that changes pixels.

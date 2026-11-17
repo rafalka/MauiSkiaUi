@@ -170,6 +170,18 @@ The headless runner reaches the internal frame pipeline (`SkUiFrameRenderer`) by
 
 The label and button scenarios allocate the same: their allocations are the tree and the text, not the paths wave 1 changed. Per step: A1 + A2 left the button and label scenarios within noise or faster (`-n 10 -r 3`); A2's gain is per pointer event (a drag allocated 80 bytes per move, now none: `GestureAllocationTests`), which no headless scenario drives. A5's vectorized pre-check made no difference against the single coverage lookup and was dropped. A6 with `--quiet-gc` on skui-images: `update` -11.5 %, `arrange` -9.7 %.
 
+### 1.14 runtime-async trial (17 November 2026)
+
+[ImplementationPlan-1.14.md](ImplementationPlan-1.14.md) A7 step 3: `<Features>runtime-async=on</Features>` on the headless `net11.0` target against the same commit without it (`--net 11`, `-n 10 -r 3`; the flag took effect: async methods carry `MethodImplAttributes.Async` and no state machine). The net11 suite passed with it.
+
+| Measure | Without | With | Δ |
+| --- | ---: | ---: | ---: |
+| `MauiSkiaUi.dll`, net11.0 Release | 2,493,952 B | 2,462,208 B | -1.3 % |
+| allocKB: core-images, skui-images, core-icons-png, skui-icons-png, icon-load-png, icon-first-png | | | ±0.0 % each |
+| timings, the same scenarios | | | all 44 rows within noise |
+
+Not kept ([D9](ImplementationPlan-PerformanceAndControls.md#decisions): allocations must drop). After A6 a cached image load runs no async method, and the scenarios' loads are cache hits after their first iteration, so runtime async has nothing to save here. Worth a second look when the phones run .NET 11 (CoreCLR on Android and iOS), with a scenario whose loads actually wait (downloads, first decodes).
+
 ## Guidance for agents and reviewers
 
 - Before and after any change that touches layout, text, recording, compositing, surfaces or animations:
