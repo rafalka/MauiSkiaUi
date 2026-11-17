@@ -179,7 +179,7 @@ Taken up when a real app needs it, roughly in this order within each area. Items
 
 - Autofill groups smaller than a surface; keyboard inline suggestions and the autofilled highlight on Android.
 - A token template for pickers (the searchable list shipped: `IsSearchEnabled`).
-- A split caret at bidi boundaries, visual Left / Right through mixed-direction lines, allocation-free re-shaping per keystroke (planned for [1.14](#1140-performance-planned)).
+- A split caret at bidi boundaries, visual Left / Right through mixed-direction lines; re-shaping per keystroke without the shaping engine's arrays (1.14 reuses the edit layout's own objects: [TextInput.md](TextInput.md); the runs' glyph arrays are the rest).
 - Shrink to fit on the drawn entry (the migration checker reports iOS `Entry.AdjustsFontSizeToFitWidth` with advice until then).
 - Number entries: repeat acceleration. More ideas: [TextInput.md](TextInput.md#possible-future-extensions).
 

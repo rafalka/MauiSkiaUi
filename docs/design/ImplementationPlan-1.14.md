@@ -155,6 +155,8 @@ Facts: `SkUiTextEditLayout` keeps paragraphs by content, so an edit re-shapes on
 
 **Done when:** bytes per keystroke drop to the floor named in step 3 and no text-input test changes.
 
+**Status: done.** Reused: the paragraph and line objects and the caret-edge arrays (the edit layout's own). One spare paragraph, kept in a field, its lines refilled in place; reused arrays grow 16 entries past need. A first version kept two stacks per layout and doubled the arrays: the entry scenarios, which set each text once, then allocated 78 to 187 bytes more per entry, so it was reworked to cost nothing when nobody types (+8 bytes per entry, the field). Per edit (`TextEditAllocationTests`): plain 2,580 → 1,596, shaped 3,228 → 2,244, simple 1,480 → 496 bytes; typing 100 characters on 3,816 → 2,523 bytes per keystroke. The floor is the shaping engine's paragraph and runs (glyph, position and cluster arrays sized by their length, read through `.Length` by every text path), the shaped line and its blob, and the paragraph's string when the text has several: lowering it means runs that carry their length apart from their arrays, a change to the shared engine left for later. A reused layout gives the same lines, edges and carets as a fresh one through growth, wrapping, bidi, surrogate pairs and paragraph edits. Bench against wave 2 (`core-entries`, `core-entries-update`, `skui-entries`): within noise.
+
 ### B2 Text shadows cast on the GPU
 
 Size: M. A stronger agent; alone on `SkUiRenderShadow.cs` and the compositor's shadow code, so after A3.

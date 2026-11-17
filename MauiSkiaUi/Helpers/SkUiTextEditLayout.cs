@@ -23,7 +23,10 @@ internal sealed class SkUiTextEditLine
     public byte BaseLevel;
     internal SKTextBlob? Blob;
     internal string? Text;
-    /// <summary>Per code unit of [<see cref="Start"/>, <see cref="End"/>): left and right x from the line's left edge, and bidi level.</summary>
+    /// <summary>
+    /// Per code unit of [<see cref="Start"/>, <see cref="End"/>): left and right x from the line's left edge, and bidi level.
+    /// Read the first <see cref="Length"/> entries: a reused line keeps longer arrays (<see cref="SkUiTextEditLayout"/>).
+    /// </summary>
     internal float[] Left = [];
     internal float[] Right = [];
     internal byte[] Levels = [];
@@ -54,6 +57,12 @@ internal sealed class SkUiTextEditLayout
     private readonly List<(int Start, int Length)> _ranges = [];
     private readonly List<ParagraphLayout> _rebuilt = [];
     private readonly SkUiShaping.CaretEdges _edges = new();
+    // Entries a reused line's caret-edge arrays grow by past what they need: typing reallocates once per this many
+    // characters, and a text set once allocates no more than a fresh line would (1.14 B1).
+    private const int EdgeSlack = 16;
+    // The last paragraph an edit replaced, with its lines, refilled by the next layout instead of new ones (1.14 B1):
+    // typing re-lays out one paragraph per keystroke. One is enough for that; it costs nothing when nobody types.
+    private ParagraphLayout? _spare;
     [ThreadStatic] private static List<SkUiTextLayout.LineSpec>? _specs;
     private SkUiTextStyle _style;
     private SKFont? _primary;
@@ -134,7 +143,7 @@ internal sealed class SkUiTextEditLayout
         }
         var removed = _paragraphs.Count - head - tail;
         for (var index = head; index < head + removed; index++)
-            ReleaseParagraph(_paragraphs[index]);
+            Recycle(_paragraphs[index]);
         _paragraphs.RemoveRange(head, removed);
         _paragraphs.InsertRange(head, _rebuilt);
         LastShapedParagraphs = _rebuilt.Count;
@@ -191,7 +200,9 @@ internal sealed class SkUiTextEditLayout
 
     private ParagraphLayout LayOut(string text)
     {
-        var layout = new ParagraphLayout { Text = text };
+        var layout = _spare ?? new ParagraphLayout();
+        _spare = null;
+        layout.Text = text;
         var primary = _primary!;
         var spacing = (float)_style.CharacterSpacing;
         var paragraph = _style.Rendering switch
@@ -202,7 +213,8 @@ internal sealed class SkUiTextEditLayout
         };
         if (text.Length == 0 || double.IsPositiveInfinity(_wrapWidth) || paragraph.Width <= _wrapWidth)
         {
-            layout.Lines.Add(BuildLine(paragraph, 0, text.Length, text.Length, endsParagraph: true));
+            BuildLine(layout, 0, paragraph, 0, text.Length, text.Length, endsParagraph: true);
+            TrimLines(layout, 1);
             return layout;
         }
         var specs = _specs ??= [];
@@ -214,8 +226,9 @@ internal sealed class SkUiTextEditLayout
             {
                 var spec = specs[index];
                 var last = index == specs.Count - 1;
-                layout.Lines.Add(BuildLine(paragraph, spec.Start, spec.End, last ? text.Length : specs[index + 1].Start, last));
+                BuildLine(layout, index, paragraph, spec.Start, spec.End, last ? text.Length : specs[index + 1].Start, last);
             }
+            TrimLines(layout, specs.Count);
         }
         finally
         {
@@ -224,26 +237,45 @@ internal sealed class SkUiTextEditLayout
         return layout;
     }
 
-    /// <summary>A line drawing <c>[start, drawEnd)</c> of <paramref name="paragraph"/> and owning <c>[start, end)</c> (trailing spaces hang).</summary>
-    private SkUiTextEditLine BuildLine(SkUiShaping.Paragraph paragraph, int start, int drawEnd, int end, bool endsParagraph)
+    /// <summary>A reused layout's lines past <paramref name="count"/> are not needed: gone (their blobs were released).</summary>
+    private static void TrimLines(ParagraphLayout layout, int count)
+    {
+        if (layout.Lines.Count > count)
+            layout.Lines.RemoveRange(count, layout.Lines.Count - count);
+    }
+
+    /// <summary>
+    /// Line <paramref name="lineIndex"/> of <paramref name="layout"/>: drawing <c>[start, drawEnd)</c> of <paramref name="paragraph"/>
+    /// and owning <c>[start, end)</c> (trailing spaces hang). A reused layout's line at that index is refilled.
+    /// </summary>
+    private void BuildLine(ParagraphLayout layout, int lineIndex, SkUiShaping.Paragraph paragraph, int start, int drawEnd, int end, bool endsParagraph)
     {
         var shaped = SkUiShaping.BuildLine(paragraph, start, drawEnd, _primary!, _fontFor, edges: _edges);
-        var line = new SkUiTextEditLine
-        {
-            Start = start,
-            End = end,
-            EndsParagraph = endsParagraph,
-            Ascent = shaped.Ascent,
-            Height = shaped.Height,
-            Width = shaped.Width,
-            BaseLevel = shaped.BaseLevel,
-            Blob = shaped.Blob,
-            Text = shaped.Text
-        };
+        SkUiTextEditLine line;
+        if (lineIndex < layout.Lines.Count)
+            line = layout.Lines[lineIndex];
+        else
+            layout.Lines.Add(line = new SkUiTextEditLine());
+        line.Start = start;
+        line.End = end;
+        line.EndsParagraph = endsParagraph;
+        line.Top = 0;
+        line.Ascent = shaped.Ascent;
+        line.Height = shaped.Height;
+        line.Width = shaped.Width;
+        line.Offset = 0;
+        line.BaseLevel = shaped.BaseLevel;
+        line.Blob = shaped.Blob;
+        line.Text = shaped.Text;
         var count = end - start;
-        line.Left = new float[count];
-        line.Right = new float[count];
-        line.Levels = new byte[count];
+        if (line.Left.Length < count)
+        {
+            // A new line gets what it needs; a reused one some room, so typing does not reallocate per keystroke.
+            var capacity = line.Left.Length == 0 ? count : count + EdgeSlack;
+            line.Left = new float[capacity];
+            line.Right = new float[capacity];
+            line.Levels = new byte[capacity];
+        }
         var drawn = drawEnd - start;
         Array.Copy(_edges.Left, line.Left, drawn);
         Array.Copy(_edges.Right, line.Right, drawn);
@@ -268,7 +300,6 @@ internal sealed class SkUiTextEditLayout
             line.Ascent += (height - line.Height) / 2;
             line.Height = height;
         }
-        return line;
     }
 
     /// <summary>
@@ -500,6 +531,7 @@ internal sealed class SkUiTextEditLayout
     {
         ReleaseParagraphs(_paragraphs);
         _paragraphs.Clear();
+        _spare = null;
         _lines.Clear();
         _hasStyle = false;
         _text = string.Empty;
@@ -510,6 +542,18 @@ internal sealed class SkUiTextEditLayout
     {
         foreach (var paragraph in paragraphs)
             ReleaseParagraph(paragraph);
+    }
+
+    /// <summary>Releases a paragraph an edit replaced; the first one an update replaces is kept, lines and all, for the next layout.</summary>
+    private void Recycle(ParagraphLayout paragraph)
+    {
+        ReleaseParagraph(paragraph);
+        if (_spare is not null)
+            return;
+        foreach (var line in paragraph.Lines)
+            line.Text = null;
+        paragraph.Text = string.Empty;
+        _spare = paragraph;
     }
 
     // Pictures that drew the lines hold their own references to the blobs.
