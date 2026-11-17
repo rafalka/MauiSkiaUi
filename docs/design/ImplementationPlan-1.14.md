@@ -82,13 +82,54 @@ Size: S.
 
 **Done when:** a memory-cache hit allocates no `Task` and no load context, and the lease counts in the existing cache tests are unchanged.
 
-## Wave 2 (outline)
+## Wave 2
 
-Briefs: [A3](ImplementationPlan-PerformanceAndControls.md#a3-pooled-render-batches-and-updates), [A4](ImplementationPlan-PerformanceAndControls.md#a4-shared-scratch-paints), [A7](ImplementationPlan-PerformanceAndControls.md#a7-toolchain-and-api).
+Briefs: [A3](ImplementationPlan-PerformanceAndControls.md#a3-pooled-render-batches-and-updates), [A4](ImplementationPlan-PerformanceAndControls.md#a4-shared-scratch-paints), [A7](ImplementationPlan-PerformanceAndControls.md#a7-toolchain-and-api). Steps written on 17 November 2026, after wave 1's numbers; the facts below were checked against `1.14-implementation` then.
 
-- **A3** pooled render batches and updates, after A1 (same file).
-- **A4** shared scratch paints in looks and painters, alone on `SkUiLook.cs`.
-- **A7** `LangVersion` 14, `params ReadOnlySpan<T>` overloads (the release's only API additions), the runtime-async trial on net11, and Performance.md measured again on .NET 11 devices.
+Order: A3, then A4 (independent files, done one after the other on one branch), then A7, whose numbers describe the result. Each step is measured against wave 1's last commit with `scripts/bench.sh --baseline <commit>`, and the release table against `v1.13.0`.
+
+### Facts that shape wave 2
+
+- **Batches.** `SkUiRenderRecorder.Sync` allocates an `SkUiRenderBatch` (with two `List`s) on every frame it runs, including frames where nothing changed: it returns `null` then and the batch is garbage. Each changed node gets a new `SkUiRenderUpdate` (`Node` is a get-only constructor property). `SkUiFrameRenderer` is the only caller of `Sync` and the only one that commits; the compositor reads a batch only inside `Apply` (`ApplyPending` swaps `_pending` and `_applying`, applies, clears). Batches that are never applied go through `DiscardWithAnimations` (commit after dispose, `Dispose`).
+- **Children pass.** `state.CommittedSources = _scratch.GetRange(start, count).ToArray()` allocates a `List` and an array; the array is kept, the list is not. The `SkUiRenderNode[]` sent with a children pass becomes `node.Children` on the render thread and stays: it cannot be pooled.
+- **Transitions.** `toggle-transitions` (48 switches and 48 check boxes) is a device-only scenario; headless frames are driven with `SkUiTestHelpers`' frame helper (`Renderer.RequestFrame`, `Frame(time)`).
+- **Paints.** 33 `using var … = new SKPaint` sites; out of the brief's skip list 23 remain: 12 in `SkUiLook.cs`, 2 each in `DefaultSkUiLook.cs`, `SkUiCoreTable.cs` and `SkUiMauiContentView.cs`, 1 each in `SkUiBorderGeometry`, `SkUiButtonFill`, `SkUiShapePainter`, `SkUiSliderInput` (a dimming paint, only when disabled) and `SkUiStrokedOutlines`. `DefaultSkUiLook.Paint(color)` (`[ThreadStatic]`, `Reset()` per use) and `SkUiShapePainter._paint` are the patterns.
+- **API.** No `LangVersion` is set. The public `params T[]` members: `SetStrokeDashArray` (`SkUiShape`, `SkUiBorder`, `SkUiCoreShape`, `SkUiCoreBorder`), `SetPoints` (`SkUiPolyShape`, `SkUiCorePolyShape`), `SetTransformations` (`SkUiImage`, `SkUiCoreImage`), the `SkUiCorePolygon` / `SkUiCorePolyline` constructors and `SkUiImageCacheKeys.IgnoreQueryParameters`. The API check is `scripts/api_compat.sh` (`-p:SkUiApiBaseline=1.13.0`).
+
+### A3 Pooled render batches and updates
+
+Size: M. Edits `SkUiRenderRecorder.cs`, `SkUiCompositor.cs`, `SkUiFrameRenderer.cs`.
+
+1. **Measure first.** An allocation test in `RenderAllocationTests`: a Core tree of 50 boxes whose `TranslationX` changes every frame (props only, nothing re-recorded), 60 frames through the frame helper after a warm-up; and the same tree with no change (idle frames). Record bytes per frame for both before any change.
+2. **Children pass:** copy `CollectionsMarshal.AsSpan(_scratch).Slice(start, count).ToArray()`.
+3. **Pool:** the compositor owns a small pool of batches (a `Lock` and a fixed array of at most 4; a lock-free stack would allocate a node per push, and the pool is touched twice per frame). After `Apply` it clears each applied batch and returns it; `Sync` takes a batch from the pool and gives it back itself when nothing changed, so an idle frame allocates nothing. A batch keeps its cleared `SkUiRenderUpdate`s in a spare list (at most 256) that the recorder refills before allocating, so updates travel with their batch and the pool is entered once per frame on each side. `SkUiRenderUpdate.Node` becomes settable (internal type).
+4. **Clearing** sets every reference to `null` (node, pictures, children, props' effects by assigning `default`) without disposing anything: after `Apply` the compositor owns what was committed, and the `Disposed`-node branch of `Apply` keeps disposing the pictures it disposes today. Discarded batches (`DiscardWithAnimations`) are not pooled.
+5. **Tests:** the allocation test asserts the new bounds (idle: 0 bytes; moving: the per-frame floor, with what remains named in a comment); `PipelineTests`, the rendering, transition and animation tests and `MemoryLeakTests` pass unchanged; a test that a pooled batch keeps no picture, node or effect alive (a weak reference to a replaced picture's owner is collected).
+6. **Bench:** the `*-update` scenarios and `skel-*-wave` against wave 1, with `--quiet-gc`.
+
+**Done when:** idle frames allocate nothing, a props-only frame allocates no batch or update, and nothing in the suite or the leak scenarios changes.
+
+### A4 Shared scratch paints
+
+Size: S to M. Edits the files listed in the facts; alone on `SkUiLook.cs`.
+
+1. One `[ThreadStatic]` scratch per painter family, reset (`Reset()`) and set at every use: `SkUiLook` (its own private helper, as `DefaultSkUiLook.Paint`), `DefaultSkUiLook` (the existing `Paint`), and one each for the helpers that need it. A site that holds the scratch while it calls into another method of the same family (a nested `Draw…`) takes a second scratch (`Paint2`), never the first.
+2. Debug and once-per-geometry sites stay as they are: `SkUiMauiContentView`'s placeholder drawing and `SkUiStrokedOutlines` (cached outlines). Say so in a comment only where the reason is not obvious.
+3. Tests: `ControlParityTests`, the look, toggle, slider and table tests pass unchanged (pixel output is the test: a leaked shader, path effect or blend mode shows there). Add an allocation test: re-recording a switch, a slider and a token chip 100 times allocates no `SKPaint` (bytes per recording before and after, a bound).
+4. Bench: `core-stress-buttons`, `skui-stress-buttons`, and the scenario that draws sliders, steppers and tokens (add one through `TrySet` if none exists): record time and allocated KB.
+
+**Done when:** no per-call `new SKPaint` is left in the 20 sites outside step 2, and no pixel test changes.
+
+### A7 Toolchain and API
+
+Size: M. After A3 and A4.
+
+1. `<LangVersion>14</LangVersion>` in `Directory.Build.props`, with the reason (both lines compile the same language; no C# 15 syntax can reach the net11 build alone). Build both lines and the demo.
+2. `params ReadOnlySpan<T>` overloads beside each `params T[]` member in the facts (the array overloads stay; a call with an array still binds to them). `MauiApiParityTests` passes and `scripts/api_compat.sh` against 1.13.0 reports additions only. Tests: each overload sets the same value as the array overload. Docs: the controls' pages list the overload.
+3. Runtime-async trial on net11 targets only (`<Features>runtime-async=on</Features>`): the image and icon scenarios with `--net 11` (allocated KB and timings) and the packed package size, with and without. Kept only if allocations drop and the package does not grow ([D9](ImplementationPlan-PerformanceAndControls.md#decisions)); the numbers go to Benchmarks.md either way.
+4. Performance.md on .NET 11 devices: the scripts and empty tables are prepared with B4; a person runs them.
+
+**Done when:** steps 1 to 3 are in with their numbers, and step 4 is on the verification backlog or done by a person.
 
 ## Wave 3: from the backlog
 
