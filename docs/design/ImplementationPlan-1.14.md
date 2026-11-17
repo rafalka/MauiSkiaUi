@@ -195,6 +195,6 @@ From the [verification backlog](Roadmap.md#verification-backlog), "Controls: fee
 ## Verification and release
 
 - Headless: the suite and the leak scenarios on both lines after each step and after the merge.
-- Bench: the full `scripts/bench.sh --baseline v1.13.0` table after wave 1 and again after wave 2, recorded in [Benchmarks.md](Benchmarks.md).
+- Bench: the full `scripts/bench.sh --baseline v1.13.0` table after wave 1 and again after wave 2, recorded in [Benchmarks.md](Benchmarks.md) (both done, 17 November 2026: [after wave 2](Benchmarks.md#114-waves-1-and-2-17-november-2026)).
 - Devices: `scripts/device_tests.sh` on the Galaxy S9 and the iPhone 8 before release (leaks and a drag over a long list). Waves 1 and 2 change nothing that is drawn. B2 does: its look checks are part of the release.
 - Release `1.14.0` when the three waves are in. B2 may delay it (accepted on 16 November 2026); if B2's spike fails, 1.14.0 ships without it and the roadmap item stays open with the spike's numbers.

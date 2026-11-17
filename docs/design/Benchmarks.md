@@ -170,6 +170,29 @@ The headless runner reaches the internal frame pipeline (`SkUiFrameRenderer`) by
 
 The label and button scenarios allocate the same: their allocations are the tree and the text, not the paths wave 1 changed. Per step: A1 + A2 left the button and label scenarios within noise or faster (`-n 10 -r 3`); A2's gain is per pointer event (a drag allocated 80 bytes per move, now none: `GestureAllocationTests`), which no headless scenario drives. A5's vectorized pre-check made no difference against the single coverage lookup and was dropped. A6 with `--quiet-gc` on skui-images: `update` -11.5 %, `arrange` -9.7 %.
 
+### 1.14 waves 1 and 2 (17 November 2026)
+
+[ImplementationPlan-1.14.md](ImplementationPlan-1.14.md) A1 to A7 against `v1.13.0`: headless, all scenarios, `-r 2`, macOS (Apple silicon), net10. 15 faster, 6 slower, 441 within noise.
+
+| Scenario | Metric | 1.13.0 | 1.14 | Δ % | Note |
+| --- | --- | ---: | ---: | ---: | --- |
+| core-images / -viewsized | allocKB | 5463.7 / 5808.9 | 4955.8 / 5301.0 | -9.3 / -8.7 | A6 cached loads, A3 batches, A4 paints |
+| core-icons-svg / -png / -font | allocKB | 5587.6 / 6456.5 / 5502.1 | 5079.7 / 5886.1 / 4994.2 | -9.1 / -8.8 / -9.2 | as above |
+| skui-images, skui-icons-* | allocKB | | | -2.1 to -2.5 | |
+| shimmer-*, skel-* | allocKB | | | -0.6 to -4.6 | A3 (idle and props-only frames) |
+| core-labels-update, core-entries-update, core-labels-fit, core-labels-grow | allocKB | | | -0.7 to -1.8 | about 86 KB each: A3 |
+| skui-steppers | allocKB | 12213.3 | 11955.4 | -2.1 | A4 |
+| icon-load-*, icon-first-* | allocKB | 29.2 | 29.5 | +0.9 | once per process: the per-thread paint stack and a pooled batch are created on first use |
+| core-entries / core-entries-update | measure | 4.3 / 4.2 | 3.5 / 3.6 | -18.3 / -15.8 | |
+| skui-stress-buttons | generate / measure / record | 12.1 / 3.3 / 3.8 | 11.4 / 3.0 / 3.5 | -5.7 / -9.9 / -7.0 | |
+| core-icons-png | update | 4.9 | 2.7 | -45.9 | |
+| skui-images-viewsized | update | 15.9 | 13.8 | -12.8 | |
+| skui-avatars | generate / arrange / record / update | 11.4 / 2.2 / 8.2 / 14.3 | 12.6 / 2.5 / 8.8 / 16.1 | +10.4 / +16.7 / +7.2 / +13.1 | within noise with `--quiet-gc` (`-n 10 -r 3`); `generate` and `arrange` are not touched by either wave |
+| skui-icons-png | arrange / record | 7.7 / 1.6 | 2.2 / 6.5 | -71.6 / +316.3 | a collection moved between phases: within noise with `--quiet-gc` |
+| skel-skui-static-loaded | update | 8.3 | 8.8 | +5.4 | within noise with `--quiet-gc` (-4.6) |
+
+What headless scenarios do not show: per-event and per-frame gains measured by the allocation tests, a drag (80 bytes per move → 0, `GestureAllocationTests`), idle and props-only frames (408 and 14,720 bytes → 0, `RenderAllocationTests`) and chrome draws (88 bytes per call → 0, `PaintAllocationTests`). Device numbers are on the verification backlog (A7 step 4, B4).
+
 ### 1.14 runtime-async trial (17 November 2026)
 
 [ImplementationPlan-1.14.md](ImplementationPlan-1.14.md) A7 step 3: `<Features>runtime-async=on</Features>` on the headless `net11.0` target against the same commit without it (`--net 11`, `-n 10 -r 3`; the flag took effect: async methods carry `MethodImplAttributes.Async` and no state machine). The net11 suite passed with it.
