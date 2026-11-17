@@ -150,6 +150,25 @@ The headless runner reaches the internal frame pipeline (`SkUiFrameRenderer`) by
 - The cost excludes GPU execution time and display latency.
 - Only frames with committed content count. It is public so apps can use it for diagnostics too; it returns `default` while the view has no platform surface.
 
+## Recorded comparisons
+
+### 1.14 wave 1 (17 November 2026)
+
+[ImplementationPlan-1.14.md](ImplementationPlan-1.14.md) A1, A2, A5, A6 against `v1.13.0`: headless, all scenarios, `-r 2`, macOS (Apple silicon), net10. 9 faster, 3 slower, 442 within noise.
+
+| Scenario | Metric | 1.13.0 | Wave 1 | Δ % | Note |
+| --- | --- | ---: | ---: | ---: | --- |
+| core-images | allocKB | 5463.7 | 5041.9 | -7.7 | A6: a cached load allocates no task and no load context |
+| core-images-viewsized | allocKB | 5808.9 | 5387.1 | -7.3 | A6 |
+| core-icons-svg / -png / -font | allocKB | 5587.6 / 6456.5 / 5502.1 | 5165.8 / 6034.7 / 5080.3 | -7.5 / -6.5 / -7.7 | A6 |
+| skui-images, skui-icons-* | allocKB | | | -1.7 to -2.0 | A6: the same 420 KB per 1,000 images |
+| skui-images-viewsized | update | 15.1 | 11.4 | -24.2 | |
+| core-icons-png | update | 4.5 | 2.5 | -45.0 | |
+| skui-icons-png | arrange / record | 6.5 / 1.4 | 1.9 / 5.8 | -70.4 / +327.5 | a collection moved between phases: within noise with `--quiet-gc` |
+| skui-avatars | record / update | 7.7 / 13.0 | 8.7 / 14.7 | +11.9 / +13.0 | allocations unchanged; within noise with `--quiet-gc` (`-n 10 -r 3`) |
+
+The label and button scenarios allocate the same: their allocations are the tree and the text, not the paths wave 1 changed. Per step: A1 + A2 left the button and label scenarios within noise or faster (`-n 10 -r 3`); A2's gain is per pointer event (a drag allocated 80 bytes per move, now none: `GestureAllocationTests`), which no headless scenario drives. A5's vectorized pre-check made no difference against the single coverage lookup and was dropped. A6 with `--quiet-gc` on skui-images: `update` -11.5 %, `arrange` -9.7 %.
+
 ## Guidance for agents and reviewers
 
 - Before and after any change that touches layout, text, recording, compositing, surfaces or animations:

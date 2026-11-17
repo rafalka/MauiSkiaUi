@@ -24,7 +24,7 @@ What the next releases bring, and the work after them. What has shipped is in th
 | **1.11.0** | 10.0.130 (net10) and 11.0.10 (net11) | 27 (net10), 27.2 (net11) | 11.0.100 | As 1.1.0; Android 7.0 (API 24) on net11 | `master`, released 14 November 2026 |
 | **1.12.0** | As 1.11.0 | As 1.11.0 | 11.0.100 | As 1.11.0 | Planned |
 | **1.13.0** | As 1.11.0 | As 1.11.0 | 11.0.100 | As 1.11.0 | Planned |
-| **1.14.0** | As 1.11.0 | As 1.11.0 | 11.0.100 | As 1.11.0 | Planned |
+| **1.14.0** | As 1.11.0 | As 1.11.0 | 11.0.100 | As 1.11.0 | In progress |
 
 SkiaUi up to 1.10 targets MAUI 10.x only; 1.11 adds net11 targets with MAUI 11 next to them ([1.11.0](#1110-net-11-and-maui-11-shipped)). Development happens on `devel`; `master` holds stable releases ([Releasing.md](../Releasing.md#branches-and-versions)).
 
@@ -142,7 +142,7 @@ Additive only. The drawn calendar of [FR-33](Requirements.md#functional-requirem
 
 ### 1.14.0: performance (planned)
 
-Moved from 1.13 on 17 November 2026. No new control and no behavior change: the allocations a review of the code found on input events, on frames that re-record and on first frames of large trees (16 November 2026). Steps, decisions and verification: [ImplementationPlan-1.14.md](ImplementationPlan-1.14.md); the review's findings and briefs: [ImplementationPlan-PerformanceAndControls.md](ImplementationPlan-PerformanceAndControls.md).
+Moved from 1.13 on 17 November 2026. No new control and no behavior change: the allocations a review of the code found on input events, on frames that re-record and on first frames of large trees (16 November 2026). Steps, decisions and verification: [ImplementationPlan-1.14.md](ImplementationPlan-1.14.md); the review's findings and briefs: [ImplementationPlan-PerformanceAndControls.md](ImplementationPlan-PerformanceAndControls.md). Wave 1 (the `Lock` gates, pointer events without an array per event, the plain-path check, image cache hits) is done; waves 2 and 3 are next.
 
 - **Wave 1** (independent steps): `System.Threading.Lock` for the ten `object` gates (compositor, frame renderer, Metal surface, image caches, fonts); the gesture arena without an array per pointer event; the text plain-path check without a dictionary lookup per character; image memory-cache hits without a `Task` or a load context.
 - **Wave 2:** pooled render batches and updates; shared scratch paints in looks and painters; `LangVersion` 14 for both lines, `params ReadOnlySpan<T>` overloads of the `params` setters, a runtime-async trial on net11, and [Performance.md](../Performance.md) measured again on .NET 11.

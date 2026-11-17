@@ -36,6 +36,8 @@ Checked against the code on `devel` (16 November 2026, at 1.12.0).
 
 ## Wave 1
 
+**Status: done** on `1.14-implementation` (17 November 2026), from the stash plus `SkUiListSnapshot`. A2's tests are in `GestureAllocationTests` (hover is measured between two Core nodes: entering and leaving a drawn `SkUi*` view allocates MAUI's `PropertyChanged` args for `IsPointerOver`, outside the router); A5 shipped step 1 only (step 2 measured no faster); A6's bound is 520 bytes per cached load through a Core image (736 at 1.13.0, `ImageAllocationTests`). Numbers: [Benchmarks.md](Benchmarks.md#114-wave-1-17-november-2026).
+
 ### A1 `System.Threading.Lock` for the object gates
 
 Size: S.
