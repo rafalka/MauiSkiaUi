@@ -38,7 +38,7 @@ internal sealed class SkUiFrameTrace
 {
     public const int Capacity = 4096;
 
-    private readonly object _gate = new();
+    private readonly Lock _gate = new();
     private readonly SkUiFrameSample[] _samples = new SkUiFrameSample[Capacity];
     private readonly long _origin = Stopwatch.GetTimestamp();
     private int _count;

@@ -99,7 +99,7 @@ internal static class SkUiImageLoader
     internal const int MaxEncodedBytes = 32 * 1024 * 1024;
 
     internal static readonly SemaphoreSlim DecodeGate = new(Math.Max(2, Environment.ProcessorCount));
-    private static readonly object Gate = new();
+    private static readonly Lock Gate = new();
     private static readonly Dictionary<string, Pending> InFlight = new(StringComparer.Ordinal);
     private static float _displayScale;
     private static int _decodes;

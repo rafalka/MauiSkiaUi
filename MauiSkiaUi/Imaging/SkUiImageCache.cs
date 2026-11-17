@@ -172,7 +172,7 @@ internal static class SkUiImageMemoryCache
     /// <summary>Separates a source's key from the decode options in full cache keys.</summary>
     internal const char OptionsSeparator = '\u001F';
 
-    private static readonly object Gate = new();
+    private static readonly Lock Gate = new();
     private static readonly Dictionary<string, LinkedListNode<SkUiCachedImage>> Entries = new(StringComparer.Ordinal);
     private static readonly LinkedList<SkUiCachedImage> Recency = new(); // most recent first
     private static long _maxBytes = DefaultMaxBytes();

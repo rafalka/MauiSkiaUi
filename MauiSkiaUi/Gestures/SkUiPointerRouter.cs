@@ -152,9 +152,10 @@ internal sealed class SkUiGestureArena(long pointerId, SkUiPointerRouter router,
         WinnerClaimed = explicitClaim;
         if (_releasing)
             _releaseWinner = recognizer; // before OnAccepted, which completes a released tap (runs its handler)
-        foreach (var member in Members.ToArray())
-            if (!ReferenceEquals(member, recognizer))
-                Remove(member, rejected: true);
+        using (var snapshot = new SkUiListSnapshot<SkUiGestureRecognizer>(Members))
+            foreach (var member in snapshot.Span)
+                if (!ReferenceEquals(member, recognizer))
+                    Remove(member, rejected: true);
         recognizer.OnAccepted(PointerId);
         router.OnArenaChanged();
     }
@@ -212,7 +213,8 @@ internal sealed class SkUiGestureArena(long pointerId, SkUiPointerRouter router,
             return;
         _ended = true;
         EndWinner = Winner ?? _releaseWinner;
-        foreach (var member in Members.ToArray())
+        using var snapshot = new SkUiListSnapshot<SkUiGestureRecognizer>(Members);
+        foreach (var member in snapshot.Span)
         {
             Members.Remove(member);
             member.LeaveArena(this);
@@ -375,14 +377,17 @@ internal sealed class SkUiPointerRouter(ISkUiInputNode root)
         }
         if (touch.Action == SkUiTouchAction.Released)
             arena.BeginRelease();
-        foreach (var member in arena.Members.ToArray())
+        using (var snapshot = new SkUiListSnapshot<SkUiGestureRecognizer>(arena.Members))
         {
-            if (!arena.Members.Contains(member))
-                continue;
-            if (touch.Action == SkUiTouchAction.Moved)
-                member.OnPointerMoved(pointer);
-            else
-                member.OnPointerReleased(pointer);
+            foreach (var member in snapshot.Span)
+            {
+                if (!arena.Members.Contains(member))
+                    continue;
+                if (touch.Action == SkUiTouchAction.Moved)
+                    member.OnPointerMoved(pointer);
+                else
+                    member.OnPointerReleased(pointer);
+            }
         }
         if (touch.Action == SkUiTouchAction.Released)
         {
@@ -439,10 +444,10 @@ internal sealed class SkUiPointerRouter(ISkUiInputNode root)
             TrackHoveredToolTip();
             return;
         }
-        var left = _hovered.ToArray();
+        using var left = new SkUiListSnapshot<ISkUiInputNode>(_hovered);
         _hovered.Clear();
         TrackHoveredToolTip();
-        foreach (var node in left)
+        foreach (var node in left.Span)
             node.SetPointerOver(false);
     }
 
@@ -698,9 +703,10 @@ internal sealed class SkUiPointerRouter(ISkUiInputNode root)
         _arenas[touch.Id] = arena;
         ActiveArenas++;
         var pointer = new SkUiPointer(touch.Id, touch.Position, touch.Position, time, this, arena.Device, arena.Buttons, touch.Modifiers);
-        foreach (var member in arena.Members.ToArray())
-            if (arena.Members.Contains(member) && !member.OnPointerPressed(pointer))
-                arena.Remove(member, rejected: false);
+        using (var snapshot = new SkUiListSnapshot<SkUiGestureRecognizer>(arena.Members))
+            foreach (var member in snapshot.Span)
+                if (arena.Members.Contains(member) && !member.OnPointerPressed(pointer))
+                    arena.Remove(member, rejected: false);
         if (arena.Members.Count == 0 && arena.Winner is null)
         {
             _arenas.Remove(touch.Id);
@@ -728,7 +734,8 @@ internal sealed class SkUiPointerRouter(ISkUiInputNode root)
     private bool Validate(SkUiGestureArena arena)
     {
         var removed = false;
-        foreach (var member in arena.Members.ToArray())
+        using var snapshot = new SkUiListSnapshot<SkUiGestureRecognizer>(arena.Members);
+        foreach (var member in snapshot.Span)
             if (member.Node is not { } node || !IsLive(node))
             {
                 arena.Remove(member, rejected: true);

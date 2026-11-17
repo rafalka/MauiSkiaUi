@@ -589,7 +589,7 @@ internal sealed class SkUiMetalSurface : IDisposable
     private readonly CAMetalLayer _layer;
     // Held by the render thread from render to present; taken by the UI thread when detaching, so once the renderer
     // is cleared (before the view leaves its superview) no frame is still presenting into it.
-    private readonly object _frameLock = new();
+    private readonly Lock _frameLock = new();
     private int _needsFrame = 1;
     private volatile SkUiFrameRenderer? _renderer;
     private volatile bool _continuous;
@@ -700,7 +700,7 @@ internal sealed class SkUiMetalSurface : IDisposable
 /// </summary>
 internal static class SkUiMetalRenderLoop
 {
-    private static readonly object Gate = new();
+    private static readonly Lock Gate = new();
     private static readonly List<SkUiMetalSurface> Surfaces = [];
     private static readonly Lazy<IMTLDevice> LazyDevice = new(() =>
         MTLDevice.SystemDefault ?? throw new PlatformNotSupportedException("Metal is not available on this device."));

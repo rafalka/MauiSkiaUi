@@ -124,21 +124,24 @@ public abstract class SkUiGestureRecognizer
     /// <summary>Claims every pointer this recognizer tracks; competing recognizers are rejected.</summary>
     protected void Claim()
     {
-        foreach (var arena in _arenas.ToArray())
+        using var snapshot = new SkUiListSnapshot<SkUiGestureArena>(_arenas);
+        foreach (var arena in snapshot.Span)
             arena.Resolve(this, explicitClaim: true);
     }
 
     /// <summary>Leaves every arena (rejected).</summary>
     protected void Resign()
     {
-        foreach (var arena in _arenas.ToArray())
+        using var snapshot = new SkUiListSnapshot<SkUiGestureArena>(_arenas);
+        foreach (var arena in snapshot.Span)
             arena.Remove(this, rejected: true);
     }
 
     /// <summary>Leaves one pointer's arena (rejected).</summary>
     protected void Resign(long pointerId)
     {
-        foreach (var arena in _arenas.ToArray())
+        using var snapshot = new SkUiListSnapshot<SkUiGestureArena>(_arenas);
+        foreach (var arena in snapshot.Span)
             if (arena.PointerId == pointerId)
                 arena.Remove(this, rejected: true);
     }
@@ -155,7 +158,8 @@ public abstract class SkUiGestureRecognizer
     /// <summary>Stops tracking all pointers (e.g. the owner was disabled or detached).</summary>
     public void Cancel()
     {
-        foreach (var arena in _arenas.ToArray())
+        using var snapshot = new SkUiListSnapshot<SkUiGestureArena>(_arenas);
+        foreach (var arena in snapshot.Span)
             arena.Cancel(this);
     }
 

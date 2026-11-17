@@ -12,7 +12,7 @@ namespace MauiSkiaUi;
 internal static class SkUiImageDiskCache
 {
     private const string Extension = ".img";
-    private static readonly object Gate = new();
+    private static readonly Lock Gate = new();
     private static long _bytes = -1; // unknown until the folder is first measured
     private static int _trimming;
 

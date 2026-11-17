@@ -18,7 +18,7 @@ internal sealed class SkUiFrameRenderer : IDisposable
     private readonly Action _requestRender;
     private readonly Action _beforeFrame;
     private readonly SkUiRenderRecorder _recorder = new();
-    private readonly object _sizeLock = new();
+    private readonly Lock _sizeLock = new();
     private SKSizeI _pixelSize;
     private Size _dipSize;
     private SKMatrix _surfaceMatrix = SKMatrix.Identity;

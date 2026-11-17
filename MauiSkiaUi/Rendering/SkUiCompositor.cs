@@ -112,8 +112,8 @@ internal sealed class SkUiRenderBatch
 /// </summary>
 internal sealed class SkUiCompositor : IDisposable
 {
-    private readonly object _pendingLock = new();
-    private readonly object _renderLock = new();
+    private readonly Lock _pendingLock = new();
+    private readonly Lock _renderLock = new();
     private readonly Action<Action> _postToUi;
     private readonly SKPaint _layerPaint = new();
     private readonly SKPaint _shadowPaint = new();
