@@ -480,22 +480,22 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
     {
         if (Handler is not null || !SurfaceHostsNativeViews)
             return null;
-        var hosts = new List<SkUiMauiContentView>();
-        CollectNativeHosts(this, hosts);
-        if (hosts.Count == 0)
+        List<SkUiMauiContentView>? hosts = null; // allocated on the first host: most animated subtrees have none
+        CollectNativeHosts(this, ref hosts);
+        if (hosts is null)
             return null;
         foreach (var host in hosts)
             host.BeginAncestorAnimation(hosts);
         return hosts;
 
-        static void CollectNativeHosts(SkUiView node, List<SkUiMauiContentView> hosts)
+        static void CollectNativeHosts(SkUiView node, ref List<SkUiMauiContentView>? hosts)
         {
             if (node is SkUiMauiContentView host)
-                hosts.Add(host);
+                (hosts ??= []).Add(host);
             foreach (var child in node.SkiaChildren)
             {
                 if (child is SkUiView view)
-                    CollectNativeHosts(view, hosts);
+                    CollectNativeHosts(view, ref hosts);
             }
         }
     }

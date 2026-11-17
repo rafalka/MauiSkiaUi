@@ -42,7 +42,8 @@ internal readonly record struct SkUiOverlayPlacement(Rect Frame, Rect Visible, b
 /// <c>Rotation</c>, <c>Scale</c>, or <c>Opacity</c> on this node or its ancestors between here and the standalone root.
 /// While this node or a drawn ancestor animates on the render thread (<see cref="SkUiView.AnimateAsync"/>), the native
 /// view is hidden and a snapshot of it drawn, which follows the animation; the live view comes back placed at the end.
-/// That holds for the native views in the animated subtree when the animation starts: one added later stays live.
+/// That holds for the native views in the animated subtree when the animation starts: one added later stays live where
+/// the view's own values place it.
 /// Overlay attach/detach only has an effect on Android/iOS/Mac Catalyst/Windows builds; on the headless
 /// <c>net10.0</c> target used for tests, the platform hooks are simply absent (no-ops), so Measure/Arrange/hit-testing
 /// remain exercisable without a device.

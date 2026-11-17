@@ -211,17 +211,14 @@ public class OverlayTranslationTests
     }
 
     [Fact]
-    public async Task AnAnimationEndingAfterTheHostMovedDoesNotEndTheAnimationOfItsNewAncestor()
+    public async Task AnAnimationEndingAfterTheHostWasResetDoesNotEndAnotherAnimationOverIt()
     {
         SkUiMauiContentView.CaptureOverride = (_, done) => { done(Magenta()); return true; };
         try
         {
             var (root, sheet, overlay) = Form(100);
-            var other = new SkUiVerticalStackLayout { TranslationX = 50 };
-            var page = new SkUiVerticalStackLayout();
-            root.Content = page;
-            page.Children.Add(sheet);
-            page.Children.Add(other);
+            var inner = new SkUiVerticalStackLayout { TranslationX = 50 };
+            sheet.Children.Add(inner);
             using var surface = new SkUiTestSurface(root, 200, 300);
             surface.Frame(0);
 
@@ -229,14 +226,14 @@ public class OverlayTranslationTests
             surface.Frame(1000);
             sheet.Children.Remove(overlay); // leaving its parent forgets the sheet's animation
             Assert.False(overlay.IsShowingSnapshot);
-            other.Children.Add(overlay);
-            var second = other.AnimateAsync(SkUiAnimatableProperty.TranslationX, 0, 500);
+            inner.Children.Add(overlay); // still inside the sheet, whose animation runs on
+            var second = inner.AnimateAsync(SkUiAnimatableProperty.TranslationX, 0, 500);
             Assert.True(overlay.IsShowingSnapshot);
             surface.Frame(1050);
 
             surface.Frame(1200);
             Assert.True(await first.WaitAsync(TimeSpan.FromSeconds(5)));
-            Assert.True(overlay.IsShowingSnapshot); // its new ancestor still animates
+            Assert.True(overlay.IsShowingSnapshot); // the sheet's end is not the inner stack's
             surface.Frame(1600);
             Assert.True(await second.WaitAsync(TimeSpan.FromSeconds(5)));
             Assert.False(overlay.IsShowingSnapshot);
