@@ -140,13 +140,15 @@ internal static class SkUiImageLoader
     /// <paramref name="progress"/> is told how a download goes (bytes received, total or <c>null</c>), on the download's
     /// thread, also when the download is another waiter's; not while the caller holds a lock the reports could need.
     /// </summary>
-    internal static Task<SkUiImageLoad> LoadAsync(SkUiImageSource source, in SkUiImageOptions options, CancellationToken token,
+    internal static ValueTask<SkUiImageLoad> LoadAsync(SkUiImageSource source, in SkUiImageOptions options, CancellationToken token,
         Action<long, long?>? progress = null)
     {
-        var load = Load(source, options, token, progress, out var cached);
-        if (load.IsCompletedSuccessfully)
-            return Task.FromResult(new SkUiImageLoad(load.Result, cached ? SkUiImageOrigin.MemoryCache : load.Result.Origin));
-        return WithOrigin(load);
+        var load = Load(source, options, token, progress, out var hit);
+        if (hit is not null)
+            return new ValueTask<SkUiImageLoad>(new SkUiImageLoad(hit, SkUiImageOrigin.MemoryCache));
+        if (load!.IsCompletedSuccessfully)
+            return new ValueTask<SkUiImageLoad>(new SkUiImageLoad(load.Result, load.Result.Origin));
+        return new ValueTask<SkUiImageLoad>(WithOrigin(load));
     }
 
     private static async Task<SkUiImageLoad> WithOrigin(Task<SkUiCachedImage> load)
@@ -155,10 +157,11 @@ internal static class SkUiImageLoader
         return new SkUiImageLoad(image, image.Origin);
     }
 
-    private static Task<SkUiCachedImage> Load(SkUiImageSource source, in SkUiImageOptions options, CancellationToken token,
-        Action<long, long?>? progress, out bool cached)
+    /// <summary>The load for <paramref name="source"/>, or <c>null</c> with the lease in <paramref name="hit"/> for a memory-cache hit.</summary>
+    private static Task<SkUiCachedImage>? Load(SkUiImageSource source, in SkUiImageOptions options, CancellationToken token,
+        Action<long, long?>? progress, out SkUiCachedImage? hit)
     {
-        cached = false;
+        hit = null;
         var scale = DisplayScale;
         var maxPixels = new SKSizeI(Pixels(options.DownsampleWidth, scale), Pixels(options.DownsampleHeight, scale));
         string? sourceKey;
@@ -171,20 +174,21 @@ internal static class SkUiImageLoader
             return Task.FromException<SkUiCachedImage>(new InvalidOperationException("SkUiImageCache.CacheKeyFactory failed.", error));
         }
         var fill = options.DownsampleToFill && maxPixels.Width > 0 && maxPixels.Height > 0;
-        var context = new SkUiImageLoadContext(scale, options.CacheType is SkUiImageCacheType.All or SkUiImageCacheType.Disk, maxPixels, sourceKey, fill);
         // The key and the work use the same settings: copies taken now.
         var transformations = SkUiImageTransformation.Snapshot(options.Transformations);
         var key = options.CacheType is SkUiImageCacheType.All or SkUiImageCacheType.Memory
             ? KeyFor(sourceKey, options with { Transformations = transformations, DownsampleToFill = fill }, maxPixels, source as SkUiVectorSource) : null;
+        // A hit needs no load context.
+        if (key is not null && SkUiImageMemoryCache.TryGet(key) is { } cached)
+        {
+            hit = cached;
+            return null;
+        }
+        var context = new SkUiImageLoadContext(scale, options.CacheType is SkUiImageCacheType.All or SkUiImageCacheType.Disk, maxPixels, sourceKey, fill);
         if (key is null)
         {
             context.Progress = progress;
             return LoadCoreAsync(source, transformations, context, null, token);
-        }
-        if (SkUiImageMemoryCache.TryGet(key) is { } hit)
-        {
-            cached = true;
-            return Task.FromResult(hit);
         }
         return LoadSharedAsync(source, transformations, context, key, progress, token);
     }
