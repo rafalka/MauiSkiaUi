@@ -91,7 +91,7 @@ One loader and cache for both layers (`MauiSkiaUi/Imaging`): MAUI image sources 
 
 ## Native controls inside a surface
 
-`SkUiMauiContentView` is a hosted placeholder that measures its MAUI `VisualElement` and shows it as a **native overlay** above the Skia surface (the root's `SkUiOverlayContainer`), positioned and clipped to the drawn tree. While an ancestor scrolls, Android and Windows draw a snapshot of the overlay so it moves with the drawn content; Apple keeps it live. Native views get native input; drags a drawn scroller claims are handed over. Details: [SkUiMauiContentView.md](../controls/SkUiMauiContentView.md).
+`SkUiMauiContentView` is a hosted placeholder that measures its MAUI `VisualElement` and shows it as a **native overlay** above the Skia surface (the root's `SkUiOverlayContainer`), positioned and clipped to the drawn tree. While an ancestor scrolls, Android and Windows draw a snapshot of the overlay so it moves with the drawn content; Apple keeps it live. While the host or a drawn ancestor animates on the render thread, every platform draws the snapshot. Native views get native input; drags a drawn scroller claims are handed over. Details: [SkUiMauiContentView.md](../controls/SkUiMauiContentView.md).
 
 ## Popups
 

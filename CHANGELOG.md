@@ -32,6 +32,7 @@ Publishing (the NuGet publish workflow, [docs/Releasing.md](docs/Releasing.md)) 
 
 ### Fixes
 
+- **Hosted native views follow an ancestor's translation (#100):** a `SkUiMauiContentView` was placed only when it was laid out, so after a drawn ancestor's `TranslationX` / `TranslationY` changed (the end of `AnimateAsync`, a sheet sliding in or springing back after a pan) the native view stayed where it was. A translation change now places the native views below again, and while the host or a drawn ancestor animates on the render thread (`AnimateAsync`, a collection view's item moves) the native view shows as a snapshot that moves with the drawn content, in every `ScrollMode`; the live view comes back in place when the animation ends. `SkUiSwipeView` no longer places its content's native views itself.
 - **Value pickers kept alive by a presenter:** `SkUiValuePicker<T>` and `SkUiCoreValuePicker<T>` (1.12) linked their popup content to the picker strongly, so a presenter that kept the request of a popup still open when its page closed kept the picker and its page alive. The content now reaches the picker weakly, as the other pickers' popups do.
 
 ## 1.12.0

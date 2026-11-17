@@ -6,7 +6,9 @@ Hosts a real MAUI `VisualElement` (Entry, Editor, WebView, …) as a **native ov
 
 ## How it works
 
-The placeholder participates in SkiaUi measure/arrange. The wrapped control's platform view is added as a sibling of the Skia surface inside `SkUiOverlayContainer`. The node never takes drawn pointers, so taps and text input go to the native control (drags are the exception, below). Position uses `ComputeRootRelativeFrame()` (Frame offsets + `TranslationX`/`TranslationY` up the hosted ancestor chain, minus scroll offsets).
+The placeholder participates in SkiaUi measure/arrange. The wrapped control's platform view is added as a sibling of the Skia surface inside `SkUiOverlayContainer`. The node never takes drawn pointers, so taps and text input go to the native control (drags are the exception, below). Position uses `ComputeRootRelativeFrame()` (Frame offsets + `TranslationX`/`TranslationY` up the hosted ancestor chain, minus scroll offsets); a translation change of the host or any drawn ancestor places it again (a pan that moves a sheet, the end of an animation).
+
+**While an ancestor animates:** a live native view cannot follow an animation that runs on the render thread (`AnimateAsync` of the host or a drawn ancestor, a collection view's item moves). Meanwhile it is hidden and a snapshot of it drawn, which moves, scales and fades with the drawn content, in every `ScrollMode`; when the animation ends the live view comes back, placed at the end value. A focused control stays live, and shows in place when the animation ends. This applies to the native views in the animated subtree when the animation starts: one added later (a row a list realizes meanwhile) stays live where the view's own values place it, and one whose container moves out of the animated subtree meanwhile keeps its snapshot until the animation ends.
 
 **Clipping:** the overlay is clipped to the viewports of ancestor scrollers and to ancestors with `ClipToBounds`, so a scrolled control never covers drawn content around the scroller and cannot be touched outside it. That excludes what views drawn over the scroller cover (its [`ViewportInsets`](SkUiScrollView.md#how-it-works), a list's sticky header and footer): native views show above the drawn surface, so one scrolled under a translucent bar is cut off at the bar instead of showing through it. The soft keyboard does not clip it (it shows over the native view by itself). While an [`SkUiExpander`](SkUiExpander.md) animates, it clips its native content too.
 
@@ -53,7 +55,7 @@ All SkiaUi controls inherit [`SkUiView`](SkUiView.md) behavior:
 | Topic | Behavior |
 | --- | --- |
 | Paint | Does not draw the live control into Skia |
-| Transforms | No rotation/scale/opacity composition through ancestors |
+| Transforms | Follows ancestor translations; no rotation/scale/opacity composition through ancestors (a snapshot follows them while they animate on the render thread) |
 | Scroll | Clipped to scroll viewports; snapshot while scrolling on Android / Windows (configurable) |
 | Drawn content over overlays | Not masked yet: drawn popups cannot cover a native overlay |
 | Platforms | Overlay hooks are no-ops on headless `net10.0` tests |

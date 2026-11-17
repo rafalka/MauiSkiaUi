@@ -13,6 +13,8 @@ namespace MauiSkiaUiDemo;
 /// <item>An Entry in a collapsed expander is hidden; the WebView scrolls its own content first (scroll nesting).</item>
 /// <item>"Check native placement" compares every native view with where the drawn tree places it (also with the
 /// soft keyboard up); the hosted-controls checklist in docs/design/Testing.md walks through this page.</item>
+/// <item>"Slide list in" moves the list down by its height and animates it back on the render thread: the native views
+/// follow as snapshots and are live and in place at the end (issue #100).</item>
 /// </list>
 /// </summary>
 public sealed class OverlayScrollingDemoPage : ComponentDemoPage
@@ -91,6 +93,7 @@ public sealed class OverlayScrollingDemoPage : ComponentDemoPage
         ActionButton("Scroll to top", () => _scroll.ScrollToAsync(0, 0));
         ActionButton("Scroll to WebView", () => _scroll.ScrollToAsync(0, Math.Max(0, _overlays[^2].Y - 20)));
         ActionButton("Check native placement", CheckPlacement);
+        ActionButton("Slide list in (AnimateAsync)", SlideIn);
         OnReset(() =>
         {
             SkUiMauiContentView.HighlightSnapshots = true;
@@ -112,6 +115,14 @@ public sealed class OverlayScrollingDemoPage : ComponentDemoPage
         var frozen = _overlays.Count(overlay => overlay.IsShowingSnapshot);
         var mode = _overlays.Count > 0 && _overlays[0].UsesSnapshotWhileScrolling ? "snapshot" : "live";
         Feedback($"{(_scroll.IsScrolling || _nested.IsScrolling ? "Scrolling" : "Idle")} · mode {mode} · frozen {frozen}/{_overlays.Count} · offset {_scroll.ScrollY:F0}");
+    }
+
+    /// <summary>Slides the list in from below, as a sheet does, then checks where the native views ended up.</summary>
+    private async void SlideIn()
+    {
+        _scroll.TranslationY = _scroll.Height;
+        await _scroll.AnimateAsync(SkUiAnimatableProperty.TranslationY, 0, 600, Easing.CubicOut);
+        CheckPlacement();
     }
 
     /// <summary>
