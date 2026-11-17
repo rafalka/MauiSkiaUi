@@ -444,16 +444,21 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
     {
         get
         {
-#if ANDROID || IOS || MACCATALYST || WINDOWS
             var root = this;
             while (root.SkiaParent is { } parent)
                 root = parent;
+#if ANDROID || IOS || MACCATALYST || WINDOWS
             return root.Handler is SkUiViewHandler { HasOverlays: true };
 #else
-            return false;
+            return root.HostsNativeViewsForTests;
 #endif
         }
     }
+
+#if !(ANDROID || IOS || MACCATALYST || WINDOWS)
+    /// <summary>Test hook (headless target, no handler): set on a root to run the paths of a surface that shows native views.</summary>
+    internal bool HostsNativeViewsForTests { get; set; }
+#endif
 
     /// <summary>Called on this node and every SkiaUi descendant when this node moved within the drawn tree.</summary>
     internal virtual void NotifyMoved()
@@ -463,6 +468,31 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
             if (child is SkUiView view)
                 view.NotifyMoved();
         }
+    }
+
+    /// <summary>
+    /// Called on this node and every SkiaUi descendant when a render-thread animation of this node starts or ends
+    /// (<paramref name="running"/>): native views below cannot follow it frame by frame, so they show a snapshot meanwhile.
+    /// </summary>
+    internal virtual void NotifyAncestorAnimation(bool running)
+    {
+        foreach (var child in SkiaChildren)
+        {
+            if (child is SkUiView view)
+                view.NotifyAncestorAnimation(running);
+        }
+    }
+
+    /// <summary>
+    /// Starts telling native views below that this node animates on the render thread (<see cref="NotifyAncestorAnimation"/>);
+    /// false when this surface shows none. The root is left out: native views are placed relative to it.
+    /// </summary>
+    private bool BeginAnimationOverNativeViews()
+    {
+        if (Handler is not null || !SurfaceHostsNativeViews)
+            return false;
+        NotifyAncestorAnimation(true);
+        return true;
     }
 
     /// <summary>
@@ -932,11 +962,17 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
                 // Also raised by MAUI when the shadow's properties change.
                 OnShadowChanged(Shadow);
                 break;
+            case nameof(TranslationX):
+            case nameof(TranslationY):
+                InvalidateRender(SkUiRenderDirty.Props);
+                // Native views below are placed with the translations of their drawn ancestors (issue #100): the end of
+                // AnimateAsync, a pan that moves a sheet.
+                if (Handler is null && SurfaceHostsNativeViews)
+                    NotifyMoved();
+                break;
             case nameof(IsVisible):
             case nameof(ClipToBounds):
             case nameof(Opacity):
-            case nameof(TranslationX):
-            case nameof(TranslationY):
             case nameof(Rotation):
             case nameof(Scale):
             case nameof(ScaleX):
@@ -1274,6 +1310,7 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
             _ => throw new ArgumentOutOfRangeException(nameof(property))
         };
         var completion = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var overNativeViews = BeginAnimationOverNativeViews();
         var tween = new SkUiRenderTween(properties, targets, TimeSpan.FromMilliseconds(Math.Max(1, length)), easing)
         {
             Finished = (animation, completed) =>
@@ -1281,6 +1318,9 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
                 RenderState.ActiveAnimations?.Remove(animation);
                 if (!animation.SupersededByUi && ((SkUiRenderTween)animation).LastValues is { } values)
                     ApplyAnimatedValues(property, (SkUiRenderTween)animation, values);
+                // After the final value: native views below are placed there before they show again.
+                if (overNativeViews)
+                    NotifyAncestorAnimation(false);
                 completion.TrySetResult(completed);
             }
         };
@@ -1323,12 +1363,15 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
             _ => throw new ArgumentOutOfRangeException(nameof(property))
         };
         var completion = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var overNativeViews = BeginAnimationOverNativeViews();
         tween = new SkUiRenderTween([renderProperty], [(float)to], TimeSpan.FromMilliseconds(Math.Max(1, length)), easing)
         {
             From = [(float)from],
             Finished = (animation, completed) =>
             {
                 RenderState.ActiveAnimations?.Remove(animation);
+                if (overNativeViews)
+                    NotifyAncestorAnimation(false);
                 // It ends where the view's own value is: nothing to write back.
                 finished?.Invoke(completed);
                 completion.TrySetResult(completed);

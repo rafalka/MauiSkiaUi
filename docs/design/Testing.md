@@ -226,7 +226,7 @@ Automated device inspection is blocked by `MSB4099` in the installed MAUI extens
 
 ### Hosted controls (A6)
 
-Automated: headless `HostedControlsTests`, `OverlayScrollTests`, `MauiContentViewTests` (also the hosted cases in `ExpanderTests`, `RtlLayoutTests`, `AccessibilityTests`) and the `NativeOverlays` leak scenario; on devices, the hosted-control check of `scripts/device_tests.sh` (above). The checks below need a person (soft keyboard, IME, native touch handling).
+Automated: headless `HostedControlsTests`, `OverlayScrollTests`, `OverlayTranslationTests`, `MauiContentViewTests` (also the hosted cases in `ExpanderTests`, `RtlLayoutTests`, `AccessibilityTests`) and the `NativeOverlays` leak scenario; on devices, the hosted-control check of `scripts/device_tests.sh` (above). The checks below need a person (soft keyboard, IME, native touch handling).
 
 Page: **Native overlays in ScrollView** in the demo (Entry ×3, Editor, Entry in a nested carousel, Entry in an expander, a WebView that scrolls inside, a last Entry at the end of the list). **Check native placement** compares every native view with the drawn tree and reports in the status line; use it after each step, also with the keyboard up.
 
@@ -239,6 +239,7 @@ Page: **Native overlays in ScrollView** in the demo (Entry ×3, Editor, Entry in
 7. **WebView scroll nesting:** drag inside the WebView: its page scrolls first; at its end the gesture does not leak into odd states (the drawn list scrolls on the next drag). Pinch-zoom inside the WebView stays native.
 8. **Expander:** expand: the Entry appears with the content (clipped while the content grows), stays aligned when the list scrolls; collapse: it hides with the content.
 9. **Navigation:** focus an Entry, navigate back with the keyboard up, open the page again: no stale native view on the other page, the keyboard closed.
+10. **Ancestor animations (#100):** **Slide list in** moves the list down by its height and animates it back with `AnimateAsync`: the native views (red-outlined snapshots during the animation, on every platform) move with the drawn rows, and are live and in place when it ends (the page checks native placement by itself). A focused Entry stays live and shows in place at the end.
 
 Record what was observed per platform here (date, device, result). **Run 2026-10-06:** hosted-control check passed on Mac Catalyst (macOS 27), an iPad simulator (iOS 26.5) and a Galaxy S9 (Android 10), after it found that a focused Entry scrolled out of view lost focus on Android (fixed); the manual steps above are not run yet. Windows not run.
 

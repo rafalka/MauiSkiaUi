@@ -472,7 +472,6 @@ public partial class SkUiSwipeView : SkUiView
         _contentPart.InputTransparent = false;
         _contentPart.TranslationX = _contentPart.TranslationY = 0;
         WatchScrollers(false);
-        NotifyContentMoved();
     }
 
     private void SetIsOpen(bool value)
@@ -505,14 +504,7 @@ public partial class SkUiSwipeView : SkUiView
             part.TranslationX = 0;
             part.TranslationY = itemsOffset;
         }
-        NotifyContentMoved();
-    }
-
-    /// <summary>Native views in the content follow it (they are clipped to this view, which clips its bounds by default).</summary>
-    private void NotifyContentMoved()
-    {
-        if (SurfaceHostsNativeViews)
-            _contentPart.NotifyMoved();
+        // Native views in the content follow it: a translation change places them again (SkUiView.OnPropertyChanged).
     }
 
     #region Swipe input

@@ -38,8 +38,10 @@ internal readonly record struct SkUiOverlayPlacement(Rect Frame, Rect Visible, b
 /// <remarks>
 /// v1 computes the overlay's root-relative position from this node's and each ancestor's <see cref="IView.Frame"/>
 /// plus <see cref="VisualElement.TranslationX"/>/<see cref="VisualElement.TranslationY"/> (see
-/// <see cref="ComputeRootRelativeFrame"/>); it does <b>not</b> account for <c>Rotation</c>, <c>Scale</c>, or
-/// <c>Opacity</c> on this node or its ancestors between here and the standalone root.
+/// <see cref="ComputeRootRelativeFrame"/>), and places it again when they change; it does <b>not</b> account for
+/// <c>Rotation</c>, <c>Scale</c>, or <c>Opacity</c> on this node or its ancestors between here and the standalone root.
+/// While this node or a drawn ancestor animates on the render thread (<see cref="SkUiView.AnimateAsync"/>), the native
+/// view is hidden and a snapshot of it drawn, which follows the animation; the live view comes back placed at the end.
 /// Overlay attach/detach only has an effect on Android/iOS/Mac Catalyst/Windows builds; on the headless
 /// <c>net10.0</c> target used for tests, the platform hooks are simply absent (no-ops), so Measure/Arrange/hit-testing
 /// remain exercisable without a device.
@@ -86,6 +88,7 @@ public partial class SkUiMauiContentView : SkUiView
     };
 
     private int _movingScrollers;
+    private int _animatingAncestors; // render-thread animations of this node or drawn ancestors (snapshot in every mode)
     private SKImage? _snapshot;
     private bool _watchingShown;
     private bool _notShown; // this view or a drawn ancestor is invisible (or the tree has no live surface)
@@ -116,9 +119,36 @@ public partial class SkUiMauiContentView : SkUiView
             EndSnapshot(); // no timer source (headless): restore at once
     }
 
+    /// <summary>
+    /// A render-thread animation of this node or a drawn ancestor started or ended: a live native view cannot follow it, so a
+    /// snapshot stands in while one runs (in every <see cref="ScrollMode"/>), and the live view comes back at once after the last.
+    /// </summary>
+    internal override void NotifyAncestorAnimation(bool running)
+    {
+        _animatingAncestors = Math.Max(0, _animatingAncestors + (running ? 1 : -1));
+        if (SkUiDiagnostics.TraceOn)
+            SkUiDiagnostics.Write($"overlay {TraceName} ancestor animating={running} -> animatingAncestors={_animatingAncestors} snapshot={_snapshot is not null}");
+        if (_animatingAncestors > 0)
+        {
+            _restoreTimer?.Dispose();
+            _restoreTimer = null;
+            BeginSnapshot();
+        }
+        else if (!WantsSnapshot)
+        {
+            _restoreTimer?.Dispose();
+            _restoreTimer = null;
+            RestoreLive();
+        }
+        base.NotifyAncestorAnimation(running);
+    }
+
+    /// <summary>Whether a snapshot should stand in for the native view: an ancestor animates, or scrolls in snapshot mode.</summary>
+    private bool WantsSnapshot => _animatingAncestors > 0 || (_movingScrollers > 0 && UsesSnapshotWhileScrolling);
+
     private void BeginSnapshot()
     {
-        if (_snapshot is not null || _capturing || !UsesSnapshotWhileScrolling || _content is null or { IsFocused: true })
+        if (_snapshot is not null || _capturing || !WantsSnapshot || _content is null or { IsFocused: true })
             return;
         _capturing = true;
         var generation = ++_captureGeneration;
@@ -131,7 +161,7 @@ public partial class SkUiMauiContentView : SkUiView
             if (SkUiDiagnostics.TraceOn)
                 SkUiDiagnostics.Write($"overlay {TraceName} captured image={image is not null} movingScrollers={_movingScrollers} -> {(image is null || _movingScrollers == 0 ? "stay live" : "show snapshot")}");
             // Focus can arrive while an async capture (Windows) is in flight: a focused control stays live.
-            if (image is null || _movingScrollers == 0 || _content is null || _content.IsFocused || !UsesSnapshotWhileScrolling)
+            if (image is null || !WantsSnapshot || _content is null || _content.IsFocused)
             {
                 SyncOverlayBounds();
                 return;
@@ -153,8 +183,8 @@ public partial class SkUiMauiContentView : SkUiView
     {
         _restoreTimer = null;
         if (SkUiDiagnostics.TraceOn)
-            SkUiDiagnostics.Write($"overlay {TraceName} restore timer movingScrollers={_movingScrollers} snapshot={_snapshot is not null} -> {(_movingScrollers > 0 ? "keep snapshot" : "restore live")}");
-        if (_movingScrollers > 0)
+            SkUiDiagnostics.Write($"overlay {TraceName} restore timer movingScrollers={_movingScrollers} animatingAncestors={_animatingAncestors} snapshot={_snapshot is not null} -> {(_movingScrollers > 0 || _animatingAncestors > 0 ? "keep snapshot" : "restore live")}");
+        if (_movingScrollers > 0 || _animatingAncestors > 0)
             return;
         RestoreLive();
     }
@@ -190,14 +220,15 @@ public partial class SkUiMauiContentView : SkUiView
 
     private void OnScrollModeChanged()
     {
-        // The moving-scroller count keeps tracking ancestors in every mode; only the snapshot follows the mode.
-        if (!UsesSnapshotWhileScrolling)
+        // The moving-scroller count keeps tracking ancestors in every mode; only the snapshot follows the mode (an animating
+        // ancestor keeps it in every mode).
+        if (!WantsSnapshot)
         {
             _restoreTimer?.Dispose();
             _restoreTimer = null;
             RestoreLive();
         }
-        else if (_movingScrollers > 0)
+        else
         {
             BeginSnapshot();
         }
@@ -249,10 +280,9 @@ public partial class SkUiMauiContentView : SkUiView
         }
         InvalidateMeasureOverride();
         AttachOverlayIfPossible();
-        // A snapshot shows the old control: drop it, and capture the new one if a scroller still moves.
+        // A snapshot shows the old control: drop it, and capture the new one if a scroller still moves or an ancestor animates.
         RestoreLive();
-        if (_movingScrollers > 0)
-            BeginSnapshot();
+        BeginSnapshot();
     }
 
     /// <inheritdoc />
@@ -321,6 +351,7 @@ public partial class SkUiMauiContentView : SkUiView
         _restoreTimer?.Dispose();
         _restoreTimer = null;
         _movingScrollers = 0;
+        _animatingAncestors = 0;
         _captureGeneration++;
         _capturing = false;
         if (_snapshot is null)
@@ -507,6 +538,13 @@ public partial class SkUiMauiContentView : SkUiView
     }
 
     partial void ReadNativePlacement(ref SkUiOverlayPlacement? placement);
+
+#if !(ANDROID || IOS || MACCATALYST || WINDOWS)
+    /// <summary>Test hook (headless target, no platform overlay): runs where the native view would be placed.</summary>
+    internal Action? PlacedForTests { get; set; }
+
+    partial void SyncOverlayBounds() => PlacedForTests?.Invoke();
+#endif
 
     /// <summary>
     /// How far (DIPs, per edge) the native placement may be from the drawn tree's in <see cref="FindNativePlacementMismatch"/>:
