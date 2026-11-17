@@ -85,6 +85,12 @@ public abstract class SkUiCoreShape : SkUiCoreNode, IShape, ISkUiShapeOutline
     public SkUiCoreShape SetStrokeDashArray(params double[] value)
     {
         ArgumentNullException.ThrowIfNull(value);
+        return SetStrokeDashArray((ReadOnlySpan<double>)value);
+    }
+
+    /// <summary>Sets the dash pattern, in multiples of the stroke thickness (no values: solid), without a params array.</summary>
+    public SkUiCoreShape SetStrokeDashArray(params ReadOnlySpan<double> value)
+    {
         if (_strokeDashArray.AsSpan().SequenceEqual(value)) return this;
         _strokeDashArray = [.. value];
         OnPropertyChanged(nameof(StrokeDashArray));

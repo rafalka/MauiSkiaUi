@@ -117,6 +117,8 @@ public class SkUiBorder : SkUiContentView
     public SkUiBorder SetStrokeThickness(double value) { SkUiValidate.ThrowIfNegativeOrNotFinite(value, nameof(value)); StrokeThickness = value; return this; }
     /// <summary>Sets the dash pattern, in multiples of the stroke thickness (no values: solid).</summary>
     public SkUiBorder SetStrokeDashArray(params double[] value) { StrokeDashArray = [.. value]; return this; }
+    /// <summary>Sets the dash pattern, in multiples of the stroke thickness (no values: solid), without a params array.</summary>
+    public SkUiBorder SetStrokeDashArray(params ReadOnlySpan<double> value) { StrokeDashArray = [.. value]; return this; }
     /// <summary>Sets the dash offset (same as the property setter).</summary>
     public SkUiBorder SetStrokeDashOffset(double value) { SkUiValidate.ThrowIfNotFinite(value, nameof(value)); StrokeDashOffset = value; return this; }
     /// <summary>Sets the dash caps (same as the property setter).</summary>

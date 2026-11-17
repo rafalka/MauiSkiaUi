@@ -6,7 +6,7 @@ A closed figure through a list of points.
 
 ## How it works
 
-Draws the figure through `Points` (a MAUI `PointCollection`: `"40,10 70,80 10,50"` in XAML) and closes it. `FillRule` (`EvenOdd` by default, or `Nonzero`) decides the inside where the figure crosses itself. Adding or removing points in the collection re-measures and redraws. Measures and places as any unstretched shape (`Aspect="None"`). See [`SkUiPolyline`](SkUiPolyline.md) for the open variant. Core twin: `SkUiCorePolygon(params Point[])` (`SetPoints`, `SetFillRule(WindingMode)`).
+Draws the figure through `Points` (a MAUI `PointCollection`: `"40,10 70,80 10,50"` in XAML) and closes it. `FillRule` (`EvenOdd` by default, or `Nonzero`) decides the inside where the figure crosses itself. Adding or removing points in the collection re-measures and redraws. Measures and places as any unstretched shape (`Aspect="None"`). See [`SkUiPolyline`](SkUiPolyline.md) for the open variant. Core twin: `SkUiCorePolygon(params Point[])` or `(params ReadOnlySpan<Point>)` (`SetPoints`, either form; `SetFillRule(WindingMode)`). `SkUiPolygon.SetPoints` takes either form too.
 
 ## Shape model (all shapes)
 

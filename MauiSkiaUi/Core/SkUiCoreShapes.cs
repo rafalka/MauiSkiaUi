@@ -142,6 +142,12 @@ public abstract class SkUiCorePolyShape : SkUiCoreShape
     public SkUiCorePolyShape SetPoints(params Point[] value)
     {
         ArgumentNullException.ThrowIfNull(value);
+        return SetPoints((ReadOnlySpan<Point>)value);
+    }
+
+    /// <summary>Sets the vertices, without a params array.</summary>
+    public SkUiCorePolyShape SetPoints(params ReadOnlySpan<Point> value)
+    {
         if (_points.AsSpan().SequenceEqual(value)) return this;
         _points = [.. value];
         OnPropertyChanged(nameof(Points));
@@ -170,6 +176,9 @@ public class SkUiCorePolygon : SkUiCorePolyShape
     /// <summary>Creates a polygon through <paramref name="points"/>.</summary>
     public SkUiCorePolygon(params Point[] points) => SetPoints(points);
 
+    /// <summary>Creates a polygon through <paramref name="points"/>, without a params array.</summary>
+    public SkUiCorePolygon(params ReadOnlySpan<Point> points) => SetPoints(points);
+
     private protected override bool Closed => true;
 }
 
@@ -178,6 +187,9 @@ public class SkUiCorePolyline : SkUiCorePolyShape
 {
     /// <summary>Creates a polyline through <paramref name="points"/>.</summary>
     public SkUiCorePolyline(params Point[] points) => SetPoints(points);
+
+    /// <summary>Creates a polyline through <paramref name="points"/>, without a params array.</summary>
+    public SkUiCorePolyline(params ReadOnlySpan<Point> points) => SetPoints(points);
 
     private protected override bool Closed => false;
 }

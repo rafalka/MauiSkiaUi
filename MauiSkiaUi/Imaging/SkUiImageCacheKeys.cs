@@ -12,7 +12,15 @@ public static class SkUiImageCacheKeys
     public static Func<SkUiImageSource, string?> IgnoreQueryParameters(params string[] names)
     {
         ArgumentNullException.ThrowIfNull(names);
-        var ignored = new HashSet<string>(names, StringComparer.OrdinalIgnoreCase);
+        return IgnoreQueryParameters((ReadOnlySpan<string>)names);
+    }
+
+    /// <inheritdoc cref="IgnoreQueryParameters(string[])"/>
+    public static Func<SkUiImageSource, string?> IgnoreQueryParameters(params ReadOnlySpan<string> names)
+    {
+        var ignored = new HashSet<string>(names.Length, StringComparer.OrdinalIgnoreCase);
+        foreach (var name in names)
+            ignored.Add(name);
         return source => source is SkUiUriImageSource uri ? WithoutQueryParameters(uri.Uri, ignored) : null;
     }
 

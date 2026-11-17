@@ -229,7 +229,7 @@ through URLs that differ in an access token, a signature or an expiry, set an ap
 
 ```csharp
 // MauiProgram: the same image whatever its token or signature
-SkUiImageCache.CacheKeyFactory = SkUiImageCacheKeys.IgnoreQueryParameters("token", "sig", "expires");
+SkUiImageCache.CacheKeyFactory = SkUiImageCacheKeys.IgnoreQueryParameters("token", "sig", "expires"); // params span or array
 
 // or your own rule; return null to keep the default key
 SkUiImageCache.CacheKeyFactory = source => source switch
@@ -295,7 +295,7 @@ Transformations change the decoded pixels once. For clipping that follows the la
 
 ## Key properties
 
-`Source`, `Aspect`, `IsAnimationPlaying`, `Transformations`, `CacheType`, `CacheKey`, `DownsampleWidth`, `DownsampleHeight`, `DownsampleToViewSize`, `LoadingPlaceholder`, `ErrorPlaceholder`, `TransformPlaceholders`, `FadeAnimationEnabled`, `FadeAnimationDuration`, `FadeAnimationForCachedImages`, `IsLoading`, `LoadingProgress`, `LoadError`, `ImageSize`, `IsShowingPlaceholder`, `LoadingTask`, `ReloadAsync()`. Events: `LoadingStarted`, `LoadingFinished`, `DownloadProgress`. Fluent: `SetSource`, `SetAspect`, `SetIsAnimationPlaying`, `SetTransformations(...)`, `SetCacheType`, `SetCacheKey`, `SetDownsample(width, height)`, `SetDownsampleToViewSize`, `SetFadeAnimation(enabled, duration)`, `SetFadeAnimationForCachedImages`, `SetPlaceholders(loading, error)`, `SetTransformPlaceholders`.
+`Source`, `Aspect`, `IsAnimationPlaying`, `Transformations`, `CacheType`, `CacheKey`, `DownsampleWidth`, `DownsampleHeight`, `DownsampleToViewSize`, `LoadingPlaceholder`, `ErrorPlaceholder`, `TransformPlaceholders`, `FadeAnimationEnabled`, `FadeAnimationDuration`, `FadeAnimationForCachedImages`, `IsLoading`, `LoadingProgress`, `LoadError`, `ImageSize`, `IsShowingPlaceholder`, `LoadingTask`, `ReloadAsync()`. Events: `LoadingStarted`, `LoadingFinished`, `DownloadProgress`. Fluent: `SetSource`, `SetAspect`, `SetIsAnimationPlaying`, `SetTransformations(...)` (`params` array or span), `SetCacheType`, `SetCacheKey`, `SetDownsample(width, height)`, `SetDownsampleToViewSize`, `SetFadeAnimation(enabled, duration)`, `SetFadeAnimationForCachedImages`, `SetPlaceholders(loading, error)`, `SetTransformPlaceholders`.
 
 `DownsampleWidth` / `DownsampleHeight` are DIPs at the display density (FFImageLoading's with `DownsampleUseDipUnits`). The image is decoded no larger than that, aspect kept, never upscaled. Use them for thumbnails of large photos.
 
