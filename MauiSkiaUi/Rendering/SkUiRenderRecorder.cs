@@ -1,3 +1,4 @@
+using System.Runtime.InteropServices;
 using SkiaSharp;
 
 namespace MauiSkiaUi.Rendering;
@@ -15,19 +16,22 @@ internal sealed class SkUiRenderRecorder : IDisposable
     /// <summary>Pictures recorded since creation (diagnostics / tests).</summary>
     internal int RecordedPictures { get; private set; }
 
-    /// <summary>Records pending changes under <paramref name="root"/>; returns <c>null</c> when nothing changed.</summary>
-    internal SkUiRenderBatch? Sync(ISkUiRenderable root, float rootWidth, float rootHeight, SKColor clearColor, bool forceRoot, bool keepsBottom = false)
+    /// <summary>
+    /// Records pending changes under <paramref name="root"/> into the empty <paramref name="batch"/>
+    /// (<see cref="SkUiCompositor.RentBatch"/>); returns <c>false</c> when nothing changed (the batch stays empty).
+    /// </summary>
+    internal bool Sync(SkUiRenderBatch batch, ISkUiRenderable root, float rootWidth, float rootHeight, SKColor clearColor, bool forceRoot,
+        bool keepsBottom = false)
     {
-        var batch = new SkUiRenderBatch();
         SyncNode(root, isRoot: true, batch);
         if (!forceRoot && batch.Updates.Count == 0 && batch.Animations.Count == 0)
-            return null;
+            return false;
         batch.Root = root.RenderState.Node;
         batch.RootWidth = rootWidth;
         batch.RootHeight = rootHeight;
         batch.ClearColor = clearColor;
         batch.KeepsBottom = keepsBottom;
-        return batch;
+        return true;
     }
 
     private void SyncNode(ISkUiRenderable node, bool isRoot, SkUiRenderBatch batch)
@@ -57,12 +61,10 @@ internal sealed class SkUiRenderRecorder : IDisposable
                         // Only animations committed in earlier frames; ones queued with this frame start after it.
                         if ((animation.PropertyMask & explicitChanges) != 0 && animation.Target is not null)
                             animation.Supersede();
-                update = new SkUiRenderUpdate(state.Node)
-                {
-                    HasProps = true,
-                    Props = props,
-                    ExplicitAnimatable = explicitChanges
-                };
+                update = batch.NewUpdate(state.Node);
+                update.HasProps = true;
+                update.Props = props;
+                update.ExplicitAnimatable = explicitChanges;
                 state.Committed = props;
                 state.HasCommitted = true;
             }
@@ -75,7 +77,7 @@ internal sealed class SkUiRenderRecorder : IDisposable
                 }
                 else
                 {
-                    update ??= new SkUiRenderUpdate(state.Node);
+                    update ??= batch.NewUpdate(state.Node);
                     update.HasContent = true;
                     update.Before = Record(node, props.VisualBounds, overlay: false);
                     update.After = node.HasOverlay ? Record(node, props.VisualBounds, overlay: true) : null;
@@ -85,7 +87,7 @@ internal sealed class SkUiRenderRecorder : IDisposable
 
         if (state.PendingScrollShift != SKPoint.Empty)
         {
-            update ??= new SkUiRenderUpdate(state.Node);
+            update ??= batch.NewUpdate(state.Node);
             update.ScrollShift = state.PendingScrollShift;
             state.PendingScrollShift = SKPoint.Empty;
         }
@@ -100,7 +102,7 @@ internal sealed class SkUiRenderRecorder : IDisposable
             for (var index = 0; !changed && index < count; index++)
                 changed = !ReferenceEquals(committed[index], _scratch[start + index]);
             if (changed)
-                state.CommittedSources = count == 0 ? [] : _scratch.GetRange(start, count).ToArray();
+                state.CommittedSources = count == 0 ? [] : CollectionsMarshal.AsSpan(_scratch).Slice(start, count).ToArray();
             _scratch.RemoveRange(start, count);
             SkUiSkeletonScope.SyncChildren(node, state.CommittedSources, changed); // children take their place in a skeleton before they record
             // Child render nodes are replaced when a child is reset, so always resend identities on a children pass.
@@ -108,7 +110,7 @@ internal sealed class SkUiRenderRecorder : IDisposable
             var nodes = new SkUiRenderNode[sources.Length];
             for (var index = 0; index < sources.Length; index++)
                 nodes[index] = sources[index].RenderState.Node;
-            update ??= new SkUiRenderUpdate(state.Node);
+            update ??= batch.NewUpdate(state.Node);
             update.Children = nodes;
         }
 

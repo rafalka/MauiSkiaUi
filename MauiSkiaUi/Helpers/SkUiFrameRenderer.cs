@@ -17,6 +17,7 @@ internal sealed class SkUiFrameRenderer : IDisposable
     private readonly Action<Action> _dispatch;
     private readonly Action _requestRender;
     private readonly Action _beforeFrame;
+    private readonly Action _presentFrame; // one delegate: a method group converts to a new one per frame request
     private readonly SkUiRenderRecorder _recorder = new();
     private readonly Lock _sizeLock = new();
     private SKSizeI _pixelSize;
@@ -41,6 +42,7 @@ internal sealed class SkUiFrameRenderer : IDisposable
         _requestRender = requestRender;
         _beforeFrame = beforeFrame;
         Compositor = new SkUiCompositor(dispatch);
+        _presentFrame = PresentFrame;
         root.RenderRootDirty += OnRootDirty;
         SkUiShownTracker.OnSurfaceChanged(root);
     }
@@ -73,7 +75,7 @@ internal sealed class SkUiFrameRenderer : IDisposable
             return;
         }
         if (Interlocked.Exchange(ref _frameQueued, 1) == 0)
-            _dispatch(PresentFrame);
+            _dispatch(_presentFrame);
     }
 
     /// <summary>UI thread: records pending changes and commits them. Also callable directly (tests, first frame).</summary>
@@ -93,16 +95,19 @@ internal sealed class SkUiFrameRenderer : IDisposable
             if (_disposed || _root.Width <= 0 || _root.Height <= 0)
                 return;
 #if SKUI_DIAGNOSTICS
-            var recordWatch = Stopwatch.StartNew();
+            var recordStarted = Stopwatch.GetTimestamp();
 #endif
-            var batch = _recorder.Sync(_root, (float)_root.Width, (float)_root.Height, _root.SurfaceClearColor, forceRoot: !_committedOnce,
+            var batch = Compositor.RentBatch();
+            var changed = _recorder.Sync(batch, _root, (float)_root.Width, (float)_root.Height, _root.SurfaceClearColor, forceRoot: !_committedOnce,
                 _root.SurfaceKeepsBottom);
 #if SKUI_DIAGNOSTICS
             // UI-thread cost of recording this frame (stress harness metric).
-            if (batch is not null)
-                _root.NoteDiagnosticRecordFrame(recordWatch.Elapsed.TotalMilliseconds);
+            if (changed)
+                _root.NoteDiagnosticRecordFrame(Stopwatch.GetElapsedTime(recordStarted).TotalMilliseconds);
 #endif
-            if (batch is not null)
+            if (!changed)
+                Compositor.ReturnBatch(batch);
+            else
             {
                 _committedOnce = true;
                 Compositor.Commit(batch);

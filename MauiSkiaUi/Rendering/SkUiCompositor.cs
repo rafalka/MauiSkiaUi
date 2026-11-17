@@ -55,7 +55,7 @@ internal sealed class SkUiShadowCache(SKImage? image, int version, SkUiRenderSha
 /// <summary>One node's changes in a committed frame.</summary>
 internal sealed class SkUiRenderUpdate(SkUiRenderNode node)
 {
-    public SkUiRenderNode Node { get; } = node;
+    public SkUiRenderNode Node = node;
     public bool HasProps;
     public SkUiRenderProps Props;
 
@@ -71,11 +71,33 @@ internal sealed class SkUiRenderUpdate(SkUiRenderNode node)
     /// motion by this much, in the same frame as the layout change that caused it.
     /// </summary>
     public SKPoint ScrollShift;
+
+    /// <summary>
+    /// Forgets everything for reuse (<see cref="SkUiRenderBatch.NewUpdate"/>). Disposes nothing: once applied, what the
+    /// update carried belongs to the compositor's tree.
+    /// </summary>
+    public void Clear()
+    {
+        Node = null!;
+        HasProps = false;
+        Props = default;
+        ExplicitAnimatable = 0;
+        HasContent = false;
+        Before = null;
+        After = null;
+        Children = null;
+        ScrollShift = default;
+    }
 }
 
 /// <summary>Everything the UI thread produced for one frame; applied atomically by the render thread.</summary>
 internal sealed class SkUiRenderBatch
 {
+    /// <summary>Cleared updates kept for reuse, at most this many (a frame that changed a large tree does not keep them all).</summary>
+    internal const int MaxSpareUpdates = 256;
+
+    private readonly List<SkUiRenderUpdate> _spare = [];
+
     public readonly List<SkUiRenderUpdate> Updates = [];
     public readonly List<SkUiRenderAnimation> Animations = [];
     public SkUiRenderNode? Root;
@@ -91,6 +113,38 @@ internal sealed class SkUiRenderBatch
     /// forgets its effects, <see cref="ISkUiRenderable.ReleaseDrawingResources"/>). Called only while no frame draws: the
     /// effects may be the ones a node has committed.
     /// </summary>
+    /// <summary>An update for <paramref name="node"/>: a cleared one this batch kept from an earlier frame, else a new one.</summary>
+    public SkUiRenderUpdate NewUpdate(SkUiRenderNode node)
+    {
+        if (_spare.Count == 0)
+            return new SkUiRenderUpdate(node);
+        var update = _spare[^1];
+        _spare.RemoveAt(_spare.Count - 1);
+        update.Node = node;
+        return update;
+    }
+
+    /// <summary>
+    /// Forgets the frame for reuse once it was applied (or recorded nothing): every reference is cleared, nothing is
+    /// disposed, so a pooled batch keeps no picture, node or effect alive. The updates are kept as spares.
+    /// </summary>
+    internal void Recycle()
+    {
+        foreach (var update in Updates)
+        {
+            update.Clear();
+            if (_spare.Count < MaxSpareUpdates)
+                _spare.Add(update);
+        }
+        Updates.Clear();
+        Animations.Clear();
+        Root = null;
+        RootWidth = 0;
+        RootHeight = 0;
+        ClearColor = default;
+        KeepsBottom = false;
+    }
+
     public void Discard()
     {
         foreach (var update in Updates)
@@ -122,6 +176,11 @@ internal sealed class SkUiCompositor : IDisposable
     private readonly List<SkUiRenderAnimation> _animations = [];
     private List<SkUiRenderBatch> _pending = [];
     private List<SkUiRenderBatch> _applying = [];
+    // Applied batches for the recorder to fill again: a Lock and a fixed array (a lock-free stack allocates a node per
+    // push); each side enters it once per frame.
+    private readonly Lock _poolLock = new();
+    private readonly SkUiRenderBatch?[] _pool = new SkUiRenderBatch?[MaxPooledBatches];
+    private int _pooled;
     private SkUiRenderNode? _root;
     private float _rootWidth;
     private float _rootHeight;
@@ -227,6 +286,36 @@ internal sealed class SkUiCompositor : IDisposable
         Interlocked.Exchange(ref _statMaxTicks, 0);
     }
 
+    /// <summary>Batches kept for reuse: one per frame in flight, and a few for frames committed before a render.</summary>
+    internal const int MaxPooledBatches = 4;
+
+    /// <summary>UI thread: an empty batch to record a frame into, from the pool when one was applied (A3).</summary>
+    internal SkUiRenderBatch RentBatch()
+    {
+        lock (_poolLock)
+        {
+            if (_pooled == 0)
+                return new SkUiRenderBatch();
+            var batch = _pool[--_pooled]!;
+            _pool[_pooled] = null;
+            return batch;
+        }
+    }
+
+    /// <summary>
+    /// A batch applied (render thread) or one that recorded nothing (UI thread) goes back to the pool, cleared. A batch
+    /// discarded unapplied is not returned: its contents were released, not handed over.
+    /// </summary>
+    internal void ReturnBatch(SkUiRenderBatch batch)
+    {
+        batch.Recycle();
+        lock (_poolLock)
+        {
+            if (_pooled < MaxPooledBatches)
+                _pool[_pooled++] = batch;
+        }
+    }
+
     /// <summary>UI thread: queues a recorded frame. Safe to call while the render thread renders.</summary>
     internal void Commit(SkUiRenderBatch batch)
     {
@@ -324,14 +413,18 @@ internal sealed class SkUiCompositor : IDisposable
             // while idle, instead of at the start of the next scroll.
             _continuous = _spinning || _animations.Count > 0 || _rasterizePending;
             if (reports is not null)
-                _postToUi(() =>
-                {
-                    foreach (var report in reports)
-                        report();
-                });
+                PostReports(reports);
             return NeedsFrame;
         }
     }
+
+    // Its own method: a lambda capturing `reports` in RenderCore made every frame allocate the closure, reports or not.
+    private void PostReports(List<Action> reports) =>
+        _postToUi(() =>
+        {
+            foreach (var report in reports)
+                report();
+        });
 
     /// <summary>
     /// The root's transform into a surface of <paramref name="pixelWidth"/>×<paramref name="pixelHeight"/>: the root fills it. While
@@ -390,6 +483,7 @@ internal sealed class SkUiCompositor : IDisposable
         {
             updates += batch.Updates.Count;
             Apply(batch);
+            ReturnBatch(batch);
         }
         _applying.Clear();
         return (batches, updates);
