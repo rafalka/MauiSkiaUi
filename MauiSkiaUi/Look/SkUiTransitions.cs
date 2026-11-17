@@ -52,7 +52,12 @@ public enum SkUiTransitionKind
     /// <summary>An item removed from a collection view fades out where it was (also the rows of a collapsed group).</summary>
     ItemRemove,
     /// <summary>The items a collection view change moves glide from their old places to their new ones.</summary>
-    ItemMove
+    ItemMove,
+    /// <summary>
+    /// A calendar's page slides to the previous or next month (or year, decade, century), and its display mode zooms between
+    /// days, months, years and decades. A swipe's settle uses it too.
+    /// </summary>
+    CalendarPage
     // New members go last: the values are compiled into callers (a look built against an earlier 1.x keeps its meaning).
 }
 

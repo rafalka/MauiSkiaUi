@@ -83,7 +83,7 @@ host.SetContent(core);
 | `DateSelected` | | MAUI's `DateChangedEventArgs` |
 | `Title`, `Placeholder`, `TextColor`, font properties, alignments, `IsOpen` / `Opened` / `Closed`, `PopupPlacement`, popup sizes, `PopupPresenter`, `UpdateMode`, `AcceptText`, `CancelText`, `IsClearButtonVisible`, `IsPopupClearButtonVisible`, `ClearText`, `IsChevronVisible`, `ChevronColor`, `ChevronSize`, `ChevronAreaWidth`, `TextPadding`, `LeadingView`, `PopupHeaderTemplate`, `PopupFooterTemplate`, `SelectionChangedCommand` | | As `SkUiPicker`'s (`SkUiPickerBase`); `ClearSelection()` sets `Date` to `null` |
 
-Not yet: a drawn month calendar as the popup (with `SkUiCalendar`, [roadmap](../design/Roadmap.md#new-controls-and-packages)).
+Not yet: a drawn month calendar as the popup (with [SkUiCalendar](SkUiCalendar.md), planned for 1.13's wave 2). Meanwhile, a page can show `SkUiCalendar` itself.
 
 Shared conventions (DIPs, bindable properties with fluent `Set*` setters, the gesture arena) as for every control: [SkUiView.md](SkUiView.md).
 

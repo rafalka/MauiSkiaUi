@@ -1,94 +1,67 @@
-# SkiaUi 1.13 implementation plan: allocation pass
+# SkiaUi 1.13 implementation plan: calendar
 
-**Goal:** remove the allocations that remain on three paths: input events, frames that re-record, and first frames of large trees. No new control and no public behavior change.
-
-**Scope:** track A of the [review plan](ImplementationPlan-PerformanceAndControls.md) (16 November 2026), whose findings are agreed. Wave 1 (A1, A2, A5, A6) is planned in detail here. Wave 2 (A3, A4, A7) keeps its briefs in the review plan and gets its steps here once wave 1's numbers are in.
+**Goal:** a drawn calendar on both layers, `SkUiCalendar` and `SkUiCoreCalendar` ([FR-33](Requirements.md#functional-requirements)): a control on a page for bookings, schedules and date ranges, and later the month grid the date pickers can open instead of wheels. The performance work planned for 1.13 moved to [1.14](ImplementationPlan-1.14.md) on 17 November 2026.
 
 **Baseline:** 1.12.0 (net10 with MAUI 10.0.130 and net11 with MAUI 11.0.10, SDK 11.0.100, SkiaSharp 4.154.0).
 
 **Rules:**
 
-- 1.x keeps the 1.0 API. Wave 1 changes no public member: the API comparison against 1.12.0 must report nothing.
-- Shared source stays C# 14.
-- Every step is measured against `v1.12.0` with `scripts/bench.sh --baseline v1.12.0` (and `--quiet-gc` when one phase jumps while others drop). A step that makes a phase slower is reverted or explained.
-- Each allocation fix comes with a test that fails without it, written as `PerformanceTests.CoreWrapAndShrinkRelayoutAllocatesNothing` is: a warm-up, then the fewest bytes of three batches (`GC.GetAllocatedBytesForCurrentThread`), so the runtime's own occasional work does not fail it.
-- 0 warnings on `net10.0` and `net11.0`; the headless suite and the leak scenarios (`MemoryLeakTests`) pass on both.
+- 1.x keeps the 1.0 API: additions only. The API comparison against 1.12.0 lists the calendar's new types, the look's new members and one new `SkUiTransitionKind` member (appended last), nothing else.
+- MAUI has no calendar, so the API is SkiaUi's own. Where the date picker already has a name it is reused (`MinimumDate`, `MaximumDate`, `BlackoutDates`, `DateEnabled`), so the picker and the calendar agree about which days can be chosen. Other calendar controls were studied for what apps need; their property names are not copied.
+- Both layers on one engine, as the indicator view: the controls copy their settings into a shared model, which measures, draws, hit-tests and handles keys.
+- 0 warnings on `net10.0` and `net11.0`; the headless suite and the leak scenarios pass on both.
 
 ## Decisions
 
-- **D1 1.13.0 is the allocation pass alone** (agreed with the review). New controls start in 1.14.
-- **D2 Wave 1's four steps are independent** and can be built in parallel, one branch each, merged into `1.13-implementation` in any order. None edits a file another edits.
-- **D3 Gates that lock on a collection stay as they are in A1.** `SkUiWeakListener` (`_listeners`), `SkUiWeakEvent` (`_entries`), `SkUiFontScaling` (`_systemSizes`) and `DefaultSkUiLook` (`Entries`) lock on the collection they guard. Moving them to a `Lock` adds a field per instance (a weak listener exists per subscription), so they are left unless a contention trace says otherwise.
-- **D4 A6 changes internal signatures only.** `SkUiImageLoader.LoadAsync` and what it calls are internal; `SkUiImageSlot` is the one caller.
-- **D5 No changelog entry per step.** One entry under `### Other` for the release: fewer allocations on pointer events, text measuring and cached image loads.
+- **D1 A calendar is one drawn node.** Day cells are laid out, hit-tested and drawn by the engine, as the indicator view draws its dots: no view per day. Per-day styling is a callback the recording reads (`DayStyle`), not a template.
+- **D1a Days are customized in two steps, both drawn.** Events go in a marker area under the number (`DayMarkerAreaHeight`): dots, bars, icon glyphs and captions from `DayStyle.Markers`, laid out in one row by the engine. A day of the app's own is a painter (`DayPainter`) called after the look's chrome, with the day's parts, state and colors and the calendar's text drawing; it can take over the number and markers. A view per day was weighed and left out: a page and its two neighbors hold over a hundred days, each a measured, recorded view per swipe, and the Core layer has no templates.
+- **D2 Pages slide on the UI thread for now.** A swipe or a previous / next step re-records the calendar's one node per frame while the page moves. The texts are laid out once and kept (day numbers 1 to 31, day names, month names), so a frame draws cached text blobs and a few circles. Moving the pages to the render thread (two recorded pages and an animated offset, as the archived phase F planned on the carousel's engine) is taken up only if the device check in [step 5](#step-5-verification-and-release) shows dropped frames on the Galaxy S9.
+- **D3 Four display modes:** month (days), year (months), decade (years), century (decades). The title steps up, a cell steps down, a pinch zooms out (up) or in (down), and `MinimumDisplayMode` / `MaximumDisplayMode` limit them (a month-and-year picker for card expiry: `MinimumDisplayMode = Year`). At the highest mode a tap on the title goes back to the lowest, so the title is always a way back to the days.
+- **D4 Selection modes:** none, single, multiple, range. Each mode has its own property: `SelectedDate` (single; also the last date chosen in the other modes), `SelectedDates` (multiple, a new read-only list per change so a binding sees it), `SelectedRange` (`SkUiDateRange`, whose end is `null` while it is open: the first tap starts it, the second ends it, a third starts a new one). `RangeSelectionTarget` (`Auto`, `Start`, `End`, two-way) lets an app with "Start" and "End" fields say which end the next tap sets; after a start the calendar moves the target to the end. The user's changes are written back (`WriteBack` on the SkUi layer). `SelectionChanged` fires for the user's changes and the app's.
+- **D5 Colors are resolved when drawn.** Every color property is nullable: `null` takes the color scheme's color at paint time (accent, foreground, muted, disabled), so a Core calendar follows a dark-mode switch too (the backlog's Core scheme item does not apply to it).
+- **D6 One set of font properties for every cell kind**, plus separate size, weight and color for the header, the day names and today. An app restyling the calendar sets a handful of properties, not one text style per cell state.
+- **D7 The header is drawn by the calendar** (its buttons styled by size, shape, border, colors and an icon glyph or image; a subclass can draw the buttons and the title itself through protected hooks) in two layouts: the title at the start with both buttons at the end (a compact header that suits a phone), or the buttons around a centered title. A tap on the title changes the display mode (D3). An app header of its own uses `IsHeaderVisible = false` with `GoToPrevious()`, `GoToNext()`, `DisplayMode`, `CanGoToPrevious`, `CanGoToNext` and the `Title` property, which is the text the header would show.
+- **D8 Gregorian dates.** Dates are `DateTime` values without time (the time part is dropped). Day and month names and the first day of the week come from the current culture; other calendar systems (Hijri, Persian, Thai) stay on the backlog, as for the date picker's wheels.
+- **D9 Screen readers get one adjustable element in 1.13:** the title as its name, the focused (or selected) day with its state as its value, increment / decrement moving a day and activate choosing it. An element per day needs virtual children in the semantics tree, which no control has yet: wave 2.
 
-## Facts that shape the plan
+## Wave 1: the calendar
 
-Checked against the code on `devel` (16 November 2026, at 1.12.0).
+### Step 1 Engine
 
-- **Locks.** Ten gates are `object` fields taken with `lock`: `SkUiCompositor` (`_pendingLock` 3 sites, `_renderLock` 2), `SkUiFrameRenderer._sizeLock` (4), `SkUiMetalSurface` (`_frameLock` 3, static `Gate` 2), `SkUiImageCache.Gate` (7), `SkUiImageLoader.Gate` (5), `SkUiImageDiskCache.Gate` (7), `SkUiFonts.Gate` (3), `SkUiFrameTrace._gate` (3). `SkUiStrokedOutlines.Gate` and `SkUiImageSlot._gate` are `System.Threading.Lock` already. Nothing in the library calls `Monitor.` directly, so no gate depends on `Wait`, `Pulse` or `TryEnter`.
-- **Gesture snapshots.** `SkUiGestureArena.Members` is a `List<SkUiGestureRecognizer>`. `ToArray()` snapshots it at five sites in `SkUiPointerRouter.cs` (accept, cancel, move / release, press, and one more arena pass), plus `_arenas.Values.ToArray()` in `CancelAll` and `_hovered.ToArray()` on hover changes. `SkUiGestureRecognizer` snapshots its `_arenas` list (capacity 1) at four sites, `SkUiScrollView` its overlays and listeners, `SkUiMauiTaps` its recognizers. The move / release loop runs once per pointer event, so a drag allocates an array per event. Every loop re-checks membership (`Members.Contains(member)`), because handlers remove members while it runs.
-- **Text.** `SkUiShaping.IsPlain` runs per measured string and calls `HasGlyph` per character. `HasGlyph` does `Coverage.GetOrAdd(typeface, …)` (a `ConcurrentDictionary`) on every call before it reads the 64 K coverage table. Its two other callers, in the font fallback, pass code points one at a time and keep the current shape.
-- **Images.** `SkUiImageLoader.Load` builds the `SkUiImageLoadContext`, snapshots the transformations and builds the cache key before it asks `SkUiImageMemoryCache.TryGet`; a hit returns `Task.FromResult`. `LoadAsync` wraps it in `WithOrigin`, an async method, so a hit allocates a context, a `Task` and a state machine result. `SkUiImageSlot` (line 227) is the only caller.
-- **Tests and bench.** `PerformanceTests.cs` holds the allocation-test pattern. The bench reports allocated KB per scenario (`BenchReport`), so wave 1 needs no harness change.
+`MauiSkiaUi/Helpers/SkUiCalendarGrid.cs` (date math) and `SkUiCalendarModel.cs` (state, layout, drawing, input), shared by both layers and holding no control.
 
-## Wave 1
+- Month pages by culture: the first day of the week (set, or the culture's), six weeks, or one to five weeks paged by weeks (`VisibleWeeks`); the neighbor months' days (shown or blank); week numbers by the culture's week rule.
+- Year, decade and century pages: 4 × 3 cells, the neighbor decade's or century's first and last cells dimmed.
+- Day states: today, selected, in a range (start, middle, end), disabled (outside `MinimumDate` / `MaximumDate`, a blackout date, `DateEnabled` false), weekend, a neighbor month's day, focused by the keyboard; the app's `DayStyle` (text and background colors, font attributes, a strike-through, markers) and `DayPainter`.
+- Layout: header, day-name row, grid; rows stretch to the height given, else the look's row height. Hit-testing against the same layout (title, buttons, cells), mirrored right-to-left.
+- Navigation: a page slide and a zoom between display modes on one tween with the look's new `SkUiTransitionKind.CalendarPage` (reduce motion: none); a swipe drags the page, and on release it settles on the neighbor page past a third of the page or a fling, else back. Navigation stops at the range's months.
+- Keys: arrows by day and week (cells in the other modes), Page Up / Down by page, with Shift by year, Home / End to the week's ends, Enter / Space to choose; the focus moves to the next page when it leaves the page. The focused cell has a ring while the keyboard drives the calendar.
+- Text through the shared engine, a layout kept per text and style (bounded), released with `ReleaseDrawingResources`.
 
-### A1 `System.Threading.Lock` for the object gates
+### Step 2 Look
 
-Size: S.
+`SkUiLook.DrawCalendarCell` (`SkUiCalendarCellPaint`: the cell's bounds above the marker area, state, colors, range part, selection shape) and `DrawCalendarNavigationButton` (`SkUiCalendarNavigationButtonPaint`), each with a painter delegate and a `…Core` override; sizes (`CalendarHeaderHeight`, `CalendarDayNamesHeight`, `CalendarRowHeight`, `CalendarNavigationButtonSize`) `CalendarMarkerAreaHeight`, `CalendarMarkerFontSize`) and the header and day-name font sizes. `DefaultSkUiLook` draws the circle or rounded square, the band of a range with its rounded ends, the ring or fill of today and chevrons; the engine draws the markers. Platform looks inherit it in 1.13; Material's, Fluent's and UIKit's calendars as platform looks are a later step.
 
-1. Change the ten fields listed above from `object` to `Lock` (`private readonly Lock _renderLock = new();`, `private static readonly Lock Gate = new();`). The `lock` statements stay as written: on a `Lock` the compiler emits `EnterScope`.
-2. Check each gate is used only in `lock` statements (`rg -n '\b_pendingLock\b'` and so on). A gate passed as `object` or used any other way stays an `object`, with a comment saying why.
-3. Leave the four collection gates of [D3](#decisions).
-4. Build both lines, run the suite, then `scripts/bench.sh --baseline v1.12.0 -S core-buttons,skui-buttons,core-labels,skui-labels`.
+### Step 3 Controls
 
-**Done when:** no `readonly object` field is left under a `lock` in the ten places, the suite is green on `net10.0` and `net11.0`, and no bench phase is slower.
+`SkUiCalendar` (bindable properties with `SkUiValidate`, fluent `Set*`, `WriteBack` of the user's changes) and `SkUiCoreCalendar` (`Set*` with `SetProperty`). Gestures: one recognizer for taps and swipes (it gives up a drag across its axis, so a calendar in a scroll view scrolls the page) and the pinch recognizer. Events: `SelectionChanged`, `DateTapped`. Methods: `GoToNext`, `GoToPrevious`, `GoToDate`, `GoToToday`, `ClearSelection`, `RefreshDayStyles`.
 
-### A2 Gesture arena without an array per pointer event
+### Step 4 Tests, demo, docs
 
-Size: S.
+- Headless tests (`CalendarGridTests`, `CalendarTests`): grids by culture and first day, week paging, year / decade / century cells, rules, selection modes on both layers, the range target, write-back to a one-way binding, keys, display-mode steps, swipe settle and page commit, the marker area and the day painter, drawing both layers to the same pixels, implicit styles (`ImplicitStyleTests` finds the new view).
+- Leak scenario: a calendar swiped and its selection changed on a closed page.
+- Demo: a gallery page with the properties to play with, a styled calendar (a compact header with round buttons, today as a ring), a range booking and a month of events (bars, a glyph, a caption, dots).
+- Docs: [SkUiCalendar](../controls/SkUiCalendar.md), the controls index, the changelog, [Requirements](Requirements.md) (FR-33), [Migration.md](../Migration.md) (from other calendar controls) and the migration skills.
 
-1. Add one internal helper in `MauiSkiaUi/Gestures`: a `ref struct` snapshot that rents from `ArrayPool<T>.Shared`, copies a `List<T>` through `CollectionsMarshal.AsSpan`, exposes the span, and on `Dispose` clears the rented range and returns it. One rent per loop keeps re-entrancy safe: a handler that opens another arena rents its own buffer.
-2. Use it at the `ToArray()` sites of `SkUiPointerRouter`, `SkUiGestureRecognizer`, `SkUiMauiTaps` and `SkUiScrollView` (`using var snapshot = …; foreach (var member in snapshot.Span)`). Keep every existing membership re-check.
-3. `_arenas.Values.ToArray()` in `CancelAll` runs when a surface detaches, not per event: leave it.
-4. Tests in `PerformanceTests`: after a warm-up, 100 moves of one pressed pointer over a tree with a tap and a pan recognizer allocate 0 bytes; the same for hover moves over two nodes. Add a re-entrancy test: a recognizer that cancels its arena from `OnPointerMoved` leaves the router consistent.
+### Step 5 Verification and release
 
-**Done when:** the allocation tests pass, every gesture, scroll and swipe test passes unchanged, and the leak scenarios pass (a snapshot must not keep recognizers alive: the buffer is cleared on return).
-
-### A5 Text plain-path check
-
-Size: S.
-
-1. In `SkUiShaping.IsPlain`, fetch the coverage table once (`Coverage.GetOrAdd`) and test each character against it in the loop, with the lazy fill for unknown entries moved into a small local function. `HasGlyph(typeface, cp)` stays for the fallback callers and uses the same fill.
-2. Before the loop, reject text with a character outside `IsSimpleChar`'s ranges in one vectorized pass: a `static readonly SearchValues<char>` built from those ranges and `text.AsSpan().ContainsAnyExcept(…)`. The ranges stay defined in one place (build the set from the same constants `IsSimpleChar` uses).
-3. Tests: the shaping and label tests pass unchanged; new cases at the range borders (U+007E, U+007F, U+00A0, U+017F, U+0180, U+2010, U+2027, U+20C0, a surrogate pair) take the same path as before the change.
-4. Bench: `scripts/bench.sh --baseline v1.12.0 -n 10 -r 3 -S core-labels,skui-labels`; report the measure phase.
-
-**Done when:** the paths chosen are unchanged (the border tests), and the measure phase of the label scenarios is no slower. If it is not measurably faster either, keep step 1 (it removes a dictionary lookup per character) and drop step 2.
-
-### A6 Image memory-cache hits
-
-Size: S.
-
-1. In `SkUiImageLoader.Load`, compute the source key and the cache key, ask `SkUiImageMemoryCache.TryGet`, and only then build `SkUiImageLoadContext` for a miss. The transformations snapshot is part of the key, so it stays before the lookup.
-2. Return `ValueTask<SkUiImageLoad>` from `LoadAsync`: a hit completes synchronously with the origin already set, so `WithOrigin`'s state machine runs for misses only. Adjust `SkUiImageSlot` (the one caller) to take the synchronous result without awaiting when `IsCompletedSuccessfully`.
-3. Tests: with an image already in the memory cache, 100 loads through a slot allocate a fixed number of bytes per load; measure before the change and assert the new bound. The image tests (`ImageLoadingTests`, `ImageSourceParityTests`) and the leak scenarios pass unchanged; a lease is still taken and released per view.
-4. Bench: the image and icon scenarios (`scripts/bench.sh --list`, then the ones that bind cached images), allocated KB.
-
-**Done when:** a memory-cache hit allocates no `Task` and no load context, and the lease counts in the existing cache tests are unchanged.
+- Headless: the suite and the leak scenarios on both lines.
+- Devices (before release, on the Galaxy S9 and the iPhone 8): swipe feel and frame time while a page slides (D2), the pinch, VoiceOver and TalkBack on the calendar element, the keyboard on Mac Catalyst and Windows.
+- Release `1.13.0` with wave 1; wave 2 can follow as 1.13.x or move on.
 
 ## Wave 2 (outline)
 
-Briefs: [A3](ImplementationPlan-PerformanceAndControls.md#a3-pooled-render-batches-and-updates), [A4](ImplementationPlan-PerformanceAndControls.md#a4-shared-scratch-paints), [A7](ImplementationPlan-PerformanceAndControls.md#a7-toolchain-and-api).
-
-- **A3** pooled render batches and updates, after A1 (same file).
-- **A4** shared scratch paints in looks and painters, alone on `SkUiLook.cs`.
-- **A7** `LangVersion` 14, `params ReadOnlySpan<T>` overloads (the release's only API additions), the runtime-async trial on net11, and Performance.md measured again on .NET 11 devices.
-
-## Verification and release
-
-- Headless: the suite and the leak scenarios on both lines after each step and after the merge.
-- Bench: the full `scripts/bench.sh --baseline v1.12.0` table after wave 1 and again after wave 2, recorded in [Benchmarks.md](Benchmarks.md).
-- Devices: `scripts/device_tests.sh` on the Galaxy S9 and the iPhone 8 before release (leaks and a drag over a long list). Nothing in wave 1 changes what is drawn, so no look checks are added to the verification backlog.
-- Release `1.13.0` when both waves are in; if wave 2 slips, wave 1 can ship by itself.
+- **Date picker popup:** a `PopupStyle` on the date pickers of both layers and `SkUiDateTimePicker` (`Wheels`, `Calendar`, `Default` = the look's: a calendar on Android and Windows, wheels on iOS), following `UpdateMode` (a draft until OK), the range, blackout days and the day rule. `SkUiDatePopupRequest` is unchanged, so presenters with their own UI keep working.
+- **Date range picker:** `SkUiDateRangePicker` and its Core twin on the range selection, with a typed popup request.
+- **Semantics children:** an element per day with its full date and state (D9), the header's title and buttons as their own elements.
+- **More selection rules:** a longest range, a range that may not cross a disabled day, several ranges.

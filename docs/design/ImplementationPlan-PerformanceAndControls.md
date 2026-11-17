@@ -1,6 +1,6 @@
 # SkiaUi implementation plan: allocation pass and new controls
 
-**Status:** from [a review](Review-2026-11.md) of the architecture, the implementation and the .NET 10 / 11 and C# 14 / 15 feature use (16 November 2026). The findings are agreed and on the [roadmap](Roadmap.md): track A is release 1.13, planned step by step in [ImplementationPlan-1.13.md](ImplementationPlan-1.13.md) (which wins where the two differ), and track F is on the backlog. [D1](#decisions) is agreed; the other decisions are still proposed, each to be agreed before its package starts.
+**Status:** from [a review](Review-2026-11.md) of the architecture, the implementation and the .NET 10 / 11 and C# 14 / 15 feature use (16 November 2026). The findings are agreed and on the [roadmap](Roadmap.md): track A is release 1.14 (moved from 1.13 on 17 November 2026, when the calendar took 1.13), planned step by step in [ImplementationPlan-1.14.md](ImplementationPlan-1.14.md) (which wins where the two differ), and track F is on the backlog. [D1](#decisions) is agreed; the other decisions are still proposed, each to be agreed before its package starts.
 
 **Goal:**
 
@@ -73,7 +73,7 @@ What a new drawn control `X` touches, in build order. The pattern is the stepper
 
 Proposed. Agree them before the first step.
 
-- **D1 Track A ships first, as one release (1.13.0).** It is small, it touches files the feature packages also touch (looks, gesture router), and its allocation tests then guard the new controls.
+- **D1 Track A ships first, as one release (1.14.0; the calendar, 1.13.0, comes before it).** It is small, it touches files the feature packages also touch (looks, gesture router), and its allocation tests then guard the new controls.
 - **D2 `<LangVersion>14</LangVersion>` in `Directory.Build.props`.** Today no version is set, so net11 targets compile as C# 15 and net10 targets as C# 14 from the same source. A build with `-p:SkUiNet=11` would accept syntax the net10 build rejects. C# 15 has no feature that reduces allocations (its generated unions box value-type cases), so nothing is lost.
 - **D3 No source generator for the two layers in this plan.** The duplication between `SkUiX` and `SkUiCoreX` is the main structural cost, and ten controls add to it. F1 records how many lines its two layers duplicate; decide on a generator spike from that number.
 - **D4 Optional packages style themselves.** `SkUiLook` cannot gain members from another assembly. Charts and Lottie follow the Markdown package: one style object per package, defaults from `SkUiColorScheme`, settable per view.
@@ -82,7 +82,7 @@ Proposed. Agree them before the first step.
 - **D7 The data grid (F9) is SkUi\* only at first** and waits for a decision on the virtual stack's horizontal layout (backlog).
 - **D8 Backdrop blur (F10) ships only if the Galaxy S9 holds 50 fps** with one blurred bar over a scrolling list. Otherwise it stays a spike with its numbers in Performance.md.
 - **D9 Runtime async (A7) is enabled only if** the image-load scenarios allocate less and the package does not grow.
-- **D10 Releases (proposed):** 1.13 track A; 1.14 F1, F5, F6; 1.15 F2, F3; 1.16 F4 phase 1; then F7, F8, F9, F10 as apps ask.
+- **D10 Releases (proposed):** 1.13 the calendar (not part of this plan); 1.14 track A; 1.15 F1, F5, F6; 1.16 F2, F3; 1.17 F4 phase 1; then F7, F8, F9, F10 as apps ask.
 
 ## Order and parallel work
 

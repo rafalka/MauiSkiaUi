@@ -13,6 +13,17 @@ Publishing (the NuGet publish workflow, [docs/Releasing.md](docs/Releasing.md)) 
 
 ## Unreleased
 
+### New features
+
+- **Calendar (1.13, FR-33):** `SkUiCalendar` and its Core twin `SkUiCoreCalendar`, one drawn node on one engine ([SkUiCalendar.md](docs/controls/SkUiCalendar.md)).
+  - Month, year, decade and century pages: the title steps up, a cell steps down, a pinch zooms; `MinimumDisplayMode` / `MaximumDisplayMode` (a month picker, a calendar kept on days). Pages slide with the header's buttons, a swipe (horizontal or vertical) or `GoToPrevious` / `GoToNext` / `GoToDate` / `GoToToday`, with the look's new `SkUiTransitionKind.CalendarPage`.
+  - One to six weeks (`VisibleWeeks`: a weekly strip), `FirstDayOfWeek`, week numbers, the neighbor months' days; day names as the first letter, short or shortest (`DayNameFormat`), translatable through `SkUiStrings` (`AbbreviatedDayNames`, `ShortestDayNames`, `FirstLetterDayNames`, `GetDayName`), with today's highlighted (`IsTodayDayNameHighlighted`, `TodayDayNameTextColor`).
+  - Selection: none, single, multiple and range, written back two-way (`SelectedDate`, `SelectedDates`, `SelectedRange` as `SkUiDateRange` with an open end while the range is chosen); `RangeSelectionTarget` lets an app with "Start" and "End" fields say which end a tap sets. `SelectionChanged`, `DateTapped` (also for days that cannot be chosen), `WeekNumberTapped` (the week's days, to select the whole week).
+  - The date picker's day rules: `MinimumDate`, `MaximumDate`, `BlackoutDates`, `DateEnabled`.
+  - Events under the days: `DayStyle` (colors, weight, strike-through) with `Markers` (dots, bars, icon glyphs, captions) in a marker area under the number; `DayPainter` draws a day the app's way, with the calendar's text drawing.
+  - Header in two layouts with its own font, height and padding; previous / next buttons with their size, spacing, shape, border, colors and an icon glyph or image (PNG, SVG), or drawn by a subclass (`OnDrawNavigationButton`, `OnDrawTitle`); fonts and colors for every part (colors resolved from the color scheme when drawn), today as a ring, fill or text, circle or square selection, keyboard and screen readers, right to left.
+  - The look: `DrawCalendarCell`, `DrawCalendarNavigationButton` (with painter delegates) and calendar sizes; `SkUiStrings.TodayStateText`, `UnavailableStateText` and the day names.
+
 ## 1.12.0
 
 ### New features

@@ -1042,6 +1042,78 @@ public class SkUiLook
 
     #endregion
 
+    #region Calendar
+
+    /// <summary>The height of a calendar's header (title and previous / next buttons), in DIPs (default 48).</summary>
+    public virtual double CalendarHeaderHeight => 48;
+
+    /// <summary>The height of a calendar's row of day names, in DIPs (default 28).</summary>
+    public virtual double CalendarDayNamesHeight => 28;
+
+    /// <summary>The height of a row of days when the calendar is not stretched taller, in DIPs (default 44, a touch target).</summary>
+    public virtual double CalendarRowHeight => 44;
+
+    /// <summary>The width of a calendar's column of week numbers (<c>AreWeekNumbersVisible</c>), in DIPs (default 32).</summary>
+    public virtual double CalendarWeekNumberWidth => 32;
+
+    /// <summary>The side of a calendar header's previous / next buttons, in DIPs (default 36).</summary>
+    public virtual double CalendarNavigationButtonSize => 36;
+
+    /// <summary>The font size of calendar days, months and years that set no <c>FontSize</c> (default 16).</summary>
+    public virtual double CalendarFontSize => 16;
+
+    /// <summary>The font size of a calendar's title that sets no <c>HeaderFontSize</c> (default 17).</summary>
+    public virtual double CalendarHeaderFontSize => 17;
+
+    /// <summary>The font size of a calendar's day names and week numbers that set no <c>DayNameFontSize</c> (default 12).</summary>
+    public virtual double CalendarDayNameFontSize => 12;
+
+    /// <summary>The height of the marker area under each day when the calendar has day styles or a day painter and sets no <c>DayMarkerAreaHeight</c>, in DIPs (default 14).</summary>
+    public virtual double CalendarMarkerAreaHeight => 14;
+
+    /// <summary>The font size of calendar marker captions (default 10); icon glyphs fill the marker area's height.</summary>
+    public virtual double CalendarMarkerFontSize => 10;
+
+    /// <summary>Optional calendar cell painter; when set, replaces <see cref="DrawCalendarCellCore"/>.</summary>
+    public Action<SKCanvas, SkUiCalendarCellPaint>? CalendarCellPainter { get; set; }
+
+    /// <summary>
+    /// Draws a calendar cell's chrome (delegate or <see cref="DrawCalendarCellCore"/>): the app's background, the band of a
+    /// range, the selection, today's mark and the keyboard focus. The calendar draws the number and the markers over it. It is
+    /// drawn again for every frame of a page's slide, so keep it cheap.
+    /// </summary>
+    public void DrawCalendarCell(SKCanvas canvas, SkUiCalendarCellPaint cell)
+    {
+        if (CalendarCellPainter is { } painter)
+        {
+            painter(canvas, cell);
+            return;
+        }
+        DrawCalendarCellCore(canvas, cell);
+    }
+
+    /// <summary>Default calendar cell: nothing (<see cref="DefaultSkUiLook"/> draws circles, bands and rings).</summary>
+    protected virtual void DrawCalendarCellCore(SKCanvas canvas, SkUiCalendarCellPaint cell) { }
+
+    /// <summary>Optional painter of a calendar header's buttons; when set, replaces <see cref="DrawCalendarNavigationButtonCore"/>.</summary>
+    public Action<SKCanvas, SkUiCalendarNavigationButtonPaint>? CalendarNavigationButtonPainter { get; set; }
+
+    /// <summary>Draws a calendar header's previous or next button (delegate or <see cref="DrawCalendarNavigationButtonCore"/>).</summary>
+    public void DrawCalendarNavigationButton(SKCanvas canvas, SkUiCalendarNavigationButtonPaint button)
+    {
+        if (CalendarNavigationButtonPainter is { } painter)
+        {
+            painter(canvas, button);
+            return;
+        }
+        DrawCalendarNavigationButtonCore(canvas, button);
+    }
+
+    /// <summary>Default button: nothing (<see cref="DefaultSkUiLook"/> draws a chevron, on a circle when the button has a background).</summary>
+    protected virtual void DrawCalendarNavigationButtonCore(SKCanvas canvas, SkUiCalendarNavigationButtonPaint button) { }
+
+    #endregion
+
     #region Picker and popups
 
     /// <summary>The minimum height of pickers that do not set their own (<c>MinimumHeightRequest</c>), in DIPs (default 44, a touch target).</summary>

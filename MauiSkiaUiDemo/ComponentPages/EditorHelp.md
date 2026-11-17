@@ -129,6 +129,21 @@ The first column's wheel wraps around from its last number to its first (the col
 The dates that can be chosen, from `MinimumDate` to `MaximumDate`: MAUI's default range (1900 to 2100), this year, or today
 and the next 90 days. The wheels and the field stay inside the range.
 
+
+## CalendarDemoPage.Range: from today
+
+Sets `MinimumDate` to today: earlier days are dimmed and cannot be chosen, and the page cannot move before this month.
+
+## CalendarDemoPage.RangeSelectionTarget
+
+In range selection, which end a tap sets: `Auto` (the first tap starts a range, the second ends it), `Start` (the tap sets the first
+day, then the target moves to `End`) or `End` (the tap sets the last day). An app shows "Start" and "End" fields above the calendar
+and binds the target to the one that is selected.
+
+## CalendarDemoPage.Weekdays only (DateEnabled)
+
+A rule of the app's (`DateEnabled`) that allows Monday to Friday: Saturdays and Sundays are dimmed and a tap on one only raises
+`DateTapped`.
 ## DatePickerDemoPage.Days that can be chosen
 
 Days left out inside the range: every day can be chosen, weekdays only (`DateEnabled`, a function of the date), or every
