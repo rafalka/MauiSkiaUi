@@ -186,8 +186,9 @@ internal static partial class SkUiShaping
         if (direction == SkUiTextDirection.RightToLeft)
             return false;
         var typeface = font.Typeface;
+        var coverage = CoverageOf(typeface);
         foreach (var c in text)
-            if (!IsSimpleChar(c) || !HasGlyph(typeface, c))
+            if (!IsSimpleChar(c) || !Covers(typeface, coverage, c))
                 return false;
         return true;
     }
@@ -350,13 +351,20 @@ internal static partial class SkUiShaping
     {
         if (cp > 0xFFFF)
             return typeface.GetGlyph(cp) != 0;
-        // BMP coverage cached per typeface (0 = unknown, 1 = has glyph, 2 = missing): avoids a native call per character.
-        var cache = Coverage.GetOrAdd(typeface, static _ => new byte[0x10000]);
-        var known = Volatile.Read(ref cache[cp]);
+        return Covers(typeface, CoverageOf(typeface), (char)cp);
+    }
+
+    /// <summary>The typeface's BMP coverage (0 = unknown, 1 = has glyph, 2 = missing): avoids a native call per character.</summary>
+    private static byte[] CoverageOf(SKTypeface typeface) => Coverage.GetOrAdd(typeface, static _ => new byte[0x10000]);
+
+    /// <summary>Whether <paramref name="typeface"/> has a glyph for <paramref name="c"/>, filling its <paramref name="coverage"/> entry on first use.</summary>
+    private static bool Covers(SKTypeface typeface, byte[] coverage, char c)
+    {
+        var known = Volatile.Read(ref coverage[c]);
         if (known == 0)
         {
-            known = typeface.GetGlyph(cp) != 0 ? (byte)1 : (byte)2;
-            Volatile.Write(ref cache[cp], known);
+            known = typeface.GetGlyph(c) != 0 ? (byte)1 : (byte)2;
+            Volatile.Write(ref coverage[c], known);
         }
         return known == 1;
     }
