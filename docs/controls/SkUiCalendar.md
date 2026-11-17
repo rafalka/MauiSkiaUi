@@ -118,6 +118,8 @@ calendar.SelectionMode = SkUiCalendarSelectionMode.Range;
 calendar.WeekNumberTapped += (_, e) => calendar.SelectedRange = e.EnabledRange; // the week's days that can be chosen
 ```
 
+A full example over the app's data (appointments, out-of-office days, public holidays, a day's agenda): the samples app's "Team calendar" (`samples/MauiSkiaUiSamples/Samples/Controls/Calendar/TeamCalendarSample.cs`).
+
 A weekly strip above an agenda: `VisibleWeeks="1" MaximumDisplayMode="Month" AreDayNamesVisible="True"`. A month picker (card expiry): `MinimumDisplayMode="Year" MaximumDisplayMode="Decade"`; the chosen month is `SelectedDate`'s month.
 
 ## Key properties

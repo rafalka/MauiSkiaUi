@@ -1,4 +1,5 @@
 using MauiSkiaUiSamples.Samples.Controls;
+using MauiSkiaUiSamples.Samples.Controls.Calendar;
 using MauiSkiaUiSamples.Samples.Controls.Contacts;
 using MauiSkiaUiSamples.Samples.Controls.Pickers;
 using MauiSkiaUiSamples.Samples.Core;
@@ -33,6 +34,7 @@ public static class SampleCatalog
         SampleEntry.For<AlarmClockSample>(),
         SampleEntry.For<DateOfBirthSample>(),
         SampleEntry.For<BookingSample>(),
+        SampleEntry.For<TeamCalendarSample>(),
         SampleEntry.For<CustomPickersSample>(),
         SampleEntry.For<CrossCheckBoxSample>(),
         SampleEntry.For<BrandLookSample>(),
