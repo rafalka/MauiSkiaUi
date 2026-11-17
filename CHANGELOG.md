@@ -13,6 +13,27 @@ Publishing (the NuGet publish workflow, [docs/Releasing.md](docs/Releasing.md)) 
 
 ## Unreleased
 
+### New features
+
+- **Calendar (1.13, FR-33):** `SkUiCalendar` and its Core twin `SkUiCoreCalendar`, one drawn node on one engine ([SkUiCalendar.md](docs/controls/SkUiCalendar.md)).
+  - Month, year, decade and century pages: the title steps up, a cell steps down, a pinch zooms; `MinimumDisplayMode` / `MaximumDisplayMode` (a month picker, a calendar kept on days). Pages slide with the header's buttons, a swipe (horizontal or vertical) or `GoToPrevious` / `GoToNext` / `GoToDate` / `GoToToday`, with the look's new `SkUiTransitionKind.CalendarPage`.
+  - One to six weeks (`VisibleWeeks`: a weekly strip), `FirstDayOfWeek`, week numbers, the neighbor months' days; day names as the first letter, short or shortest (`DayNameFormat`), translatable through `SkUiStrings` (`AbbreviatedDayNames`, `ShortestDayNames`, `FirstLetterDayNames`, `GetDayName`), with today's highlighted (`IsTodayDayNameHighlighted`, `TodayDayNameTextColor`).
+  - Selection: none, single, multiple and range, written back two-way (`SelectedDate`, `SelectedDates`, `SelectedRange` as `SkUiDateRange` with an open end while the range is chosen); `RangeSelectionTarget` lets an app with "Start" and "End" fields say which end a tap sets. `SelectionChanged`, `DateTapped` (also for days that cannot be chosen), `WeekNumberTapped` (the week's days, to select the whole week).
+  - The date picker's day rules: `MinimumDate`, `MaximumDate`, `BlackoutDates`, `DateEnabled`.
+  - Events under the days: `DayStyle` (colors, weight, strike-through) with `Markers` (dots, bars, icon glyphs, captions) in a marker area under the number; `DayPainter` draws a day the app's way, with the calendar's text drawing.
+  - Header in two layouts with its own font, height and padding; previous / next buttons with their size, spacing, shape, border, colors and an icon glyph or image (PNG, SVG), or drawn by a subclass (`OnDrawNavigationButton`, `OnDrawTitle`); fonts and colors for every part (colors resolved from the color scheme when drawn), today as a ring, fill or text, circle or square selection, keyboard and screen readers, right to left.
+  - The look: `DrawCalendarCell`, `DrawCalendarNavigationButton` (with painter delegates) and calendar sizes; `SkUiStrings.TodayStateText`, `UnavailableStateText` and the day names.
+  - Range rules (wave 2): `MinimumRangeDays` and `MaximumRangeDays` (the length of a range the user chooses, both ends counted) and `AllowsDisabledDaysInRange` (`false`: a range may not run over a day that cannot be chosen); while a range waits for its end, the days that would break a rule are dimmed and cannot be tapped.
+  - Several ranges (wave 2): `SelectionMode` `MultipleRanges` with `SelectedRanges` (two-way, in date order; ranges that overlap or touch join, a tap on a chosen range removes it).
+  - Screen readers (wave 2): every day of the page is an element of its own (its full date and state: selected, today; unavailable days dimmed), and so are the header's title and buttons (`SkUiStrings.PreviousText`, `NextText`), besides the calendar's adjustable element.
+- **Date pickers with a calendar popup (1.13 wave 2):** `PopupStyle` on `SkUiDatePicker` and `SkUiCoreDatePicker`: `Wheels`, `Calendar` (a month calendar: a tap on a day chooses it and closes the popup, or is the draft OK accepts with `UpdateMode` `WhenFinished`) or `Default`, the look's new `DatePickerPopupStyle` (wheels on every built-in look). `CalendarStyle` styles the popup's calendar. The calendar keeps the picker's days (range, blackout dates, `DateEnabled`), and the request is the same `SkUiDatePopupRequest`, so presenters with their own date UI keep working. `SkUiDateTimePicker` keeps its wheels.
+- **Date range picker (1.13 wave 2):** `SkUiDateRangePicker` and its Core twin `SkUiCoreDateRangePicker`, value pickers of `SkUiDateRange?` ([SkUiDateRangePicker.md](docs/controls/SkUiDateRangePicker.md)): the field shows the range by `DisplayFormat` (a `string.Format` format: `{0}` first day, `{1}` last day, `{2}` number of days), the popup is a calendar in range selection (two taps choose, or a draft until OK, which the popup's Clear button empties without closing), with the day rules (`MinimumDate`, `MaximumDate`, `BlackoutDates`, `DateEnabled`), the range rules and `CalendarStyle`. Presenters with their own UI handle `SkUiValuePopupRequest<SkUiDateRange?>`.
+- **Samples:** the samples app's "Team calendar" example: appointments as colored dots, out-of-office days as an amber bar and made-up public holidays as a red caption, all from one `DayStyle` function; tapping a day shows its agenda, and a form adds appointments to it and time off through `SkUiDateRangePicker`.
+
+### Fixes
+
+- **Value pickers kept alive by a presenter:** `SkUiValuePicker<T>` and `SkUiCoreValuePicker<T>` (1.12) linked their popup content to the picker strongly, so a presenter that kept the request of a popup still open when its page closed kept the picker and its page alive. The content now reaches the picker weakly, as the other pickers' popups do.
+
 ## 1.12.0
 
 ### New features

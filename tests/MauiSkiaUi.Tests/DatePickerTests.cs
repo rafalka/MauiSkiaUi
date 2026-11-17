@@ -276,4 +276,109 @@ public sealed class DatePickerTests : IDisposable
         _ui.RunPending();
         Assert.False(picker.IsOpen);
     }
+    private SkUiCalendarPopup OpenCalendar(SkUiPickerBase picker, out SkUiDatePopupRequest request)
+    {
+        picker.IsOpen = true;
+        request = Assert.IsType<SkUiDatePopupRequest>(_presenter.Current);
+        return Assert.IsType<SkUiCalendarPopup>(request.Content);
+    }
+
+    /// <summary>A day of the November 2026 page (Sunday weeks from 1 November) chosen as a screen reader would.</summary>
+    private static void ChooseDay(SkUiCalendarPopup content, int day)
+    {
+        Assert.Equal(new DateTime(2026, 11, 1), content.Calendar.Engine.PageStart);
+        Assert.True(((ISkUiAccessibleNode)content.Calendar).PerformSemanticsPartAction(3 + day - 1, SkUiSemanticsActions.Activate));
+    }
+
+    [Fact]
+    public void ACalendarPopupChoosesADayAndCloses()
+    {
+        var picker = Arranged(new SkUiDatePicker
+        {
+            PopupStyle = SkUiDatePickerPopupStyle.Calendar,
+            Date = new DateTime(2026, 11, 10),
+            MaximumDate = new DateTime(2026, 11, 20),
+            DateEnabled = date => date.DayOfWeek != DayOfWeek.Sunday
+        });
+        picker.BlackoutDates!.Add(new DateTime(2026, 11, 13));
+        var content = OpenCalendar(picker, out var request);
+        var calendar = content.Calendar;
+        Assert.Equal(new DateTime(2026, 11, 10), calendar.SelectedDate);
+        Assert.Equal(new DateTime(2026, 11, 20), calendar.MaximumDate);
+        // The picker's days: the blackout day, Sundays and days past the maximum cannot be chosen.
+        Assert.False(calendar.Engine.IsDayEnabled(new DateTime(2026, 11, 13)));
+        Assert.False(calendar.Engine.IsDayEnabled(new DateTime(2026, 11, 15)));
+        Assert.False(calendar.Engine.IsDayEnabled(new DateTime(2026, 11, 21)));
+        // As wide as the calendar with its margin: seven 44-wide columns and 8 at each side.
+        Assert.Equal(7 * 44 + 16, content.PreferredSize(0, 1000, 1000).Width);
+        Assert.Equal(200, content.PreferredSize(200, 200, 1000).Width);
+
+        ChooseDay(content, 13); // unavailable: nothing happens
+        Assert.True(picker.IsOpen);
+        ChooseDay(content, 12);
+        _ui.RunPending();
+        Assert.Equal(new DateTime(2026, 11, 12), picker.Date);
+        Assert.False(picker.IsOpen);
+        Assert.True(request.HasResult);
+
+        // The same request for presenters of their own: the date the calendar shows.
+        OpenCalendar(picker, out var again);
+        Assert.Equal(new DateTime(2026, 11, 12), again.CurrentDate);
+        Assert.True(again.Clear());
+        _ui.RunPending();
+        Assert.Null(picker.Date);
+    }
+
+    [Fact]
+    public void WaitingForOkTheCalendarsDayIsADraft()
+    {
+        var picker = Arranged(new SkUiDatePicker
+        {
+            PopupStyle = SkUiDatePickerPopupStyle.Calendar,
+            UpdateMode = SkUiPickerUpdateMode.WhenFinished,
+            Date = new DateTime(2026, 11, 10)
+        });
+        var content = OpenCalendar(picker, out var request);
+        ChooseDay(content, 18);
+        Assert.Equal(new DateTime(2026, 11, 18), request.CurrentDate);
+        Assert.Equal(new DateTime(2026, 11, 10), picker.Date);
+        Assert.True(picker.IsOpen);
+        // Enter on the day already chosen accepts it.
+        var keys = (ISkUiKeyHandler)content;
+        Assert.True(keys.OnKeyDown(new SkUiKeyEvent(SkUiKey.Enter, SkUiKeyModifiers.None, false)));
+        _ui.RunPending();
+        Assert.Equal(new DateTime(2026, 11, 18), picker.Date);
+        Assert.False(picker.IsOpen);
+
+        // The app's change while open shows in the calendar; Escape cancels.
+        content = OpenCalendar(picker, out _);
+        picker.Date = new DateTime(2026, 11, 4);
+        Assert.Equal(new DateTime(2026, 11, 4), content.Calendar.SelectedDate);
+        Assert.True(((ISkUiKeyHandler)content).OnKeyDown(new SkUiKeyEvent(SkUiKey.Left, SkUiKeyModifiers.None, false)));
+        Assert.True(((ISkUiKeyHandler)content).OnKeyDown(new SkUiKeyEvent(SkUiKey.Escape, SkUiKeyModifiers.None, false)));
+        _ui.RunPending();
+        Assert.False(picker.IsOpen);
+        Assert.Equal(new DateTime(2026, 11, 4), picker.Date);
+    }
+
+    [Fact]
+    public void ThePopupStyleFollowsTheLookByDefaultAndTheCoreTwinHasIt()
+    {
+        var picker = Arranged(new SkUiDatePicker { Date = new DateTime(2026, 11, 10) });
+        Assert.Equal(SkUiDatePickerPopupStyle.Default, picker.PopupStyle);
+        Open(picker, out _); // the built-in looks show wheels
+        picker.IsOpen = false;
+        _ui.RunPending();
+        Assert.Throws<ArgumentOutOfRangeException>(() => picker.SetPopupStyle((SkUiDatePickerPopupStyle)7));
+
+        var style = new Style(typeof(SkUiCalendar)) { Setters = { new Setter { Property = SkUiCalendar.FirstDayOfWeekProperty, Value = DayOfWeek.Monday } } };
+        var core = new Core.SkUiCoreDatePicker().SetPopupStyle(SkUiDatePickerPopupStyle.Calendar).SetCalendarStyle(style).SetDate(new DateTime(2026, 11, 10));
+        var host = new Core.SkUiCoreHost().SetContent(core);
+        Arranged(host);
+        core.IsOpen = true;
+        var request = Assert.IsType<SkUiDatePopupRequest>(_presenter.Current);
+        var content = Assert.IsType<SkUiCalendarPopup>(request.Content);
+        Assert.Equal(DayOfWeek.Monday, content.Calendar.FirstDayOfWeek);
+        Assert.Equal(new DateTime(2026, 11, 10), content.Calendar.SelectedDate);
+    }
 }

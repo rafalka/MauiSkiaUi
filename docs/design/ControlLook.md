@@ -66,6 +66,13 @@ public class SkUiLook
     //                                                     and the previous / next buttons (DrawIndicatorButton, IndicatorNavigationButtonSize).
     public void DrawIndicators(SKCanvas canvas, SkUiIndicatorPaint paint) { … } // → IndicatorPainter ?? DrawIndicatorsCore
     public virtual double DefaultIndicatorSpacing => 8;    // and GetSelectedIndicatorExtraLength(size, shape) (a pill's room)
+    // Calendars (1.13): a cell's chrome above its marker area (selection, a range's band and which sides it runs on to, today,
+    // focus, press); the calendar draws the number, the markers and the app's day painter. DefaultSkUiLook: circles or rounded
+    // squares, a band with rounded ends, a ring or a fill for today; chevrons, on a circle when the button has a background.
+    public void DrawCalendarCell(SKCanvas canvas, SkUiCalendarCellPaint cell) { … }                     // → CalendarCellPainter ?? DrawCalendarCellCore
+    public void DrawCalendarNavigationButton(SKCanvas canvas, SkUiCalendarNavigationButtonPaint button) { … } // → CalendarNavigationButtonPainter ?? …Core
+    public virtual double CalendarRowHeight => 44;         // and CalendarHeaderHeight, CalendarDayNamesHeight, CalendarMarkerAreaHeight, font sizes
+    public virtual SkUiDatePickerPopupStyle DatePickerPopupStyle => SkUiDatePickerPopupStyle.Wheels; // a date picker's PopupStyle = Default (1.13)
     // Avatars (C8): the intrinsic size, the text size for the content area, colors by mode and name (palette index by a
     // stable hash: AvatarPaletteIndex), and the status badge over the border on the outline's corner arc.
     public virtual Size DefaultAvatarSize => new(48, 48);  // and GetAvatarFontSize(content) (40 % of the smaller side)

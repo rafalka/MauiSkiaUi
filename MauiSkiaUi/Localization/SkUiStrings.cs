@@ -1,3 +1,5 @@
+using System.Globalization;
+
 namespace MauiSkiaUi;
 
 /// <summary>
@@ -67,7 +69,14 @@ public class SkUiStrings
     /// Call after the texts changed without a new <see cref="Current"/> (a culture switch read by overridden getters): raises
     /// <see cref="CurrentChanged"/>. Setting a text on the current instance does this by itself.
     /// </summary>
-    public static void NotifyChanged() => CurrentChangedEvent.Raise(null, EventArgs.Empty);
+    public static void NotifyChanged()
+    {
+        Version++;
+        CurrentChangedEvent.Raise(null, EventArgs.Empty);
+    }
+
+    /// <summary>Counts the changes <see cref="NotifyChanged"/> reported: what caches texts (a calendar's day names) reads them again.</summary>
+    internal static int Version { get; private set; }
 
     /// <summary>
     /// The OK button of popups whose choice waits to be accepted (a picker's <c>UpdateMode</c>
@@ -157,6 +166,24 @@ public class SkUiStrings
     /// <summary>What screen readers read as the value of a selected collection view item (or a chosen row of a picker with several choices). Default "Selected".</summary>
     public virtual string SelectedStateText { get; set => Set(ref field, value); } = "Selected";
 
+    /// <summary>A calendar's week number with the first letter of "week" (<c>SkUiCalendarWeekNumberFormat.FirstLetter</c>), a <c>string.Format</c> format of the number. Default "W{0}".</summary>
+    public virtual string WeekNumberLetterFormat { get; set => Set(ref field, value); } = "W{0}";
+
+    /// <summary>A calendar's week number with the abbreviation of "week" (<c>SkUiCalendarWeekNumberFormat.Abbreviated</c>), a <c>string.Format</c> format of the number. Default "Wk {0}".</summary>
+    public virtual string WeekNumberAbbreviatedFormat { get; set => Set(ref field, value); } = "Wk {0}";
+
+    /// <summary>A calendar day that is today, as screen readers read it after the date. Default "Today".</summary>
+    public virtual string TodayStateText { get; set => Set(ref field, value); } = "Today";
+
+    /// <summary>A calendar day that cannot be chosen (outside the range, a blackout date), as screen readers read it after the date. Default "Unavailable".</summary>
+    public virtual string UnavailableStateText { get; set => Set(ref field, value); } = "Unavailable";
+
+    /// <summary>A calendar's button to the previous page (month, year, …), as screen readers read it. Default "Previous".</summary>
+    public virtual string PreviousText { get; set => Set(ref field, value); } = "Previous";
+
+    /// <summary>A calendar's button to the next page, as screen readers read it. Default "Next".</summary>
+    public virtual string NextText { get; set => Set(ref field, value); } = "Next";
+
     /// <summary>What screen readers read after the header of an expanded expander or collection view group. Default "Expanded".</summary>
     public virtual string ExpandedStateText { get; set => Set(ref field, value); } = "Expanded";
 
@@ -177,6 +204,44 @@ public class SkUiStrings
 
     /// <summary>The screen-reader action that moves a reorderable collection view item one place right. Default "Move right".</summary>
     public virtual string MoveRightText { get; set => Set(ref field, value); } = "Move right";
+
+    /// <summary>
+    /// The day names a calendar shows above its columns in the <see cref="SkUiCalendarDayNameFormat.Abbreviated"/> format
+    /// ("Mon"), seven names from Sunday; <c>null</c> (default): the current culture's.
+    /// </summary>
+    public virtual IReadOnlyList<string>? AbbreviatedDayNames { get; set => SetDayNames(ref field, value); }
+
+    /// <summary>The day names in the <see cref="SkUiCalendarDayNameFormat.Shortest"/> format ("Mo"), seven from Sunday; <c>null</c> (default): the culture's.</summary>
+    public virtual IReadOnlyList<string>? ShortestDayNames { get; set => SetDayNames(ref field, value); }
+
+    /// <summary>The day names in the <see cref="SkUiCalendarDayNameFormat.FirstLetter"/> format ("M"), seven from Sunday; <c>null</c> (default): the first letter of the culture's shortest names.</summary>
+    public virtual IReadOnlyList<string>? FirstLetterDayNames { get; set => SetDayNames(ref field, value); }
+
+    /// <summary>
+    /// The name of <paramref name="day"/> a calendar shows above its column in <paramref name="format"/>: the names set on
+    /// this instance (<see cref="AbbreviatedDayNames"/>, <see cref="ShortestDayNames"/>, <see cref="FirstLetterDayNames"/>),
+    /// else <paramref name="culture"/>'s. Override it to read the app's resources.
+    /// </summary>
+    public virtual string GetDayName(DayOfWeek day, SkUiCalendarDayNameFormat format, CultureInfo culture)
+    {
+        var names = format switch
+        {
+            SkUiCalendarDayNameFormat.Abbreviated => AbbreviatedDayNames,
+            SkUiCalendarDayNameFormat.FirstLetter => FirstLetterDayNames,
+            _ => ShortestDayNames
+        };
+        return names is not null ? names[(int)day] : SkUiCalendarGrid.DayName(day, format, culture);
+    }
+
+    private void SetDayNames(ref IReadOnlyList<string>? field, IReadOnlyList<string>? value)
+    {
+        if (value is not null && (value.Count != 7 || value.Any(name => name is null)))
+            throw new ArgumentException("Seven day names, from Sunday, none of them null.", nameof(value));
+        if (ReferenceEquals(field, value)) return;
+        field = value is null ? null : [.. value];
+        if (ReferenceEquals(_current, this))
+            NotifyChanged();
+    }
 
     /// <summary>The expanded or collapsed state's text.</summary>
     internal string ExpansionStateText(bool expanded) => expanded ? ExpandedStateText : CollapsedStateText;

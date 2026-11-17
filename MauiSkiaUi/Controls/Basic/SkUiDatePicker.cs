@@ -66,6 +66,31 @@ public class SkUiDatePicker : SkUiDateTimePickerBase
         propertyChanged: (picker, _, value) => ((SkUiDatePicker)picker).ApplyWheels(dates => dates.BlackoutDates = (IList<DateTime>?)value),
         defaultValueCreator: picker => ((SkUiDatePicker)picker).CreateBlackoutDates());
 
+    /// <summary>Bindable property for <see cref="PopupStyle"/>.</summary>
+    public static readonly BindableProperty PopupStyleProperty = BindableProperty.Create(nameof(PopupStyle), typeof(SkUiDatePickerPopupStyle), typeof(SkUiDatePicker),
+        SkUiDatePickerPopupStyle.Default, validateValue: (_, value) => Enum.IsDefined((SkUiDatePickerPopupStyle)value),
+        propertyChanged: (picker, _, value) => ((SkUiDatePicker)picker).ApplyWheels(dates => dates.PopupStyle = (SkUiDatePickerPopupStyle)value));
+
+    /// <summary>Bindable property for <see cref="CalendarStyle"/>.</summary>
+    public static readonly BindableProperty CalendarStyleProperty = BindableProperty.Create(nameof(CalendarStyle), typeof(Style), typeof(SkUiDatePicker), null,
+        propertyChanged: (picker, _, value) => ((SkUiDatePicker)picker).ApplyWheels(dates => dates.CalendarStyle = (Style?)value));
+
+    /// <summary>
+    /// What the popup shows: <see cref="SkUiDatePickerPopupStyle.Wheels"/>, a month <see cref="SkUiDatePickerPopupStyle.Calendar"/>
+    /// (a tap on a day chooses it and closes the popup, or is the draft OK accepts with <c>UpdateMode</c> <c>WhenFinished</c>), or
+    /// <see cref="SkUiDatePickerPopupStyle.Default"/> (default): the look's (<see cref="SkUiLook.DatePickerPopupStyle"/>, wheels on
+    /// the built-in looks). The calendar keeps the same days as the wheels (the range, <see cref="BlackoutDates"/>,
+    /// <see cref="DateEnabled"/>); the request is <see cref="SkUiDatePopupRequest"/> either way. SkiaUi extension.
+    /// </summary>
+    public SkUiDatePickerPopupStyle PopupStyle { get => (SkUiDatePickerPopupStyle)GetValue(PopupStyleProperty); set => SetValue(PopupStyleProperty, value); }
+
+    /// <summary>
+    /// A style (<c>TargetType</c> <see cref="SkUiCalendar"/>) for the popup's calendar: its colors, fonts, header, first day of the
+    /// week, week numbers. The picker sets the calendar's selection, range and day rule itself; without a style the calendar takes
+    /// the picker's font family. <c>null</c> by default. SkiaUi extension.
+    /// </summary>
+    public Style? CalendarStyle { get => (Style?)GetValue(CalendarStyleProperty); set => SetValue(CalendarStyleProperty, value); }
+
     /// <summary>The chosen date (its time is midnight); <c>null</c>: none. Today by default. Kept between <see cref="MinimumDate"/> and <see cref="MaximumDate"/>. Two-way by default.</summary>
     public DateTime? Date { get => (DateTime?)GetValue(DateProperty); set => SetValue(DateProperty, value); }
 
@@ -153,6 +178,18 @@ public class SkUiDatePicker : SkUiDateTimePickerBase
 
     /// <summary>Sets <see cref="DateEnabled"/> (same as the property setter).</summary>
     public SkUiDatePicker SetDateEnabled(Func<DateTime, bool>? value) { DateEnabled = value; return this; }
+
+    /// <summary>Sets <see cref="PopupStyle"/> (same as the property setter).</summary>
+    public SkUiDatePicker SetPopupStyle(SkUiDatePickerPopupStyle value)
+    {
+        if (!Enum.IsDefined(value))
+            throw new ArgumentOutOfRangeException(nameof(value));
+        PopupStyle = value;
+        return this;
+    }
+
+    /// <summary>Sets <see cref="CalendarStyle"/> (same as the property setter).</summary>
+    public SkUiDatePicker SetCalendarStyle(Style? value) { CalendarStyle = value; return this; }
 
     private IList<DateTime> CreateBlackoutDates()
     {

@@ -46,7 +46,9 @@ Shared pipelines: [Architecture.md](../design/Architecture.md) · [LayoutSystem.
 | `SkUiMultiColumnPicker` / `SkUiCoreMultiColumnPicker` | [SkUiMultiColumnPicker.md](SkUiMultiColumnPicker.md) | — (wheels of several columns on the app's popup system) |
 | `SkUiPickerWheels` | [SkUiPickerWheels.md](SkUiPickerWheels.md) | — (the same wheels inline, always open, no field) |
 | `SkUiValuePicker<T>` / `SkUiCoreValuePicker<T>`, pickers on `SkUiPickerBase` | [CustomPickers.md](CustomPickers.md) | — (pickers of your own: a value of your type, your popup body, SkiaUi's field and popups) |
-| `SkUiDatePicker` / `SkUiCoreDatePicker` | [SkUiDatePicker.md](SkUiDatePicker.md) | DatePicker (wheels of the day, month and year) |
+| `SkUiDatePicker` / `SkUiCoreDatePicker` | [SkUiDatePicker.md](SkUiDatePicker.md) | DatePicker (wheels of the day, month and year, or a month calendar) |
+| `SkUiCalendar` / `SkUiCoreCalendar` | [SkUiCalendar.md](SkUiCalendar.md) | — (a drawn calendar: month, year, decade and century pages; single, multiple, range and multiple-range selection; events under the days) |
+| `SkUiDateRangePicker` / `SkUiCoreDateRangePicker` | [SkUiDateRangePicker.md](SkUiDateRangePicker.md) | — (a field of a run of days; a calendar popup in range selection) |
 | `SkUiTimePicker` / `SkUiCoreTimePicker` | [SkUiTimePicker.md](SkUiTimePicker.md) | TimePicker (wheels of the hour, minute, AM / PM) |
 | `SkUiDateTimePicker` / `SkUiCoreDateTimePicker` | [SkUiDateTimePicker.md](SkUiDateTimePicker.md) | — (a day and a time on one popup) |
 | `SkUiToggleControl` | [SkUiToggleControl.md](SkUiToggleControl.md) | — (abstract) |

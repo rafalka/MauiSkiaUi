@@ -432,7 +432,8 @@ internal sealed class SkUiSemanticsTree
                     Bounds = new Rect(bounds.Left, bounds.Top, bounds.Width, bounds.Height),
                     Role = SkUiSemanticsRole.Button,
                     Label = part.Label,
-                    IsEnabled = _info.IsEnabled,
+                    Value = Clean(part.Value),
+                    IsEnabled = _info.IsEnabled && part.IsEnabled,
                     Actions = SkUiSemanticsActions.Activate,
                     AutomationId = string.IsNullOrWhiteSpace(_info.AutomationId) ? null : _info.AutomationId + part.AutomationIdSuffix
                 });

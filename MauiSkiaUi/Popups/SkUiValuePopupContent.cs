@@ -74,8 +74,19 @@ public sealed class SkUiValuePopupRequest<T> : SkUiPopupRequest<T>
         return false;
     }
 
+    /// <summary>
+    /// Waiting for OK, the Clear button clears only the draft (<see cref="Value"/> becomes <c>default</c>) and the popup stays open;
+    /// otherwise it clears the picker and closes. Set by the content (the date range picker's calendar).
+    /// </summary>
+    internal bool ClearsDraft { get; init; }
+
     private protected override bool ClearCore()
     {
+        if (ClearsDraft && RequiresAccept)
+        {
+            Show(default!);
+            return true;
+        }
         _clear?.Invoke();
         Close();
         return true;
@@ -158,6 +169,7 @@ public abstract class SkUiValuePopupContent<T> : SkUiPickerPopupContent
             OverlayColor = options.OverlayColor,
             IsAnimated = options.IsAnimated,
             RequiresAccept = options.Chrome.RequiresAccept,
+            ClearsDraft = ClearsDraftCore,
             AcceptText = options.Chrome.AcceptText,
             CancelText = options.Chrome.CancelText
         };
@@ -166,6 +178,9 @@ public abstract class SkUiValuePopupContent<T> : SkUiPickerPopupContent
         _followed = request.Value;
         return request;
     }
+
+    /// <summary>Whether, waiting for OK, the Clear button clears only the draft and keeps the popup open (default <c>false</c>).</summary>
+    internal virtual bool ClearsDraftCore => false;
 
     /// <summary>The Clear button cleared the picker: <see cref="Value"/> shows it (also over a draft).</summary>
     internal override void ClearedCore()

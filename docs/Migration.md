@@ -56,7 +56,9 @@ Checked against .NET MAUI 10.0.130 (`MauiApiParityTests` compares every drawn co
 | RefreshView | `SkUiRefreshView`; pull-to-refresh also built into `SkUiCollectionView` | Done; screen-reader refresh action open |
 | CarouselView, IndicatorView | `SkUiCarouselView`; `SkUiIndicatorView` + Core | Done: `ItemsLayout` (or the items layout as carousel properties), `ItemsUpdatingScrollMode`, scroll bars, `IndicatorTemplate` (SkUi* only); plus several items in view and item effects; `VisibleViews` open |
 | Picker | `SkUiPicker` + Core | Done: drawn field, drawn list on the app's popup system (`ISkUiPopupPresenter`); plus placement, drawn rows, keyboard and type-ahead everywhere; `UpdateMode` on every platform |
-| DatePicker, TimePicker | `SkUiDatePicker`, `SkUiTimePicker` + Core; `SkUiDateTimePicker` | Done: drawn wheels on the app's popup system; plus wheel formats, ranges of times, steps, blackout days; a month calendar planned |
+| DatePicker, TimePicker | `SkUiDatePicker`, `SkUiTimePicker` + Core; `SkUiDateTimePicker` | Done: drawn wheels on the app's popup system; plus wheel formats, ranges of times, steps, blackout days; a month calendar popup for the date pickers (`PopupStyle`, 1.13) |
+| — (third-party calendars) | `SkUiCalendar` + Core | Done in 1.13: month / year / decade / century pages, single, multiple, range and multiple-range selection, day and range rules, events under the days |
+| — (third-party date range pickers) | `SkUiDateRangePicker` + Core | Done in 1.13: a field of a run of days with a calendar popup |
 | Stepper | `SkUiStepper` + Core | Done, plus stacked buttons (`Orientation`), texts in place of − / +, corner radius and outline, and typed values (`SkUiStepper<T>`) |
 | Entry, Editor, SearchBar | `SkUiEntry`, `SkUiEditor`, `SkUiSearchBar` + Core | Done: drawn, the platform keyboard and IME through a proxy per surface; plus `CaretColor`, `SelectionColor`, `AutofillHint`; device checks of composition, dictation and password managers open; hosted `Entry` (`SkUiMauiContentView`) for native-only needs |
 | WebView, Map, media | Hosted (`SkUiMauiContentView`) | By design |
@@ -72,7 +74,7 @@ Good first candidates:
 - screens that are slow to open, or where adding views to the page shows up in traces;
 - repeated rows inside a `ScrollView`, and `CollectionView` lists (also grouped, grids, horizontal, with multiple selection): `SkUiCollectionView`, or `SkUiVirtualScrollView` for plain lists (see [Lists](#lists-collectionview)).
 
-Leave for later: screens built around third-party controls (charts, calendars, data grids) that would have to sit on top of the drawn surface.
+Leave for later: screens built around third-party controls (charts, data grids) that would have to sit on top of the drawn surface. Calendars convert to `SkUiCalendar` (SkiaUi 1.13, [below](#calendars)).
 
 ## Setup
 
@@ -463,7 +465,7 @@ Platform differences go: the list is the same drawn list everywhere, anchored to
 
 **`DatePicker` and `TimePicker`** become `SkUiDatePicker` and `SkUiTimePicker` by the prefix ([SkUiDatePicker.md](controls/SkUiDatePicker.md), [SkUiTimePicker.md](controls/SkUiTimePicker.md)): the same `Date` / `MinimumDate` / `MaximumDate` / `Format` / `DateSelected`, `Time` / `Format` / `TimeSelected`, `IsOpen` / `Opened` / `Closed` (MAUI's event types), the text and font properties. Instead of the platform's dialog or wheels, drawn wheels open on the same presenter as the picker's list, ordered and named by the culture; a presenter can still show a platform dialog by handling `SkUiDatePopupRequest` / `SkUiTimePopupRequest`. SkiaUi keeps a time between `MinimumTime` and `MaximumTime` as MAUI keeps a date in its range. New beyond MAUI: `WheelFormat` (which wheels: a month and year picker), `BlackoutDates` / `DateEnabled`, `MinimumTime` / `MaximumTime`, `HourInterval` / `MinuteInterval` / `SecondInterval`, `DefaultHighlightedDate` / `DefaultHighlightedTime`, headers, `UpdateMode`, clearing, and `SkUiDateTimePicker` for a day and a time on one popup.
 
-Coming from other date and time pickers: a format that lists the columns → `WheelFormat` (a .NET format, `"dd MM yyyy"`); the display format → `Format`; minute and hour steps → `HourInterval` / `MinuteInterval` / `SecondInterval`; blocked days → `BlackoutDates` (or `DateEnabled`); the value shown while there is none → `DefaultHighlightedDate` / `DefaultHighlightedTime`; column headers → `AreColumnHeadersVisible` with `SkUiStrings`' texts; looping wheels → `IsLooping`; a dialog mode → `PopupPlacement="Window"`; an OK / Cancel footer → `UpdateMode="WhenFinished"`; a clear button and a placeholder → `IsClearButtonVisible`, `Placeholder`. Not available: a drawn calendar popup (planned), durations longer than a day (use `SkUiMultiColumnPicker` with `SkUiPickerColumn.Range` columns).
+Coming from other date and time pickers: a format that lists the columns → `WheelFormat` (a .NET format, `"dd MM yyyy"`); the display format → `Format`; minute and hour steps → `HourInterval` / `MinuteInterval` / `SecondInterval`; blocked days → `BlackoutDates` (or `DateEnabled`); the value shown while there is none → `DefaultHighlightedDate` / `DefaultHighlightedTime`; column headers → `AreColumnHeadersVisible` with `SkUiStrings`' texts; looping wheels → `IsLooping`; a dialog mode → `PopupPlacement="Window"`; an OK / Cancel footer → `UpdateMode="WhenFinished"`; a clear button and a placeholder → `IsClearButtonVisible`, `Placeholder`. A drawn calendar popup → `PopupStyle="Calendar"` (1.13; `CalendarStyle` styles it; date pickers only). Not available: durations longer than a day (use `SkUiMultiColumnPicker` with `SkUiPickerColumn.Range` columns).
 
 ## Text input (`Entry`, `Editor`, `SearchBar`)
 
@@ -562,7 +564,21 @@ Keep an icon as it is when it works: `FontImageSource` and `MauiImage` work on d
 | Drag and drop, context flyouts | Not planned | Keep native |
 | `ListView`, `TableView`, cells, `Frame` | Obsolete in MAUI; not planned | `SkUiCollectionView` (or `SkUiVirtualScrollView` for plain lists), `SkUiBorder` |
 | Shell, pages, navigation | Out of scope | Stay MAUI |
-| Third-party controls (charts, calendars, data grids, signature pads) | Native | Host in `SkUiMauiContentView`, or keep them outside the surface |
+| Third-party controls (charts, data grids, signature pads) | Native | Host in `SkUiMauiContentView`, or keep them outside the surface; calendars → `SkUiCalendar` |
+
+## Calendars
+
+MAUI has no calendar; apps use a component library's. `SkUiCalendar` ([SkUiCalendar.md](controls/SkUiCalendar.md), SkiaUi 1.13) and `SkUiCoreCalendar` cover the common calendar control; the names are SkiaUi's own:
+
+- The view (month, year, decade, century) → `DisplayMode`; which views can be reached → `MinimumDisplayMode` / `MaximumDisplayMode`; moving between views by the header or a cell → built in (the title steps up, a cell steps down, a pinch zooms); the shown month → `DisplayDate` (two-way); backward / forward methods → `GoToPrevious()` / `GoToNext()`; navigation direction → `NavigationOrientation`; swiping on or off → `IsSwipeEnabled`.
+- Selection mode (single, multiple, range, several ranges) → `SelectionMode`; the selected date, dates, range and ranges → `SelectedDate`, `SelectedDates`, `SelectedRange` (`SkUiDateRange`; an open range has a `null` `End`), `SelectedRanges`; the shortest and longest range → `MinimumRangeDays` / `MaximumRangeDays`; a range that may not span disabled days → `AllowsDisabledDaysInRange = false`; toggling a selected day off → `AllowsDeselection`; a range edited from "Start" / "End" fields → `RangeSelectionTarget`; a tapped event → `DateTapped` (with `IsEnabled`); a selection changed event → `SelectionChanged`.
+- Minimum / maximum dates → `MinimumDate` / `MaximumDate`; past dates off → `MinimumDate = DateTime.Today`; blackout dates and a selectable-day predicate → `BlackoutDates` and `DateEnabled`.
+- First day of week → `FirstDayOfWeek`; number of visible weeks → `VisibleWeeks`; leading and trailing dates → `AreAdjacentDaysVisible`; week numbers → `AreWeekNumbersVisible`; the weekday header and its text format → `AreDayNamesVisible`, `DayNameFormat`, `DayNameTextColor`, `DayNameFontSize`, `DayNameFontAttributes`.
+- Text styles per cell state (normal, today, selection, range, disabled, leading / trailing, weekend) → one font (`FontFamily`, `FontSize`, `FontAttributes`) for every cell and a color per state (`TextColor`, `TodayTextColor` with `TodayFontAttributes`, `SelectedTextColor`, `RangeTextColor`, `DisabledDayTextColor`, `AdjacentDayTextColor`, `WeekendTextColor`); the today highlight → `TodayStyle` and `TodayColor`; selection background, start / end and range backgrounds → `SelectionColor` and `RangeColor`; selection shape → `SelectionShape`.
+- Header with navigation arrows → built in (`HeaderLayout`, `HeaderTextColor`, `HeaderFontSize`, `NavigationButtonColor`, `NavigationButtonBackgroundColor`); a header of the app's own → `IsHeaderVisible = false` with `Title`, `CanGoToPrevious`, `CanGoToNext` and the methods.
+- Special days with icons, backgrounds or text styles → `DayStyle` returning `SkUiCalendarDayStyle` (`TextColor`, `BackgroundColor`, `FontAttributes`, `IsStrikethrough`, `Markers`: dots, bars, icon glyphs, captions under the number); a day template → `DayPainter` (drawn; no view per day).
+- A dialog mode with OK / Cancel → a date picker with `PopupStyle="Calendar"` and `UpdateMode="WhenFinished"`, or `SkUiDateRangePicker` for a range ([SkUiDateRangePicker.md](controls/SkUiDateRangePicker.md)); the calendar's look in it → `CalendarStyle`.
+- Not available: other calendar systems; a calendar popup with time wheels (`SkUiDateTimePicker` keeps its wheels).
 
 ## Platform-specifics
 

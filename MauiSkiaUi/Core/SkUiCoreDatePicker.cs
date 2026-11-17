@@ -18,6 +18,8 @@ public class SkUiCoreDatePicker : SkUiCoreDateTimePickerBase
     private DateTime? _defaultHighlightedDate;
     private IList<DateTime> _blackoutDates = [];
     private Func<DateTime, bool>? _dateEnabled;
+    private SkUiDatePickerPopupStyle _popupStyle;
+    private Style? _calendarStyle;
 
     /// <summary>Creates a picker of today's date.</summary>
     public SkUiCoreDatePicker() : base(SkUiDateTimeKind.Date)
@@ -47,6 +49,12 @@ public class SkUiCoreDatePicker : SkUiCoreDateTimePickerBase
 
     /// <summary>Whether a day can be chosen, a rule of the app's; <c>null</c> (default): every day in the range.</summary>
     public Func<DateTime, bool>? DateEnabled { get => _dateEnabled; set => SetDateEnabled(value); }
+
+    /// <inheritdoc cref="SkUiDatePicker.PopupStyle" />
+    public SkUiDatePickerPopupStyle PopupStyle { get => _popupStyle; set => SetPopupStyle(value); }
+
+    /// <inheritdoc cref="SkUiDatePicker.CalendarStyle" />
+    public Style? CalendarStyle { get => _calendarStyle; set => SetCalendarStyle(value); }
 
     /// <summary>Raised when <see cref="Date"/> changes (the user, or the app), with the dates before and after.</summary>
     public event EventHandler<DateChangedEventArgs>? DateSelected;
@@ -122,6 +130,30 @@ public class SkUiCoreDatePicker : SkUiCoreDateTimePickerBase
         if (SetProperty(ref _blackoutDates, value, nameof(BlackoutDates)))
         {
             Dates.BlackoutDates = value;
+            Wheels(true);
+        }
+        return this;
+    }
+
+    /// <summary>Sets <see cref="PopupStyle"/>.</summary>
+    public SkUiCoreDatePicker SetPopupStyle(SkUiDatePickerPopupStyle value)
+    {
+        if (!Enum.IsDefined(value))
+            throw new ArgumentOutOfRangeException(nameof(value));
+        if (SetProperty(ref _popupStyle, value, nameof(PopupStyle)))
+        {
+            Dates.PopupStyle = value;
+            Wheels(true);
+        }
+        return this;
+    }
+
+    /// <summary>Sets <see cref="CalendarStyle"/>.</summary>
+    public SkUiCoreDatePicker SetCalendarStyle(Style? value)
+    {
+        if (SetProperty(ref _calendarStyle, value, nameof(CalendarStyle)))
+        {
+            Dates.CalendarStyle = value;
             Wheels(true);
         }
         return this;

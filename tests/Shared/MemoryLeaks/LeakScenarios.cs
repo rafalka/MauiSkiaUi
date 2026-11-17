@@ -59,6 +59,8 @@ public static class LeakScenarios
         new("DisplayBindingChips", Controls, "Chips an app control builds from view-model items through a long-lived SkUiDisplayBinding over a long-lived binding (as one in app resources), fading on press: texts read from a list, from a sequence and one item alone, chips tapped, the items replaced and read again.", () => new DisplayBindingRun()),
         new("PickerWheelsOpened", Controls, "SkUiPicker with several choices and SkUiMultiColumnPicker, and their Core twins, over long-lived collections (columns' items, a long-lived presenter that keeps the last request): tapped open, rows toggled and wheels set through the request, completed with a selection, a draft accepted (UpdateMode WhenFinished), dismissed, closed by IsOpen = false and by hiding, columns removed while open; inline SkUiPickerWheels over the same items: chosen with a key, set by the app, built again when a column comes and goes; pickers of your own (a value picker and one on SkUiPickerBase) whose popup bodies hold their picker, completed through the request the presenter keeps; closed with a popup open.", () => new PickerWheelsRun()),
         new("DateTimePickersOpened", Controls, "SkUiDatePicker, SkUiTimePicker and SkUiDateTimePicker, and the Core date and time pickers, with long-lived blackout dates and a long-lived day rule, on a long-lived presenter that keeps the last request: tapped open, wheels turned (a month without the chosen day, a time before the minimum), a date and a time set and completed through the typed requests, a draft accepted (UpdateMode WhenFinished), cleared, dismissed, the range changed while open; closed with a popup open.", () => new DateTimePickersRun()),
+        new("CalendarPopupsOpened", Controls, "SkUiDatePicker with a calendar popup, SkUiDateRangePicker and SkUiCoreDateRangePicker, with long-lived blackout dates and a long-lived day rule, on a long-lived presenter that keeps the last request: tapped open, the calendar laid out, a date completed, a range drafted and accepted (UpdateMode WhenFinished), a range completed, dismissed; closed with a popup open.", () => new CalendarPopupsRun()),
+        new("CalendarSwiped", Controls, "SkUiCalendar and SkUiCoreCalendar with long-lived blackout dates, a long-lived day rule and a long-lived day style: a day tapped, swiped to the next month, the title tapped (the year page zooms in), pinched, a range chosen, the next month asked for by code; closed mid-slide.", () => new CalendarRun()),
         new("GesturesMixed", Input, "Tap, double tap, long press, swipe, pan and pinch recognizers (drawn and Core); closed with a finger still down.", () => new GesturesRun()),
         new("AnimationsRunning", Rendering, "Render-thread animations (fade-in from 0, move, rotate, scale), a spinner; closed while they run; a node detached mid-animation.", () => new AnimationsRun()),
         new("ImageFadingIn", Rendering, "SkUiImage, SkUiImageButton and SkUiCoreImage with FadeAnimationEnabled (a long fade) over a long-lived loading placeholder: sources set once the page is drawn, so they fade in on the render thread; an image and a Core image removed mid-fade; closed while the others still fade.", () => new ImageFadeRun()),
@@ -2968,6 +2970,145 @@ public static class LeakScenarios
             : _coreDate?.Date != new DateTime(2026, 5, 5) ? "the Core date picker's date was not applied"
             : _coreTime?.Time != new TimeSpan(8, 15, 30) ? "the Core time picker's time was not applied"
             : _changes == 0 ? "no change was reported"
+            : null;
+    }
+
+    private sealed class CalendarPopupsRun : LeakScenarioRun
+    {
+        /// <summary>Long-lived blackout dates and a rule, shared by every run (as an app's).</summary>
+        private static readonly ObservableCollection<DateTime> Holidays = [new DateTime(2026, 12, 25), new DateTime(2026, 12, 26)];
+        private static readonly Func<DateTime, bool> Weekdays = date => date.DayOfWeek is not (DayOfWeek.Saturday or DayOfWeek.Sunday);
+
+        private SkUiDatePicker? _date;
+        private SkUiDateRangePicker? _range;
+        private SkUiCoreDateRangePicker? _coreRange;
+        private int _changes;
+
+        public override View Build(LeakScenarioContext context)
+        {
+            _date = context.Track(new SkUiDatePicker
+            {
+                Title = "Date", Date = new DateTime(2026, 11, 10), BlackoutDates = Holidays, PopupPresenter = LeakPopupPresenter.Shared,
+                PopupStyle = SkUiDatePickerPopupStyle.Calendar, DateEnabled = Weekdays
+            }, "calendar date picker");
+            _date.DateSelected += (_, _) => _changes++;
+            _range = context.Track(new SkUiDateRangePicker
+            {
+                Title = "Stay", BlackoutDates = Holidays, PopupPresenter = LeakPopupPresenter.Shared, UpdateMode = SkUiPickerUpdateMode.WhenFinished,
+                MaximumRangeDays = 14, AllowsDisabledDaysInRange = false, DateEnabled = Weekdays
+            }, "date range picker");
+            _range.ValueChanged += (_, _) => _changes++;
+            _coreRange = context.Track(new SkUiCoreDateRangePicker().SetBlackoutDates(Holidays).SetDateEnabled(Weekdays), "core date range picker");
+            _coreRange.SetPopupPresenter(LeakPopupPresenter.Shared);
+            var stack = new SkUiVerticalStackLayout { Spacing = 12, Padding = new Thickness(12) };
+            stack.Children.Add(_date);
+            stack.Children.Add(_range);
+            stack.Children.Add(new SkUiCoreHost().SetContent(_coreRange));
+            return Root(stack);
+        }
+
+        public override async Task InteractAsync(LeakScenarioContext context)
+        {
+            // The date: tapped open, the calendar laid out, a date completed through the request.
+            await context.TapAsync(_date!);
+            Track(context);
+            var date = (SkUiDatePopupRequest)LeakPopupPresenter.Shared.Last!;
+            var calendar = (SkUiView)date.Content!;
+            calendar.Measure(320, 480);
+            calendar.Arrange(new Rect(0, 0, 320, 480));
+            date.CompleteDate(new DateTime(2026, 11, 12));
+            await context.SettleAsync();
+            // Opened again and dismissed.
+            _date!.IsOpen = true;
+            Track(context);
+            LeakPopupPresenter.Shared.Dismiss();
+            await context.SettleAsync();
+            // The range: a draft accepted.
+            await context.TapAsync(_range!);
+            Track(context);
+            var range = (SkUiValuePopupRequest<SkUiDateRange?>)LeakPopupPresenter.Shared.Last!;
+            var body = (SkUiView)range.Content!;
+            body.Measure(320, 480);
+            body.Arrange(new Rect(0, 0, 320, 480));
+            range.SetValue(new SkUiDateRange(new DateTime(2026, 11, 16), new DateTime(2026, 11, 20)));
+            range.Accept();
+            await context.SettleAsync();
+            // The Core twin: completed.
+            await context.TapAsync(_coreRange!);
+            Track(context);
+            ((SkUiValuePopupRequest<SkUiDateRange?>)LeakPopupPresenter.Shared.Last!).Complete(new SkUiDateRange(new DateTime(2026, 11, 2), new DateTime(2026, 11, 4)));
+            await context.SettleAsync();
+            // Closed with a popup open.
+            _range!.IsOpen = true;
+            await context.SettleAsync();
+        }
+
+        /// <summary>Each opening's content must go once its popup has gone.</summary>
+        private static void Track(LeakScenarioContext context)
+        {
+            if (LeakPopupPresenter.Shared.Last?.Content is { } content)
+                context.Track(content, "calendar popup content");
+        }
+
+        public override string? CheckInteraction() =>
+            _date?.Date != new DateTime(2026, 11, 12) ? $"the date picker has {_date?.Date}, not the date completed"
+            : _range?.Value != new SkUiDateRange(new DateTime(2026, 11, 16), new DateTime(2026, 11, 20)) ? "the range picker's draft was not accepted"
+            : _coreRange?.Value != new SkUiDateRange(new DateTime(2026, 11, 2), new DateTime(2026, 11, 4)) ? "the Core range picker's range was not applied"
+            : _changes == 0 ? "no change was reported"
+            : null;
+    }
+
+    private sealed class CalendarRun : LeakScenarioRun
+    {
+        /// <summary>Long-lived blackout dates, a rule and a day style shared by every run (as an app's holidays and events).</summary>
+        private static readonly ObservableCollection<DateTime> Holidays = [new DateTime(2026, 12, 25), new DateTime(2026, 12, 26)];
+        private static readonly Func<DateTime, bool> Weekdays = date => date.DayOfWeek is not (DayOfWeek.Saturday or DayOfWeek.Sunday);
+        private static readonly Func<DateTime, SkUiCalendarDayStyle?> Events = date => date.Day % 5 == 0 ? new SkUiCalendarDayStyle { Markers = [SkUiCalendarMarker.Dot(Colors.Blue), SkUiCalendarMarker.Caption("Event")] } : null;
+
+        private SkUiCalendar? _calendar;
+        private SkUiCoreCalendar? _core;
+        private int _changes;
+
+        public override View Build(LeakScenarioContext context)
+        {
+            _calendar = context.Track(new SkUiCalendar
+            {
+                DisplayDate = new DateTime(2026, 11, 1), FirstDayOfWeek = DayOfWeek.Monday, BlackoutDates = Holidays, WidthRequest = 280,
+                DateEnabled = Weekdays, DayStyle = Events, DayMarkerAreaHeight = 4 // small rows: both calendars stay on the surface
+            }, "calendar");
+            _calendar.SelectionChanged += (_, _) => _changes++;
+            _core = context.Track(new SkUiCoreCalendar().SetDisplayDate(new DateTime(2026, 11, 1)).SetFirstDayOfWeek(DayOfWeek.Monday)
+                .SetBlackoutDates(Holidays).SetDateEnabled(Weekdays).SetDayStyle(Events).SetDayMarkerAreaHeight(4)
+                .SetSelectionMode(SkUiCalendarSelectionMode.Range), "core calendar");
+            _core.SelectionChanged += (_, _) => _changes++;
+            var stack = new SkUiVerticalStackLayout { Spacing = 12, Padding = new Thickness(12) };
+            stack.Children.Add(_calendar);
+            stack.Children.Add(new SkUiCoreHost { WidthRequest = 280 }.SetContent(_core));
+            return Root(stack);
+        }
+
+        public override async Task InteractAsync(LeakScenarioContext context)
+        {
+            // The center of a 280-wide November page with Monday weeks is Thursday the 12th.
+            await context.TapAsync(_calendar!);
+            await context.DragAsync(_calendar!, -200, 0);
+            await context.SettleAsync();
+            _calendar!.DisplayMode = SkUiCalendarDisplayMode.Year;
+            await context.TapAsync(_calendar);
+            await context.PinchAsync(_calendar, spread: -15);
+            await context.SettleAsync();
+            await context.TapAsync(_core!);
+            await context.TapAsync(_core!);
+            await context.DragAsync(_core!, -200, 0);
+            await context.SettleAsync();
+            // Closed mid-slide.
+            _calendar.GoToNext();
+            _core!.GoToNext();
+        }
+
+        public override string? CheckInteraction() =>
+            _changes == 0 ? "no selection change was reported"
+            : _core?.SelectedRange is null ? "the Core calendar's range was not chosen"
             : null;
     }
 

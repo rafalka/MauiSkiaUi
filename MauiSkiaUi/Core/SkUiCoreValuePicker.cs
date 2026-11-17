@@ -103,7 +103,13 @@ public abstract class SkUiCoreValuePicker<T> : SkUiCorePickerBase
     protected sealed override SkUiPickerPopupContent CreatePopupContent(SkUiPickerPopupContext context)
     {
         var content = CreateValueContent(context) ?? throw new InvalidOperationException($"{GetType().Name}.CreateValueContent returned null.");
-        content.Bind(() => _value, value => SetValue(value));
+        // Weak: a presenter that keeps the request (a popup still shown after its page went) keeps no picker alive.
+        var picker = new WeakReference<SkUiCoreValuePicker<T>>(this);
+        content.Bind(() => picker.TryGetTarget(out var target) ? target._value : default!, value =>
+        {
+            if (picker.TryGetTarget(out var target))
+                target.SetValue(value);
+        });
         return content;
     }
 }

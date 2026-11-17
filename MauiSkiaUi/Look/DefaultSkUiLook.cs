@@ -191,6 +191,151 @@ public class DefaultSkUiLook : SkUiLook
         canvas.DrawPath(path, Paint(paint.Color));
     }
 
+    /// <inheritdoc />
+    /// <remarks>
+    /// A day's shape is a circle (or rounded square) as large as the cell's shorter side allows, less 4 DIPs; months and years
+    /// get a pill. Under it, in this order: the app's background, the range's band (flat where it runs on into the next cell,
+    /// rounded at its ends), the selection's fill, today's ring or fill, the press tint, and the keyboard's focus ring.
+    /// </remarks>
+    protected override void DrawCalendarCellCore(SKCanvas canvas, SkUiCalendarCellPaint cell)
+    {
+        var shape = CalendarCellShape(cell);
+        if (shape.IsEmpty)
+            return;
+        var radius = CalendarCornerRadius(shape, cell.Shape);
+        if (cell.Background.Alpha != 0 && !cell.IsSelected)
+            canvas.DrawRoundRect(shape, radius, radius, Paint(cell.Background));
+        if (cell.RangePart != SkUiCalendarRangePart.None && cell.RangeColor.Alpha != 0)
+        {
+            // The band runs to the cell's edge where the range goes on, and keeps the shape's ends elsewhere.
+            var band = new SKRect(cell.BandToLeft ? cell.Bounds.Left : shape.Left, shape.Top,
+                cell.BandToRight ? cell.Bounds.Right : shape.Right, shape.Bottom);
+            var paint = Paint(cell.RangeColor);
+            if (cell.BandToLeft && cell.BandToRight)
+                canvas.DrawRect(band, paint);
+            else if (!cell.BandToLeft && !cell.BandToRight)
+                canvas.DrawRoundRect(band, radius, radius, paint);
+            else
+            {
+                // One shape, flat on the side the range goes on: a translucent range color painted twice would show the overlap.
+                var left = cell.BandToLeft ? SKPoint.Empty : new SKPoint(radius, radius);
+                var right = cell.BandToRight ? SKPoint.Empty : new SKPoint(radius, radius);
+                var shaped = _roundRect ??= new SKRoundRect();
+                shaped.SetRectRadii(band, [left, right, right, left]);
+                canvas.DrawRoundRect(shaped, paint);
+            }
+        }
+        if (cell.IsSelected)
+            canvas.DrawRoundRect(shape, radius, radius, Paint(cell.SelectionColor));
+        if (cell.IsToday && !cell.IsSelected)
+        {
+            if (cell.TodayStyle == SkUiCalendarTodayStyle.Filled)
+                canvas.DrawRoundRect(shape, radius, radius, Paint(cell.TodayColor));
+            else if (cell.TodayStyle == SkUiCalendarTodayStyle.Ring)
+            {
+                const float ring = 1.5f;
+                var paint = Paint(cell.TodayColor);
+                Stroke(paint, cell.TodayColor, ring);
+                var inner = shape;
+                inner.Inflate(-ring / 2, -ring / 2);
+                var innerRadius = Math.Max(0, radius - ring / 2);
+                canvas.DrawRoundRect(inner, innerRadius, innerRadius, paint);
+            }
+        }
+        if (cell.IsPressed && cell.IsEnabled)
+            canvas.DrawRoundRect(shape, radius, radius, Paint(cell.SelectionColor.WithAlpha((byte)(cell.SelectionColor.Alpha * 0.16f))));
+        if (cell.IsFocused)
+        {
+            const float width = 2;
+            var paint = Paint(cell.FocusColor);
+            Stroke(paint, cell.FocusColor, width);
+            var ring = shape;
+            ring.Inflate(width / 2 + 1, width / 2 + 1);
+            ring.Intersect(cell.Bounds);
+            var ringRadius = CalendarCornerRadius(ring, cell.Shape);
+            canvas.DrawRoundRect(ring, ringRadius, ringRadius, paint);
+        }
+    }
+
+    /// <summary>The shape a calendar cell's selection fills: a centered square for a day, a pill for a month or year.</summary>
+    protected static SKRect CalendarCellShape(in SkUiCalendarCellPaint cell)
+    {
+        const float inset = 2;
+        var bounds = cell.Bounds;
+        if (bounds.Width <= 2 * inset || bounds.Height <= 2 * inset)
+            return SKRect.Empty;
+        if (cell.Kind == SkUiCalendarCellKind.Period)
+        {
+            var height = Math.Min(bounds.Height - 2 * inset, 40);
+            var width = bounds.Width - 4 * inset;
+            return SKRect.Create(bounds.MidX - width / 2, bounds.MidY - height / 2, width, height);
+        }
+        var side = Math.Min(bounds.Width, bounds.Height) - 2 * inset;
+        if (cell.Shape == SkUiCalendarSelectionShape.Square)
+            return SKRect.Create(bounds.MidX - (bounds.Width - 2 * inset) / 2, bounds.MidY - side / 2, bounds.Width - 2 * inset, side);
+        return SKRect.Create(bounds.MidX - side / 2, bounds.MidY - side / 2, side, side);
+    }
+
+    private static float CalendarCornerRadius(SKRect shape, SkUiCalendarSelectionShape kind) => kind switch
+    {
+        SkUiCalendarSelectionShape.Circle => Math.Min(shape.Width, shape.Height) / 2,
+        SkUiCalendarSelectionShape.RoundedSquare => Math.Min(8, Math.Min(shape.Width, shape.Height) / 4),
+        _ => 0
+    };
+
+    /// <inheritdoc />
+    /// <remarks>
+    /// A chevron in the button's color (unless the calendar draws the app's glyph), on a circle or rounded square when the button
+    /// has a background, with its border; dimmed while pressed or disabled.
+    /// </remarks>
+    protected override void DrawCalendarNavigationButtonCore(SKCanvas canvas, SkUiCalendarNavigationButtonPaint button)
+    {
+        var bounds = button.Bounds;
+        if (bounds.IsEmpty)
+            return;
+        var alpha = !button.IsEnabled ? 0.35f : button.IsPressed ? 0.6f : 1f;
+        var radius = button.CornerRadius < 0 ? Math.Min(bounds.Width, bounds.Height) / 2 : Math.Min(button.CornerRadius, Math.Min(bounds.Width, bounds.Height) / 2);
+        if (button.Background.Alpha != 0)
+            canvas.DrawRoundRect(bounds, radius, radius,
+                Paint(button.Background.WithAlpha((byte)(button.Background.Alpha * (button.IsEnabled ? 1f : 0.5f)))));
+        if (button.BorderWidth > 0 && button.BorderColor.Alpha != 0)
+        {
+            var border = Paint(button.BorderColor);
+            Stroke(border, button.BorderColor.WithAlpha((byte)(button.BorderColor.Alpha * (button.IsEnabled ? 1f : 0.5f))), button.BorderWidth);
+            var inner = bounds;
+            inner.Inflate(-button.BorderWidth / 2, -button.BorderWidth / 2);
+            var innerRadius = Math.Max(0, radius - button.BorderWidth / 2);
+            canvas.DrawRoundRect(inner, innerRadius, innerRadius, border);
+        }
+        if (!button.ShowsChevron)
+            return;
+        var arm = Math.Min(bounds.Width, bounds.Height) * 0.16f;
+        var (cx, cy) = (bounds.MidX, bounds.MidY);
+        var paint = Paint(button.Color);
+        Stroke(paint, button.Color.WithAlpha((byte)(button.Color.Alpha * alpha)), 2);
+        paint.StrokeCap = SKStrokeCap.Round;
+        paint.StrokeJoin = SKStrokeJoin.Round;
+        switch (button.Direction)
+        {
+            case SkUiCalendarChevronDirection.Up or SkUiCalendarChevronDirection.Down:
+            {
+                var tip = button.Direction == SkUiCalendarChevronDirection.Up ? cy - arm / 2 : cy + arm / 2;
+                var back = button.Direction == SkUiCalendarChevronDirection.Up ? cy + arm / 2 : cy - arm / 2;
+                canvas.DrawLine(cx - arm, back, cx, tip, paint);
+                canvas.DrawLine(cx, tip, cx + arm, back, paint);
+                break;
+            }
+            default:
+            {
+                var tip = button.Direction == SkUiCalendarChevronDirection.Left ? cx - arm / 2 : cx + arm / 2;
+                var back = button.Direction == SkUiCalendarChevronDirection.Left ? cx + arm / 2 : cx - arm / 2;
+                canvas.DrawLine(back, cy - arm, tip, cy, paint);
+                canvas.DrawLine(tip, cy, back, cy + arm, paint);
+                break;
+            }
+        }
+    }
+
     private static readonly Shadow ReorderShadow = new() { Brush = Colors.Black, Opacity = 0.3f, Radius = 12, Offset = new Point(0, 4) };
 
     /// <inheritdoc />
@@ -227,6 +372,7 @@ public class DefaultSkUiLook : SkUiLook
         SkUiTransitionKind.ItemRemove => SkUiTransition.FromMilliseconds(120, Easing.Linear),
         SkUiTransitionKind.ItemMove => SkUiTransition.FromMilliseconds(250, Easing.SinInOut),
         SkUiTransitionKind.ImageFadeIn => SkUiTransition.FromMilliseconds(200, Easing.CubicOut),
+        SkUiTransitionKind.CalendarPage => SkUiTransition.FromMilliseconds(280, Easing.CubicOut),
         // Determinate progress follows Progress at once, as MAUI's ProgressBar (ProgressTo animates).
         _ => SkUiTransition.None
     };
@@ -262,6 +408,7 @@ public class DefaultSkUiLook : SkUiLook
     }
 
     [ThreadStatic] private static SKPaint? _paint;
+    [ThreadStatic] private static SKRoundRect? _roundRect;
 
     /// <summary>Per-thread reusable fill paint (recording is single-threaded per surface; pictures copy paint state).</summary>
     private static SKPaint Paint(SKColor color)

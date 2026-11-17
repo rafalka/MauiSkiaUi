@@ -80,6 +80,16 @@ internal sealed class SkUiDateTimeModel
 
     public bool Loop = true;
     public bool ShowsHeaders;
+
+    /// <summary>What a date picker's popup shows (a time or a date and time picker always shows wheels).</summary>
+    public SkUiDatePickerPopupStyle PopupStyle;
+
+    /// <summary>The app's style of the popup's calendar, or <c>null</c>.</summary>
+    public Style? CalendarStyle;
+
+    /// <summary>Whether the popup is a calendar now: a date picker's <see cref="PopupStyle"/>, or the look's.</summary>
+    internal bool ShowsCalendar => Kind == SkUiDateTimeKind.Date
+        && (PopupStyle == SkUiDatePickerPopupStyle.Default ? SkUiLook.Current.DatePickerPopupStyle : PopupStyle) == SkUiDatePickerPopupStyle.Calendar;
     public int VisibleRows = DefaultVisibleRows;
 
     /// <summary>The field's format by default: MAUI's short date ("d"), short time ("t"), short date and time ("g").</summary>
@@ -127,12 +137,19 @@ internal sealed class SkUiDateTimeModel
     {
         var wheels = SkUiDateTimeWheels.Create(new SkUiDateTimeSettings(Kind, WheelFormat, Minimum, Maximum, Value, Highlighted, HourInterval, MinuteInterval,
             SecondInterval, BlackoutDates, DateEnabled, Loop, ShowsHeaders), CultureInfo.CurrentCulture, SkUiStrings.Current);
+        // Weak: a request kept by a presenter (a popup still shown after its page went) keeps no picker alive.
+        var weak = new WeakReference<SkUiDateTimeModel>(this);
+        if (ShowsCalendar)
+            return new SkUiCalendarPopup(wheels, context, CalendarStyle, () => weak.TryGetTarget(out var model) ? model.Value : null,
+                indices =>
+                {
+                    if (weak.TryGetTarget(out var model))
+                        model._choose(wheels.ValueOf(indices));
+                });
         var columns = wheels.Texts.Length;
         var widths = new double[columns];
         Array.Fill(widths, -1d);
         var parts = wheels.Headers.Select((header, column) => new SkUiWheelsView.ColumnParts(header, null, null, wheels.Names[column])).ToArray();
-        // Weak: a request kept by a presenter (a popup still shown after its page went) keeps no picker alive.
-        var weak = new WeakReference<SkUiDateTimeModel>(this);
         return new SkUiColumnsPopup(wheels.Texts, wheels.Loops, widths, wheels.IndicesOf(Value), Math.Max(1, VisibleRows), context.RowStyle, context.Title,
             context.RightToLeft, context.Chrome,
             indices =>

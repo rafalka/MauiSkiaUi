@@ -577,3 +577,53 @@ public readonly record struct SkUiPickerTokenPaint(SKRect Bounds, SKRect RemoveB
 /// <param name="IsPressed">The button is pressed.</param>
 /// <param name="IsEnabled">The field is enabled.</param>
 public readonly record struct SkUiPasswordRevealButtonPaint(SKRect Bounds, SKColor Color, bool IsRevealed, bool IsPressed, bool IsEnabled);
+
+/// <summary>
+/// What a look draws a calendar cell's chrome with (<see cref="SkUiLook.DrawCalendarCell"/>): the selection, the band of a
+/// range, today's mark, the app's background, the keyboard focus. The calendar draws the number and the markers over it.
+/// Coordinates are the calendar's (already mirrored right-to-left); colors already reflect the enabled state.
+/// </summary>
+/// <param name="Bounds">The cell's rectangle above its marker area (a seventh of the grid's width, a row's height less the marker area).</param>
+/// <param name="Kind">A day of the month page, or a month, year or decade.</param>
+/// <param name="Shape">The selection's shape (<c>SelectionShape</c>).</param>
+/// <param name="IsSelected">The day is selected (single or multiple selection, or a range's first or last day).</param>
+/// <param name="RangePart">Which part of a selected range the day is.</param>
+/// <param name="BandToLeft">The range's band runs on past the cell's left edge (the next or previous day in the range is beside it).</param>
+/// <param name="BandToRight">The range's band runs on past the cell's right edge.</param>
+/// <param name="IsToday">The cell is today (or holds today: this month, this year, this decade).</param>
+/// <param name="TodayStyle">How today is marked.</param>
+/// <param name="IsFocused">The keyboard's focus is on the cell (draw a ring).</param>
+/// <param name="IsPressed">A pointer is pressed on the cell.</param>
+/// <param name="IsEnabled">The cell can be chosen.</param>
+/// <param name="SelectionColor">The selected days' fill.</param>
+/// <param name="RangeColor">The band between a range's first and last days.</param>
+/// <param name="TodayColor">Today's ring or fill.</param>
+/// <param name="Background">The app's fill for the day (<c>SkUiCalendarDayStyle.BackgroundColor</c>), transparent when none.</param>
+/// <param name="FocusColor">The focus ring's color.</param>
+public readonly record struct SkUiCalendarCellPaint(SKRect Bounds, SkUiCalendarCellKind Kind, SkUiCalendarSelectionShape Shape, bool IsSelected,
+    SkUiCalendarRangePart RangePart, bool BandToLeft, bool BandToRight, bool IsToday, SkUiCalendarTodayStyle TodayStyle, bool IsFocused,
+    bool IsPressed, bool IsEnabled, SKColor SelectionColor, SKColor RangeColor, SKColor TodayColor, SKColor Background, SKColor FocusColor);
+
+/// <summary>What a look draws a calendar header's previous or next button with (<see cref="SkUiLook.DrawCalendarNavigationButton"/>).</summary>
+/// <param name="Bounds">The button's square (its touch target).</param>
+/// <param name="Direction">Where the chevron points: left / right while the pages move sideways (the previous button points left,
+/// mirrored right-to-left), up / down while they move vertically (<c>NavigationOrientation</c> <see cref="StackOrientation.Vertical"/>).</param>
+/// <param name="Color">The chevron's color.</param>
+/// <param name="Background">The button's fill (a circle, or a rounded square with <see cref="CornerRadius"/>), transparent when none.</param>
+/// <param name="IsPressed">The button is pressed.</param>
+/// <param name="IsEnabled">The calendar can move that way (not past <c>MinimumDate</c> / <c>MaximumDate</c>).</param>
+public readonly record struct SkUiCalendarNavigationButtonPaint(SKRect Bounds, SkUiCalendarChevronDirection Direction, SKColor Color, SKColor Background, bool IsPressed,
+    bool IsEnabled)
+{
+    /// <summary>The background's corner radius (<c>NavigationButtonCornerRadius</c>); negative (default): a circle.</summary>
+    public float CornerRadius { get; init; } = -1;
+
+    /// <summary>The border's color (<c>NavigationButtonBorderColor</c>), transparent when none.</summary>
+    public SKColor BorderColor { get; init; }
+
+    /// <summary>The border's width (<c>NavigationButtonBorderWidth</c>); 0 (default): none.</summary>
+    public float BorderWidth { get; init; }
+
+    /// <summary>Whether the look draws its chevron (<c>false</c>: the calendar draws the app's glyph over the button).</summary>
+    public bool ShowsChevron { get; init; } = true;
+}
