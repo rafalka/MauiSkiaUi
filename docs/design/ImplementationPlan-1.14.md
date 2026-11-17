@@ -109,6 +109,8 @@ Size: M. Edits `SkUiRenderRecorder.cs`, `SkUiCompositor.cs`, `SkUiFrameRenderer.
 
 **Done when:** idle frames allocate nothing, a props-only frame allocates no batch or update, and nothing in the suite or the leak scenarios changes.
 
+**Status: done** (`6d81c16`). Idle frames 408 → 0 bytes, moving 50 nodes 14,720 → 0 bytes per frame (`RenderAllocationTests`). Two allocations outside the brief turned up while measuring and are fixed with it: a new `PresentFrame` delegate per frame request, and `RenderCore`'s reports closure, allocated on every frame because its lambda captured a local. Bench against wave 1 with `--quiet-gc`: all rows within noise.
+
 ### A4 Shared scratch paints
 
 Size: S to M. Edits the files listed in the facts; alone on `SkUiLook.cs`.
