@@ -402,6 +402,28 @@ public sealed class CalendarTests : IDisposable
     }
 
     [Fact]
+    public void ARangeBandIsPaintedOnceUnderATranslucentColor()
+    {
+        // A wide cell (a stretched popup): the start day's band runs from its circle to the cell's right edge.
+        var look = new DefaultSkUiLook();
+        using var bitmap = new SKBitmap(200, 40);
+        using var canvas = new SKCanvas(bitmap);
+        canvas.Clear(SKColors.White);
+        var range = new SKColor(0, 0, 255, 0x40);
+        look.DrawCalendarCell(canvas, new SkUiCalendarCellPaint(new SKRect(0, 0, 200, 40), SkUiCalendarCellKind.Day, SkUiCalendarSelectionShape.Circle,
+            false, SkUiCalendarRangePart.Start, false, true, false, SkUiCalendarTodayStyle.None, false, false, true, SKColors.Blue, range,
+            SKColors.Red, SKColors.Transparent, SKColors.Black));
+        canvas.Flush();
+        var band = bitmap.GetPixel(150, 20);
+        Assert.NotEqual(SKColors.White, band);
+        // Next to the cell's edge, where the rounded end and its squared-off side used to overlap, the band has the same shade.
+        Assert.Equal(band, bitmap.GetPixel(197, 20));
+        Assert.Equal(band, bitmap.GetPixel(199, 3));
+        Assert.Equal(band, bitmap.GetPixel(105, 20));
+        Assert.Equal(SKColors.White, bitmap.GetPixel(81, 3)); // the start keeps its round end
+    }
+
+    [Fact]
     public void TheHeaderAndItsButtonsCanBeStyled()
     {
         var calendar = Calendar(out var surface);

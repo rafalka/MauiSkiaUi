@@ -213,14 +213,16 @@ public class DefaultSkUiLook : SkUiLook
             var paint = Paint(cell.RangeColor);
             if (cell.BandToLeft && cell.BandToRight)
                 canvas.DrawRect(band, paint);
+            else if (!cell.BandToLeft && !cell.BandToRight)
+                canvas.DrawRoundRect(band, radius, radius, paint);
             else
             {
-                canvas.DrawRoundRect(band, radius, radius, paint);
-                // The flat side: square off the rounded corners that face the range's continuation.
-                if (cell.BandToLeft)
-                    canvas.DrawRect(new SKRect(band.Left, band.Top, Math.Min(band.Right, band.Left + radius), band.Bottom), paint);
-                if (cell.BandToRight)
-                    canvas.DrawRect(new SKRect(Math.Max(band.Left, band.Right - radius), band.Top, band.Right, band.Bottom), paint);
+                // One shape, flat on the side the range goes on: a translucent range color painted twice would show the overlap.
+                var left = cell.BandToLeft ? SKPoint.Empty : new SKPoint(radius, radius);
+                var right = cell.BandToRight ? SKPoint.Empty : new SKPoint(radius, radius);
+                var shaped = _roundRect ??= new SKRoundRect();
+                shaped.SetRectRadii(band, [left, right, right, left]);
+                canvas.DrawRoundRect(shaped, paint);
             }
         }
         if (cell.IsSelected)
@@ -406,6 +408,7 @@ public class DefaultSkUiLook : SkUiLook
     }
 
     [ThreadStatic] private static SKPaint? _paint;
+    [ThreadStatic] private static SKRoundRect? _roundRect;
 
     /// <summary>Per-thread reusable fill paint (recording is single-threaded per surface; pictures copy paint state).</summary>
     private static SKPaint Paint(SKColor color)
