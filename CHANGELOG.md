@@ -15,7 +15,7 @@ Publishing (the NuGet publish workflow, [docs/Releasing.md](docs/Releasing.md)) 
 
 ### Other
 
-- **Fewer allocations (1.14, NFR-2):** pointer events no longer copy the gesture arena per event (a drag allocated an array per move), the render, image, font and trace gates are `System.Threading.Lock`, text measuring looks a font's glyph coverage up once per string instead of once per character, and a memory-cache hit of an image allocates no task and no load context.
+- **Fewer allocations (1.14, NFR-2):** pointer events no longer copy the gesture arena per event (a drag allocated an array per move), the render, image, font and trace gates are `System.Threading.Lock`, text measuring looks a font's glyph coverage up once per string instead of once per character, a memory-cache hit of an image allocates no task and no load context, a frame that changes nothing or only moves nodes allocates nothing (render batches and updates are reused), and looks and painters draw with reused paints instead of a new `SKPaint` per call.
 
 ## 1.13.0
 

@@ -122,6 +122,8 @@ Size: S to M. Edits the files listed in the facts; alone on `SkUiLook.cs`.
 
 **Done when:** no per-call `new SKPaint` is left in the 20 sites outside step 2, and no pixel test changes.
 
+**Status: done.** What changed from the steps: one shared helper, `SkUiScratchPaint`, instead of a scratch per family and a `Paint2` rule. Several of these paints are passed to protected virtual methods (`DrawActivityIndicator`, `DrawPasswordRevealGlyph`), and a subclass's override can call back into the look while one is held, which a fixed second scratch does not cover. The helper is a per-thread stack of 8 paints rented with `using` and reset on return, so every nested rental gets its own paint. `SkUiMauiContentView`'s site draws a native view's snapshot on every recording while one is shown (not debug drawing), so it was converted; `SkUiStrokedOutlines.Compute` (a cache miss) keeps its own paint. 22 sites converted. `PaintAllocationTests`: seven look and painter draws 88 → 0 bytes per call, plus the helper's nesting, reset and depth. New bench scenario `skui-steppers`: 172 KB less per iteration; with `--quiet-gc`, `record` -6.9 %, `update` -4.7 % (within noise); the stress-button and avatar scenarios unchanged.
+
 ### A7 Toolchain and API
 
 Size: M. After A3 and A4.

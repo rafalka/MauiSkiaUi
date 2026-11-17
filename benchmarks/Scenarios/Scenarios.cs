@@ -78,6 +78,7 @@ public static class Scenarios
         new CollectionChanges(animated: false),
         new CollectionChanges(animated: true),
         new PickerWheels(),
+        new Steppers(),
         new Spinners(),
         new ToggleTransitions(),
         new ToggleTransitions(busy: true),
@@ -1355,6 +1356,40 @@ public sealed class Spinners : BenchScenario
     }
 
     public override Func<View, IDisposable?>? Motion => _ => null;
+}
+
+/// <summary>
+/// 1,000 steppers in a two-column grid: look-drawn chrome (fill, pressed tints, outline, divider, glyphs). The update toggles
+/// <c>IsEnabled</c>, so every stepper re-records its chrome (1.14 A4: shared scratch paints).
+/// </summary>
+public sealed class Steppers : BenchScenario
+{
+    public override string Name => "skui-steppers";
+    public override string Description => "1,000 SkUiStepper in a 2-column grid; update = toggle IsEnabled (re-records the chrome)";
+
+    public override View Build()
+    {
+        var grid = Scenarios.SkUiGrid(Scenarios.Count);
+        grid.StartUpdating();
+        for (var i = 0; i < Scenarios.Count; i++)
+        {
+            var stepper = new SkUiStepper { Value = i % 10, Maximum = 10 };
+            Grid.SetRow(stepper, i / 2);
+            Grid.SetColumn(stepper, i % 2);
+            grid.Children.Add(stepper);
+        }
+        grid.EndUpdating();
+        return Scenarios.Scroll(grid);
+    }
+
+    public override Action<View>? Update => root =>
+    {
+        var grid = (SkUiGrid)((SkUiScrollView)root).Content!;
+        grid.StartUpdating();
+        foreach (var child in grid.Children)
+            ((SkUiStepper)child).IsEnabled = !((SkUiStepper)child).IsEnabled;
+        grid.EndUpdating();
+    };
 }
 
 /// <summary>Reference point: the same label grid with native MAUI controls.</summary>

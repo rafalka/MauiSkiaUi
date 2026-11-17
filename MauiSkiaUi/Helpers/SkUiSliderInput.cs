@@ -82,8 +82,15 @@ internal static class SkUiSliderMath
             : new SKPoint(rightToLeft ? width - along : along, height / 2);
         var size = image.Size;
         var area = SKRect.Create(center.X - (float)size.Width / 2, center.Y - (float)size.Height / 2, (float)size.Width, (float)size.Height);
-        using var dim = enabled ? null : new SKPaint { Color = SKColors.Black.WithAlpha(128) }; // disabled: half opacity, as the colors
-        var save = dim is null ? canvas.Save() : canvas.SaveLayer(area, dim);
+        int save;
+        if (enabled)
+            save = canvas.Save();
+        else
+        {
+            using var dim = SkUiScratchPaint.Rent(); // disabled: half opacity, as the colors
+            dim.Paint.Color = SKColors.Black.WithAlpha(128);
+            save = canvas.SaveLayer(area, dim.Paint);
+        }
         image.Paint(canvas, area, Aspect.Fill);
         canvas.RestoreToCount(save);
     }

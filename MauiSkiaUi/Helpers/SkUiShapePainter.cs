@@ -125,7 +125,8 @@ internal static class SkUiShapePainter
         }
         if (!stroked)
             return path;
-        using var paint = new SKPaint();
+        using var scratch = SkUiScratchPaint.Rent();
+        var paint = scratch.Paint;
         ApplyStroke(paint, style);
         var area = paint.GetFillPath(path);
         if (!filled)
