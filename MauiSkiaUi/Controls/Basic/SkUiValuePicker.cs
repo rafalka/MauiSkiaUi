@@ -113,7 +113,13 @@ public abstract class SkUiValuePicker<[DynamicallyAccessedMembers(DynamicallyAcc
     protected sealed override SkUiPickerPopupContent CreatePopupContent(SkUiPickerPopupContext context)
     {
         var content = CreateValueContent(context) ?? throw new InvalidOperationException($"{GetType().Name}.CreateValueContent returned null.");
-        content.Bind(() => Value, value => WriteBack(ValueProperty, value));
+        // Weak: a presenter that keeps the request (a popup still shown after its page went) keeps no picker alive.
+        var picker = new WeakReference<SkUiValuePicker<T>>(this);
+        content.Bind(() => picker.TryGetTarget(out var target) ? target.Value : default!, value =>
+        {
+            if (picker.TryGetTarget(out var target))
+                target.WriteBack(ValueProperty, value);
+        });
         return content;
     }
 

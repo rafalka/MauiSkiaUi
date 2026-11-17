@@ -72,6 +72,7 @@ public class SkUiLook
     public void DrawCalendarCell(SKCanvas canvas, SkUiCalendarCellPaint cell) { … }                     // → CalendarCellPainter ?? DrawCalendarCellCore
     public void DrawCalendarNavigationButton(SKCanvas canvas, SkUiCalendarNavigationButtonPaint button) { … } // → CalendarNavigationButtonPainter ?? …Core
     public virtual double CalendarRowHeight => 44;         // and CalendarHeaderHeight, CalendarDayNamesHeight, CalendarMarkerAreaHeight, font sizes
+    public virtual SkUiDatePickerPopupStyle DatePickerPopupStyle => SkUiDatePickerPopupStyle.Wheels; // a date picker's PopupStyle = Default (1.13)
     // Avatars (C8): the intrinsic size, the text size for the content area, colors by mode and name (palette index by a
     // stable hash: AvatarPaletteIndex), and the status badge over the border on the outline's corner arc.
     public virtual Size DefaultAvatarSize => new(48, 48);  // and GetAvatarFontSize(content) (40 % of the smaller side)

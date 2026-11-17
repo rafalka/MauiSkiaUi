@@ -144,6 +144,11 @@ and binds the target to the one that is selected.
 
 A rule of the app's (`DateEnabled`) that allows Monday to Friday: Saturdays and Sundays are dimmed and a tap on one only raises
 `DateTapped`.
+## DateRangePickerDemoPage.Days that can be chosen
+
+Days left out: every day can be chosen, today and later only (`MinimumDate`), or every day but the 10th and 20th of each month
+(`BlackoutDates`, booked nights). Turn off `AllowsDisabledDaysInRange` to keep a range from running over a booked night.
+
 ## DatePickerDemoPage.Days that can be chosen
 
 Days left out inside the range: every day can be chosen, weekdays only (`DateEnabled`, a function of the date), or every

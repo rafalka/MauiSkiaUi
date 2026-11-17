@@ -47,6 +47,8 @@ public sealed class DatePickerDemoPage : ComponentDemoPage
         Choice("Range (MinimumDate / MaximumDate)", [NoRange, ThisYear, NextNinetyDays], NoRange, SetRange, RangeName);
         Choice(nameof(SkUiDatePicker.WheelFormat), [CultureWheels, NumberWheels, MonthYear, Expiry], CultureWheels,
             value => _skia.WheelFormat = value == CultureWheels ? null : value, () => _skia.WheelFormat ?? CultureWheels);
+        Choice(nameof(SkUiDatePicker.PopupStyle), Enum.GetValues<SkUiDatePickerPopupStyle>(), SkUiDatePickerPopupStyle.Default,
+            value => _skia.PopupStyle = value, () => _skia.PopupStyle);
         Choice("Days that can be chosen", [EveryDay, Weekdays, Holidays], EveryDay, SetDays, DaysName);
         Toggle(nameof(SkUiDatePicker.AreColumnHeadersVisible), false, value => _skia.AreColumnHeadersVisible = value, () => _skia.AreColumnHeadersVisible);
         Toggle(nameof(SkUiDatePicker.IsLooping), true, value => _skia.IsLooping = value, () => _skia.IsLooping);

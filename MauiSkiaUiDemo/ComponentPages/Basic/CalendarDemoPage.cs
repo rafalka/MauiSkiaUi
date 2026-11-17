@@ -58,6 +58,10 @@ public sealed class CalendarDemoPage : ComponentDemoPage
             () => _calendar.FirstDayOfWeek?.ToString() ?? "Culture");
         Choice(nameof(SkUiCalendar.RangeSelectionTarget), Enum.GetValues<SkUiCalendarRangeTarget>(), SkUiCalendarRangeTarget.Auto,
             value => _calendar.RangeSelectionTarget = value, () => _calendar.RangeSelectionTarget);
+        Number(nameof(SkUiCalendar.MinimumRangeDays), 0, 14, 0, value => _calendar.MinimumRangeDays = (int)value, () => _calendar.MinimumRangeDays, whole: true);
+        Number(nameof(SkUiCalendar.MaximumRangeDays), 0, 60, 0, value => _calendar.MaximumRangeDays = (int)value, () => _calendar.MaximumRangeDays, whole: true);
+        Toggle(nameof(SkUiCalendar.AllowsDisabledDaysInRange), true, value => _calendar.AllowsDisabledDaysInRange = value,
+            () => _calendar.AllowsDisabledDaysInRange);
         Toggle("Range: from today", false, value => _calendar.MinimumDate = value ? DateTime.Today : null, () => _calendar.MinimumDate is not null);
         Toggle("Weekdays only (DateEnabled)", false,
             value => _calendar.DateEnabled = value ? date => date.DayOfWeek is not (DayOfWeek.Saturday or DayOfWeek.Sunday) : null,
@@ -185,6 +189,7 @@ public sealed class CalendarDemoPage : ComponentDemoPage
         var selection = _calendar.SelectionMode switch
         {
             SkUiCalendarSelectionMode.Multiple => $"{_calendar.SelectedDates.Count} days",
+            SkUiCalendarSelectionMode.MultipleRanges => $"{_calendar.SelectedRanges.Count} ranges, {_calendar.SelectedRanges.Sum(range => range.Days)} days",
             SkUiCalendarSelectionMode.Range when _calendar.SelectedRange is { } range =>
                 range.End is { } end ? $"{range.Start.ToString("d", culture)} – {end.ToString("d", culture)} ({range.Days} days)"
                     : $"from {range.Start.ToString("d", culture)}, choose the end",

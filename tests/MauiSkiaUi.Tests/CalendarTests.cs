@@ -425,13 +425,25 @@ public sealed class CalendarTests : IDisposable
             Assert.Equal((8f, 1f, SKColors.Gray), (next.CornerRadius, next.BorderWidth, next.BorderColor));
             Assert.True(previous.ShowsChevron);
             Assert.False(next.ShowsChevron); // the calendar draws the app's glyph
+            Assert.Equal((SkUiCalendarChevronDirection.Left, SkUiCalendarChevronDirection.Right), (previous.Direction, next.Direction));
+            // Pages moving vertically: the chevrons point up and down, right-to-left too.
+            calendar.NavigationOrientation = StackOrientation.Vertical;
+            calendar.FlowDirection = FlowDirection.RightToLeft;
+            surface.Frame(16);
+            Assert.Equal((SkUiCalendarChevronDirection.Up, SkUiCalendarChevronDirection.Down), (buttons[^2].Direction, buttons[^1].Direction));
+            // Sideways right-to-left: mirrored.
+            calendar.NavigationOrientation = StackOrientation.Horizontal;
+            surface.Frame(16);
+            Assert.Equal((SkUiCalendarChevronDirection.Right, SkUiCalendarChevronDirection.Left), (buttons[^2].Direction, buttons[^1].Direction));
+            calendar.FlowDirection = FlowDirection.LeftToRight;
+            surface.Frame(16);
             Tap(calendar, new Point(192, 24));
             Assert.Equal(new DateTime(2026, 10, 1), calendar.DisplayDate);
 
             calendar.HeaderHeight = 60;
             Assert.Equal(Height + 12, ((IView)calendar).Measure(Width, double.PositiveInfinity).Height);
             Assert.Throws<ArgumentOutOfRangeException>(() => new SkUiCoreCalendar().SetNavigationButtonBorderWidth(-1));
-            Assert.Equal(new SkUiCoreCalendar().SetHeaderHeight(60).Measure(Width, double.PositiveInfinity).Height, Height + 12);
+            Assert.Equal(Height + 12, new SkUiCoreCalendar().SetHeaderHeight(60).Measure(Width, double.PositiveInfinity).Height);
         }
         finally
         {
@@ -476,7 +488,7 @@ public sealed class CalendarTests : IDisposable
     private sealed class OwnHeaderCalendar : SkUiCoreCalendar
     {
         public readonly List<bool> Buttons = [];
-        public string? Title;
+        public string? DrawnTitle;
 
         protected override bool OnDrawNavigationButton(SKCanvas canvas, SkUiCalendarNavigationButtonPaint button, bool isNext)
         {
@@ -487,7 +499,7 @@ public sealed class CalendarTests : IDisposable
 
         protected override bool OnDrawTitle(SKCanvas canvas, SKRect bounds, string title, SKColor color, bool isPressed)
         {
-            Title = title;
+            DrawnTitle = title;
             return false; // the calendar draws it
         }
     }
@@ -506,7 +518,7 @@ public sealed class CalendarTests : IDisposable
             surface.Frame(0);
             Assert.Equal([false, true], calendar.Buttons);
             Assert.Equal(0, looked); // the subclass drew them
-            Assert.Equal("November 2026", calendar.Title);
+            Assert.Equal("November 2026", calendar.DrawnTitle);
             Tap(host, NextButton); // taps still work
             Assert.Equal(new DateTime(2026, 12, 1), calendar.DisplayDate);
         }
@@ -860,5 +872,168 @@ public sealed class CalendarTests : IDisposable
         Assert.False(calendar.Engine.IsAnimating);
         calendar.Engine.Release();
         Assert.Equal(0, calendar.Engine.CachedTextCount);
+    }
+    private static SkUiDateRange Range(int first, int last) => new(new DateTime(2026, 11, first), new DateTime(2026, 11, last));
+
+    [Fact]
+    public void RangeLengthRulesLimitWhereARangeCanEnd()
+    {
+        var calendar = Calendar(out var surface);
+        using var _ = surface;
+        calendar.SelectionMode = SkUiCalendarSelectionMode.Range;
+        calendar.MinimumRangeDays = 3;
+        calendar.MaximumRangeDays = 7;
+        Tap(calendar, Day(10));
+        Assert.Equal(new SkUiDateRange(new DateTime(2026, 11, 10)), calendar.SelectedRange);
+        // While the range waits for its end, days that would end it too short or too long cannot be chosen.
+        Assert.False(calendar.Engine.IsChoosable(new DateTime(2026, 11, 11)));
+        Assert.False(calendar.Engine.IsChoosable(new DateTime(2026, 11, 17)));
+        Assert.True(calendar.Engine.IsChoosable(new DateTime(2026, 11, 16)));
+        Assert.True(calendar.Engine.IsChoosable(new DateTime(2026, 11, 4))); // backwards too: 4 to 10 is seven days
+        Tap(calendar, Day(11));
+        Tap(calendar, Day(10)); // its own first day: still open
+        Tap(calendar, Day(20));
+        Assert.Equal(new SkUiDateRange(new DateTime(2026, 11, 10)), calendar.SelectedRange);
+        Tap(calendar, Day(16));
+        Assert.Equal(Range(10, 16), calendar.SelectedRange);
+        // A whole range: the next tap starts one anywhere.
+        Assert.True(calendar.Engine.IsChoosable(new DateTime(2026, 11, 11)));
+        // The app's ranges are not checked.
+        calendar.SelectedRange = Range(1, 30);
+        Assert.Equal(30, calendar.SelectedRange!.Value.Days);
+        Assert.Throws<ArgumentOutOfRangeException>(() => calendar.SetMaximumRangeDays(-1));
+    }
+
+    [Fact]
+    public void ARangeCanBeKeptFromRunningOverUnavailableDays()
+    {
+        var calendar = Calendar(out var surface);
+        using var _ = surface;
+        calendar.SelectionMode = SkUiCalendarSelectionMode.Range;
+        calendar.AllowsDisabledDaysInRange = false;
+        calendar.BlackoutDates!.Add(new DateTime(2026, 11, 13));
+        Tap(calendar, Day(10));
+        Tap(calendar, Day(16)); // over the 13th: not taken
+        Assert.Equal(new SkUiDateRange(new DateTime(2026, 11, 10)), calendar.SelectedRange);
+        Tap(calendar, Day(12));
+        Assert.Equal(Range(10, 12), calendar.SelectedRange);
+        Tap(calendar, Day(14));
+        Assert.False(calendar.Engine.IsChoosable(new DateTime(2026, 11, 8)));
+        Assert.True(calendar.Engine.IsChoosable(new DateTime(2026, 11, 28)));
+        // A rule of the app's that changes is read again after RefreshDayStyles.
+        calendar.DateEnabled = date => date.Day != 20;
+        Assert.False(calendar.Engine.IsChoosable(new DateTime(2026, 11, 28)));
+        Tap(calendar, Day(19));
+        Assert.Equal(Range(14, 19), calendar.SelectedRange);
+        // Allowed again: a range runs over the blackout day (which is still not chosen by itself).
+        calendar.AllowsDisabledDaysInRange = true;
+        Tap(calendar, Day(10));
+        Tap(calendar, Day(16));
+        Assert.Equal(Range(10, 16), calendar.SelectedRange);
+    }
+
+    [Fact]
+    public void MultipleRangesJoinAndATapOnOneRemovesIt()
+    {
+        var calendar = Calendar(out var surface);
+        using var _ = surface;
+        calendar.SelectionMode = SkUiCalendarSelectionMode.MultipleRanges;
+        var bound = BindingSource<IReadOnlyList<SkUiDateRange>>.Bind(calendar, SkUiCalendar.SelectedRangesProperty, [], BindingMode.TwoWay);
+        var changes = 0;
+        calendar.SelectionChanged += (_, _) => changes++;
+        Tap(calendar, Day(3));
+        Tap(calendar, Day(5));
+        Tap(calendar, Day(12));
+        Assert.Equal([Range(3, 5), new SkUiDateRange(new DateTime(2026, 11, 12))], calendar.SelectedRanges);
+        Tap(calendar, Day(10)); // ends before its start: ordered
+        Assert.Equal([Range(3, 5), Range(10, 12)], bound.Value);
+        Assert.Equal(Range(10, 12), calendar.SelectedRange); // the range changed last
+        Assert.Equal(4, changes);
+
+        // A range that reaches the others joins them.
+        Tap(calendar, Day(6));
+        Tap(calendar, Day(9));
+        Assert.Equal([Range(3, 12)], calendar.SelectedRanges);
+        // A tap on a chosen range removes it.
+        Tap(calendar, Day(7));
+        Assert.Empty(calendar.SelectedRanges);
+        Assert.Null(calendar.SelectedRange);
+
+        // The app's ranges are ordered and joined.
+        bound.Value = [Range(20, 22), Range(1, 2), Range(2, 4), Range(23, 23)];
+        Assert.Equal([Range(1, 4), Range(20, 23)], calendar.SelectedRanges);
+        Assert.Equal([Range(1, 4), Range(20, 23)], bound.Value);
+        calendar.ClearSelection();
+        Assert.Empty(bound.Value);
+
+        // The band is drawn for each range.
+        var paints = new List<SkUiCalendarCellPaint>();
+        SkUiLook.Current.CalendarCellPainter = (_, paint) => paints.Add(paint);
+        calendar.SelectedRanges = [Range(2, 3), Range(9, 10)];
+        surface.Frame(16);
+        Assert.Equal(4, paints.Count(paint => paint.RangePart is SkUiCalendarRangePart.Start or SkUiCalendarRangePart.End));
+    }
+
+    [Fact]
+    public void TheCoreCalendarHasTheRangeRulesAndMultipleRanges()
+    {
+        var calendar = CoreCalendar(out var host, out var surface);
+        using var _ = surface;
+        calendar.SetSelectionMode(SkUiCalendarSelectionMode.MultipleRanges).SetMaximumRangeDays(3);
+        var notified = new List<string?>();
+        calendar.PropertyChanged += (_, args) => notified.Add(args.PropertyName);
+        Tap(host, Day(3));
+        Tap(host, Day(9)); // seven days: too long
+        Tap(host, Day(5));
+        Assert.Equal([Range(3, 5)], calendar.SelectedRanges);
+        Assert.Contains(nameof(SkUiCoreCalendar.SelectedRanges), notified);
+        calendar.SetSelectedRanges([Range(1, 1), Range(2, 2)]);
+        Assert.Equal([Range(1, 2)], calendar.SelectedRanges);
+        Assert.Throws<ArgumentOutOfRangeException>(() => calendar.SetMinimumRangeDays(-2));
+        calendar.SetAllowsDisabledDaysInRange(false);
+        Assert.False(calendar.AllowsDisabledDaysInRange);
+    }
+
+    [Fact]
+    public void EveryDayAndTheHeaderAreElementsOfTheirOwnForScreenReaders()
+    {
+        var calendar = new SkUiCalendar
+        {
+            DisplayDate = November,
+            FirstDayOfWeek = DayOfWeek.Monday,
+            SelectedDate = new DateTime(2026, 11, 10),
+            MinimumDate = new DateTime(2026, 11, 3),
+            AutomationId = "Cal"
+        };
+        var stack = new SkUiVerticalStackLayout();
+        stack.Children.Add(calendar);
+        SkUiTestHelpers.Arrange(stack, Width, Height);
+        var nodes = SkUiSemanticsTree.Build(stack, exposeAutomationIds: true).Flatten().ToList();
+        var element = nodes.Single(node => ReferenceEquals(node.Source, calendar) && node.PartIndex < 0);
+        var parts = nodes.Where(node => ReferenceEquals(node.Source, calendar) && node.PartIndex >= 0).ToList();
+        Assert.All(parts, part => Assert.Same(element, part.Parent));
+        Assert.Equal(3 + 42, parts.Count); // title, previous, next and six weeks of days
+
+        var tenth = parts.Single(part => part.Label == "Tuesday, November 10, 2026");
+        Assert.Equal("Selected", tenth.Value);
+        Assert.Equal("Cal_2026-11-10", tenth.AutomationId);
+        Assert.Equal(new Rect(40, 48 + 28 + 2 * 44, 40, 44), tenth.Bounds);
+        var second = parts.Single(part => part.Label == "Monday, November 2, 2026");
+        Assert.False(second.IsEnabled); // before the minimum
+        Assert.False(parts.Single(part => part.Label == "Previous").IsEnabled);
+        Assert.True(parts.Single(part => part.Label == "Next").IsEnabled);
+        Assert.Equal("November 2026", parts.Single(part => part.AutomationId == "Cal_Title").Label);
+
+        // Activating a day chooses it; the buttons move the page.
+        var accessible = (ISkUiAccessibleNode)calendar;
+        var twelfth = parts.Single(part => part.Label == "Thursday, November 12, 2026");
+        Assert.True(accessible.PerformSemanticsPartAction(twelfth.PartIndex, SkUiSemanticsActions.Activate));
+        Assert.Equal(new DateTime(2026, 11, 12), calendar.SelectedDate);
+        Assert.True(accessible.PerformSemanticsPartAction(parts.Single(part => part.Label == "Next").PartIndex, SkUiSemanticsActions.Activate));
+        Assert.Equal(new DateTime(2026, 12, 1), calendar.DisplayDate);
+        var again = SkUiSemanticsTree.Build(stack).Flatten().Where(node => ReferenceEquals(node.Source, calendar) && node.PartIndex >= 0).ToList();
+        // A cell's element keeps its id while its date changes with the page.
+        Assert.Equal(twelfth.Id, again.Single(part => part.PartIndex == twelfth.PartIndex).Id);
+        Assert.Contains(again, part => part.Label == "Thursday, December 10, 2026");
     }
 }

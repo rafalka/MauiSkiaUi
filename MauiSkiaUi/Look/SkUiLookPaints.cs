@@ -606,12 +606,13 @@ public readonly record struct SkUiCalendarCellPaint(SKRect Bounds, SkUiCalendarC
 
 /// <summary>What a look draws a calendar header's previous or next button with (<see cref="SkUiLook.DrawCalendarNavigationButton"/>).</summary>
 /// <param name="Bounds">The button's square (its touch target).</param>
-/// <param name="PointsLeft">The chevron points left (the previous button left-to-right, the next button right-to-left).</param>
+/// <param name="Direction">Where the chevron points: left / right while the pages move sideways (the previous button points left,
+/// mirrored right-to-left), up / down while they move vertically (<c>NavigationOrientation</c> <see cref="StackOrientation.Vertical"/>).</param>
 /// <param name="Color">The chevron's color.</param>
 /// <param name="Background">The button's fill (a circle, or a rounded square with <see cref="CornerRadius"/>), transparent when none.</param>
 /// <param name="IsPressed">The button is pressed.</param>
 /// <param name="IsEnabled">The calendar can move that way (not past <c>MinimumDate</c> / <c>MaximumDate</c>).</param>
-public readonly record struct SkUiCalendarNavigationButtonPaint(SKRect Bounds, bool PointsLeft, SKColor Color, SKColor Background, bool IsPressed,
+public readonly record struct SkUiCalendarNavigationButtonPaint(SKRect Bounds, SkUiCalendarChevronDirection Direction, SKColor Color, SKColor Background, bool IsPressed,
     bool IsEnabled)
 {
     /// <summary>The background's corner radius (<c>NavigationButtonCornerRadius</c>); negative (default): a circle.</summary>

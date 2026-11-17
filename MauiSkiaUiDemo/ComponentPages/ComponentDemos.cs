@@ -44,6 +44,8 @@ public static class ComponentDemos
         new(typeof(SkUiPickerWheels), typeof(PickerWheelsDemoPage), ComponentDemo.SkUiOnlyCounterpart, ComponentCategory.BasicControls, () => new PickerWheelsDemoPage()),
         new(typeof(SkUiDatePicker), typeof(DatePickerDemoPage), nameof(DatePicker), ComponentCategory.BasicControls, () => new DatePickerDemoPage()),
         new(typeof(SkUiCalendar), typeof(CalendarDemoPage), ComponentDemo.SkUiOnlyCounterpart, ComponentCategory.BasicControls, () => new CalendarDemoPage()),
+        new(typeof(SkUiDateRangePicker), typeof(DateRangePickerDemoPage), ComponentDemo.SkUiOnlyCounterpart, ComponentCategory.BasicControls,
+            () => new DateRangePickerDemoPage()),
         new(typeof(SkUiTimePicker), typeof(TimePickerDemoPage), nameof(TimePicker), ComponentCategory.BasicControls, () => new TimePickerDemoPage()),
         new(typeof(SkUiDateTimePicker), typeof(DateTimePickerDemoPage), ComponentDemo.SkUiOnlyCounterpart, ComponentCategory.BasicControls, () => new DateTimePickerDemoPage()),
         new(typeof(SkUiRadioButton), typeof(RadioButtonDemoPage), nameof(RadioButton), ComponentCategory.BasicControls, () => new RadioButtonDemoPage()),

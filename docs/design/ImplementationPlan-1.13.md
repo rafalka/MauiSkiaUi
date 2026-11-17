@@ -22,7 +22,9 @@
 - **D6 One set of font properties for every cell kind**, plus separate size, weight and color for the header, the day names and today. An app restyling the calendar sets a handful of properties, not one text style per cell state.
 - **D7 The header is drawn by the calendar** (its buttons styled by size, shape, border, colors and an icon glyph or image; a subclass can draw the buttons and the title itself through protected hooks) in two layouts: the title at the start with both buttons at the end (a compact header that suits a phone), or the buttons around a centered title. A tap on the title changes the display mode (D3). An app header of its own uses `IsHeaderVisible = false` with `GoToPrevious()`, `GoToNext()`, `DisplayMode`, `CanGoToPrevious`, `CanGoToNext` and the `Title` property, which is the text the header would show.
 - **D8 Gregorian dates.** Dates are `DateTime` values without time (the time part is dropped). Day and month names and the first day of the week come from the current culture; other calendar systems (Hijri, Persian, Thai) stay on the backlog, as for the date picker's wheels.
-- **D9 Screen readers get one adjustable element in 1.13:** the title as its name, the focused (or selected) day with its state as its value, increment / decrement moving a day and activate choosing it. An element per day needs virtual children in the semantics tree, which no control has yet: wave 2.
+- **D9 Screen readers get an adjustable element and an element per cell.** The calendar's element has the title as its name, the focused (or selected) day with its state as its value, increment / decrement moving a day and activate choosing it. Its children are the header's title and buttons and every cell of the page, as the drawn parts a text field's clear button already is (`SkUiSemanticsPart`, which gains a state and an enabled flag): a day reads its full date and state, activating it chooses it. A cell's element id stays with its place on the page (wave 2).
+- **D10 The pickers' calendars are the calendar in a popup.** The date pickers' calendar popup builds its request from the wheels' rules (`SkUiDatePopupRequest` is unchanged, so presenters with their own UI keep working whatever the style) and hands the calendar the wheels' day rule. The look's default stays the wheels on every built-in look in 1.13 (no change for existing apps); an app's look can choose calendars. The date range picker is a value picker of `SkUiDateRange?` (the 1.12 framework for pickers of your own), so its request is the typed `SkUiValuePopupRequest<SkUiDateRange?>`. `SkUiDateTimePicker` keeps its wheels: a calendar with time wheels below is left for later.
+- **D11 Range rules dim the days they rule out.** While a range waits for its end, a day that would break `MinimumRangeDays`, `MaximumRangeDays` or `AllowsDisabledDaysInRange` is drawn and hit-tested as unavailable, so the user sees where the range can end instead of a tap that does nothing. The nearest unavailable days around the range's start are found by scanning out from it, as far as asked, and kept until the start or a rule changes. Several ranges (`MultipleRanges`) are kept ordered and apart: a range that overlaps or touches another joins it.
 
 ## Wave 1: the calendar
 
@@ -57,11 +59,14 @@
 
 - Headless: the suite and the leak scenarios on both lines.
 - Devices (before release, on the Galaxy S9 and the iPhone 8): swipe feel and frame time while a page slides (D2), the pinch, VoiceOver and TalkBack on the calendar element, the keyboard on Mac Catalyst and Windows.
-- Release `1.13.0` with wave 1; wave 2 can follow as 1.13.x or move on.
+- Devices also for wave 2: the date pickers' calendar popup and the range picker on each presenter (anchored, window, bottom pane), TalkBack and VoiceOver on the day elements.
+- Release `1.13.0` with both waves.
 
-## Wave 2 (outline)
+## Wave 2: the calendar in the pickers (built)
 
-- **Date picker popup:** a `PopupStyle` on the date pickers of both layers and `SkUiDateTimePicker` (`Wheels`, `Calendar`, `Default` = the look's: a calendar on Android and Windows, wheels on iOS), following `UpdateMode` (a draft until OK), the range, blackout days and the day rule. `SkUiDatePopupRequest` is unchanged, so presenters with their own UI keep working.
-- **Date range picker:** `SkUiDateRangePicker` and its Core twin on the range selection, with a typed popup request.
-- **Semantics children:** an element per day with its full date and state (D9), the header's title and buttons as their own elements.
-- **More selection rules:** a longest range, a range that may not cross a disabled day, several ranges.
+- **Date picker popup:** `PopupStyle` on `SkUiDatePicker` and `SkUiCoreDatePicker` (`Wheels`, `Calendar`, `Default` = the look's new `DatePickerPopupStyle`, wheels on every built-in look: D10), following `UpdateMode` (a draft until OK), the range, blackout days and the day rule; `CalendarStyle` styles the calendar. `SkUiCalendarPopup` is the popup content; `SkUiDatePopupRequest` is unchanged. `SkUiDateTimePicker` keeps its wheels.
+- **Date range picker:** `SkUiDateRangePicker` and `SkUiCoreDateRangePicker`, value pickers of `SkUiDateRange?` with the typed `SkUiValuePopupRequest<SkUiDateRange?>`; the field's `DisplayFormat` (`{0}` first day, `{1}` last day, `{2}` days), the day and range rules, `CalendarStyle`. Built-in popup contents get the popup's keys first (an internal hook), so the calendar's arrows work.
+- **Semantics children:** an element per cell with its full date and state, the header's title and buttons as their own elements (D9).
+- **More selection rules:** `MinimumRangeDays`, `MaximumRangeDays`, `AllowsDisabledDaysInRange`, and `MultipleRanges` with `SelectedRanges` (D11).
+- **Found on the way:** value pickers (1.12) held their picker strongly from the popup content, so a presenter keeping the request of a popup open when its page closed kept the page alive; the content now reaches the picker weakly. The leak scenario `CalendarPopupsOpened` covers it.
+- Tests: `CalendarTests` (range rules, several ranges, elements per day), `DatePickerTests` (the calendar popup), `DateRangePickerTests`; demo: the range picker's gallery page, `PopupStyle` on the date picker's, the range rules on the calendar's.

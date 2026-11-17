@@ -188,6 +188,12 @@ internal sealed class SkUiCalendarModel(ISkUiCalendarHost host)
     public DateTime? MaximumDate;
     public Func<DateTime, bool>? DateEnabled;
     public SkUiCalendarRangeTarget RangeSelectionTarget = SkUiCalendarRangeTarget.Auto;
+    /// <summary>The fewest days a range the user ends may have (0 or 1: any).</summary>
+    public int MinimumRangeDays;
+    /// <summary>The most days a range the user ends may have (0: any).</summary>
+    public int MaximumRangeDays;
+    /// <summary>Whether a range the user ends may run over days that cannot be chosen (they are still not chosen themselves).</summary>
+    public bool AllowsDisabledDaysInRange = true;
     public double DayMarkerAreaHeight = -1;
     public SkUiCalendarDayPainter? DayPainter;
 
@@ -204,6 +210,7 @@ internal sealed class SkUiCalendarModel(ISkUiCalendarHost host)
         {
             _blackoutDates = value;
             _blackout = null;
+            _rulesVersion++;
         }
     }
 
@@ -219,10 +226,18 @@ internal sealed class SkUiCalendarModel(ISkUiCalendarHost host)
     }
 
     /// <summary>The blackout list changed (its items): the days are read again.</summary>
-    public void BlackoutDatesChanged() => _blackout = null;
+    public void BlackoutDatesChanged()
+    {
+        _blackout = null;
+        _rulesVersion++;
+    }
 
-    /// <summary>Forgets the day styles the app's callback answered: they are asked again when drawn.</summary>
-    public void RefreshDayStyles() => _dayStyles.Clear();
+    /// <summary>Forgets the day styles the app's callback answered and what was worked out from its day rule: they are asked again when drawn.</summary>
+    public void RefreshDayStyles()
+    {
+        _dayStyles.Clear();
+        _rulesVersion++;
+    }
 
     #endregion
 
@@ -235,6 +250,14 @@ internal sealed class SkUiCalendarModel(ISkUiCalendarHost host)
     private readonly HashSet<DateTime> _dateSet = [];
     private IReadOnlyList<DateTime> _datesSnapshot = [];
     private SkUiDateRange? _range;
+    // Multiple ranges: in date order, apart from each other, at most one open (the one being chosen).
+    private readonly List<SkUiDateRange> _ranges = [];
+    private IReadOnlyList<SkUiDateRange> _rangesSnapshot = [];
+    private int _rulesVersion;
+    // The nearest days around a range's first day that cannot be chosen, found so far (AllowsDisabledDaysInRange false).
+    private (DateTime Anchor, DateTime? Minimum, DateTime? Maximum, Func<DateTime, bool>? Rule, int Version) _boundsKey;
+    private DateTime? _disabledBefore, _disabledAfter;
+    private int _scannedBefore, _scannedAfter;
     private DateTime? _focus;
     private bool _keyboard;
 
@@ -267,8 +290,11 @@ internal sealed class SkUiCalendarModel(ISkUiCalendarHost host)
     /// <summary>The multiple selection, in date order (a new list per change).</summary>
     public IReadOnlyList<DateTime> SelectedDates => _datesSnapshot;
 
-    /// <summary>The range selection.</summary>
+    /// <summary>The range selection (multiple ranges: the range changed last).</summary>
     public SkUiDateRange? SelectedRange => _range;
+
+    /// <summary>The ranges of multiple-range selection, in date order (a new list per change).</summary>
+    public IReadOnlyList<SkUiDateRange> SelectedRanges => _rangesSnapshot;
 
     /// <summary>The first day of the week in effect.</summary>
     public DayOfWeek EffectiveFirstDayOfWeek => SkUiCalendarGrid.FirstDayOfWeek(FirstDayOfWeek, CultureInfo.CurrentCulture);
@@ -344,6 +370,80 @@ internal sealed class SkUiCalendarModel(ISkUiCalendarHost host)
 
     /// <summary>Whether <paramref name="day"/> can be chosen: in the range, not a blackout date, and allowed by <see cref="DateEnabled"/>.</summary>
     public bool IsDayEnabled(DateTime day) => IsInRange(day) && !IsBlackout(day) && (DateEnabled?.Invoke(day) ?? true);
+
+    /// <summary>
+    /// Whether the user can choose <paramref name="day"/> now: <see cref="IsDayEnabled"/>, and while a range waits for its other
+    /// end, a day that ends it within <see cref="MinimumRangeDays"/> and <see cref="MaximumRangeDays"/> (and, without
+    /// <see cref="AllowsDisabledDaysInRange"/>, before the nearest day that cannot be chosen).
+    /// </summary>
+    public bool IsChoosable(DateTime day) => IsDayEnabled(day) && RangeAllows(day);
+
+    /// <summary>The first day of the range a tap would end now; <c>null</c> when a tap starts one (or the mode has no ranges).</summary>
+    private DateTime? RangeAnchor
+    {
+        get
+        {
+            if (SelectionMode == SkUiCalendarSelectionMode.MultipleRanges)
+            {
+                foreach (var range in _ranges)
+                    if (!range.IsComplete)
+                        return range.Start;
+                return null;
+            }
+            if (SelectionMode != SkUiCalendarSelectionMode.Range)
+                return null;
+            return RangeSelectionTarget switch
+            {
+                SkUiCalendarRangeTarget.Start => null,
+                SkUiCalendarRangeTarget.End => _range?.Start,
+                _ => _range is { IsComplete: false } open ? open.Start : null
+            };
+        }
+    }
+
+    private bool HasRangeRules => MinimumRangeDays > 1 || MaximumRangeDays > 0 || !AllowsDisabledDaysInRange;
+
+    private bool RangeAllows(DateTime day) => !HasRangeRules || RangeAnchor is not { } anchor || day == anchor || RangeFits(anchor, day);
+
+    /// <summary>Whether a range from <paramref name="anchor"/> to <paramref name="day"/> (either way) keeps the range rules.</summary>
+    private bool RangeFits(DateTime anchor, DateTime day)
+    {
+        var days = Math.Abs((day - anchor).Days) + 1;
+        if (MinimumRangeDays > 1 && days < MinimumRangeDays || MaximumRangeDays > 0 && days > MaximumRangeDays)
+            return false;
+        return AllowsDisabledDaysInRange || NoDisabledDayBetween(anchor, day);
+    }
+
+    /// <summary>
+    /// Whether every day from <paramref name="anchor"/> to <paramref name="day"/> can be chosen. The nearest days that cannot,
+    /// either side of the anchor, are found once and kept (until the anchor or a rule changes), scanning only as far as asked.
+    /// </summary>
+    private bool NoDisabledDayBetween(DateTime anchor, DateTime day)
+    {
+        var key = (anchor, MinimumDate, MaximumDate, DateEnabled, _rulesVersion);
+        if (key != _boundsKey)
+        {
+            _boundsKey = key;
+            _disabledBefore = _disabledAfter = null;
+            _scannedBefore = _scannedAfter = 0;
+        }
+        var distance = Math.Abs((day - anchor).Days);
+        var forward = day > anchor;
+        ref var found = ref forward ? ref _disabledAfter : ref _disabledBefore;
+        ref var scanned = ref forward ? ref _scannedAfter : ref _scannedBefore;
+        while (found is null && scanned < distance)
+        {
+            scanned++;
+            if (SkUiCalendarGrid.AddDays(anchor, forward ? scanned : -scanned) is not { } next)
+            {
+                scanned = int.MaxValue; // the end of the calendar
+                break;
+            }
+            if (!IsDayEnabled(next))
+                found = next;
+        }
+        return found is not { } stop || (forward ? day < stop : day > stop);
+    }
 
     /// <summary>Whether a month / year / decade cell can be chosen or opened: part of its span is in the range.</summary>
     private bool IsPeriodEnabled(DateTime cell, SkUiCalendarDisplayMode mode) =>
@@ -568,6 +668,59 @@ internal sealed class SkUiCalendarModel(ISkUiCalendarHost host)
         return new SkUiCalendarSelectionChangedEventArgs(NoDates, NoDates, old, value);
     }
 
+    /// <summary>
+    /// Sets the ranges of multiple-range selection (the app's): in date order, ranges that overlap or touch joined, one open range
+    /// kept (the last); returns the change, or <c>null</c> when nothing changed.
+    /// </summary>
+    public SkUiCalendarSelectionChangedEventArgs? SetSelectedRanges(IEnumerable<SkUiDateRange>? value)
+    {
+        var next = Normalize(value);
+        if (next.SequenceEqual(_ranges))
+            return null;
+        var old = _range;
+        _ranges.Clear();
+        _ranges.AddRange(next);
+        _rangesSnapshot = _ranges.ToArray();
+        if (SelectionMode == SkUiCalendarSelectionMode.MultipleRanges)
+            _range = _ranges.Count > 0 ? _ranges[^1] : null;
+        return new SkUiCalendarSelectionChangedEventArgs(NoDates, NoDates, old, _range);
+    }
+
+    /// <summary>Ranges in date order, those that overlap or touch joined; an open range is kept only when it is apart from the others (the last such).</summary>
+    private static List<SkUiDateRange> Normalize(IEnumerable<SkUiDateRange>? ranges)
+    {
+        var result = new List<SkUiDateRange>();
+        if (ranges is null)
+            return result;
+        SkUiDateRange? open = null;
+        foreach (var range in ranges)
+            if (range.IsComplete)
+                result.Add(range);
+            else
+                open = range;
+        Join(result);
+        if (open is { } pending && !result.Any(range => range.Start <= pending.Start && pending.Start <= range.LastDay))
+        {
+            result.Add(pending);
+            result.Sort((a, b) => a.Start.CompareTo(b.Start));
+        }
+        return result;
+    }
+
+    /// <summary>Sorts complete <paramref name="ranges"/> and joins those that overlap or touch.</summary>
+    private static void Join(List<SkUiDateRange> ranges)
+    {
+        ranges.Sort((a, b) => a.Start.CompareTo(b.Start));
+        for (var index = ranges.Count - 1; index > 0; index--)
+        {
+            var (before, after) = (ranges[index - 1], ranges[index]);
+            if (SkUiCalendarGrid.AddDays(before.LastDay, 1) is { } next && after.Start > next)
+                continue;
+            ranges[index - 1] = new SkUiDateRange(before.Start, after.LastDay > before.LastDay ? after.LastDay : before.LastDay);
+            ranges.RemoveAt(index);
+        }
+    }
+
     /// <summary>Clears every selection; returns what was cleared, or <c>null</c>.</summary>
     public SkUiCalendarSelectionChangedEventArgs? Clear()
     {
@@ -575,13 +728,15 @@ internal sealed class SkUiCalendarModel(ISkUiCalendarHost host)
         if (_selectedDate is { } date && !_dateSet.Contains(date))
             removed.Add(date);
         var old = _range;
-        if (removed.Count == 0 && old is null)
+        if (removed.Count == 0 && old is null && _ranges.Count == 0)
             return null;
         _selectedDate = null;
         _dates.Clear();
         _dateSet.Clear();
         _datesSnapshot = NoDates;
         _range = null;
+        _ranges.Clear();
+        _rangesSnapshot = [];
         return new SkUiCalendarSelectionChangedEventArgs(NoDates, removed, old, null);
     }
 
@@ -635,11 +790,52 @@ internal sealed class SkUiCalendarModel(ISkUiCalendarHost host)
                     return;
                 args = new SkUiCalendarSelectionChangedEventArgs(NoDates, NoDates, before, _range);
                 break;
+            case SkUiCalendarSelectionMode.MultipleRanges:
+                var last = _range;
+                if (!ChooseInRanges(day))
+                    return;
+                _rangesSnapshot = _ranges.ToArray();
+                _selectedDate = _range?.Start;
+                args = new SkUiCalendarSelectionChangedEventArgs(NoDates, NoDates, last, _range);
+                break;
             default:
                 return;
         }
         host.CalendarInvalidate();
         host.CalendarSelectionChanged(args);
+    }
+
+    /// <summary>
+    /// A tap on <paramref name="day"/> in multiple-range selection: it ends the open range (joining the ranges it reaches), removes
+    /// the chosen range it is in, or starts a range. Returns whether the ranges changed.
+    /// </summary>
+    private bool ChooseInRanges(DateTime day)
+    {
+        var openIndex = _ranges.FindIndex(range => !range.IsComplete);
+        if (openIndex >= 0)
+        {
+            var start = _ranges[openIndex].Start;
+            // Too short a range from its own first day: the range stays open.
+            if (day == start && MinimumRangeDays > 1)
+                return false;
+            _ranges.RemoveAt(openIndex);
+            _ranges.Add(new SkUiDateRange(start, day));
+            Join(_ranges);
+            _range = _ranges.First(range => range.Contains(start));
+            return true;
+        }
+        var inside = _ranges.FindIndex(range => range.Contains(day));
+        if (inside >= 0)
+        {
+            _ranges.RemoveAt(inside);
+            _range = null;
+            return true;
+        }
+        var opened = new SkUiDateRange(day);
+        var index = _ranges.FindIndex(range => range.Start > day);
+        _ranges.Insert(index < 0 ? _ranges.Count : index, opened);
+        _range = opened;
+        return true;
     }
 
     /// <summary>
@@ -649,11 +845,15 @@ internal sealed class SkUiCalendarModel(ISkUiCalendarHost host)
     /// </summary>
     private SkUiDateRange? NextRange(SkUiDateRange? range, DateTime day)
     {
+        // Too short a range from its own first day: the range stays as it is.
+        if (MinimumRangeDays > 1 && RangeAnchor == day)
+            return range;
         switch (RangeSelectionTarget)
         {
             case SkUiCalendarRangeTarget.Start:
                 RangeSelectionTarget = SkUiCalendarRangeTarget.End;
-                return range is { End: { } end } && end >= day ? new SkUiDateRange(day, end) : new SkUiDateRange(day);
+                // The last day stays when the range still keeps the rules from the new first day.
+                return range is { End: { } end } && end >= day && (!HasRangeRules || RangeFits(day, end)) ? new SkUiDateRange(day, end) : new SkUiDateRange(day);
             case SkUiCalendarRangeTarget.End:
                 if (range is not { } current)
                     return new SkUiDateRange(day);
@@ -667,9 +867,26 @@ internal sealed class SkUiCalendarModel(ISkUiCalendarHost host)
     {
         SkUiCalendarSelectionMode.Single => _selectedDate == day,
         SkUiCalendarSelectionMode.Multiple => _dateSet.Contains(day),
-        SkUiCalendarSelectionMode.Range => _range is { } range && (day == range.Start || day == range.LastDay),
+        SkUiCalendarSelectionMode.Range or SkUiCalendarSelectionMode.MultipleRanges => RangeOf(day) is { } range && (day == range.Start || day == range.LastDay),
         _ => false
     };
+
+    /// <summary>The chosen range <paramref name="day"/> is in (range and multiple-range selection), or <c>null</c>.</summary>
+    private SkUiDateRange? RangeOf(DateTime day)
+    {
+        if (SelectionMode == SkUiCalendarSelectionMode.Range)
+            return _range is { } range && range.Contains(day) ? range : null;
+        if (SelectionMode != SkUiCalendarSelectionMode.MultipleRanges)
+            return null;
+        foreach (var range in _ranges)
+        {
+            if (range.Start > day)
+                break;
+            if (range.Contains(day))
+                return range;
+        }
+        return null;
+    }
 
     /// <summary>Whether a month / year / decade cell holds the selection (shown when it is the lowest mode, where cells are chosen).</summary>
     private bool IsSelectedPeriod(DateTime cell, SkUiCalendarDisplayMode mode)
@@ -681,10 +898,14 @@ internal sealed class SkUiCalendarModel(ISkUiCalendarHost host)
         {
             SkUiCalendarSelectionMode.Single => _selectedDate is { } date && date >= cell && date <= end,
             SkUiCalendarSelectionMode.Multiple => AnySelectedBetween(cell, end),
-            SkUiCalendarSelectionMode.Range => _range is { } range && (range.Start >= cell && range.Start <= end || range.LastDay >= cell && range.LastDay <= end),
+            SkUiCalendarSelectionMode.Range => _range is { } range && EndsIn(range, cell, end),
+            SkUiCalendarSelectionMode.MultipleRanges => _ranges.Any(range => EndsIn(range, cell, end)),
             _ => false
         };
     }
+
+    private static bool EndsIn(SkUiDateRange range, DateTime first, DateTime last) =>
+        range.Start >= first && range.Start <= last || range.LastDay >= first && range.LastDay <= last;
 
     private bool AnySelectedBetween(DateTime first, DateTime last)
     {
@@ -831,7 +1052,7 @@ internal sealed class SkUiCalendarModel(ISkUiCalendarHost host)
             return default;
         if (IsAdjacent(start, day) && !AreAdjacentDaysVisible)
             return default;
-        return new SkUiCalendarHit(SkUiCalendarPart.Cell, day, index, IsDayEnabled(day));
+        return new SkUiCalendarHit(SkUiCalendarPart.Cell, day, index, IsChoosable(day));
     }
 
     private SkUiCalendarHit PeriodHit(DateTime start, int index)
@@ -1055,7 +1276,7 @@ internal sealed class SkUiCalendarModel(ISkUiCalendarHost host)
         _keyboard = true;
         if (key.Key is SkUiKey.Enter or SkUiKey.Space)
         {
-            Activate(focus, month ? IsDayEnabled(focus) : IsPeriodEnabled(focus, _mode), fromKeyboard: true);
+            Activate(focus, month ? IsChoosable(focus) : IsPeriodEnabled(focus, _mode), fromKeyboard: true);
             return true;
         }
         if (target is not { } next)
@@ -1138,7 +1359,7 @@ internal sealed class SkUiCalendarModel(ISkUiCalendarHost host)
                 MoveFocus(previous);
                 return true;
             case SkUiSemanticsActions.Activate:
-                Activate(focus, _mode == SkUiCalendarDisplayMode.Month ? IsDayEnabled(focus) : IsPeriodEnabled(focus, _mode), fromKeyboard: true);
+                Activate(focus, _mode == SkUiCalendarDisplayMode.Month ? IsChoosable(focus) : IsPeriodEnabled(focus, _mode), fromKeyboard: true);
                 return true;
             default:
                 return false;
@@ -1155,6 +1376,105 @@ internal sealed class SkUiCalendarModel(ISkUiCalendarHost host)
         info.Value = Describe(focus);
         if (host.CalendarEnabled)
             info.Actions |= SkUiSemanticsActions.Increment | SkUiSemanticsActions.Decrement | SkUiSemanticsActions.Activate;
+        AddParts(info, CultureInfo.CurrentCulture, SkUiStrings.Current);
+    }
+
+    private const int TitlePart = 0;
+    private const int PreviousPart = 1;
+    private const int NextPart = 2;
+    private const int FirstCellPart = 3;
+
+    // The element ids of the header's parts and the page's cells, kept while the calendar lives (a cell's id stays with its place).
+    private int[]? _partIds;
+
+    private int PartId(int part)
+    {
+        _partIds ??= new int[FirstCellPart + SkUiCalendarGrid.MaxWeeks * 7];
+        ref var id = ref _partIds[part];
+        if (id == 0)
+            id = SkUiSemanticsTree.NewId();
+        return id;
+    }
+
+    /// <summary>
+    /// The header's title and buttons and every cell of the page as elements of their own (children of the calendar's element):
+    /// a day reads its date with its state, and activating it chooses it; the title changes the display mode, the buttons the page.
+    /// </summary>
+    private void AddParts(SkUiSemanticsInfo info, CultureInfo culture, SkUiStrings strings)
+    {
+        var size = host.CalendarSize;
+        if (size.Width <= 0 || size.Height <= 0)
+            return;
+        var look = SkUiLook.Current;
+        var frame = Layout((float)size.Width, (float)size.Height, look);
+        var (title, previous, next) = HeaderRects(frame, look);
+        if (!title.IsEmpty)
+            info.AddPart(new SkUiSemanticsPart(PartId(TitlePart), TitlePart, ToRect(title), Title, "_Title", CanChangeMode));
+        if (!previous.IsEmpty)
+            info.AddPart(new SkUiSemanticsPart(PartId(PreviousPart), PreviousPart, ToRect(previous), strings.PreviousText, "_Previous", CanStep(-1)));
+        if (!next.IsEmpty)
+            info.AddPart(new SkUiSemanticsPart(PartId(NextPart), NextPart, ToRect(next), strings.NextText, "_Next", CanStep(1)));
+        var month = _mode == SkUiCalendarDisplayMode.Month;
+        var start = PageStart;
+        var columns = month ? 7 : SkUiCalendarGrid.PeriodColumns;
+        var rows = month ? Math.Clamp(VisibleWeeks, 1, SkUiCalendarGrid.MaxWeeks) : SkUiCalendarGrid.PeriodRows;
+        for (var row = 0; row < rows; row++)
+            for (var column = 0; column < columns; column++)
+            {
+                var index = row * columns + column;
+                var hit = month ? DayHit(start, index) : PeriodHit(start, index);
+                if (hit.Part != SkUiCalendarPart.Cell)
+                    continue;
+                var label = month ? hit.Date.ToString("D", culture)
+                    : _mode == SkUiCalendarDisplayMode.Year ? hit.Date.ToString(culture.DateTimeFormat.YearMonthPattern, culture)
+                    : SkUiCalendarGrid.PeriodText(hit.Date, _mode, culture);
+                info.AddPart(new SkUiSemanticsPart(PartId(FirstCellPart + index), FirstCellPart + index, ToRect(CellRect(frame, month, row, column)), label,
+                    string.Concat("_", hit.Date.ToString(month ? "yyyy-MM-dd" : "yyyy-MM", CultureInfo.InvariantCulture)), hit.IsEnabled, State(hit.Date, month, strings)));
+            }
+    }
+
+    private static Rect ToRect(SKRect rect) => new(rect.Left, rect.Top, rect.Width, rect.Height);
+
+    /// <summary>What a cell's element reads after its date: today, selected, unavailable.</summary>
+    private string? State(DateTime date, bool month, SkUiStrings strings)
+    {
+        if (!month)
+            return IsSelectedPeriod(date, _mode) ? strings.SelectedStateText : null;
+        var today = date == DateTime.Today;
+        var selected = IsSelectedDay(date) || RangeOf(date) is not null;
+        return (today, selected) switch
+        {
+            (true, true) => string.Concat(strings.SelectedStateText, ", ", strings.TodayStateText),
+            (true, false) => strings.TodayStateText,
+            (false, true) => strings.SelectedStateText,
+            _ => null
+        };
+    }
+
+    /// <summary>A screen reader activated a part (<see cref="AddParts"/>); returns whether it acted.</summary>
+    public bool OnSemanticsPartAction(int part, SkUiSemanticsActions action)
+    {
+        if (action != SkUiSemanticsActions.Activate || !host.CalendarEnabled)
+            return false;
+        switch (part)
+        {
+            case TitlePart when CanChangeMode:
+                StepUpMode();
+                return true;
+            case PreviousPart:
+                return Step(-1, animated: true);
+            case NextPart:
+                return Step(1, animated: true);
+            case >= FirstCellPart:
+                var month = _mode == SkUiCalendarDisplayMode.Month;
+                var hit = month ? DayHit(PageStart, part - FirstCellPart) : PeriodHit(PageStart, part - FirstCellPart);
+                if (hit.Part != SkUiCalendarPart.Cell)
+                    return false;
+                Activate(hit.Date, hit.IsEnabled, fromKeyboard: true);
+                return true;
+            default:
+                return false;
+        }
     }
 
     private string Describe(DateTime date)
@@ -1169,9 +1489,9 @@ internal sealed class SkUiCalendarModel(ISkUiCalendarHost host)
         var parts = new List<string>(4) { date.ToString("D", culture) };
         if (date == DateTime.Today)
             parts.Add(strings.TodayStateText);
-        if (IsSelectedDay(date) || _range is { } range && range.Contains(date) && SelectionMode == SkUiCalendarSelectionMode.Range)
+        if (IsSelectedDay(date) || RangeOf(date) is not null)
             parts.Add(strings.SelectedStateText);
-        if (!IsDayEnabled(date))
+        if (!IsChoosable(date))
             parts.Add(strings.UnavailableStateText);
         return string.Join(", ", parts);
     }
@@ -1317,18 +1637,24 @@ internal sealed class SkUiCalendarModel(ISkUiCalendarHost host)
         var color = pressedTitle ? palette.Header.WithAlpha((byte)(palette.Header.Alpha * 0.6f)) : palette.Header;
         if (!host.CalendarDrawTitle(canvas, titleRect, title, palette.Header, pressedTitle))
             DrawText(canvas, title, SlotTitle, styles.Title, titleRect, color, alignment);
-        DrawNavigationButton(canvas, look, palette, previous, isNext: false, pointsLeft: !frame.RightToLeft, frame.RightToLeft,
+        // Sideways pages: left / right chevrons, mirrored right-to-left (the app's icons too); vertical pages: up / down, never mirrored.
+        var vertical = NavigationOrientation == StackOrientation.Vertical;
+        var mirrored = !vertical && frame.RightToLeft;
+        DrawNavigationButton(canvas, look, palette, previous, isNext: false,
+            vertical ? SkUiCalendarChevronDirection.Up : mirrored ? SkUiCalendarChevronDirection.Right : SkUiCalendarChevronDirection.Left, mirrored,
             _pressed.Part == SkUiCalendarPart.Previous, CanStep(-1) && host.CalendarEnabled);
-        DrawNavigationButton(canvas, look, palette, next, isNext: true, pointsLeft: frame.RightToLeft, frame.RightToLeft,
+        DrawNavigationButton(canvas, look, palette, next, isNext: true,
+            vertical ? SkUiCalendarChevronDirection.Down : mirrored ? SkUiCalendarChevronDirection.Left : SkUiCalendarChevronDirection.Right, mirrored,
             _pressed.Part == SkUiCalendarPart.Next, CanStep(1) && host.CalendarEnabled);
     }
 
     /// <summary>
     /// A header button: a subclass's drawing, else the look's background, border and (without an icon or glyph) chevron, with
-    /// the app's image or glyph over it, mirrored right-to-left (the previous button then points the other way), dimmed while
-    /// pressed or disabled.
+    /// the app's image or glyph over it, mirrored right-to-left while the pages move sideways (the previous button then points the
+    /// other way), dimmed while pressed or disabled.
     /// </summary>
-    private void DrawNavigationButton(SKCanvas canvas, SkUiLook look, in Palette palette, SKRect bounds, bool isNext, bool pointsLeft, bool rightToLeft,
+    private void DrawNavigationButton(SKCanvas canvas, SkUiLook look, in Palette palette, SKRect bounds, bool isNext,
+        SkUiCalendarChevronDirection direction, bool rightToLeft,
         bool pressed, bool enabled)
     {
         if (bounds.IsEmpty)
@@ -1337,7 +1663,7 @@ internal sealed class SkUiCalendarModel(ISkUiCalendarHost host)
         var image = (isNext ? _nextIcon : _previousIcon) is not null && slot?.Image is not null ? slot : null;
         var glyph = isNext ? NextButtonGlyph : PreviousButtonGlyph;
         var hasGlyph = image is null && !string.IsNullOrEmpty(glyph);
-        var paint = new SkUiCalendarNavigationButtonPaint(bounds, pointsLeft, palette.Button, palette.ButtonBackground, pressed, enabled)
+        var paint = new SkUiCalendarNavigationButtonPaint(bounds, direction, palette.Button, palette.ButtonBackground, pressed, enabled)
         {
             CornerRadius = NavigationButtonCornerRadius < 0 ? -1 : (float)NavigationButtonCornerRadius,
             BorderColor = palette.ButtonBorder,
@@ -1436,7 +1762,6 @@ internal sealed class SkUiCalendarModel(ISkUiCalendarHost host)
         var rows = Math.Clamp(VisibleWeeks, 1, SkUiCalendarGrid.MaxWeeks);
         var today = DateTime.Today;
         var enabled = host.CalendarEnabled;
-        var range = SelectionMode == SkUiCalendarSelectionMode.Range ? _range : null;
         for (var row = 0; row < rows; row++)
         {
             if (frame.WeekColumn > 0 && SkUiCalendarGrid.AddDays(gridStart, row * 7) is { } weekStart)
@@ -1455,13 +1780,13 @@ internal sealed class SkUiCalendarModel(ISkUiCalendarHost host)
                     continue;
                 var cell = CellRect(frame, month: true, row, column);
                 cell.Offset(dx, dy);
-                var dayEnabled = IsDayEnabled(day);
+                var dayEnabled = IsChoosable(day);
                 var style = StyleOf(day);
                 // A neighbor month's day shown on the page is drawn selected or in the range too, so a range runs on across the month's end.
                 var part = SkUiCalendarRangePart.None;
                 bool toLeft = false, toRight = false;
                 var selected = IsSelectedDay(day);
-                if (range is { } r && r.Contains(day))
+                if (RangeOf(day) is { } r)
                 {
                     part = r.Start == r.LastDay ? SkUiCalendarRangePart.StartAndEnd
                         : day == r.Start ? SkUiCalendarRangePart.Start

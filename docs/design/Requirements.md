@@ -99,7 +99,7 @@ Status: **Shipped** (in the current release line), **Partly** (shipped, with ope
 | FR-30 | Avatar view | Shipped | [SkUiAvatarView](../controls/SkUiAvatarView.md) |
 | FR-31 | Shimmer (skeleton loading) | Shipped | [SkUiShimmer](../controls/SkUiShimmer.md) |
 | FR-32 | Carousel and indicator view | Shipped | [SkUiCarouselView](../controls/SkUiCarouselView.md) |
-| FR-33 | Calendar | Built for 1.13 (the date pickers' calendar popup and a range picker: wave 2) | [SkUiCalendar](../controls/SkUiCalendar.md) |
+| FR-33 | Calendar | Built for 1.13, with the date pickers' calendar popup and a date range picker | [SkUiCalendar](../controls/SkUiCalendar.md), [SkUiDateRangePicker](../controls/SkUiDateRangePicker.md) |
 | FR-34 | Markdown view, safe with untrusted documents (optional packages) | Built for 1.8 | [SkUiMarkdownView](../controls/SkUiMarkdownView.md) |
 | FR-35 | Zoom view | Built for 1.8 | [SkUiZoomView](../controls/SkUiZoomView.md) |
 

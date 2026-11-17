@@ -23,6 +23,28 @@ A drawn date picker with **MAUI's `DatePicker` API**: change the XAML prefix of 
 - `AreColumnHeadersVisible` shows "Day", "Month", "Year" above the wheels (from [SkUiStrings](../design/Localization.md): `DayText`, `MonthText`, `YearText`); `IsLooping` (default `true`) lets the day and month wheels loop (years never do); `VisibleRows` (default 5).
 - The wheels use the Gregorian calendar; the field's text follows the culture's calendar.
 
+## A calendar instead of wheels
+
+`PopupStyle = Calendar` opens a month calendar ([SkUiCalendar](SkUiCalendar.md)) instead of the wheels: a tap on a day chooses it and closes the popup, or (with `UpdateMode="WhenFinished"`) is the draft OK accepts. The calendar keeps the picker's days: the range (also where its pages stop), `BlackoutDates` and `DateEnabled` are dimmed and cannot be chosen. Without a date it opens on `DefaultHighlightedDate` (else today). Its keys are the calendar's (arrows, Page Up / Down, Home / End); Enter or Space choose, and, waiting for OK, Enter on the day already chosen accepts it; Escape cancels. Screen readers read each day as an element of its own.
+
+- `PopupStyle` is `Default` (the look's `DatePickerPopupStyle`: wheels on every built-in look, so a look of the app's can make calendars the app's default), `Wheels` or `Calendar`.
+- `CalendarStyle` is a `Style` with `TargetType="skui:SkUiCalendar"` for the popup's calendar: colors, fonts, header, `FirstDayOfWeek`, week numbers. The picker sets the calendar's selection, range and day rule itself; without a style the calendar takes the picker's font family.
+- The request is `SkUiDatePopupRequest` as with the wheels (its columns describe the date), so a presenter with its own date UI keeps working whatever the style.
+- `SkUiDateTimePicker` keeps its wheels (a calendar with time wheels is not offered yet).
+
+```xml
+<skui:SkUiDatePicker PopupStyle="Calendar" Date="{Binding Due}" MinimumDate="{Binding Today}">
+    <skui:SkUiDatePicker.CalendarStyle>
+        <Style TargetType="skui:SkUiCalendar">
+            <Setter Property="FirstDayOfWeek" Value="Monday" />
+            <Setter Property="TodayStyle" Value="Filled" />
+        </Style>
+    </skui:SkUiDatePicker.CalendarStyle>
+</skui:SkUiDatePicker>
+```
+
+A run of days: [SkUiDateRangePicker](SkUiDateRangePicker.md).
+
 ## Presenters and your own date UI
 
 The wheels open on the picker's presenter (`PopupPresenter`, else `SkUiPopups.Presenter`); a presenter shows `request.Content`. To show your own date UI instead (a platform date dialog, a calendar of your own), handle the typed request, **`SkUiDatePopupRequest`** (a `SkUiColumnsPopupRequest`):
@@ -80,10 +102,10 @@ host.SetContent(core);
 | `AreColumnHeadersVisible` | `false` | "Day", "Month", "Year" above the wheels |
 | `IsLooping` | `true` | Day and month wheels loop |
 | `VisibleRows` | 5 | Rows of each wheel (1–9) |
+| `PopupStyle` | `Default` | `Wheels`, `Calendar`, or the look's (`Default`) |
+| `CalendarStyle` | `null` | A `Style` for the popup's calendar |
 | `DateSelected` | | MAUI's `DateChangedEventArgs` |
 | `Title`, `Placeholder`, `TextColor`, font properties, alignments, `IsOpen` / `Opened` / `Closed`, `PopupPlacement`, popup sizes, `PopupPresenter`, `UpdateMode`, `AcceptText`, `CancelText`, `IsClearButtonVisible`, `IsPopupClearButtonVisible`, `ClearText`, `IsChevronVisible`, `ChevronColor`, `ChevronSize`, `ChevronAreaWidth`, `TextPadding`, `LeadingView`, `PopupHeaderTemplate`, `PopupFooterTemplate`, `SelectionChangedCommand` | | As `SkUiPicker`'s (`SkUiPickerBase`); `ClearSelection()` sets `Date` to `null` |
-
-Not yet: a drawn month calendar as the popup (with [SkUiCalendar](SkUiCalendar.md), planned for 1.13's wave 2). Meanwhile, a page can show `SkUiCalendar` itself.
 
 Shared conventions (DIPs, bindable properties with fluent `Set*` setters, the gesture arena) as for every control: [SkUiView.md](SkUiView.md).
 

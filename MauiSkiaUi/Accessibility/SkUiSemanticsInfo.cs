@@ -73,14 +73,17 @@ internal readonly record struct SkUiSemanticsTextField(int SelectionStart, int S
 
 /// <summary>
 /// A part drawn inside a control that is an element of its own: a button child of the control's element (a text field's or a
-/// picker's clear button), activated through the control (<see cref="ISkUiAccessibleNode.PerformSemanticsPartAction"/>).
+/// picker's clear button, a calendar's day), activated through the control (<see cref="ISkUiAccessibleNode.PerformSemanticsPartAction"/>).
 /// </summary>
 /// <param name="Id">Stable element id (<see cref="SkUiSemanticsTree.NewId"/>), kept by the control while it lives.</param>
 /// <param name="Index">Which part, for the control's <c>PerformSemanticsPartAction</c>.</param>
 /// <param name="Bounds">Where it is drawn, in the control's coordinates.</param>
 /// <param name="Label">What it is read as.</param>
 /// <param name="AutomationIdSuffix">Appended to the control's <c>AutomationId</c> for the part's; no id without one on the control.</param>
-internal readonly record struct SkUiSemanticsPart(int Id, int Index, Rect Bounds, string Label, string AutomationIdSuffix);
+/// <param name="IsEnabled">Whether it can be activated now (a day that cannot be chosen is read, dimmed); the control's state applies too.</param>
+/// <param name="Value">Its state read after the label (a day's "Selected, Today"); <c>null</c>: none.</param>
+internal readonly record struct SkUiSemanticsPart(int Id, int Index, Rect Bounds, string Label, string AutomationIdSuffix, bool IsEnabled = true,
+    string? Value = null);
 
 /// <summary>A range value: a slider's or a determinate progress bar's.</summary>
 /// <param name="Minimum">Lowest value.</param>

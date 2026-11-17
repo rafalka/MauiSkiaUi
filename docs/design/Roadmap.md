@@ -138,7 +138,7 @@ Additive only. Steps, decisions and verification: [ImplementationPlan-1.12.md](I
 Additive only. The drawn calendar of [FR-33](Requirements.md#functional-requirements), on SkiaUi's own API (the date picker's names where it has them: `MinimumDate`, `MaximumDate`, `BlackoutDates`, `DateEnabled`). Steps, decisions and verification: [ImplementationPlan-1.13.md](ImplementationPlan-1.13.md); the control: [SkUiCalendar](../controls/SkUiCalendar.md).
 
 - **Wave 1, the calendar** (built on `1.13-implementation`, device checks pending): `SkUiCalendar` and `SkUiCoreCalendar` on one engine and one drawn node. Month, year, decade and century views (the title steps up, a cell steps down, a pinch zooms out or in, `MinimumDisplayMode` / `MaximumDisplayMode` limit them); swiping and previous / next buttons between pages, horizontally or vertically, animated by the look; one to six weeks; day names, week numbers and the neighbor months' days; none, single, multiple and range selection, with `RangeSelectionTarget` for apps that pick which end a tap sets; the date picker's day rules; events under the days (dots, bars, icon glyphs, captions) and a day painter for days drawn the app's way; today, selection, range band and fonts for every part, drawn by the look; keyboard and screen readers.
-- **Wave 2:** the calendar as the date pickers' popup (`Wheels` / `Calendar`, the look's choice by default), then a date range picker on the range selection.
+- **Wave 2** (built on `1.13-implementation`, device checks pending): the calendar as the date pickers' popup (`PopupStyle`: `Wheels`, `Calendar`, or the look's, wheels on the built-in looks; `CalendarStyle`); `SkUiDateRangePicker` and `SkUiCoreDateRangePicker` on the range selection; range rules (`MinimumRangeDays`, `MaximumRangeDays`, `AllowsDisabledDaysInRange`) and several ranges (`MultipleRanges`, `SelectedRanges`); a screen-reader element per day and for the header's title and buttons. `SkUiDateTimePicker` keeps its wheels.
 
 ### 1.14.0: performance (planned)
 
@@ -154,7 +154,7 @@ Taken up when a real app needs it, roughly in this order within each area. Items
 
 ### New controls and packages
 
-- **Calendar:** moved to [1.13](#1130-calendar-planned) (wave 2 there: the date pickers' calendar popup and a date range picker). Later: non-Gregorian calendars, a month view with events (a scheduler stays out of scope).
+- **Calendar:** built in [1.13](#1130-calendar-planned). Later: non-Gregorian calendars, a calendar popup with time wheels for `SkUiDateTimePicker`, platform looks' calendars, a month view with events (a scheduler stays out of scope).
 - **Full SVG** in an optional `SkiaUi.Maui.Svg` package on Svg.Skia, for what [1.7's icon reader](ImplementationPlan-1.7.md) leaves out: gradients, `<use>`, filters and CSS in downloaded files and rich illustrations. Needs a vector entry in the image cache and protection against hostile files (design and a spike's findings: [the full SVG plan](ImplementationPlan-FullSvg.md)).
 - **From the November 2026 review** (briefs, order and open decisions: [ImplementationPlan-PerformanceAndControls.md](ImplementationPlan-PerformanceAndControls.md#track-f-features)), after 1.14, roughly in this order. Each is the common pattern on SkiaUi's own API, not a copy of one vendor's control:
   - **Segmented control and tab view** (F1): a tab strip over panes created when first shown, swiped on the carousel's engine.

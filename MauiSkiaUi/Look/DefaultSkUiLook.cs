@@ -309,14 +309,29 @@ public class DefaultSkUiLook : SkUiLook
             return;
         var arm = Math.Min(bounds.Width, bounds.Height) * 0.16f;
         var (cx, cy) = (bounds.MidX, bounds.MidY);
-        var tip = button.PointsLeft ? cx - arm / 2 : cx + arm / 2;
-        var back = button.PointsLeft ? cx + arm / 2 : cx - arm / 2;
         var paint = Paint(button.Color);
         Stroke(paint, button.Color.WithAlpha((byte)(button.Color.Alpha * alpha)), 2);
         paint.StrokeCap = SKStrokeCap.Round;
         paint.StrokeJoin = SKStrokeJoin.Round;
-        canvas.DrawLine(back, cy - arm, tip, cy, paint);
-        canvas.DrawLine(tip, cy, back, cy + arm, paint);
+        switch (button.Direction)
+        {
+            case SkUiCalendarChevronDirection.Up or SkUiCalendarChevronDirection.Down:
+            {
+                var tip = button.Direction == SkUiCalendarChevronDirection.Up ? cy - arm / 2 : cy + arm / 2;
+                var back = button.Direction == SkUiCalendarChevronDirection.Up ? cy + arm / 2 : cy - arm / 2;
+                canvas.DrawLine(cx - arm, back, cx, tip, paint);
+                canvas.DrawLine(cx, tip, cx + arm, back, paint);
+                break;
+            }
+            default:
+            {
+                var tip = button.Direction == SkUiCalendarChevronDirection.Left ? cx - arm / 2 : cx + arm / 2;
+                var back = button.Direction == SkUiCalendarChevronDirection.Left ? cx + arm / 2 : cx - arm / 2;
+                canvas.DrawLine(back, cy - arm, tip, cy, paint);
+                canvas.DrawLine(tip, cy, back, cy + arm, paint);
+                break;
+            }
+        }
     }
 
     private static readonly Shadow ReorderShadow = new() { Brush = Colors.Black, Opacity = 0.3f, Radius = 12, Offset = new Point(0, 4) };

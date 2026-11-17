@@ -203,6 +203,9 @@ public abstract class SkUiPickerPopupContent
     internal virtual void ClosedCore()
     {
     }
+
+    /// <summary>A key reached the popup (Escape aside): a built-in content takes it before the popup's own Enter (accept); returns whether it did.</summary>
+    internal virtual bool OnKeyDownCore(in SkUiKeyEvent key) => false;
 }
 
 /// <summary>
@@ -327,12 +330,13 @@ internal sealed class SkUiCustomPopup : SkUiContentView, ISkUiKeyHandler, ISkUiP
             case SkUiKey.Escape:
                 request.Cancel();
                 return true;
-            case SkUiKey.Enter:
-                request.Accept();
-                return true;
-            default:
-                return false;
         }
+        if (_content?.OnKeyDownCore(key) == true)
+            return true;
+        if (key.Key != SkUiKey.Enter)
+            return false;
+        request.Accept();
+        return true;
     }
 
     /// <inheritdoc />

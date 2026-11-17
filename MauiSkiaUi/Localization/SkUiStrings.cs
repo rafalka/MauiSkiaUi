@@ -178,6 +178,12 @@ public class SkUiStrings
     /// <summary>A calendar day that cannot be chosen (outside the range, a blackout date), as screen readers read it after the date. Default "Unavailable".</summary>
     public virtual string UnavailableStateText { get; set => Set(ref field, value); } = "Unavailable";
 
+    /// <summary>A calendar's button to the previous page (month, year, …), as screen readers read it. Default "Previous".</summary>
+    public virtual string PreviousText { get; set => Set(ref field, value); } = "Previous";
+
+    /// <summary>A calendar's button to the next page, as screen readers read it. Default "Next".</summary>
+    public virtual string NextText { get; set => Set(ref field, value); } = "Next";
+
     /// <summary>What screen readers read after the header of an expanded expander or collection view group. Default "Expanded".</summary>
     public virtual string ExpandedStateText { get; set => Set(ref field, value); } = "Expanded";
 

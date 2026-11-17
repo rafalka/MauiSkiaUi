@@ -18,6 +18,8 @@ A drawn calendar: a month of days, the months of a year, the years of a decade o
   - `Multiple`: `SelectedDates`, in date order; a tap adds a day or removes it. The user's changes write a new list, so a binding sees each change; a list the app sets is read when set, not followed.
   - `Range`: `SelectedRange` (`SkUiDateRange`: `Start`, `End`, `IsComplete`, `LastDay`, `Days`, `Contains`). The first tap starts an open range (its `End` is `null`), the second ends it (in either order), a third starts a new one.
   - **Which end a tap sets** (`RangeSelectionTarget`, two-way): `Auto` (default) as above; `Start` sets the first day (a last day before it is cleared) and then moves the target to `End`; `End` sets the last day (a day before the first becomes the first, the old first the last) and stays. Bind it to a "Start" / "End" pair of fields above the calendar, so the user picks which end the next tap changes.
+  - `MultipleRanges`: `SelectedRanges` (two-way, in date order). A tap outside the chosen ranges starts a range, the next tap ends it, and ranges that overlap or touch join into one; a tap on a chosen range removes it. `SelectedRange` is the range changed last; a list the app sets is ordered and joined.
+  - **Range rules** (range and multiple ranges, the user's taps only): `MinimumRangeDays` and `MaximumRangeDays` (both ends counted: a stay of at least two nights is 3; 0 is no limit) and `AllowsDisabledDaysInRange` (default `true`; `false`: a range may not run over a day that cannot be chosen, as a booking over a booked night). While a range waits for its end, the days that would break a rule are dimmed and cannot be tapped; a tap on the range's own first day keeps it open. The app's own ranges are not checked.
   - `None`: taps only raise `DateTapped`.
   - `SelectedDate` is also the last day chosen in the other modes (a range's first day). `SelectionChanged` is raised for the user's changes and the app's, with `AddedDates` / `RemovedDates`, or `OldRange` / `NewRange`. `ClearSelection()` clears every mode.
 - **Day rules** (the date picker's): `MinimumDate` and `MaximumDate` (also where the pages stop), `BlackoutDates` (an empty observable list by default; changes to an observable list are followed) and `DateEnabled` (a function). Days they rule out are dimmed and cannot be chosen; a tap on one raises `DateTapped` with `IsEnabled = false`, so the app can explain why.
@@ -34,7 +36,7 @@ A drawn calendar: a month of days, the months of a year, the years of a decade o
   - Why not a view per day: a month page and its two neighbors hold over a hundred days, and each would be a measured, recorded view on every swipe. The painter gives the same freedom on both layers with nothing to create.
 - **Size.** As wide as it is given (seven 44-DIP columns by itself), as tall as the header (48), the day names (28) and the weeks (`DayRowHeight`, default the look's 44). Given more height, the rows stretch. Year, decade and century pages use the same area in 4 rows of 3.
 - **Keyboard** (one tab stop): arrows move a focus by day and week (by cell on the other pages; mirrored right to left), Page Up / Down by page (with Shift by a year), Home / End to the week's ends, Enter / Space choose (or open a month or year). The focus moves to the next page when it leaves the page, and the focused cell has a ring while the keyboard drives the calendar.
-- **Screen readers.** The calendar is one adjustable element: its name is the title, its value the focused day with its state ("Tuesday, November 10, 2026, Selected"); increment / decrement move a day, activate chooses it. An element per day is planned ([1.13 plan, D9](../design/ImplementationPlan-1.13.md#decisions)).
+- **Screen readers.** The calendar is an adjustable element: its name is the title, its value the focused day with its state ("Tuesday, November 10, 2026, Selected"); increment / decrement move a day, activate chooses it. Its children are elements of their own: the header's title (activating it changes the display mode) and buttons (`SkUiStrings.PreviousText`, `NextText`), and every cell of the page with its full date ("Tuesday, November 10, 2026") and its state ("Selected, Today"); a day that cannot be chosen is read dimmed. Activating a day chooses it. A cell's element keeps its id while the page changes, and its automation id is the calendar's with the date (`MyCalendar_2026-11-10`; `_Title`, `_Previous`, `_Next` for the header).
 - **Right to left,** the columns, the header and the swipe are mirrored.
 
 ## How to use
@@ -127,8 +129,10 @@ A weekly strip above an agenda: `VisibleWeeks="1" MaximumDisplayMode="Month" Are
 | `MinimumDisplayMode` / `MaximumDisplayMode` | `Month` / `Century` | Limit the modes. |
 | `VisibleWeeks` | 6 | 1–6; fewer pages by weeks. |
 | `FirstDayOfWeek` | `null` | The culture's. |
-| `SelectionMode` | `Single` | `None`, `Single`, `Multiple`, `Range`. |
-| `SelectedDate` / `SelectedDates` / `SelectedRange` | none | Two-way; see **Selection**. |
+| `SelectionMode` | `Single` | `None`, `Single`, `Multiple`, `Range`, `MultipleRanges`. |
+| `SelectedDate` / `SelectedDates` / `SelectedRange` / `SelectedRanges` | none | Two-way; see **Selection**. |
+| `MinimumRangeDays` / `MaximumRangeDays` | 0 / 0 | The length of a range the user chooses (0: any). |
+| `AllowsDisabledDaysInRange` | `true` | `false`: a range may not run over a day that cannot be chosen. |
 | `AllowsDeselection` | `false` | A tap on the selected day clears it (single). |
 | `MinimumDate` / `MaximumDate` | `null` | Days outside cannot be chosen or shown. |
 | `BlackoutDates` / `DateEnabled` | empty / `null` | Days that cannot be chosen. |
@@ -136,7 +140,7 @@ A weekly strip above an agenda: `VisibleWeeks="1" MaximumDisplayMode="Month" Are
 | `DayStyle` | `null` | Per-day colors, weight, strike-through, markers. |
 | `DayMarkerAreaHeight` | -1 | The area under the number for markers (the look's 14 with `DayStyle` or `DayPainter`, else none). |
 | `DayPainter` | `null` | Draws each day the app's way. |
-| `NavigationOrientation` | `Horizontal` | The swipe's direction. |
+| `NavigationOrientation` | `Horizontal` | The swipe's direction; vertical also turns the header buttons' chevrons up and down (`SkUiCalendarNavigationButtonPaint.Direction`). |
 | `IsSwipeEnabled` / `IsPinchEnabled` | `true` | |
 | `IsHeaderVisible` / `HeaderLayout` / `AreNavigationButtonsVisible` | `true` / `TitleFirst` / `true` | |
 | `TitleFormat` | `null` | The month title's .NET format. |
@@ -171,6 +175,5 @@ Methods: `GoToPrevious(animated)`, `GoToNext(animated)`, `GoToDate(date, animate
 ## Limits
 
 - Gregorian dates; day and month names and the first day come from the current culture. Other calendar systems are not supported yet.
-- One adjustable screen-reader element, not one per day (planned).
 - Markers take icon glyphs, not image sources (a day painter can draw images).
-- Not yet: the calendar as the date pickers' popup and a date range picker (planned for 1.13's wave 2), a longest range or ranges that may not cross a disabled day, several ranges.
+- The calendar in a popup: the date pickers' `PopupStyle = Calendar` ([SkUiDatePicker](SkUiDatePicker.md)) and [SkUiDateRangePicker](SkUiDateRangePicker.md). `SkUiDateTimePicker` keeps its wheels.

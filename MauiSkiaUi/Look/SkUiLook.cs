@@ -1180,6 +1180,13 @@ public class SkUiLook
     public virtual bool PickerPaneShowsWheel => false;
 
     /// <summary>
+    /// What a date picker's popup shows when its <c>PopupStyle</c> is <see cref="SkUiDatePickerPopupStyle.Default"/> (default
+    /// <see cref="SkUiDatePickerPopupStyle.Wheels"/> on every built-in look; a look of the app's can return
+    /// <see cref="SkUiDatePickerPopupStyle.Calendar"/>). <see cref="SkUiDatePickerPopupStyle.Default"/> counts as wheels.
+    /// </summary>
+    public virtual SkUiDatePickerPopupStyle DatePickerPopupStyle => SkUiDatePickerPopupStyle.Wheels;
+
+    /// <summary>
     /// Whether OK comes before Cancel in a popup's footer, at its end side (default <c>false</c>: Cancel, then OK, as on Android,
     /// Apple platforms and the web; <c>true</c> as Windows' dialogs).
     /// </summary>

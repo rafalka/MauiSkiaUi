@@ -25,7 +25,40 @@ public enum SkUiCalendarSelectionMode
     /// <summary>Any number of days, <see cref="SkUiCalendar.SelectedDates"/>: a tap adds a day or removes it.</summary>
     Multiple,
     /// <summary>A run of days, <see cref="SkUiCalendar.SelectedRange"/>: the first tap starts it, the second ends it, a third starts a new one.</summary>
-    Range
+    Range,
+    /// <summary>
+    /// Several runs of days, <see cref="SkUiCalendar.SelectedRanges"/>: a tap outside them starts a range, the next tap ends it
+    /// (ranges that overlap or touch join into one), and a tap on a chosen range removes it.
+    /// <see cref="SkUiCalendar.SelectedRange"/> is the range changed last.
+    /// </summary>
+    MultipleRanges
+}
+
+/// <summary>What a date picker's popup shows (<see cref="SkUiDatePicker.PopupStyle"/>).</summary>
+public enum SkUiDatePickerPopupStyle
+{
+    /// <summary>The look's choice (<see cref="SkUiLook.DatePickerPopupStyle"/>; wheels on every built-in look).</summary>
+    Default,
+    /// <summary>Wheels for the day, the month and the year (<see cref="SkUiDateTimePickerBase.WheelFormat"/>).</summary>
+    Wheels,
+    /// <summary>A month calendar (<see cref="SkUiCalendar"/>): a tap on a day chooses it.</summary>
+    Calendar
+}
+
+/// <summary>
+/// Where a calendar header button's chevron points (<see cref="SkUiCalendarNavigationButtonPaint.Direction"/>): left and right while
+/// the pages move sideways (mirrored right-to-left), up and down while they move vertically (<c>NavigationOrientation</c>).
+/// </summary>
+public enum SkUiCalendarChevronDirection
+{
+    /// <summary>Left: the previous button left-to-right, the next button right-to-left.</summary>
+    Left,
+    /// <summary>Right: the next button left-to-right, the previous button right-to-left.</summary>
+    Right,
+    /// <summary>Up: the previous button of a calendar whose pages move vertically.</summary>
+    Up,
+    /// <summary>Down: the next button of a calendar whose pages move vertically.</summary>
+    Down
 }
 
 /// <summary>Where a calendar's header puts its title and its previous / next buttons (<see cref="SkUiCalendar.HeaderLayout"/>).</summary>

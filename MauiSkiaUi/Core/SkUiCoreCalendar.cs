@@ -167,15 +167,14 @@ public class SkUiCoreCalendar : SkUiCoreNode, ISkUiCalendarHost, ISkUiKeyHandler
         return this;
     }
 
-    /// <summary>The direction a swipe moves between pages: horizontal (default) or vertical.</summary>
+    /// <summary>The direction a swipe moves between pages: horizontal (default) or vertical (the header buttons' chevrons then point up and down).</summary>
     public StackOrientation NavigationOrientation { get => _model.NavigationOrientation; set => SetNavigationOrientation(value); }
 
     /// <summary>Sets <see cref="NavigationOrientation"/>.</summary>
     public SkUiCoreCalendar SetNavigationOrientation(StackOrientation value)
     {
         SkUiValidate.ThrowIfNotOrientation(value, nameof(value));
-        SetProperty(ref _model.NavigationOrientation, value, nameof(NavigationOrientation));
-        return this;
+        return SetPainted(ref _model.NavigationOrientation, value, nameof(NavigationOrientation)); // the buttons' chevrons follow it
     }
 
     /// <summary>Whether a swipe moves between pages (default <c>true</c>).</summary>
@@ -737,6 +736,67 @@ public class SkUiCoreCalendar : SkUiCoreNode, ISkUiCalendarHost, ISkUiKeyHandler
         return this;
     }
 
+    /// <inheritdoc cref="SkUiCalendar.SelectedRanges" />
+    public IReadOnlyList<SkUiDateRange> SelectedRanges { get => _model.SelectedRanges; set => SetSelectedRanges(value); }
+
+    /// <summary>Sets <see cref="SelectedRanges"/> (ordered, ranges that overlap or touch joined).</summary>
+    public SkUiCoreCalendar SetSelectedRanges(IEnumerable<SkUiDateRange>? value)
+    {
+        var range = _model.SelectedRange;
+        if (_model.SetSelectedRanges(value) is { } args)
+        {
+            OnPropertyChanged(nameof(SelectedRanges));
+            if (!Nullable.Equals(range, _model.SelectedRange))
+                OnPropertyChanged(nameof(SelectedRange));
+            SelectionDone(args, raiseProperties: false);
+        }
+        return this;
+    }
+
+    /// <inheritdoc cref="SkUiCalendar.MinimumRangeDays" />
+    public int MinimumRangeDays { get => _model.MinimumRangeDays; set => SetMinimumRangeDays(value); }
+
+    /// <summary>Sets <see cref="MinimumRangeDays"/>.</summary>
+    public SkUiCoreCalendar SetMinimumRangeDays(int value)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(value);
+        if (SetProperty(ref _model.MinimumRangeDays, value, nameof(MinimumRangeDays)))
+        {
+            InvalidatePaint();
+            InvalidateSemantics();
+        }
+        return this;
+    }
+
+    /// <inheritdoc cref="SkUiCalendar.MaximumRangeDays" />
+    public int MaximumRangeDays { get => _model.MaximumRangeDays; set => SetMaximumRangeDays(value); }
+
+    /// <summary>Sets <see cref="MaximumRangeDays"/>.</summary>
+    public SkUiCoreCalendar SetMaximumRangeDays(int value)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(value);
+        if (SetProperty(ref _model.MaximumRangeDays, value, nameof(MaximumRangeDays)))
+        {
+            InvalidatePaint();
+            InvalidateSemantics();
+        }
+        return this;
+    }
+
+    /// <inheritdoc cref="SkUiCalendar.AllowsDisabledDaysInRange" />
+    public bool AllowsDisabledDaysInRange { get => _model.AllowsDisabledDaysInRange; set => SetAllowsDisabledDaysInRange(value); }
+
+    /// <summary>Sets <see cref="AllowsDisabledDaysInRange"/>.</summary>
+    public SkUiCoreCalendar SetAllowsDisabledDaysInRange(bool value)
+    {
+        if (SetProperty(ref _model.AllowsDisabledDaysInRange, value, nameof(AllowsDisabledDaysInRange)))
+        {
+            InvalidatePaint();
+            InvalidateSemantics();
+        }
+        return this;
+    }
+
     /// <summary>The earliest day that can be chosen and shown; <c>null</c> (default): none.</summary>
     public DateTime? MinimumDate { get => _model.MinimumDate; set => SetMinimumDate(value); }
 
@@ -878,6 +938,7 @@ public class SkUiCoreCalendar : SkUiCoreNode, ISkUiCalendarHost, ISkUiKeyHandler
             OnPropertyChanged(nameof(SelectedDate));
             OnPropertyChanged(nameof(SelectedDates));
             OnPropertyChanged(nameof(SelectedRange));
+            OnPropertyChanged(nameof(SelectedRanges));
         }
         if (_reportedTarget != _model.RangeSelectionTarget)
         {
@@ -982,6 +1043,9 @@ public class SkUiCoreCalendar : SkUiCoreNode, ISkUiCalendarHost, ISkUiKeyHandler
 
     /// <inheritdoc />
     protected override bool OnSemanticsAction(SkUiSemanticsActions action) => _model.OnSemanticsAction(action) || base.OnSemanticsAction(action);
+
+    /// <inheritdoc />
+    internal override bool OnSemanticsPartAction(int part, SkUiSemanticsActions action) => _model.OnSemanticsPartAction(part, action);
 
     /// <inheritdoc />
     protected override void OnIsEnabledChanged()

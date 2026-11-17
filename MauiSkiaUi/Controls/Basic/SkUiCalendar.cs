@@ -29,6 +29,9 @@ public class SkUiCalendar : SkUiView, ISkUiCalendarHost, ISkUiKeyHandler, ISkUiF
     private SkUiCalendarModel? _model;
     /// <summary>Created on first use: property callbacks can run before the constructor (see <see cref="SkUiView.StyledOr{T}"/>).</summary>
     private SkUiCalendarModel Model => _model ??= new SkUiCalendarModel(this);
+
+    /// <summary>The day the keyboard acts on, or <c>null</c> (a date picker's calendar popup).</summary>
+    internal DateTime? FocusDate => Model.FocusDate;
     private SkUiWeakListener<SkUiCalendar>? _blackoutListener;
     private SkUiWeakListener<SkUiCalendar> BlackoutListener =>
         _blackoutListener ??= new SkUiWeakListener<SkUiCalendar>(this, static (calendar, _) => calendar.OnBlackoutDatesChanged());
@@ -302,6 +305,24 @@ public class SkUiCalendar : SkUiView, ISkUiCalendarHost, ISkUiKeyHandler, ISkUiF
     /// <summary>Sets <see cref="SelectedRange"/>.</summary>
     public SkUiCalendar SetSelectedRange(SkUiDateRange? value) { SelectedRange = value; return this; }
 
+    /// <summary>Bindable property for <see cref="SelectedRanges"/> (two-way by default: the user chooses).</summary>
+    public static readonly BindableProperty SelectedRangesProperty = BindableProperty.Create(nameof(SelectedRanges), typeof(IReadOnlyList<SkUiDateRange>),
+        typeof(SkUiCalendar), Array.Empty<SkUiDateRange>(), BindingMode.TwoWay,
+        propertyChanged: (view, _, value) => ((SkUiCalendar)view).OnSelectedRangesChanged((IReadOnlyList<SkUiDateRange>?)value));
+
+    /// <summary>
+    /// The chosen ranges of multiple-range selection, in date order (ranges that overlap or touch joined; while the user chooses
+    /// one, it is open); empty by default. The user's changes write a new list; a list the app sets is read when set, not followed.
+    /// </summary>
+    public IReadOnlyList<SkUiDateRange> SelectedRanges
+    {
+        get => (IReadOnlyList<SkUiDateRange>)GetValue(SelectedRangesProperty);
+        set => SetValue(SelectedRangesProperty, value);
+    }
+
+    /// <summary>Sets <see cref="SelectedRanges"/>.</summary>
+    public SkUiCalendar SetSelectedRanges(IReadOnlyList<SkUiDateRange> value) { ArgumentNullException.ThrowIfNull(value); SelectedRanges = value; return this; }
+
     /// <summary>Bindable property for <see cref="MinimumDate"/>.</summary>
     public static readonly BindableProperty MinimumDateProperty = BindableProperty.Create(nameof(MinimumDate), typeof(DateTime?), typeof(SkUiCalendar), null,
         propertyChanged: (view, _, value) => ((SkUiCalendar)view).OnRangeChanged(model => model.MinimumDate = ((DateTime?)value)?.Date));
@@ -380,9 +401,9 @@ public class SkUiCalendar : SkUiView, ISkUiCalendarHost, ISkUiKeyHandler, ISkUiF
     /// <summary>Bindable property for <see cref="NavigationOrientation"/>.</summary>
     public static readonly BindableProperty NavigationOrientationProperty = BindableProperty.Create(nameof(NavigationOrientation), typeof(StackOrientation), typeof(SkUiCalendar), StackOrientation.Horizontal,
         validateValue: SkUiValidate.Orientation,
-        propertyChanged: (view, _, value) => ((SkUiCalendar)view).Applied(model => model.NavigationOrientation = (StackOrientation)value));
+        propertyChanged: (view, _, value) => ((SkUiCalendar)view).Painted(model => model.NavigationOrientation = (StackOrientation)value));
 
-    /// <summary>The direction a swipe moves between pages: horizontal (default) or vertical.</summary>
+    /// <summary>The direction a swipe moves between pages: horizontal (default) or vertical (the header buttons' chevrons then point up and down).</summary>
     public StackOrientation NavigationOrientation { get => (StackOrientation)GetValue(NavigationOrientationProperty); set => SetValue(NavigationOrientationProperty, value); }
 
     /// <summary>Sets <see cref="NavigationOrientation"/>.</summary>
@@ -1136,6 +1157,64 @@ public class SkUiCalendar : SkUiView, ISkUiCalendarHost, ISkUiKeyHandler, ISkUiF
         AllowsDeselection = value;
         return this;
     }
+
+    /// <summary>Bindable property for <see cref="MinimumRangeDays"/>.</summary>
+    public static readonly BindableProperty MinimumRangeDaysProperty = BindableProperty.Create(nameof(MinimumRangeDays), typeof(int), typeof(SkUiCalendar), 0,
+        validateValue: (_, value) => (int)value >= 0,
+        propertyChanged: (view, _, value) => ((SkUiCalendar)view).Painted(model => model.MinimumRangeDays = (int)value));
+
+    /// <summary>
+    /// The fewest days a range the user chooses may have, counting both ends (a stay of at least two nights: 3); 0 (default) or 1:
+    /// any. While a range waits for its end, days that would end it too short are dimmed and cannot be tapped. The app's own ranges
+    /// are not checked.
+    /// </summary>
+    public int MinimumRangeDays { get => (int)GetValue(MinimumRangeDaysProperty); set => SetValue(MinimumRangeDaysProperty, value); }
+
+    /// <summary>Sets <see cref="MinimumRangeDays"/>.</summary>
+    public SkUiCalendar SetMinimumRangeDays(int value)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(value);
+        MinimumRangeDays = value;
+        return this;
+    }
+
+    /// <summary>Bindable property for <see cref="MaximumRangeDays"/>.</summary>
+    public static readonly BindableProperty MaximumRangeDaysProperty = BindableProperty.Create(nameof(MaximumRangeDays), typeof(int), typeof(SkUiCalendar), 0,
+        validateValue: (_, value) => (int)value >= 0,
+        propertyChanged: (view, _, value) => ((SkUiCalendar)view).Painted(model => model.MaximumRangeDays = (int)value));
+
+    /// <summary>
+    /// The most days a range the user chooses may have, counting both ends (a fortnight: 14); 0 (default): any. While a range waits
+    /// for its end, days that would end it too long are dimmed and cannot be tapped. The app's own ranges are not checked.
+    /// </summary>
+    public int MaximumRangeDays { get => (int)GetValue(MaximumRangeDaysProperty); set => SetValue(MaximumRangeDaysProperty, value); }
+
+    /// <summary>Sets <see cref="MaximumRangeDays"/>.</summary>
+    public SkUiCalendar SetMaximumRangeDays(int value)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(value);
+        MaximumRangeDays = value;
+        return this;
+    }
+
+    /// <summary>Bindable property for <see cref="AllowsDisabledDaysInRange"/>.</summary>
+    public static readonly BindableProperty AllowsDisabledDaysInRangeProperty = BindableProperty.Create(nameof(AllowsDisabledDaysInRange), typeof(bool),
+        typeof(SkUiCalendar), true,
+        propertyChanged: (view, _, value) => ((SkUiCalendar)view).Painted(model => model.AllowsDisabledDaysInRange = (bool)value));
+
+    /// <summary>
+    /// Whether a range the user chooses may run over days that cannot be chosen (default <c>true</c>: a week with a blackout day in
+    /// it). <c>false</c> (a booking that cannot span a booked night): while a range waits for its end, the days past the nearest day
+    /// that cannot be chosen are dimmed and cannot be tapped.
+    /// </summary>
+    public bool AllowsDisabledDaysInRange { get => (bool)GetValue(AllowsDisabledDaysInRangeProperty); set => SetValue(AllowsDisabledDaysInRangeProperty, value); }
+
+    /// <summary>Sets <see cref="AllowsDisabledDaysInRange"/>.</summary>
+    public SkUiCalendar SetAllowsDisabledDaysInRange(bool value)
+    {
+        AllowsDisabledDaysInRange = value;
+        return this;
+    }
     #endregion
 
     #region Property plumbing
@@ -1235,6 +1314,18 @@ public class SkUiCalendar : SkUiView, ISkUiCalendarHost, ISkUiKeyHandler, ISkUiF
             SelectionDone(args, writeBack: false);
     }
 
+    private void OnSelectedRangesChanged(IReadOnlyList<SkUiDateRange>? value)
+    {
+        if (_syncing)
+            return;
+        if (Model.SetSelectedRanges(value) is { } args)
+        {
+            // The property holds the engine's ordered, joined list (as SelectedDates).
+            Sync(() => WriteBack(SelectedRangesProperty, Model.SelectedRanges));
+            SelectionDone(args);
+        }
+    }
+
     private IList<DateTime> CreateBlackoutDates()
     {
         var dates = new ObservableCollection<DateTime>();
@@ -1309,6 +1400,8 @@ public class SkUiCalendar : SkUiView, ISkUiCalendarHost, ISkUiKeyHandler, ISkUiF
                     WriteBack(SelectedDatesProperty, Model.SelectedDates);
                 if (!Nullable.Equals(SelectedRange, Model.SelectedRange))
                     WriteBack(SelectedRangeProperty, Model.SelectedRange);
+                if (!ReferenceEquals(SelectedRanges, Model.SelectedRanges))
+                    WriteBack(SelectedRangesProperty, Model.SelectedRanges);
                 if (RangeSelectionTarget != Model.RangeSelectionTarget)
                     WriteBack(RangeSelectionTargetProperty, Model.RangeSelectionTarget);
             });
@@ -1409,6 +1502,9 @@ public class SkUiCalendar : SkUiView, ISkUiCalendarHost, ISkUiKeyHandler, ISkUiF
 
     /// <inheritdoc />
     protected override bool OnSemanticsAction(SkUiSemanticsActions action) => Model.OnSemanticsAction(action) || base.OnSemanticsAction(action);
+
+    /// <inheritdoc />
+    internal override bool OnSemanticsPartAction(int part, SkUiSemanticsActions action) => Model.OnSemanticsPartAction(part, action);
 
     /// <inheritdoc />
     internal override void OnEffectiveFlowDirectionChanged()
