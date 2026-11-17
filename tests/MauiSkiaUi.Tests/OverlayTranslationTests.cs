@@ -29,6 +29,7 @@ public class OverlayTranslationTests
     public void AnAncestorTranslationChangePlacesTheNativeViewAgain()
     {
         var (root, sheet, overlay) = Form(800);
+        root.HostsNativeViewsForTests = false; // only the outermost root's flag counts
         var outer = new SkUiContentView { Content = root, HostsNativeViewsForTests = true };
         SkUiTestHelpers.Arrange(outer, 200, 300);
         var placed = new List<Rect>();
@@ -99,9 +100,10 @@ public class OverlayTranslationTests
             overlay.ScrollMode = SkUiOverlayScrollMode.Snapshot;
             SkUiTestHelpers.Arrange(root, 200, 300);
 
-            overlay.NotifyAncestorAnimation(true);
+            var animation = new object();
+            overlay.BeginAncestorAnimation(animation);
             overlay.NotifyAncestorScrollMotion(true);
-            overlay.NotifyAncestorAnimation(false);
+            overlay.EndAncestorAnimation(animation);
             Assert.True(overlay.IsShowingSnapshot); // the scroller still moves
             overlay.NotifyAncestorScrollMotion(false);
             clock.Advance(TimeSpan.FromSeconds(1));
@@ -109,12 +111,135 @@ public class OverlayTranslationTests
 
             // In Live mode a scroller does not keep it: the end of the animation restores the live view at once.
             overlay.ScrollMode = SkUiOverlayScrollMode.Live;
-            overlay.NotifyAncestorAnimation(true);
+            overlay.BeginAncestorAnimation(animation);
             overlay.NotifyAncestorScrollMotion(true);
             Assert.True(overlay.IsShowingSnapshot);
-            overlay.NotifyAncestorAnimation(false);
+            overlay.EndAncestorAnimation(animation);
             Assert.False(overlay.IsShowingSnapshot);
             overlay.NotifyAncestorScrollMotion(false);
+        }
+        finally
+        {
+            SkUiMauiContentView.CaptureOverride = null;
+        }
+    }
+
+    [Fact]
+    public async Task AnAnimationOfTheHostItselfShowsASnapshot()
+    {
+        SkUiMauiContentView.CaptureOverride = (_, done) => { done(Magenta()); return true; };
+        try
+        {
+            var (root, _, overlay) = Form(0);
+            using var surface = new SkUiTestSurface(root, 200, 300);
+            surface.Frame(0);
+
+            var move = overlay.AnimateAsync(SkUiAnimatableProperty.TranslationX, 30, 100);
+            Assert.True(overlay.IsShowingSnapshot);
+            surface.Frame(1000);
+            surface.Frame(1200);
+            Assert.True(await move.WaitAsync(TimeSpan.FromSeconds(5)));
+            Assert.False(overlay.IsShowingSnapshot);
+            Assert.Equal(new Rect(30, 20, 200, 40), overlay.ComputeRootRelativeFrame());
+        }
+        finally
+        {
+            SkUiMauiContentView.CaptureOverride = null;
+        }
+    }
+
+    [Fact]
+    public async Task AnAnimationSupersededByTheUiShowsTheLiveViewAtTheUiValue()
+    {
+        SkUiMauiContentView.CaptureOverride = (_, done) => { done(Magenta()); return true; };
+        try
+        {
+            var (root, sheet, overlay) = Form(100);
+            using var surface = new SkUiTestSurface(root, 200, 300);
+            surface.Frame(0);
+            var placed = new List<Rect>();
+            overlay.PlacedForTests = () => placed.Add(overlay.ComputeRootRelativeFrame());
+
+            var slide = sheet.AnimateAsync(SkUiAnimatableProperty.TranslationY, 0, 100);
+            surface.Frame(1000);
+            sheet.TranslationY = 50; // a pan takes over
+            surface.Frame(1050);
+            Assert.False(await slide.WaitAsync(TimeSpan.FromSeconds(5)));
+            Assert.Equal(50, sheet.TranslationY);
+            Assert.False(overlay.IsShowingSnapshot);
+            Assert.Equal(new Rect(0, 70, 200, 40), placed[^1]);
+        }
+        finally
+        {
+            SkUiMauiContentView.CaptureOverride = null;
+        }
+    }
+
+    [Fact]
+    public async Task AContainerMovedOutOfTheAnimatedViewMeanwhileShowsLiveAtTheEnd()
+    {
+        SkUiMauiContentView.CaptureOverride = (_, done) => { done(Magenta()); return true; };
+        try
+        {
+            // The overlay sits in a container of the sheet; the container moves elsewhere while the sheet animates (the
+            // overlay's own parent stays): the end of the animation still releases the overlay.
+            var overlay = new SkUiMauiContentView { Content = new BoxView(), HeightRequest = 40 };
+            var container = new SkUiVerticalStackLayout();
+            container.Children.Add(overlay);
+            var sheet = new SkUiVerticalStackLayout { TranslationY = 100 };
+            sheet.Children.Add(container);
+            var page = new SkUiVerticalStackLayout();
+            page.Children.Add(sheet);
+            var root = new SkUiContentView { Content = page, HostsNativeViewsForTests = true };
+            using var surface = new SkUiTestSurface(root, 200, 300);
+            surface.Frame(0);
+
+            var slide = sheet.AnimateAsync(SkUiAnimatableProperty.TranslationY, 0, 100);
+            Assert.True(overlay.IsShowingSnapshot);
+            surface.Frame(1000);
+            sheet.Children.Remove(container);
+            page.Children.Add(container);
+            Assert.Same(container, overlay.Parent);
+            surface.Frame(1200);
+            Assert.True(await slide.WaitAsync(TimeSpan.FromSeconds(5)));
+            Assert.False(overlay.IsShowingSnapshot);
+        }
+        finally
+        {
+            SkUiMauiContentView.CaptureOverride = null;
+        }
+    }
+
+    [Fact]
+    public async Task AnAnimationEndingAfterTheHostMovedDoesNotEndTheAnimationOfItsNewAncestor()
+    {
+        SkUiMauiContentView.CaptureOverride = (_, done) => { done(Magenta()); return true; };
+        try
+        {
+            var (root, sheet, overlay) = Form(100);
+            var other = new SkUiVerticalStackLayout { TranslationX = 50 };
+            var page = new SkUiVerticalStackLayout();
+            root.Content = page;
+            page.Children.Add(sheet);
+            page.Children.Add(other);
+            using var surface = new SkUiTestSurface(root, 200, 300);
+            surface.Frame(0);
+
+            var first = sheet.AnimateAsync(SkUiAnimatableProperty.TranslationY, 0, 100);
+            surface.Frame(1000);
+            sheet.Children.Remove(overlay); // leaving its parent forgets the sheet's animation
+            Assert.False(overlay.IsShowingSnapshot);
+            other.Children.Add(overlay);
+            var second = other.AnimateAsync(SkUiAnimatableProperty.TranslationX, 0, 500);
+            Assert.True(overlay.IsShowingSnapshot);
+            surface.Frame(1050);
+
+            surface.Frame(1200);
+            Assert.True(await first.WaitAsync(TimeSpan.FromSeconds(5)));
+            Assert.True(overlay.IsShowingSnapshot); // its new ancestor still animates
+            surface.Frame(1600);
+            Assert.True(await second.WaitAsync(TimeSpan.FromSeconds(5)));
+            Assert.False(overlay.IsShowingSnapshot);
         }
         finally
         {

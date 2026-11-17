@@ -42,6 +42,7 @@ internal readonly record struct SkUiOverlayPlacement(Rect Frame, Rect Visible, b
 /// <c>Rotation</c>, <c>Scale</c>, or <c>Opacity</c> on this node or its ancestors between here and the standalone root.
 /// While this node or a drawn ancestor animates on the render thread (<see cref="SkUiView.AnimateAsync"/>), the native
 /// view is hidden and a snapshot of it drawn, which follows the animation; the live view comes back placed at the end.
+/// That holds for the native views in the animated subtree when the animation starts: one added later stays live.
 /// Overlay attach/detach only has an effect on Android/iOS/Mac Catalyst/Windows builds; on the headless
 /// <c>net10.0</c> target used for tests, the platform hooks are simply absent (no-ops), so Measure/Arrange/hit-testing
 /// remain exercisable without a device.
@@ -88,7 +89,9 @@ public partial class SkUiMauiContentView : SkUiView
     };
 
     private int _movingScrollers;
-    private int _animatingAncestors; // render-thread animations of this node or drawn ancestors (snapshot in every mode)
+    // Render-thread animations of this node or drawn ancestors that started over it (snapshot in every mode), each by the
+    // token its start gave; a reset forgets them, so an animation that ends after it cannot end another one.
+    private HashSet<object>? _ancestorAnimations;
     private SKImage? _snapshot;
     private bool _watchingShown;
     private bool _notShown; // this view or a drawn ancestor is invisible (or the tree has no live surface)
@@ -120,31 +123,41 @@ public partial class SkUiMauiContentView : SkUiView
     }
 
     /// <summary>
-    /// A render-thread animation of this node or a drawn ancestor started or ended: a live native view cannot follow it, so a
-    /// snapshot stands in while one runs (in every <see cref="ScrollMode"/>), and the live view comes back at once after the last.
+    /// A render-thread animation of this node or a drawn ancestor started (<paramref name="token"/> stands for it): a live
+    /// native view cannot follow it, so a snapshot stands in while one runs, in every <see cref="ScrollMode"/>.
     /// </summary>
-    internal override void NotifyAncestorAnimation(bool running)
+    internal void BeginAncestorAnimation(object token)
     {
-        _animatingAncestors = Math.Max(0, _animatingAncestors + (running ? 1 : -1));
-        if (SkUiDiagnostics.TraceOn)
-            SkUiDiagnostics.Write($"overlay {TraceName} ancestor animating={running} -> animatingAncestors={_animatingAncestors} snapshot={_snapshot is not null}");
-        if (_animatingAncestors > 0)
-        {
-            _restoreTimer?.Dispose();
-            _restoreTimer = null;
-            BeginSnapshot();
-        }
-        else if (!WantsSnapshot)
-        {
-            _restoreTimer?.Dispose();
-            _restoreTimer = null;
-            RestoreLive();
-        }
-        base.NotifyAncestorAnimation(running);
+        (_ancestorAnimations ??= []).Add(token);
+        TraceAncestorAnimation(true);
+        _restoreTimer?.Dispose();
+        _restoreTimer = null;
+        BeginSnapshot();
     }
 
+    /// <summary>The animation <paramref name="token"/> stands for ended: after the last, the live view comes back at once.</summary>
+    internal void EndAncestorAnimation(object token)
+    {
+        if (_ancestorAnimations?.Remove(token) != true)
+            return; // forgotten by a reset (this view left its tree meanwhile)
+        TraceAncestorAnimation(false);
+        if (WantsSnapshot)
+            return;
+        _restoreTimer?.Dispose();
+        _restoreTimer = null;
+        RestoreLive();
+    }
+
+    private void TraceAncestorAnimation(bool running)
+    {
+        if (SkUiDiagnostics.TraceOn)
+            SkUiDiagnostics.Write($"overlay {TraceName} ancestor animating={running} -> animatingAncestors={AnimatingAncestors} snapshot={_snapshot is not null}");
+    }
+
+    private int AnimatingAncestors => _ancestorAnimations?.Count ?? 0;
+
     /// <summary>Whether a snapshot should stand in for the native view: an ancestor animates, or scrolls in snapshot mode.</summary>
-    private bool WantsSnapshot => _animatingAncestors > 0 || (_movingScrollers > 0 && UsesSnapshotWhileScrolling);
+    private bool WantsSnapshot => AnimatingAncestors > 0 || (_movingScrollers > 0 && UsesSnapshotWhileScrolling);
 
     private void BeginSnapshot()
     {
@@ -183,8 +196,8 @@ public partial class SkUiMauiContentView : SkUiView
     {
         _restoreTimer = null;
         if (SkUiDiagnostics.TraceOn)
-            SkUiDiagnostics.Write($"overlay {TraceName} restore timer movingScrollers={_movingScrollers} animatingAncestors={_animatingAncestors} snapshot={_snapshot is not null} -> {(_movingScrollers > 0 || _animatingAncestors > 0 ? "keep snapshot" : "restore live")}");
-        if (_movingScrollers > 0 || _animatingAncestors > 0)
+            SkUiDiagnostics.Write($"overlay {TraceName} restore timer movingScrollers={_movingScrollers} animatingAncestors={AnimatingAncestors} snapshot={_snapshot is not null} -> {(_movingScrollers > 0 || AnimatingAncestors > 0 ? "keep snapshot" : "restore live")}");
+        if (_movingScrollers > 0 || AnimatingAncestors > 0)
             return;
         RestoreLive();
     }
@@ -351,7 +364,7 @@ public partial class SkUiMauiContentView : SkUiView
         _restoreTimer?.Dispose();
         _restoreTimer = null;
         _movingScrollers = 0;
-        _animatingAncestors = 0;
+        _ancestorAnimations?.Clear();
         _captureGeneration++;
         _capturing = false;
         if (_snapshot is null)
