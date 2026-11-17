@@ -13,6 +13,10 @@ Publishing (the NuGet publish workflow, [docs/Releasing.md](docs/Releasing.md)) 
 
 ## Unreleased
 
+### Fixes
+
+- A view that appears with a render-thread animation (`AnimateAsync` on `SkUiView` or `SkUiCoreNode`, e.g. a fade-in from opacity 0) no longer stays missing from the accessibility tree after the animation ends: the tree built while it ran (from the start values) is rebuilt when it ends, though the end commits no frame (issue #103).
+
 ## 1.13.0
 
 ### New features
