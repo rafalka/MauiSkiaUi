@@ -98,6 +98,10 @@ public sealed class DateRangePickerTests : IDisposable
         picker.Value = Range(3, 5);
         Assert.Equal("11/3/2026 – 11/5/2026", FieldValue(root, picker));
         Assert.Throws<ArgumentNullException>(() => picker.SetDisplayFormat(null!));
+
+        // A culture with another calendar: the field's years are the Gregorian ones the popup shows.
+        using (DateTimeWheelsTests.UseCulture("th-TH"))
+            Assert.Contains("2026", SkUiDateRangePicker.FormatRange(Range(3, 5), "{0:d MMM yyyy} – {1:d MMM yyyy}"));
     }
 
     [Fact]
@@ -177,6 +181,24 @@ public sealed class DateRangePickerTests : IDisposable
         Assert.False(calendar.Engine.IsDayEnabled(new DateTime(2026, 11, 25)));
         Assert.False(calendar.Engine.IsDayEnabled(new DateTime(2026, 11, 1)));
         Assert.Throws<ArgumentOutOfRangeException>(() => picker.SetMinimumRangeDays(-1));
+    }
+
+    [Fact]
+    public void WaitingForOkAStartAloneIsNoDraftWhenARangeMustBeLonger()
+    {
+        var picker = new SkUiDateRangePicker { Value = Range(3, 6), MinimumRangeDays = 3, UpdateMode = SkUiPickerUpdateMode.WhenFinished };
+        Root(picker);
+        var content = Open(picker, out var request);
+        Choose(content, 10);
+        Assert.Equal(new SkUiDateRange(new DateTime(2026, 11, 10)), content.Calendar!.SelectedRange);
+        Assert.Equal(Range(3, 6), request.Value); // the last whole range, not a one-day range the rule forbids
+        Choose(content, 13);
+        Assert.Equal(Range(10, 13), request.Value);
+        Choose(content, 20);
+        Assert.Equal(Range(10, 13), request.Value);
+        Assert.True(request.Accept());
+        _ui.RunPending();
+        Assert.Equal(Range(10, 13), picker.Value);
     }
 
     [Fact]

@@ -24,6 +24,31 @@ internal static class SkUiCalendarGrid
     private static readonly DateTime First = DateTime.MinValue.Date;
     private static readonly DateTime Last = DateTime.MaxValue.Date;
 
+    private static GregorianCulture? _gregorian;
+
+    private sealed record GregorianCulture(CultureInfo Culture, CultureInfo Gregorian);
+
+    /// <summary>
+    /// <paramref name="culture"/> formatting dates in the Gregorian calendar the grid is laid out in: itself when it already does,
+    /// else a read-only copy with its Gregorian calendar (Thai Buddhist and Hijri cultures), or the invariant culture without one.
+    /// </summary>
+    public static CultureInfo Gregorian(CultureInfo culture)
+    {
+        if (culture.DateTimeFormat.Calendar is GregorianCalendar)
+            return culture;
+        if (_gregorian is { } cached && ReferenceEquals(cached.Culture, culture))
+            return cached.Gregorian;
+        var gregorian = CultureInfo.InvariantCulture;
+        if (culture.OptionalCalendars.OfType<GregorianCalendar>().FirstOrDefault() is { } calendar)
+        {
+            var copy = (CultureInfo)culture.Clone();
+            copy.DateTimeFormat.Calendar = calendar;
+            gregorian = CultureInfo.ReadOnly(copy);
+        }
+        _gregorian = new GregorianCulture(culture, gregorian);
+        return gregorian;
+    }
+
     /// <summary>The first day of the week: the set one, or the culture's.</summary>
     public static DayOfWeek FirstDayOfWeek(DayOfWeek? set, CultureInfo culture) => set ?? culture.DateTimeFormat.FirstDayOfWeek;
 
@@ -65,18 +90,24 @@ internal static class SkUiCalendarGrid
     {
         if (pages == 0)
             return start;
-        var stepped = mode switch
+        return mode switch
         {
             SkUiCalendarDisplayMode.Month when weeks >= MaxWeeks => AddMonths(start, pages),
             SkUiCalendarDisplayMode.Month => AddDays(start, 7L * weeks * pages),
             SkUiCalendarDisplayMode.Year => AddMonths(start, 12L * pages),
-            SkUiCalendarDisplayMode.Decade => AddMonths(start, 120L * pages),
-            _ => AddMonths(start, 1200L * pages)
+            SkUiCalendarDisplayMode.Decade => StepYears(start, 10, pages),
+            _ => StepYears(start, 100, pages)
         };
-        // Decade and century pages start on round years; the first ones start in year 1 (there is no year 0).
-        return stepped is { } date && mode is SkUiCalendarDisplayMode.Decade or SkUiCalendarDisplayMode.Century
-            ? PageStart(date, mode, weeks, DayOfWeek.Sunday)
-            : stepped;
+    }
+
+    /// <summary>
+    /// A decade or century page <paramref name="pages"/> pages away. Pages start on round years, counted from year 0; the first page
+    /// starts in year 1 (there is no year 0), so it is reached from the next one too.
+    /// </summary>
+    private static DateTime? StepYears(DateTime start, int span, int pages)
+    {
+        var year = start.Year / span * span + (long)span * pages;
+        return year + span - 1 < 1 || year > 9999 ? null : new DateTime((int)Math.Max(1, year), 1, 1);
     }
 
     /// <summary>The last day of the page starting at <paramref name="start"/>.</summary>
@@ -205,6 +236,6 @@ internal static class SkUiCalendarGrid
         if (first == DayOfWeek.Monday && rule == CalendarWeekRule.FirstFourDayWeek)
             return ISOWeek.GetWeekOfYear(weekStart);
         // The week's number is the one of its last day that is still in the same year as the first: GetWeekOfYear numbers by date.
-        return culture.Calendar.GetWeekOfYear(weekStart, rule, first);
+        return culture.DateTimeFormat.Calendar.GetWeekOfYear(weekStart, rule, first);
     }
 }

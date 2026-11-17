@@ -940,14 +940,18 @@ public class SkUiCoreCalendar : SkUiCoreNode, ISkUiCalendarHost, ISkUiKeyHandler
             OnPropertyChanged(nameof(SelectedRange));
             OnPropertyChanged(nameof(SelectedRanges));
         }
-        if (_reportedTarget != _model.RangeSelectionTarget)
-        {
-            _reportedTarget = _model.RangeSelectionTarget;
-            OnPropertyChanged(nameof(RangeSelectionTarget));
-        }
+        ReportTarget();
         InvalidatePaint();
         InvalidateSemantics();
         SelectionChanged?.Invoke(this, args);
+    }
+
+    private void ReportTarget()
+    {
+        if (_reportedTarget == _model.RangeSelectionTarget)
+            return;
+        _reportedTarget = _model.RangeSelectionTarget;
+        OnPropertyChanged(nameof(RangeSelectionTarget));
     }
 
     #endregion
@@ -971,6 +975,8 @@ public class SkUiCoreCalendar : SkUiCoreNode, ISkUiCalendarHost, ISkUiKeyHandler
     void ISkUiCalendarHost.CalendarDisplayChanged() => DisplayStateChanged();
 
     void ISkUiCalendarHost.CalendarSelectionChanged(SkUiCalendarSelectionChangedEventArgs args) => SelectionDone(args);
+
+    void ISkUiCalendarHost.CalendarRangeTargetChanged() => ReportTarget();
 
     void ISkUiCalendarHost.CalendarDateTapped(SkUiCalendarDateTappedEventArgs args) => DateTapped?.Invoke(this, args);
 

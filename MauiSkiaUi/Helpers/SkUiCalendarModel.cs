@@ -24,6 +24,9 @@ internal interface ISkUiCalendarHost : ISkUiTransitionHost
     /// <summary>The user changed the selection: write it back and raise <c>SelectionChanged</c> with <paramref name="args"/>.</summary>
     void CalendarSelectionChanged(SkUiCalendarSelectionChangedEventArgs args);
 
+    /// <summary>The user moved <c>RangeSelectionTarget</c> without changing the selection: write it back.</summary>
+    void CalendarRangeTargetChanged();
+
     /// <summary>The user tapped a cell: raise <c>DateTapped</c>.</summary>
     void CalendarDateTapped(SkUiCalendarDateTappedEventArgs args);
 
@@ -84,8 +87,9 @@ internal sealed class SkUiCalendarModel(ISkUiCalendarHost host)
     private const int SlotTitle = 2;
     private const int SlotWeekNumber = 3;
 
-    // Day numbers and week numbers drawn without a string per frame (the calendar shows Western digits, as DateTime's formats).
-    private static readonly string[] Numbers = [.. Enumerable.Range(0, 54).Select(number => number.ToString(CultureInfo.InvariantCulture))];
+    // Day numbers and week numbers drawn without a string per frame (the calendar shows Western digits, as DateTime's formats);
+    // a culture's FirstDay week rule numbers up to 54 weeks in a leap year starting on the last day of the week.
+    private static readonly string[] Numbers = [.. Enumerable.Range(0, 55).Select(number => number.ToString(CultureInfo.InvariantCulture))];
 
     #region Settings (copied in by the controls)
 
@@ -264,6 +268,7 @@ internal sealed class SkUiCalendarModel(ISkUiCalendarHost host)
     private SkUiTween? _slide;
     private bool _dragging;
     private float _drag;
+    private float _dragFrom; // where the page was when the swipe started (a slide still running)
     private SkUiTween? _zoom;
     private SkUiCalendarDisplayMode _zoomFromMode;
     private DateTime _zoomFromStart;
@@ -296,8 +301,11 @@ internal sealed class SkUiCalendarModel(ISkUiCalendarHost host)
     /// <summary>The ranges of multiple-range selection, in date order (a new list per change).</summary>
     public IReadOnlyList<SkUiDateRange> SelectedRanges => _rangesSnapshot;
 
+    /// <summary>The current culture formatting in the Gregorian calendar the pages are laid out in.</summary>
+    private static CultureInfo Culture => SkUiCalendarGrid.Gregorian(CultureInfo.CurrentCulture);
+
     /// <summary>The first day of the week in effect.</summary>
-    public DayOfWeek EffectiveFirstDayOfWeek => SkUiCalendarGrid.FirstDayOfWeek(FirstDayOfWeek, CultureInfo.CurrentCulture);
+    public DayOfWeek EffectiveFirstDayOfWeek => SkUiCalendarGrid.FirstDayOfWeek(FirstDayOfWeek, Culture);
 
     /// <summary>The first day of the page shown.</summary>
     public DateTime PageStart => SkUiCalendarGrid.PageStart(_display, _mode, VisibleWeeks, EffectiveFirstDayOfWeek);
@@ -308,7 +316,7 @@ internal sealed class SkUiCalendarModel(ISkUiCalendarHost host)
         get
         {
             (DateTime Start, SkUiCalendarDisplayMode Mode, int Weeks, string? Format, CultureInfo Culture) key =
-                (PageStart, _mode, VisibleWeeks, TitleFormat, CultureInfo.CurrentCulture);
+                (PageStart, _mode, VisibleWeeks, TitleFormat, Culture);
             if (_title is null || key != _titleKey)
             {
                 _titleKey = key;
@@ -711,14 +719,18 @@ internal sealed class SkUiCalendarModel(ISkUiCalendarHost host)
     private static void Join(List<SkUiDateRange> ranges)
     {
         ranges.Sort((a, b) => a.Start.CompareTo(b.Start));
-        for (var index = ranges.Count - 1; index > 0; index--)
+        // Forward, against the joined range so far: a long range takes in every later one it reaches, not only its neighbor.
+        var kept = 0;
+        for (var index = 1; index < ranges.Count; index++)
         {
-            var (before, after) = (ranges[index - 1], ranges[index]);
-            if (SkUiCalendarGrid.AddDays(before.LastDay, 1) is { } next && after.Start > next)
-                continue;
-            ranges[index - 1] = new SkUiDateRange(before.Start, after.LastDay > before.LastDay ? after.LastDay : before.LastDay);
-            ranges.RemoveAt(index);
+            var (current, next) = (ranges[kept], ranges[index]);
+            if (SkUiCalendarGrid.AddDays(current.LastDay, 1) is { } after && next.Start > after)
+                ranges[++kept] = next;
+            else if (next.LastDay > current.LastDay)
+                ranges[kept] = new SkUiDateRange(current.Start, next.LastDay);
         }
+        if (ranges.Count > 0)
+            ranges.RemoveRange(kept + 1, ranges.Count - kept - 1);
     }
 
     /// <summary>Clears every selection; returns what was cleared, or <c>null</c>.</summary>
@@ -784,10 +796,16 @@ internal sealed class SkUiCalendarModel(ISkUiCalendarHost host)
                 break;
             case SkUiCalendarSelectionMode.Range:
                 var before = _range;
+                var target = RangeSelectionTarget;
                 _range = NextRange(_range, day);
                 _selectedDate = _range?.Start;
                 if (Nullable.Equals(before, _range))
+                {
+                    // The first day tapped again while it is the target: the range stays, the target still moves to the end.
+                    if (target != RangeSelectionTarget)
+                        host.CalendarRangeTargetChanged();
                     return;
+                }
                 args = new SkUiCalendarSelectionChangedEventArgs(NoDates, NoDates, before, _range);
                 break;
             case SkUiCalendarSelectionMode.MultipleRanges:
@@ -1130,7 +1148,7 @@ internal sealed class SkUiCalendarModel(ISkUiCalendarHost host)
     {
         var end = SkUiCalendarGrid.AddDays(weekStart, 6) ?? weekStart;
         return new SkUiCalendarWeekNumberTappedEventArgs(weekStart, end,
-            SkUiCalendarGrid.WeekNumber(weekStart, EffectiveFirstDayOfWeek, CultureInfo.CurrentCulture), FirstEnabledDay(weekStart, end),
+            SkUiCalendarGrid.WeekNumber(weekStart, EffectiveFirstDayOfWeek, Culture), FirstEnabledDay(weekStart, end),
             LastEnabledDay(weekStart, end));
     }
 
@@ -1184,7 +1202,7 @@ internal sealed class SkUiCalendarModel(ISkUiCalendarHost host)
     public void BeginDrag()
     {
         Unpress();
-        _drag = SlideOffset;
+        _drag = _dragFrom = SlideOffset;
         _dragging = true;
         _slide?.Jump(0);
     }
@@ -1202,10 +1220,16 @@ internal sealed class SkUiCalendarModel(ISkUiCalendarHost host)
         if (!_dragging)
             return;
         var extent = Math.Max(1, Extent(width, height));
-        var offset = (float)(distance / extent);
-        // Past the first or last page the page moves less (a rubber band), and never by a whole page.
+        // From where a running slide was caught, so the page does not jump under the finger.
+        var offset = _dragFrom + (float)(distance / extent);
+        // Past the first or last page the page moves less (a rubber band), and never by a whole page: only the part past the
+        // middle (or past where the drag started, already there) toward a page that cannot come.
         if (offset != 0 && !CanStep(LogicalPages(offset < 0 ? 1 : -1)))
-            offset *= EdgeResistance;
+        {
+            var edge = Math.Sign(_dragFrom) == Math.Sign(offset) ? _dragFrom : 0;
+            if (Math.Abs(offset) > Math.Abs(edge))
+                offset = edge + (offset - edge) * EdgeResistance;
+        }
         _drag = Math.Clamp(offset, -1, 1);
         host.CalendarInvalidate();
     }
@@ -1221,17 +1245,19 @@ internal sealed class SkUiCalendarModel(ISkUiCalendarHost host)
         _dragging = false;
         var offset = _drag;
         _drag = 0;
+        // The swipe's own move decides (a slide it caught is not part of it); the offset is where the pages are.
+        var moved = offset - _dragFrom;
         var visual = 0;
-        if (offset <= -SettleShare || velocity <= -FlingVelocity && offset < 0)
+        if (moved <= -SettleShare || velocity <= -FlingVelocity && moved < 0)
             visual = 1; // the content moved back: the page after it (to the right or below) comes in
-        else if (offset >= SettleShare || velocity >= FlingVelocity && offset > 0)
+        else if (moved >= SettleShare || velocity >= FlingVelocity && moved > 0)
             visual = -1;
         var pages = LogicalPages(visual);
         if (visual != 0 && CanStep(pages) && SkUiCalendarGrid.Step(PageStart, _mode, VisibleWeeks, pages) is { } target)
         {
             _display = ClampToRange(target);
             // The new page is where the old one's neighbor was, a page away from the offset.
-            StartSlide(visual, from: offset + visual);
+            StartSlide(visual, from: Math.Clamp(offset + visual, -1, 1));
             host.CalendarDisplayChanged();
         }
         else
@@ -1273,14 +1299,16 @@ internal sealed class SkUiCalendarModel(ISkUiCalendarHost host)
             SkUiKey.End when month => SkUiCalendarGrid.AddDays(SkUiCalendarGrid.WeekStart(focus, EffectiveFirstDayOfWeek), 6),
             _ => null
         };
-        _keyboard = true;
+        // Only a key the calendar handles shows the focus ring.
         if (key.Key is SkUiKey.Enter or SkUiKey.Space)
         {
+            _keyboard = true;
             Activate(focus, month ? IsChoosable(focus) : IsPeriodEnabled(focus, _mode), fromKeyboard: true);
             return true;
         }
         if (target is not { } next)
             return false;
+        _keyboard = true;
         MoveFocus(next);
         return true;
     }
@@ -1321,9 +1349,23 @@ internal sealed class SkUiCalendarModel(ISkUiCalendarHost host)
         SkUiCalendarDisplayMode.Month when VisibleWeeks >= SkUiCalendarGrid.MaxWeeks => SkUiCalendarGrid.AddMonths(focus, pages),
         SkUiCalendarDisplayMode.Month => SkUiCalendarGrid.AddDays(focus, 7L * VisibleWeeks * pages),
         SkUiCalendarDisplayMode.Year => SkUiCalendarGrid.AddMonths(focus, 12L * pages),
-        SkUiCalendarDisplayMode.Decade => SkUiCalendarGrid.AddMonths(focus, 120L * pages),
-        _ => SkUiCalendarGrid.AddMonths(focus, 1200L * pages)
+        SkUiCalendarDisplayMode.Decade => MoveYears(focus, 10L * pages),
+        _ => MoveYears(focus, 100L * pages)
     };
+
+    /// <summary>
+    /// A decade or century page's cell <paramref name="years"/> years away, as <see cref="SkUiCalendarGrid.Step"/> pages: a cell
+    /// before year 1 lands on year 1 while it is on the first page (there is no year 0), and nothing comes before that page.
+    /// </summary>
+    private static DateTime? MoveYears(DateTime focus, long years)
+    {
+        var year = focus.Year + years;
+        if (year > 9999)
+            return null;
+        if (year >= 1)
+            return new DateTime((int)year, focus.Month, 1);
+        return focus.Year < -years ? null : new DateTime(1, 1, 1);
+    }
 
     /// <summary>Puts the focus on <paramref name="date"/> (kept in the range); a page holding it slides in.</summary>
     private void MoveFocus(DateTime date)
@@ -1376,7 +1418,7 @@ internal sealed class SkUiCalendarModel(ISkUiCalendarHost host)
         info.Value = Describe(focus);
         if (host.CalendarEnabled)
             info.Actions |= SkUiSemanticsActions.Increment | SkUiSemanticsActions.Decrement | SkUiSemanticsActions.Activate;
-        AddParts(info, CultureInfo.CurrentCulture, SkUiStrings.Current);
+        AddParts(info, Culture, SkUiStrings.Current);
     }
 
     private const int TitlePart = 0;
@@ -1479,7 +1521,7 @@ internal sealed class SkUiCalendarModel(ISkUiCalendarHost host)
 
     private string Describe(DateTime date)
     {
-        var culture = CultureInfo.CurrentCulture;
+        var culture = Culture;
         var strings = SkUiStrings.Current;
         if (_mode != SkUiCalendarDisplayMode.Month)
         {
@@ -1562,7 +1604,7 @@ internal sealed class SkUiCalendarModel(ISkUiCalendarHost host)
         if (width <= 0 || height <= 0)
             return;
         var look = SkUiLook.Current;
-        var culture = CultureInfo.CurrentCulture;
+        var culture = Culture;
         var enabled = host.CalendarEnabled;
         var frame = Layout(width, height, look);
         var palette = ResolvePalette(enabled);

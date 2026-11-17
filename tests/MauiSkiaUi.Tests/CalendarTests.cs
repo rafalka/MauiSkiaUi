@@ -73,6 +73,12 @@ public class CalendarGridTests
         Assert.Null(SkUiCalendarGrid.Step(new DateTime(1, 1, 1), SkUiCalendarDisplayMode.Month, 6, -1));
         Assert.Null(SkUiCalendarGrid.Step(new DateTime(1, 1, 1), SkUiCalendarDisplayMode.Decade, 6, -1));
         Assert.Equal(new DateTime(10, 1, 1), SkUiCalendarGrid.Step(new DateTime(1, 1, 1), SkUiCalendarDisplayMode.Decade, 6, 1));
+        // The first decade and century (from year 1) are a page back from the next ones; nothing past year 9999.
+        Assert.Equal(new DateTime(1, 1, 1), SkUiCalendarGrid.Step(new DateTime(10, 1, 1), SkUiCalendarDisplayMode.Decade, 6, -1));
+        Assert.Equal(new DateTime(1, 1, 1), SkUiCalendarGrid.Step(new DateTime(100, 1, 1), SkUiCalendarDisplayMode.Century, 6, -1));
+        Assert.Equal(new DateTime(1990, 1, 1), SkUiCalendarGrid.Step(new DateTime(2026, 1, 1), SkUiCalendarDisplayMode.Decade, 6, -3));
+        Assert.Null(SkUiCalendarGrid.Step(new DateTime(9990, 1, 1), SkUiCalendarDisplayMode.Decade, 6, 1));
+        Assert.Null(SkUiCalendarGrid.Step(new DateTime(9900, 1, 1), SkUiCalendarDisplayMode.Century, 6, 1));
         Assert.Equal(DateTime.MinValue.Date, SkUiCalendarGrid.WeekStart(DateTime.MinValue, DayOfWeek.Sunday));
         Assert.Null(SkUiCalendarGrid.PeriodCell(new DateTime(1, 1, 1), SkUiCalendarDisplayMode.Decade, 0));
     }
@@ -84,6 +90,23 @@ public class CalendarGridTests
         Assert.Equal(53, SkUiCalendarGrid.WeekNumber(new DateTime(2026, 12, 28), DayOfWeek.Monday, german));
         Assert.Equal(1, SkUiCalendarGrid.WeekNumber(new DateTime(2024, 12, 30), DayOfWeek.Monday, german));
         Assert.Equal(47, SkUiCalendarGrid.WeekNumber(new DateTime(2026, 11, 15), DayOfWeek.Sunday, English));
+        // The first-day rule numbers 54 weeks in a leap year that starts on a Saturday.
+        Assert.Equal(54, SkUiCalendarGrid.WeekNumber(new DateTime(2028, 12, 31), DayOfWeek.Sunday, English));
+    }
+
+    [Fact]
+    public void TextsUseTheGregorianCalendarThePagesAreLaidOutIn()
+    {
+        Assert.Same(English, SkUiCalendarGrid.Gregorian(English));
+        var thai = SkUiCalendarGrid.Gregorian(CultureInfo.GetCultureInfo("th-TH"));
+        Assert.IsType<GregorianCalendar>(thai.DateTimeFormat.Calendar);
+        Assert.Same(thai, SkUiCalendarGrid.Gregorian(CultureInfo.GetCultureInfo("th-TH")));
+        Assert.Contains("2026", SkUiCalendarGrid.Title(new DateTime(2026, 11, 1), SkUiCalendarDisplayMode.Month, 6, null, thai));
+        // Past the Hijri calendar's range the Gregorian copy still formats.
+        var arabic = SkUiCalendarGrid.Gregorian(CultureInfo.GetCultureInfo("ar-SA"));
+        Assert.IsType<GregorianCalendar>(arabic.DateTimeFormat.Calendar);
+        Assert.NotEmpty(SkUiCalendarGrid.Title(new DateTime(2100, 1, 1), SkUiCalendarDisplayMode.Month, 6, null, arabic));
+        Assert.Equal(1, SkUiCalendarGrid.WeekNumber(new DateTime(2100, 1, 1), DayOfWeek.Sunday, arabic));
     }
 
     [Fact]
@@ -402,6 +425,88 @@ public sealed class CalendarTests : IDisposable
     }
 
     [Fact]
+    public void WeekFiftyFourAndNonGregorianCulturesAreDrawn()
+    {
+        // en-US numbers the week of 31 December 2028 as 54.
+        var calendar = new SkUiCalendar { DisplayDate = new DateTime(2028, 12, 1), FirstDayOfWeek = DayOfWeek.Sunday, AreWeekNumbersVisible = true };
+        using var surface = new SkUiTestSurface(calendar, Width + 32, Height);
+        surface.Frame(0);
+        // A Hijri culture past its calendar's range: the texts are Gregorian.
+        CultureInfo.CurrentCulture = CultureInfo.GetCultureInfo("ar-SA");
+        calendar.DisplayDate = new DateTime(2100, 1, 1);
+        surface.Frame(16);
+        Assert.Equal(SkUiCalendarGrid.Title(new DateTime(2100, 1, 1), SkUiCalendarDisplayMode.Month, 6, null,
+            SkUiCalendarGrid.Gregorian(CultureInfo.CurrentCulture)), calendar.Title);
+        CultureInfo.CurrentCulture = CultureInfo.GetCultureInfo("th-TH");
+        calendar.DisplayDate = November;
+        surface.Frame(32);
+        Assert.Contains("2026", calendar.Title);
+    }
+
+    [Fact]
+    public void AKeyTheCalendarDoesNotHandleShowsNoFocusAndASwipeCatchesASlide()
+    {
+        var calendar = Calendar(out var surface);
+        using var _ = surface;
+        var focused = 0;
+        SkUiLook.Current.CalendarCellPainter = (_, paint) => focused += paint.IsFocused ? 1 : 0;
+        Assert.False(calendar.Engine.OnKey(new SkUiKeyEvent(SkUiKey.Escape, SkUiKeyModifiers.None, false)));
+        calendar.Engine.Step(1, animated: false);
+        surface.Frame(16);
+        Assert.Equal(0, focused);
+
+        // A swipe caught mid-slide starts where the page is.
+        var engine = calendar.Engine;
+        engine.Step(1, animated: true);
+        var offset = engine.SlideOffset;
+        Assert.NotEqual(0, offset);
+        engine.BeginDrag();
+        engine.Drag(0, Width, Height);
+        Assert.True(Math.Abs(engine.SlideOffset - offset) < 0.001f);
+        // A tenth of the page toward the middle.
+        var back = -Math.Sign(offset);
+        engine.Drag(28 * back, Width, Height);
+        Assert.True(Math.Abs(engine.SlideOffset - (offset + 0.1f * back)) < 0.001f);
+        // Released there, the swipe's own short move settles back on the page that was sliding in.
+        engine.EndDrag(0, Width, Height);
+        Assert.Equal(new DateTime(2027, 1, 1), calendar.DisplayDate);
+
+        // A forward swipe that catches a forward slide goes on forward (the slide's offset is not counted as a swipe back).
+        engine.Step(1, animated: true);
+        Assert.True(Math.Abs(engine.SlideOffset - 1) < 0.001f);
+        engine.BeginDrag();
+        engine.Drag(-0.4 * Width, Width, Height);
+        engine.EndDrag(0, Width, Height);
+        Assert.Equal(new DateTime(2027, 3, 1), calendar.DisplayDate);
+
+        // On the last page the rubber band starts only past the middle.
+        calendar.MaximumDate = new DateTime(2027, 4, 30);
+        engine.Step(1, animated: true);
+        engine.BeginDrag();
+        engine.Drag(-0.2 * Width, Width, Height);
+        Assert.True(Math.Abs(engine.SlideOffset - 0.8f) < 0.001f);
+        engine.Drag(-1.2 * Width, Width, Height);
+        Assert.True(Math.Abs(engine.SlideOffset - -0.2f * 0.25f) < 0.001f);
+        engine.CancelDrag();
+
+        // Page Up reaches the first decade (from year 1) with the keyboard too.
+        calendar.MaximumDate = null;
+        calendar.DisplayMode = SkUiCalendarDisplayMode.Decade;
+        calendar.DisplayDate = new DateTime(15, 1, 1);
+        bool Key(SkUiKey key) => engine.OnKey(new SkUiKeyEvent(key, SkUiKeyModifiers.None, false));
+        Assert.True(Key(SkUiKey.PageUp)); // from the display date's year
+        Assert.Equal(new DateTime(5, 1, 1), engine.FocusDate);
+        Assert.Equal(new DateTime(1, 1, 1), engine.PageStart);
+        Assert.True(Key(SkUiKey.PageDown));
+        for (var year = 15; year > 10; year--)
+            Assert.True(Key(SkUiKey.Left));
+        Assert.Equal(new DateTime(10, 1, 1), engine.FocusDate);
+        Assert.True(Key(SkUiKey.PageUp)); // year 0 does not exist: year 1
+        Assert.Equal(new DateTime(1, 1, 1), engine.FocusDate);
+        Assert.False(Key(SkUiKey.PageUp));
+    }
+
+    [Fact]
     public void ARangeBandIsPaintedOnceUnderATranslucentColor()
     {
         // A wide cell (a stretched popup): the start day's band runs from its circle to the cell's right edge.
@@ -577,6 +682,14 @@ public sealed class CalendarTests : IDisposable
         calendar.SelectedRange = new SkUiDateRange(new DateTime(2026, 11, 3), new DateTime(2026, 11, 12));
         Tap(calendar, Day(6)); // a start before the end keeps the end
         Assert.Equal(new SkUiDateRange(new DateTime(2026, 11, 6), new DateTime(2026, 11, 12)), calendar.SelectedRange);
+        // The start tapped again: the range stays, the target still moves to the end (written back, no selection change).
+        target.Value = SkUiCalendarRangeTarget.Start;
+        var changes = 0;
+        calendar.SelectionChanged += (_, _) => changes++;
+        Tap(calendar, Day(6));
+        Assert.Equal(new SkUiDateRange(new DateTime(2026, 11, 6), new DateTime(2026, 11, 12)), calendar.SelectedRange);
+        Assert.Equal(SkUiCalendarRangeTarget.End, target.Value);
+        Assert.Equal(0, changes);
     }
 
     [Fact]
@@ -841,6 +954,18 @@ public sealed class CalendarTests : IDisposable
         Assert.Throws<ArgumentOutOfRangeException>(() => calendar.SetVisibleWeeks(7));
         Assert.Throws<ArgumentOutOfRangeException>(() => calendar.SetDisplayMode((SkUiCalendarDisplayMode)9));
         Assert.Throws<ArgumentOutOfRangeException>(() => calendar.SetFontSize(-1));
+
+        // The start tapped again while it is the target: the target moves to the end, the selection does not change.
+        calendar.SetDisplayDate(November).SetSelectedRange(new SkUiDateRange(new DateTime(2026, 11, 6), new DateTime(2026, 11, 12)))
+            .SetRangeSelectionTarget(SkUiCalendarRangeTarget.Start);
+        surface.Frame(16);
+        notified.Clear();
+        var changes = 0;
+        calendar.SelectionChanged += (_, _) => changes++;
+        Tap(host, Day(6));
+        Assert.Equal(SkUiCalendarRangeTarget.End, calendar.RangeSelectionTarget);
+        Assert.Contains(nameof(SkUiCoreCalendar.RangeSelectionTarget), notified);
+        Assert.Equal(0, changes);
     }
 
     [Fact]
@@ -985,6 +1110,13 @@ public sealed class CalendarTests : IDisposable
         bound.Value = [Range(20, 22), Range(1, 2), Range(2, 4), Range(23, 23)];
         Assert.Equal([Range(1, 4), Range(20, 23)], calendar.SelectedRanges);
         Assert.Equal([Range(1, 4), Range(20, 23)], bound.Value);
+        bound.Value = [Range(1, 10), Range(2, 3), Range(5, 6), Range(11, 12)];
+        Assert.Equal([Range(1, 12)], calendar.SelectedRanges);
+        // A range tapped over two others past a gap takes in both.
+        bound.Value = [Range(2, 3), Range(5, 6)];
+        Tap(calendar, Day(1));
+        Tap(calendar, Day(10));
+        Assert.Equal([Range(1, 10)], calendar.SelectedRanges);
         calendar.ClearSelection();
         Assert.Empty(bound.Value);
 

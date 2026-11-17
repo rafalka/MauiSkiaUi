@@ -1431,6 +1431,12 @@ public class SkUiCalendar : SkUiView, ISkUiCalendarHost, ISkUiKeyHandler, ISkUiF
 
     void ISkUiCalendarHost.CalendarSelectionChanged(SkUiCalendarSelectionChangedEventArgs args) => SelectionDone(args);
 
+    void ISkUiCalendarHost.CalendarRangeTargetChanged() => Sync(() =>
+    {
+        if (RangeSelectionTarget != Model.RangeSelectionTarget)
+            WriteBack(RangeSelectionTargetProperty, Model.RangeSelectionTarget);
+    });
+
     void ISkUiCalendarHost.CalendarDateTapped(SkUiCalendarDateTappedEventArgs args) => DateTapped?.Invoke(this, args);
 
     void ISkUiCalendarHost.CalendarWeekNumberTapped(SkUiCalendarWeekNumberTappedEventArgs args) => WeekNumberTapped?.Invoke(this, args);

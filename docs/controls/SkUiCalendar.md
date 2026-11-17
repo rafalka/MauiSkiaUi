@@ -176,6 +176,6 @@ Methods: `GoToPrevious(animated)`, `GoToNext(animated)`, `GoToDate(date, animate
 
 ## Limits
 
-- Gregorian dates; day and month names and the first day come from the current culture. Other calendar systems are not supported yet.
+- Gregorian dates; day and month names and the first day come from the current culture. Other calendar systems are not supported yet: under a culture whose own calendar is another (Thai Buddhist, Hijri), the texts use its Gregorian calendar, so they match the pages.
 - Markers take icon glyphs, not image sources (a day painter can draw images).
 - The calendar in a popup: the date pickers' `PopupStyle = Calendar` ([SkUiDatePicker](SkUiDatePicker.md)) and [SkUiDateRangePicker](SkUiDateRangePicker.md). `SkUiDateTimePicker` keeps its wheels.

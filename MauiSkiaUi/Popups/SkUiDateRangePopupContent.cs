@@ -8,7 +8,7 @@ internal readonly record struct SkUiDateRangeRules(DateTime? MinimumDate, DateTi
 /// The popup of a date range picker (<see cref="SkUiDateRangePicker"/>, <see cref="Core.SkUiCoreDateRangePicker"/>): a month calendar in
 /// range selection. The first tap starts a range, the second ends it and the popup closes with it; waiting for OK
 /// (<c>UpdateMode</c> <see cref="SkUiPickerUpdateMode.WhenFinished"/>), the range is the draft (one day while only its start is
-/// chosen). The request is <see cref="SkUiValuePopupRequest{T}"/> of <see cref="SkUiDateRange"/>. Keys go to the calendar; Enter
+/// chosen; when <c>MinimumRangeDays</c> asks for more, the last whole range stays the draft until the range ends). The request is <see cref="SkUiValuePopupRequest{T}"/> of <see cref="SkUiDateRange"/>. Keys go to the calendar; Enter
 /// on the draft (waiting for OK) accepts it.
 /// </summary>
 internal sealed class SkUiDateRangePopupContent(SkUiDateRangeRules rules) : SkUiValuePopupContent<SkUiDateRange?>
@@ -59,7 +59,7 @@ internal sealed class SkUiDateRangePopupContent(SkUiDateRangeRules rules) : SkUi
         return new Size(width, Math.Min(calendar.Measure(width, double.PositiveInfinity).Height, maximumHeight));
     }
 
-    /// <summary>The user changed the calendar's range: a whole range ends the popup (or is the draft); a start alone is a one-day draft.</summary>
+    /// <summary>The user changed the calendar's range: a whole range ends the popup (or is the draft); a start alone is a one-day draft (or, under a minimum length, leaves the draft as it was).</summary>
     private void OnSelectionChanged(object? sender, SkUiCalendarSelectionChangedEventArgs args)
     {
         if (_showing || _calendar?.SelectedRange is not { } range)
@@ -69,7 +69,8 @@ internal sealed class SkUiDateRangePopupContent(SkUiDateRangeRules rules) : SkUi
             Complete(range);
             return;
         }
-        if (!Context.RequiresAccept)
+        // A start alone is a one-day draft, unless a range must be longer: the draft stays the last whole range (or none).
+        if (!Context.RequiresAccept || (!range.IsComplete && rules.MinimumRangeDays > 1))
             return;
         _choosing = true;
         try

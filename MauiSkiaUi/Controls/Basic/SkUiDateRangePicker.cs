@@ -141,7 +141,8 @@ public class SkUiDateRangePicker : SkUiValuePicker<SkUiDateRange?>
     /// </summary>
     internal static string FormatRange(SkUiDateRange range, string? format)
     {
-        var culture = CultureInfo.CurrentCulture;
+        // In the Gregorian calendar the popup's pages and titles use (Thai Buddhist and Hijri cultures).
+        var culture = SkUiCalendarGrid.Gregorian(CultureInfo.CurrentCulture);
         object?[] parts = range.IsComplete ? [range.Start, range.LastDay, range.Days] : [range.Start, null, null];
         string text;
         try
