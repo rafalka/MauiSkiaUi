@@ -395,4 +395,37 @@ public class AccessibilityTests
         Assert.Same(view, view.SetTag(null));
         Assert.Null(view.Tag);
     }
+
+    // Issue #103: a tree built while a fade-in ran (from the start values: left out) is rebuilt once it ends, though the
+    // acknowledged end commits no frame.
+    [Fact]
+    public async Task TreeFollowsTheEndOfARenderThreadAnimation()
+    {
+        var label = new SkUiLabel { Text = "Shown", WidthRequest = 80, HeightRequest = 20, Opacity = 0 };
+        await AssertShownAfterFadeIn(new SkUiContentView { Content = label }, () => label.AnimateAsync(SkUiAnimatableProperty.Opacity, 1, 100));
+    }
+
+    [Fact]
+    public async Task CoreTreeFollowsTheEndOfARenderThreadAnimation()
+    {
+        var label = new SkUiCoreLabel().SetText("Shown").SetWidth(80).SetHeight(20).SetOpacity(0);
+        await AssertShownAfterFadeIn(new SkUiCoreHost().SetContent(label), () => label.AnimateAsync(SkUiAnimatableProperty.Opacity, 1, 100));
+    }
+
+    private static async Task AssertShownAfterFadeIn(SkUiView root, Func<Task<bool>> fadeIn)
+    {
+        var owner = new SkUiSemanticsOwner(root);
+        using var surface = new SkUiTestSurface(root, 100, 40);
+        surface.Frame(0);
+        Assert.Empty(owner.Tree.Flatten());
+
+        var fade = fadeIn();
+        surface.Frame(1000);
+        Assert.Empty(owner.Tree.Flatten()); // built mid-animation from the UI values
+        surface.Frame(1200);
+        Assert.True(await fade.WaitAsync(TimeSpan.FromSeconds(5)));
+        surface.Frame(1300);
+
+        Assert.Equal("Text:Shown", Describe(owner.Tree));
+    }
 }
