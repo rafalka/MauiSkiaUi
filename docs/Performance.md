@@ -109,7 +109,7 @@ In brackets: 21 October, before borders with the same outline shared their conte
 ### Recommendations for long lists
 
 - Prefer **opaque fills** for shadowed cards: an opaque card, border, button, box or shape casts its shadow from its outline, which is cheap. Shadows on text, images or translucent shapes are rasterized from content.
-- **Text shadows** on many list items: put them on plain-text labels (an `SkUiLabel` or `SkUiCoreLabel` without background or chrome), which GPU surfaces draw from the glyphs. Shadows on rich text or on buttons' text are still rasterized once per item, which mid-range Android devices notice in long lists.
+- **Text shadows** on many list items: put them on plain-text labels (an `SkUiLabel` or `SkUiCoreLabel` without background, chrome or decorations, sized to its text and not drawn at a shrink / grow-to-fit scale), which GPU surfaces draw from the glyphs. Shadows on rich text or on buttons' text are still rasterized once per item, which mid-range Android devices notice in long lists.
 - Avoid **dashed strokes on complex paths** on many list items; a rounded rectangle, solid stroke or simpler path is much cheaper.
 - Use **running spinners** only while something loads: they keep the surface drawing every frame.
 - **Defer expensive panes** (other tabs, hidden or collapsed sections): `SkUiContentView ContentLoading="WhenShown"` with a `ContentTemplate` creates a pane only when it is first shown (optionally after a delay, so tabs passed through are not created) ([SkUiContentView.md](controls/SkUiContentView.md#loading-content-when-shown)).

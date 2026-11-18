@@ -15,7 +15,7 @@ namespace MauiSkiaUi.Tests;
 public sealed class TextShadowTests(ITestOutputHelper output)
 {
     private const int Width = 160;
-    private const int Height = 60;
+    private const int Height = 80; // the label (20 DIP margins) gets its full line height: no overflow
 
     /// <summary>Largest difference of one channel between the glyph shadow and the raster (of 255; the shadow is 35 % black).</summary>
     private const int Tolerance = 12;
@@ -117,7 +117,21 @@ public sealed class TextShadowTests(ITestOutputHelper output)
         empty.WidthRequest = 40;
         empty.HeightRequest = 20;
         var button = new SkUiButton { Text = "Order", FontFamily = SkUiTestHelpers.BundledFontFamily, Background = Colors.Transparent, Shadow = TitleShadow(3) };
-        foreach (var view in new SkUiView[] { background, chrome, rich, clipped, empty, button })
+        var underlined = Shadowed(Label());
+        underlined.TextDecorations = TextDecorations.Underline; // the line's mask over the glyphs' would darken where they cross
+        var shrunk = Shadowed(Label("A much longer order title"));
+        shrunk.ShrinkToFit = true;
+        shrunk.WidthRequest = 80; // drawn at a fit scale, which would scale the blur
+        var grown = Shadowed(Label("Order"));
+        grown.GrowToFill = true;
+        grown.WidthRequest = 120;
+        grown.HeightRequest = 30; // its lines fit, drawn at a fit scale above 1, which would scale the blur
+        var tight = Shadowed(Label());
+        tight.LineHeight = 0.7; // line boxes inside the frame, glyphs past it
+        var overflowing = Shadowed(Label("A much longer order title"));
+        overflowing.LineBreakMode = LineBreakMode.NoWrap;
+        overflowing.WidthRequest = 60; // glyphs past the frame: the raster casts from what ClipToBounds keeps
+        foreach (var view in new SkUiView[] { background, chrome, rich, clipped, empty, button, underlined, shrunk, grown, tight, overflowing })
         {
             var shadow = Committed(view, new SkUiContentView { Content = view });
             Assert.NotNull(shadow);
@@ -130,6 +144,9 @@ public sealed class TextShadowTests(ITestOutputHelper output)
         var coreChip = new SkUiCoreLabel().SetText("Order").SetFontFamily(SkUiTestHelpers.BundledFontFamily).SetFillColor(Colors.Yellow.WithAlpha(0.5f));
         coreChip.SetShadow(new SkUiCoreShadow(Colors.Black, new Point(1, 2), 3, 0.35f));
         Assert.Null(Committed(coreChip, new SkUiCoreHost().SetContent(coreChip))?.Glyphs);
+        var coreRounded = new SkUiCoreLabel().SetText("Order").SetFontFamily(SkUiTestHelpers.BundledFontFamily).SetCornerRadii(new CornerRadius(8));
+        coreRounded.SetShadow(new SkUiCoreShadow(Colors.Black, new Point(1, 2), 3, 0.35f)); // the radii clip the glyphs
+        Assert.Null(Committed(coreRounded, new SkUiCoreHost().SetContent(coreRounded))?.Glyphs);
     }
 
     [Fact]
@@ -154,7 +171,7 @@ public sealed class TextShadowTests(ITestOutputHelper output)
         var differs = false;
         using var after = surface.Frame(48).Copy();
         for (var x = 0; x < Width && !differs; x++)
-            for (var y = 40; y < Height && !differs; y++) // below the text: only the shadow differs there
+            for (var y = 40; y < Height && !differs; y++) // the line's bottom edge and below it, where the shadow reaches
                 differs = before.GetPixel(x, y) != after.GetPixel(x, y);
         Assert.True(differs, "the shadow follows the new text");
 

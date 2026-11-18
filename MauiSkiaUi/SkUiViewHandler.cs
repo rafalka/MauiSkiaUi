@@ -1683,7 +1683,8 @@ internal sealed class SkUiOverlayContainer : Android.Widget.FrameLayout
         if (!_overlays.TryGetValue(child, out var clip)) return;
         var visible = clipRect.Intersect(bounds);
         // Exact (whole pixels): an unchanged placement needs no measure and layout (an overlay scrolled out stays empty).
-        if (clip.IsPlaced && bounds == clip.Bounds && visible == clip.Visible)
+        // A layout the hosted view asked for (its content changed inside the same frame) still runs.
+        if (clip.IsPlaced && !clip.IsLayoutRequested && bounds == clip.Bounds && visible == clip.Visible)
             return;
         clip.IsPlaced = true;
         clip.Bounds = bounds;

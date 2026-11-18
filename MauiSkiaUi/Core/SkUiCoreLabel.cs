@@ -941,11 +941,14 @@ public class SkUiCoreLabel : SkUiCoreNode, ISkUiFontElement, ISkUiBorderElement
         _layout.Draw(canvas, _displayText, TextStyle, TextInset, Frame.Width, Frame.Height, _horizontal, _vertical, paint, _textDecorations);
 
     /// <summary>
-    /// A plain <see cref="SkUiCoreLabel"/> (not a subclass, which may draw more) with plain text, no chrome fill or border and no
-    /// background painter casts its shadow from its glyphs.
+    /// A plain <see cref="SkUiCoreLabel"/> (not a subclass, which may draw more) with plain text, no chrome fill, border or corner
+    /// radii (which clip the glyphs), no background painter or decorations, drawn inside its frame at scale 1
+    /// (<see cref="SkUiTextLayout.DrawsInside"/>), casts its shadow from its glyphs.
     /// </summary>
     internal override SKPicture? CreateTextShadow(Rendering.SkUiShadowStyle style, float width, float height) =>
         GetType() == typeof(SkUiCoreLabel) && !UsesRichText && HasText && PaintBackground is null && !ChromeFill.IsVisible && !_chrome.HasBorder
+        && !SkUiCornerRadii.HasAny(EffectiveCornerRadii) && _textDecorations == TextDecorations.None
+        && _layout.DrawsInside(_displayText, TextStyle, TextInset, Frame.Width, Frame.Height)
             ? Rendering.SkUiShadowPainter.RecordGlyphs(style, width, height, this, static (canvas, paint, label) => label.PaintPlainText(canvas, paint))
             : null;
 

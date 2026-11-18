@@ -108,11 +108,6 @@ internal sealed class SkUiRenderBatch
     /// <summary>The root's <see cref="SkUiView.SurfaceKeepsBottom"/>.</summary>
     public bool KeepsBottom;
 
-    /// <summary>
-    /// Releases pictures and effects of a batch that will never be applied (the compositor was disposed; the UI side then
-    /// forgets its effects, <see cref="ISkUiRenderable.ReleaseDrawingResources"/>). Called only while no frame draws: the
-    /// effects may be the ones a node has committed.
-    /// </summary>
     /// <summary>An update for <paramref name="node"/>: a cleared one this batch kept from an earlier frame, else a new one.</summary>
     public SkUiRenderUpdate NewUpdate(SkUiRenderNode node)
     {
@@ -145,6 +140,11 @@ internal sealed class SkUiRenderBatch
         KeepsBottom = false;
     }
 
+    /// <summary>
+    /// Releases pictures and effects of a batch that will never be applied (the compositor was disposed; the UI side then
+    /// forgets its effects, <see cref="ISkUiRenderable.ReleaseDrawingResources"/>). Called only while no frame draws: the
+    /// effects may be the ones a node has committed.
+    /// </summary>
     public void Discard()
     {
         foreach (var update in Updates)
