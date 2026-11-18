@@ -51,7 +51,7 @@ public sealed class CoreScrollViewDemoPage : ComponentDemoPage
 
     private static double Max(SkUiCoreScrollView scroll) => Math.Max(0, scroll.ContentSize.Height - scroll.ViewportSize.Height);
 
-    private static SkUiCoreHost CreateHost(out SkUiCoreScrollView scroll, out SkUiCoreScrollView carousel, out SkUiCoreScrollView panel,
+    internal static SkUiCoreHost CreateHost(out SkUiCoreScrollView scroll, out SkUiCoreScrollView carousel, out SkUiCoreScrollView panel,
         out List<SkUiCoreLabel> rows, out SkUiCoreBox tile)
     {
         var cards = new SkUiCoreHorizontalStackLayout().SetSpacing(8).SetPadding(new Thickness(8));

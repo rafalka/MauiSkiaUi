@@ -31,19 +31,11 @@ public sealed class DraggerDemoPage : ComponentDemoPage
             panel.HeightRequest = PanelHeight;
         });
 
-        // The app's own handling: the panel's size when the drag starts, plus the travel since then.
-        var start = Size.Zero;
-        dragger.DragStarted += (_, _) => start = new Size(panel.WidthRequest, panel.HeightRequest);
-        dragger.DragDelta += (_, args) =>
-        {
-            panel.WidthRequest = Math.Max(MinPanelSize, start.Width + args.TotalX);
-            panel.HeightRequest = Math.Max(MinPanelSize, start.Height + args.TotalY);
-        };
         dragger.DragCompleted += (_, args) =>
             Feedback($"Panel {panel.WidthRequest:F0} x {panel.HeightRequest:F0}{(args.IsKeyboard ? " (key)" : "")}{(args.IsCanceled ? " (canceled)" : "")}");
     }
 
-    private static SkUiGrid CreatePreview(out SkUiLabel panel, out SkUiDragger dragger)
+    internal static SkUiGrid CreatePreview(out SkUiLabel panel, out SkUiDragger dragger)
     {
         panel = new SkUiLabel
         {
@@ -54,6 +46,16 @@ public sealed class DraggerDemoPage : ComponentDemoPage
         SemanticProperties.SetDescription(dragger, "Panel size");
         // The stack is as wide as the panel, so the dragger under it follows its width.
         var stack = new SkUiVerticalStackLayout { HorizontalOptions = LayoutOptions.Start, VerticalOptions = LayoutOptions.Start, Children = { panel, dragger } };
+        // The app's own handling, here so every preview resizes (the controls gallery's too): the panel's size when the drag
+        // starts, plus the travel since then.
+        var resized = panel;
+        var start = Size.Zero;
+        dragger.DragStarted += (_, _) => start = new Size(resized.WidthRequest, resized.HeightRequest);
+        dragger.DragDelta += (_, args) =>
+        {
+            resized.WidthRequest = Math.Max(MinPanelSize, start.Width + args.TotalX);
+            resized.HeightRequest = Math.Max(MinPanelSize, start.Height + args.TotalY);
+        };
         return new SkUiGrid { Padding = 8, Children = { stack } };
     }
 }

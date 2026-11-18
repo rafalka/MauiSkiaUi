@@ -109,7 +109,7 @@ public sealed class ShimmerDemoPage : ComponentDemoPage
     private static string NameOf(Easing? easing) =>
         easing is null ? EffectsOwn : ReferenceEquals(easing, Easing.Linear) ? Linear : ReferenceEquals(easing, Easing.SinInOut) ? SinInOut : CubicInOut;
 
-    private static SkUiShimmer Create() => new()
+    internal static SkUiShimmer Create() => new()
     {
         Content = Card(),
         SkeletonContent = Skeleton()

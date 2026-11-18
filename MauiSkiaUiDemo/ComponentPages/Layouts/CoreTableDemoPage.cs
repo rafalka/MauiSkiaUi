@@ -61,7 +61,7 @@ public sealed class CoreTableDemoPage : ComponentDemoPage
         }, () => _table.GetColumnBackground(0) is not null);
     }
 
-    private static SkUiCoreHost CreateHost(out SkUiCoreTable table)
+    internal static SkUiCoreHost CreateHost(out SkUiCoreTable table)
     {
         // 5 rows × 4 columns with merges: full header, mid-table column span, and a tall row span.
         table = new SkUiCoreTable();

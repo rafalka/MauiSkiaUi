@@ -24,7 +24,7 @@ public sealed class ShimmerBonesDemoPage : ComponentDemoPage
         Feedback("Bones draw themselves on the render thread: no layer, nothing recorded per frame");
     }
 
-    private static SkUiShimmer Create()
+    internal static SkUiShimmer Create()
     {
         var cards = new SkUiVerticalStackLayout { Spacing = 12, Padding = new Thickness(12), BackgroundColor = DemoColors.PageBackground };
         for (var card = 0; card < 3; card++)

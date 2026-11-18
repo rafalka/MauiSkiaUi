@@ -185,6 +185,54 @@ public class ComponentDemoTests
         Assert.True(page.NativeControl.IsEnabled);
     }
 
+    [Fact]
+    public void EditorTitlesGoBesideTheirEditorsWhenThereIsRoom()
+    {
+        using var dispatcher = SkUiTestHelpers.UseTestDispatcher();
+        // The titles measure in the demo's fonts, which only the app registers (Linux CI has no system fallback).
+        using var regular = SkUiTestHelpers.UseBundledFont(DemoFonts.OpenSansRegular);
+        using var semibold = SkUiTestHelpers.UseBundledFont(DemoFonts.OpenSansSemibold);
+        var page = new ButtonDemoPage();
+        var root = (SkUiView)page.Editors;
+        while (root.Parent is SkUiView parent)
+            root = parent;
+        // Specific and common editors, of several kinds: a slider (in a row with its value), a picker, a switch.
+        var editors = new SkUiView[]
+        {
+            Editor<SkUiSlider>(page, "ContentLayout spacing"), Editor<SkUiPicker>(page, nameof(SkUiButton.ContentLayout)),
+            Editor<SkUiSlider>(page, nameof(View.WidthRequest)), Editor<SkUiSwitch>(page, "HwAccelerated"),
+            Editor<SkUiPicker>(page, nameof(VisualElement.FlowDirection))
+        };
+        var titles = new[] { "ContentLayout spacing", nameof(SkUiButton.ContentLayout), nameof(View.WidthRequest), "HwAccelerated", nameof(VisualElement.FlowDirection) }
+            .Select(text => Descendants(page.Editors).OfType<SkUiLabel>().First(label => label.Text == text)).ToArray();
+
+        page.UpdateEditorLayout(800);
+        SkUiTestHelpers.Arrange(root, 800, 3000);
+        var left = Bounds(editors[0]).Left;
+        Assert.True(left > 0, $"Editors start at {left}, right of the titles");
+        for (var index = 0; index < editors.Length; index++)
+        {
+            var editor = Bounds(editors[index]);
+            var title = Bounds(titles[index]);
+            Assert.True(Math.Abs(editor.Left - left) < 0.5, $"{titles[index].Text}: editor at {editor.Left}, not lined up at {left}");
+            Assert.True(title.Right <= left, $"{titles[index].Text}: title ends at {title.Right}, past the editors at {left}");
+            Assert.True(title.Center.Y > editor.Top && title.Center.Y < editor.Bottom, $"{titles[index].Text}: title {title} not beside its editor {editor}");
+        }
+
+        // A phone in portrait: each title above its editor, which takes the whole width.
+        page.UpdateEditorLayout(400);
+        SkUiTestHelpers.Arrange(root, 400, 3000);
+        for (var index = 0; index < editors.Length; index++)
+        {
+            var editor = Bounds(editors[index]);
+            var title = Bounds(titles[index]);
+            Assert.True(Math.Abs(editor.Left - title.Left) < 0.5, $"{titles[index].Text}: editor at {editor.Left}, title at {title.Left}");
+            Assert.True(title.Bottom <= editor.Top, $"{titles[index].Text}: title {title} not above its editor {editor}");
+        }
+
+        static Rect Bounds(SkUiView view) => SkUiDiagnostics.GetRootBounds(view) ?? throw new InvalidOperationException("Not in a drawn tree.");
+    }
+
     private static T Editor<T>(ComponentDemoPage page, string name) where T : SkUiView =>
         Descendants(page.Editors).OfType<T>().Single(editor => editor.AutomationId == "Edit" + name);
 
@@ -243,6 +291,77 @@ public class ComponentDemoTests
         Assert.True(page.IsWide);
         page.UpdateComparisonLayout(390);
         Assert.False(page.IsWide);
+    }
+
+    [Fact]
+    public void ControlsGalleryListsEveryControlOnceWithASampleAndATryItButton()
+    {
+        // One row per control type, opening its main demo (the page without a Key) where it has one.
+        Assert.Equal(ComponentDemos.All.Select(demo => demo.ComponentType).Distinct().OrderBy(type => type.FullName),
+            ControlsGalleryPage.Demos.Select(demo => demo.ComponentType).OrderBy(type => type.FullName));
+        foreach (var demo in ControlsGalleryPage.Demos)
+        {
+            Assert.True(demo.Key is null || ComponentDemos.All.All(other => other.ComponentType != demo.ComponentType || other.Key is not null),
+                $"{demo.DisplayName} should open its main demo.");
+            Assert.False(ControlsGalleryPage.Sample(demo.ComponentType) is SkUiLabel { Text: ControlsGalleryPage.NoSampleText },
+                $"{demo.DisplayName} has no sample in the controls gallery.");
+        }
+        var page = new ControlsGalleryPage();
+        Assert.Equal(ControlsGalleryPage.Demos.Count, page.RowCount);
+        var stack = (SkUiView)((SkUiScrollView)page.Content).Content!;
+        var buttons = Descendants(stack).OfType<SkUiButton>().Where(button => button.AutomationId?.StartsWith("TryIt") == true).ToList();
+        // Rows follow the flyout's category order.
+        Assert.Equal(ComponentCategoryInfo.Order.SelectMany(category => ControlsGalleryPage.Demos.Where(demo => demo.Category == category))
+            .Select(demo => "TryIt" + demo.Name), buttons.Select(button => button.AutomationId));
+    }
+
+    [Fact]
+    public void DraggerPreviewsResizeTheirPanelWhereverTheyAreShown()
+    {
+        // The resize handling lives in the preview builders, so the controls gallery's previews work like the demo pages'.
+        var down = new SkUiKeyEvent(SkUiKey.Down, SkUiKeyModifiers.None, false);
+        DraggerDemoPage.CreatePreview(out var panel, out var dragger);
+        var height = panel.HeightRequest;
+        Assert.True(((ISkUiKeyHandler)dragger).OnKeyDown(down));
+        Assert.True(panel.HeightRequest > height);
+
+        CoreDraggerDemoPage.CreateHost(out var corePanel, out var coreDragger);
+        var coreHeight = corePanel.Height;
+        Assert.True(((ISkUiKeyHandler)coreDragger).OnKeyDown(down));
+        Assert.True(corePanel.Height > coreHeight);
+    }
+
+    [Fact]
+    public void ControlsGalleryPutsSamplesBesideTheirNamesOnWidePagesAndUnderThemOnNarrowOnes()
+    {
+        // The row names' family, so they measure on Linux CI too.
+        using var _ = SkUiTestHelpers.UseBundledFont(DemoFonts.OpenSansSemibold);
+        var page = new ControlsGalleryPage();
+        Assert.Null(page.IsWide);
+        var scroll = (SkUiScrollView)page.Content;
+        var stack = (SkUiView)scroll.Content!;
+        var label = Descendants(stack).OfType<SkUiLabel>().First(label => label.Text == nameof(SkUiSwitch));
+        var sample = Descendants(stack).OfType<SkUiSwitch>().Single();
+        var tryIt = Descendants(stack).OfType<SkUiButton>().Single(button => button.AutomationId == "TryIt" + nameof(SkUiSwitch));
+        foreach (var (width, wide) in new[] { (900.0, true), (360.0, false) })
+        {
+            page.UpdateLayout(width);
+            Assert.Equal(wide, page.IsWide);
+            SkUiTestHelpers.Arrange(scroll, width, 800);
+            var labelBounds = label.Frame;
+            Assert.True(labelBounds.Width > 0 && labelBounds.Height > 0, $"name: {labelBounds}");
+            var sampleBounds = sample.Frame;
+            // Try it stays inside its card (on a 360-wide phone too).
+            Assert.True(tryIt.Frame.Right <= ((SkUiView)tryIt.Parent!).Width + 0.5, $"Try it: {tryIt.Frame} in {((SkUiView)tryIt.Parent!).Width}");
+            if (wide)
+                Assert.True(sampleBounds.Y < labelBounds.Bottom && sampleBounds.X >= labelBounds.Right, $"beside: {labelBounds} {sampleBounds}");
+            else
+                Assert.True(sampleBounds.Y >= labelBounds.Bottom, $"under: {labelBounds} {sampleBounds}");
+            // Every sample measures, lays out and draws.
+            SkUiTestHelpers.Arrange(stack, width, double.PositiveInfinity);
+            using var surface = SkiaSharp.SKSurface.Create(new SkiaSharp.SKImageInfo((int)width, 400));
+            stack.Paint(surface.Canvas);
+        }
     }
 
     [Fact]

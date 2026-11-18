@@ -20,7 +20,7 @@ public sealed class CoreShimmerBonesDemoPage : ComponentDemoPage
             value => shimmer.Effect = value, () => shimmer.Effect);
     }
 
-    private static SkUiCoreHost CreateHost(out SkUiCoreShimmer shimmer)
+    internal static SkUiCoreHost CreateHost(out SkUiCoreShimmer shimmer)
     {
         var cards = new SkUiCoreVerticalStackLayout { Spacing = 12, Padding = new Thickness(12) };
         for (var card = 0; card < 5; card++)

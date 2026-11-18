@@ -32,7 +32,7 @@ public sealed class CoreWrapLayoutDemoPage : ComponentDemoPage
         });
     }
 
-    private static SkUiCoreHost CreateHost(out SkUiCoreWrapLayout wrap)
+    internal static SkUiCoreHost CreateHost(out SkUiCoreWrapLayout wrap)
     {
         wrap = new SkUiCoreWrapLayout();
         foreach (var word in Words)

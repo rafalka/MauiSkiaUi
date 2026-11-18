@@ -154,7 +154,7 @@ public sealed class RadioButtonTemplateDemoPage : ComponentDemoPage
         }
     };
 
-    private static SkUiHorizontalStackLayout CreateSkiaGroup(out SkUiRadioButton[] radios)
+    internal static SkUiHorizontalStackLayout CreateSkiaGroup(out SkUiRadioButton[] radios)
     {
         var stack = new SkUiHorizontalStackLayout { Spacing = 8 };
         RadioButtonGroup.SetGroupName(stack, "SkiaAnimals");

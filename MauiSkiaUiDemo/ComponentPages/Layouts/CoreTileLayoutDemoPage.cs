@@ -37,7 +37,7 @@ public sealed class CoreTileLayoutDemoPage : ComponentDemoPage
         });
     }
 
-    private static SkUiCoreHost CreateHost(out SkUiCoreTileLayout tiles)
+    internal static SkUiCoreHost CreateHost(out SkUiCoreTileLayout tiles)
     {
         tiles = new SkUiCoreTileLayout().SetTileSize(96).SetColumnSpacing(4).SetRowSpacing(4).SetMaximumRows(2).SetOverflowTemplate(Overflow);
         AddPhotos(tiles, InitialPhotos);
