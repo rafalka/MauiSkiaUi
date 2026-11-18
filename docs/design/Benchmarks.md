@@ -125,6 +125,7 @@ The catalog lives in [benchmarks/Scenarios/Scenarios.cs](../../benchmarks/Scenar
 | `skel-tax-on`, `skel-tax-off` (`skel-tax-skui-*`) | What a content skeleton costs views outside it: 1,000 labels eight layouts deep change their texts beside a one-card content skeleton loading (`on`) or loaded (`off`). The first C9b version had every node walk up to its root per recording while any shimmer showed its content: headless recording +26–28 % (`on` 2.0 against `off` 1.6 ms Core, 3.2 against 2.4 ms SkUi\*); on a Galaxy S9 within run-to-run noise (+2 to +16 ms of a 90 ms first frame over three runs). With each node's place in a skeleton set from the top, `on` and `off` are the same (headless recording 1.6 / 1.6 ms Core, 2.5 / 2.5 ms SkUi\*); Galaxy S9 (2026-10-14, Release, three rounds against the walk): every phase within noise, building included |
 | `scroll-fling` `[device]` | Render-thread `AnimateScrollTo` through 400 buttons |
 | `hosted-scroll-drawn` / `-auto` / `-live` | Device only: 80 buttons in a scroll view with 20 slots, filled with drawn boxes (the reference) or `SkUiMauiContentView`s hosting a native `Entry` in `ScrollMode` Auto (snapshots while scrolling on Android and Windows) or Live (placed every frame); motion = `AnimateScrollTo` to the end. Compare `allocKB` and the motion stats with the drawn reference for what the overlays cost |
+| `text-shadow-scroll` / `-none` | Device only: the Effects stress page's text-shadow row, 400 cards (avatar, title, subtitle) with a shadow on each title (black, offset 1, 2, radius 3, 35 %) or none (the reference), scrolled at the page's speed (the list in 6 s), sampled for 4 s. GPU surfaces draw text shadows from the glyphs (1.14 B2); compare the motion stats with the reference |
 | `virtual-fling` | `SkUiVirtualScrollView` over 10,000 buttons of three heights (recycled template views): the first frame realizes only the rows near the viewport; on a device, render-thread `AnimateScrollTo` towards the end while rows are realized, measured and anchored |
 | `spinners` `[device]` | 120 activity indicators (render-thread content spin) |
 | `toggle-transitions` `[device]` | 48 switches + 48 check boxes re-toggled every 120 ms: state-change transitions always running (UI clock, one re-record per control per frame) |
@@ -205,6 +206,20 @@ What headless scenarios do not show: per-event and per-frame gains measured by t
 | hosted-scroll-live | 61.4 | 2.8 / 7.6 | 874.3 | 249.8 |
 
 The cost was in Live placement only: 6.9 KB per frame more than the drawn reference, about 340 bytes per overlay per frame, from the Android `Rect` objects each placement created (four, each with a managed peer); the default mode costs 0.2 KB per frame and no frame time. Fixed: placement keeps whole-pixel rectangles as plain integers, skips the measure and layout of an overlay whose placement did not change, and the container's layout pass no longer searches its overlays for each clip view. Frame rate and render time were not affected either way. Seen on the way: the drawn reference itself allocates about 2.7 KB per frame on the device (a render-thread scroll motion with its reports to the UI thread), which no headless scenario shows; left for a later look.
+
+### 1.14 text-shadow spike (18 November 2026)
+
+[ImplementationPlan-1.14.md](ImplementationPlan-1.14.md) B2 step 1. `text-shadow-scroll-*`: the Effects stress page's text-shadow row (400 cards, a shadow on each bold title: black, offset 1, 2, radius 3, 35 %), scrolled at the page's speed (the list in 6 s, about 67 cards per second), sampled for 4 s. A temporary switch in the library picked the path: `cpu` today's CPU raster per card (3 per frame at most), `gpu` the same raster on a GPU surface of the frame's context, `gpu16` that with 16 per frame, `glyph` the title's glyphs drawn again in its recording, blurred by a mask filter, in the shadow's color and at its offset (the label unclipped, so the halo is not cut at its frame). `-n 6`; the S9 on net10 Release (Android 10), the iPhone 8 on net11 Release (iOS 16, launched through Xcode 26.6's `mlaunch`; SDK 10 has no workloads on this machine).
+
+| Variant | S9 fps | S9 avg / max render ms | S9 allocKB | iPhone 8 fps | iPhone 8 avg / max render ms | iPhone 8 allocKB |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| none (no shadow) | 59.9 | 4.1 / 13.5 | 637 | 59.5 | 4.1 / 29.5 | 774 |
+| cpu (today) | 39.1 | 16.6 / 31.2 | 956 | 60.0 | 7.2 / 13.3 | 1,378 |
+| gpu | 56.7 | 7.7 / 29.6 | 1,203 | 60.0 | 6.0 / 9.5 | 1,378 |
+| gpu16 | 57.1 | 7.8 / 29.7 | 1,234 | 60.0 | 6.1 / 10.5 (3 samples, then the app stopped) | 1,378 |
+| glyph | 59.6 | 5.1 / 18.0 | 635 | 60.2 | 4.3 / 5.8 | 779 |
+
+Both paths pass the plan's 55 fps bar on the S9. The glyph path costs about 1 ms per frame over no shadow on the S9 and nothing measurable on the iPhone, and allocates nothing more (Skia caches the blurred glyph masks); a GPU raster still pays a blur and an offscreen surface per card as it scrolls in, with 30 ms spikes, and allocates more. Headless, the glyph shadow matches the content raster within 4 of 255 levels at radius 3 (3×) and radius 8 (1× and 3×), and within 10 at radius 3 on a 1× surface; drawing the halos with `Plus` in a layer (summing overlaps, as one blur of all glyphs does) changed nothing measurable, so plain drawing is enough. Chosen: the glyph path, for labels whose content is plain text; the rest keeps the content raster.
 
 ### 1.14 runtime-async trial (17 November 2026)
 

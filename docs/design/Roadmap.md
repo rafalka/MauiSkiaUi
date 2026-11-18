@@ -203,7 +203,7 @@ Taken up when a real app needs it, roughly in this order within each area. Items
 ### Architecture and performance
 
 - Scheme defaults resolved at paint time on the Core layer: Core controls copy `SkUiColors.Accent`, `TrackOff`, `Muted` and so on into fields when they are created, so a Core tree made before `SkUiColorScheme.Current` changes (dark mode) keeps the old colors.
-- Text shadows on mid-range Android (planned for [1.14](#1140-performance-planned)): they are cast from the glyphs and rasterized on the CPU once per item, which holds a scrolling list on the S9 at 45 fps; cast them on the GPU as outline shadows are.
+- Shadows of rich text (spans, HTML) and of label subclasses on GPU surfaces: still rasterized on the CPU once per item; plain-text labels cast theirs from the glyphs since 1.14 ([Benchmarks.md](Benchmarks.md#114-text-shadow-spike-18-november-2026)).
 - Relayout boundaries below the surface root (the root is one); raster cache of stable subtrees with a per-frame budget, for what is expensive to composite every frame (dashed strokes of complex paths: 33 fps on the S9).
 - Recording Core-only subtrees off the UI thread (the look, the color scheme and the text and image caches would have to be safe to read from it); hit-testing against render-thread transforms while animations run.
 - Overlay masks, so drawn popups can cover hosted native controls (mostly WebView, media and maps now that text fields are drawn). (Overlay bookkeeping on Android: measured and fixed in 1.14, [Benchmarks.md](Benchmarks.md#114-overlay-bookkeeping-on-android-17-november-2026).)

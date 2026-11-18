@@ -76,6 +76,8 @@ public static class Scenarios
         new HostedScroll(HostedScroll.Drawn),
         new HostedScroll(HostedScroll.Auto),
         new HostedScroll(HostedScroll.Live),
+        new TextShadowScroll(shadows: true),
+        new TextShadowScroll(shadows: false),
         new VirtualListFling(),
         new CollectionSnapFling(),
         new CollectionChanges(animated: false),
@@ -1197,6 +1199,64 @@ public sealed class ScrollFling : BenchScenario
             return animate.Invoke(scroll, [0d, scroll.ContentSize.Height, duration]) as IDisposable;
         _ = scroll.ScrollToAsync(0, scroll.ContentSize.Height, true);
         return null;
+    };
+}
+
+/// <summary>
+/// The Effects stress page's text-shadow row (1.14 B2): 400 cards whose bold title casts a shadow (black, offset 1, 2,
+/// radius 3, 35 %), scrolled at the page's speed (the whole list in 6 s, about 67 cards per second); <c>-none</c> is the
+/// same list without shadows, the reference. Device only: GPU surfaces draw text shadows from the glyphs.
+/// </summary>
+public sealed class TextShadowScroll(bool shadows) : BenchScenario
+{
+    private const int Cards = 400;
+    private static readonly Color Ink = Color.FromArgb("#1F2937");
+    private static readonly Color Caption = Color.FromArgb("#6B7280");
+    private static readonly Color[] AvatarColors = [Color.FromArgb("#0EA5E9"), Color.FromArgb("#22C55E"), Color.FromArgb("#0F766E"), Color.FromArgb("#B45309")];
+
+    public override string Name => shadows ? "text-shadow-scroll" : "text-shadow-scroll-none";
+    public override string Description =>
+        $"{Cards} cards (avatar, title, subtitle), {(shadows ? "a shadow on each title" : "no shadows (reference)")}; motion = the list scrolled at 67 cards per second";
+    public override bool DeviceOnly => true;
+    public override TimeSpan MotionDuration => TimeSpan.FromSeconds(4);
+
+    public override View Build()
+    {
+        var list = new SkUiVerticalStackLayout { Spacing = 10, Padding = new Thickness(16, 12, 16, 24) };
+        list.StartUpdating();
+        for (var index = 0; index < Cards; index++)
+        {
+            var title = new SkUiLabel { Text = $"Order {index + 1:0000}", FontSize = 16, FontAttributes = FontAttributes.Bold, TextColor = Ink };
+            if (shadows)
+                title.Shadow = new Shadow { Brush = Colors.Black, Offset = new Point(1, 2), Radius = 3, Opacity = 0.35f };
+            list.Children.Add(new SkUiBorder
+            {
+                HeightRequest = 72, Padding = new Thickness(14, 0), Background = Colors.White, Stroke = Color.FromArgb("#D1D5DB"), StrokeThickness = 1,
+                Content = new SkUiHorizontalStackLayout
+                {
+                    Spacing = 12,
+                    Children =
+                    {
+                        new SkUiBox { Color = AvatarColors[index % AvatarColors.Length], WidthRequest = 40, HeightRequest = 40, VerticalOptions = LayoutOptions.Center },
+                        new SkUiVerticalStackLayout
+                        {
+                            VerticalOptions = LayoutOptions.Center,
+                            Children = { title, new SkUiLabel { Text = "Shipped · 3 items", FontSize = 13, TextColor = Caption } }
+                        }
+                    }
+                }
+            });
+        }
+        list.EndUpdating();
+        return Scenarios.Scroll(list);
+    }
+
+    public override Func<View, IDisposable?>? Motion => root =>
+    {
+        var scroll = (SkUiScrollView)root;
+        var target = Math.Max(0, scroll.ContentSize.Height - scroll.Height);
+        var animate = typeof(SkUiScrollView).GetMethod("AnimateScrollTo", [typeof(double), typeof(double), typeof(TimeSpan)]);
+        return animate?.Invoke(scroll, [0d, target, TimeSpan.FromSeconds(6)]) as IDisposable;
     };
 }
 

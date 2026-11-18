@@ -261,6 +261,18 @@ internal sealed class SkUiCompositor : IDisposable
     /// <summary>Content shadows drawn live (their subtree was changing) since creation (diagnostics / tests).</summary>
     internal int LiveShadows { get; private set; }
 
+    /// <summary>Text shadows drawn from their glyphs (<see cref="SkUiRenderShadow.Glyphs"/>) since creation (diagnostics / tests).</summary>
+    internal int GlyphShadows { get; private set; }
+
+    /// <summary>
+    /// Whether text shadows are drawn from their glyphs on a raster canvas too (tests). By default only GPU canvases draw them:
+    /// a raster canvas would blur the glyphs on the CPU every frame, where a cached raster costs one blur per change.
+    /// </summary>
+    internal bool GlyphShadowsOnRaster { get; set; }
+
+    /// <summary>This frame draws text shadows from their glyphs (a GPU canvas, or <see cref="GlyphShadowsOnRaster"/>).</summary>
+    private bool _glyphShadows;
+
     private long _statFrames;
     private long _statTicks;
     private long _statMaxTicks;
@@ -398,6 +410,7 @@ internal sealed class SkUiCompositor : IDisposable
             _spinning = false;
             _rasterizePending = false;
             _rasterizedThisFrame = 0;
+            _glyphShadows = GlyphShadowsOnRaster || canvas.Context is not null;
             if (_root is { } root && _rootWidth > 0 && _rootHeight > 0 && pixelWidth > 0 && pixelHeight > 0)
             {
                 var save = canvas.Save();
@@ -611,6 +624,8 @@ internal sealed class SkUiCompositor : IDisposable
             return;
         if (shadow.Outline is { } outline && !ReferenceEquals(outline, incoming.Shadow?.Outline))
             outline.Dispose();
+        if (shadow.Glyphs is { } glyphs && !ReferenceEquals(glyphs, incoming.Shadow?.Glyphs))
+            glyphs.Dispose();
         if (!ReferenceEquals(shadow.Style, incoming.Shadow?.Style))
             shadow.Style.Dispose();
     }
@@ -841,6 +856,14 @@ internal sealed class SkUiCompositor : IDisposable
             SkUiShadowPainter.DrawOutline(canvas, shadow, _shadowPaint);
             return;
         }
+        if (shadow.Glyphs is { } glyphs && _glyphShadows)
+        {
+            if (node.ShadowCache is not null)
+                DisposeShadowCache(node);
+            GlyphShadows++;
+            SkUiShadowPainter.DrawGlyphs(canvas, shadow, glyphs);
+            return;
+        }
         if (node.ShadowCache is { } cache && cache.Matches(node, shadow, _scale))
         {
             if (!cache.Moving)
@@ -1046,6 +1069,7 @@ internal sealed class SkUiCompositor : IDisposable
         if (props.Shadow is { } shadow)
         {
             shadow.Outline?.Dispose();
+            shadow.Glyphs?.Dispose();
             shadow.Style.Dispose();
         }
     }

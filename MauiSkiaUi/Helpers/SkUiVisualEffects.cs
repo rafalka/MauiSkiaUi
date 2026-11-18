@@ -12,6 +12,13 @@ internal interface ISkUiShadowCaster
     /// A new path the caller owns.
     /// </summary>
     SKPath? CreateShadowOutline(float width, float height);
+
+    /// <summary>
+    /// The node's glyphs in <paramref name="style"/>'s color and blur, in local DIPs (<see cref="SkUiShadowPainter.RecordGlyphs"/>),
+    /// when everything the node draws is plain text; <c>null</c> otherwise. GPU surfaces draw it as the node's shadow instead of
+    /// rasterizing its content. A new picture the caller owns.
+    /// </summary>
+    SKPicture? CreateTextShadow(SkUiShadowStyle style, float width, float height);
 }
 
 /// <summary>
@@ -34,7 +41,7 @@ internal sealed class SkUiVisualEffects
     /// <summary>Bumped when the shadow changed inside (its brush, radius, …).</summary>
     public int ShadowVersion;
 
-    /// <summary>Bumped when the node's paint changed: its fill, and so its shadow's silhouette, may differ.</summary>
+    /// <summary>Bumped when the node's paint changed: its fill or glyphs, and so its shadow's silhouette, may differ.</summary>
     public int PaintVersion;
 
     /// <summary>
@@ -95,7 +102,9 @@ internal sealed class SkUiVisualEffects
             source = SKRect.Empty;
         else if (props.ClipPath is { } clipBounds)
             source = SKRect.Intersect(source, clipBounds.Bounds);
-        return _shadow = new SkUiRenderShadow(style, outline, source);
+        // A clip shape cuts glyphs before the blur, which a picture of blurred glyphs cannot: such text keeps the raster.
+        var glyphs = outline is null && props.ClipPath is null ? caster.CreateTextShadow(style, props.Width, props.Height) : null;
+        return _shadow = new SkUiRenderShadow(style, outline, source, glyphs);
     }
 }
 

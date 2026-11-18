@@ -57,7 +57,7 @@ The Effects stress page: **400 cards** (avatar, title, subtitle) in a scroll vie
 | rounded | `RoundRectangle 12` corners |
 | shaped border | A ticket-shaped `StrokeShape` (a path with notches) with a dashed gradient stroke |
 | card shadow | A soft `Shadow` on the card (opaque card: cast from its outline) |
-| text shadow | A `Shadow` on the title (cast from the glyphs, rasterized once per card) |
+| text shadow | A `Shadow` on the title (cast from the glyphs: rasterized once per card until 1.14; on GPU surfaces since 1.14 drawn from the glyphs, see below the table) |
 | clip | The avatar clipped to a circle (`Clip`) |
 | translucent | The card at 90 % opacity (an opacity layer) |
 | spinner | A running `ActivityIndicator` on the card |
@@ -73,7 +73,7 @@ Render time per frame while scrolling, and frames per second. The change from th
 | clip | 5.7 ms (+15 %) · 60 fps | 5.8 ms (+15 %) · 60 fps | 6.4 ms (+31 %) · 56 fps | 6.0 ms (+23 %) · 58 fps |
 | card shadow | 6.5 ms (+30 %) · 60 fps | 6.2 ms (+24 %) · 60 fps | 6.5 ms (+34 %) · 58 fps | 6.7 ms (+39 %) · 58 fps |
 | translucent | 6.5 ms (+30 %) · 60 fps | 6.3 ms (+26 %) · 60 fps | 6.9 ms (+41 %) · 59 fps | 6.8 ms (+40 %) · 59 fps |
-| text shadow | 7.1 ms (+42 %) · 60 fps | 7.3 ms (+45 %) · 60 fps | 14.3 ms (+192 %) · **44 fps** | 14.0 ms (+190 %) · **44 fps** |
+| text shadow (until 1.14) | 7.1 ms (+42 %) · 60 fps | 7.3 ms (+45 %) · 60 fps | 14.3 ms (+192 %) · **44 fps** | 14.0 ms (+190 %) · **44 fps** |
 | shaped border | 7.5 ms (+51 %) · 60 fps | 7.6 ms (+51 %) · 60 fps | 20.7 ms (+324 %) · **31 fps** | 20.3 ms (+320 %) · **33 fps** |
 | **all** | 7.7 ms (+54 %) · 60 fps | 7.6 ms (+52 %) · 60 fps | 34.0 ms (+595 %) · **27 fps** | 30.8 ms (+539 %) · **31 fps** |
 
@@ -95,9 +95,9 @@ In brackets: 21 October, before borders with the same outline shared their conte
 - **Moderate:**
   - Translucent cards (an opacity layer each) and card shadows from opaque fills cost 24–41 %. The iPhone 8 keeps 60 fps; the S9 keeps 58–59 fps. The blur work is on the GPU, and these numbers don't include GPU time.
 - **Expensive on the S9:**
-  - **Shaped borders** (a path with a dashed gradient stroke, about 20 ms per frame) and **text shadows** (14 ms per frame) take the S9 to 31–44 fps. The iPhone 8 holds 60 fps with both.
+  - **Shaped borders** (a path with a dashed gradient stroke, about 20 ms per frame) and, until 1.14, **text shadows** (14 ms per frame) take the S9 to 31–44 fps. The iPhone 8 holds 60 fps with both.
   - The dashed outline of a complex path is costly on the S9's GL backend.
-  - A text shadow is cast from the glyphs, so each card's shadow is rasterized on the CPU once, when the card first scrolls into view. That is about 50 per second in this scroll, capped at 3 per frame. The iPhone's faster CPU absorbs it; the S9's doesn't.
+  - A text shadow is cast from the glyphs, so until 1.14 each card's shadow was rasterized on the CPU once, when the card first scrolled into view. That is about 50 per second in this scroll, capped at 3 per frame. The iPhone's faster CPU absorbed it; the S9's didn't. Since 1.14 GPU surfaces draw a plain-text label's shadow from its glyphs, whose blurred masks Skia caches: the same list (the bench scenario `text-shadow-scroll`, SkUi\*, 18 November 2026) scrolls at 60 fps on the S9 (43 before, 4.6 ms per frame instead of 15.5) and takes 4.4 ms per frame on the iPhone 8 instead of 7.2, close to the list without shadows ([Benchmarks.md](design/Benchmarks.md#114-text-shadow-spike-18-november-2026)). Rich text, label subclasses (buttons) and software surfaces keep the raster.
 - **All effects together** keep 60 fps on the iPhone 8 (7.7 ms per frame; 52–53 fps and 10 ms on 21 October) but not on the S9 (27–31 fps; 20 fps on 21 October). What made them cheaper since was not investigated: each effect alone costs what it did.
 - **Animated content keeps the surface drawing.** With spinners, the surface composites about 60 frames per second even while nothing scrolls, where a static list composites none. That is little work per frame, but it never stops, which costs battery. With every effect on, even the idle S9 only manages about 40 fps.
 - **First frames:**
@@ -109,7 +109,7 @@ In brackets: 21 October, before borders with the same outline shared their conte
 ### Recommendations for long lists
 
 - Prefer **opaque fills** for shadowed cards: an opaque card, border, button, box or shape casts its shadow from its outline, which is cheap. Shadows on text, images or translucent shapes are rasterized from content.
-- Avoid **text shadows** on many list items on mid-range Android devices; put the shadow on an opaque card behind the text instead.
+- **Text shadows** on many list items: put them on plain-text labels (an `SkUiLabel` or `SkUiCoreLabel` without background or chrome), which GPU surfaces draw from the glyphs. Shadows on rich text or on buttons' text are still rasterized once per item, which mid-range Android devices notice in long lists.
 - Avoid **dashed strokes on complex paths** on many list items; a rounded rectangle, solid stroke or simpler path is much cheaper.
 - Use **running spinners** only while something loads: they keep the surface drawing every frame.
 - **Defer expensive panes** (other tabs, hidden or collapsed sections): `SkUiContentView ContentLoading="WhenShown"` with a `ContentTemplate` creates a pane only when it is first shown (optionally after a delay, so tabs passed through are not created) ([SkUiContentView.md](controls/SkUiContentView.md#loading-content-when-shown)).

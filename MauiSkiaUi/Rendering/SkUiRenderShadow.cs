@@ -99,10 +99,11 @@ internal sealed class SkUiShadowStyle : IDisposable
 /// A node's drop shadow as the compositor draws it, in local DIPs: the <see cref="Style"/>, and what casts it, either the
 /// <see cref="Outline"/> of an opaque fill (blurred directly, cheap and cached by Skia) or, without one, whatever the node
 /// and its children draw inside <see cref="Source"/> (their alpha, rasterized once by the compositor and reused until the
-/// subtree changes). Drawn before the node and outside its own clips; it changes neither layout nor hit-testing.
+/// subtree changes). A node that draws nothing but plain text also gives its <see cref="Glyphs"/>, which GPU surfaces draw
+/// instead of the raster. Drawn before the node and outside its own clips; it changes neither layout nor hit-testing.
 /// Immutable once committed.
 /// </summary>
-internal sealed class SkUiRenderShadow(SkUiShadowStyle style, SKPath? outline, SKRect source)
+internal sealed class SkUiRenderShadow(SkUiShadowStyle style, SKPath? outline, SKRect source, SKPicture? glyphs = null)
 {
     /// <inheritdoc cref="SkUiShadowStyle" />
     public SkUiShadowStyle Style { get; } = style;
@@ -112,6 +113,13 @@ internal sealed class SkUiRenderShadow(SkUiShadowStyle style, SKPath? outline, S
 
     /// <summary>Where the node draws (its visual bounds); the content shadow is taken from this area.</summary>
     public SKRect Source { get; } = source;
+
+    /// <summary>
+    /// The node's glyphs in the shadow's color and blur, without the offset (<see cref="SkUiShadowPainter.RecordGlyphs"/>), when
+    /// the node draws nothing else; <c>null</c> otherwise. GPU surfaces draw it instead of rasterizing the content: Skia
+    /// caches blurred glyph masks, so a list of text shadows scrolling in costs no blur per item (1.14 B2).
+    /// </summary>
+    public SKPicture? Glyphs { get; } = glyphs;
 
     /// <summary>The area the shadow casts from before the offset: the outline's or the source's bounds, grown by the blur.</summary>
     public SKRect CastArea
@@ -208,6 +216,34 @@ internal static class SkUiShadowPainter
         canvas.Translate(-area.Left, -area.Top);
         DrawFromContent(canvas, shadow, paint, state, drawBody, applyOffset: false);
         return surface.Snapshot();
+    }
+
+    /// <summary>
+    /// Records the glyphs <paramref name="drawText"/> draws, with the paint it is given, in <paramref name="style"/>'s color or
+    /// gradient and blur (no offset), for a node of <paramref name="width"/> × <paramref name="height"/> DIPs: a shadow's
+    /// <see cref="SkUiRenderShadow.Glyphs"/>. A new picture the caller owns.
+    /// </summary>
+    public static SKPicture RecordGlyphs<TState>(SkUiShadowStyle style, float width, float height, TState state, Action<SKCanvas, SKPaint, TState> drawText)
+    {
+        var spread = style.Spread;
+        using var recorder = new SKPictureRecorder();
+        var canvas = recorder.BeginRecording(new SKRect(-spread, -spread, width + spread, height + spread));
+        using var scratch = SkUiScratchPaint.Rent();
+        var paint = scratch.Paint;
+        paint.IsAntialias = true;
+        style.Apply(paint);
+        paint.MaskFilter = style.Blur; // the picture keeps its own reference: the style may be disposed first
+        drawText(canvas, paint, state);
+        return recorder.EndRecording();
+    }
+
+    /// <summary>Draws a shadow's <see cref="SkUiRenderShadow.Glyphs"/> at its offset.</summary>
+    public static void DrawGlyphs(SKCanvas canvas, SkUiRenderShadow shadow, SKPicture glyphs)
+    {
+        var save = canvas.Save();
+        canvas.Translate(shadow.Style.OffsetX, shadow.Style.OffsetY);
+        canvas.DrawPicture(glyphs);
+        canvas.RestoreToCount(save);
     }
 
     /// <summary>Draws a raster from <see cref="Rasterize"/> where the shadow lands.</summary>

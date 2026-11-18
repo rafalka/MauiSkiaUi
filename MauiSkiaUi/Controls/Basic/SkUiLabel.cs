@@ -872,9 +872,21 @@ public class SkUiLabel : SkUiView, ISkUiFontElement, ISkUiBorderElement
             return;
         }
         paint.Color = ToSkColor(_textColor);
-        _layout.Draw(canvas, _displayText, TextStyle, inset, Width, Height,
-            _horizontalTextAlignment, _verticalTextAlignment, paint, _textDecorations);
+        PaintPlainText(canvas, paint);
     }
+
+    private void PaintPlainText(SKCanvas canvas, SKPaint paint) =>
+        _layout.Draw(canvas, _displayText, TextStyle, TextInset, Width, Height, _horizontalTextAlignment, _verticalTextAlignment, paint, _textDecorations);
+
+    /// <summary>
+    /// A plain <see cref="SkUiLabel"/> (not a subclass, which may draw more) with plain text, no background, chrome or
+    /// background painter casts its shadow from its glyphs.
+    /// </summary>
+    internal override SKPicture? CreateTextShadow(Rendering.SkUiShadowStyle style, float width, float height) =>
+        GetType() == typeof(SkUiLabel) && !UsesRichText && HasText && PaintBackground is null && !HasChrome
+        && ResolveBackgroundFill() is not { IsVisible: true }
+            ? Rendering.SkUiShadowPainter.RecordGlyphs(style, width, height, this, static (canvas, paint, label) => label.PaintPlainText(canvas, paint))
+            : null;
 
     /// <inheritdoc />
     protected override void OnPopulateSemantics(SkUiSemanticsInfo info)
