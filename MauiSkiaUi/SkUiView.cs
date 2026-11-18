@@ -1343,6 +1343,9 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
                 RenderState.ActiveAnimations?.Remove(animation);
                 if (!animation.SupersededByUi && ((SkUiRenderTween)animation).LastValues is { } values)
                     ApplyAnimatedValues(property, (SkUiRenderTween)animation, values);
+                // The semantics tree was built from the UI values (the start ones while it ran), and the acknowledged end
+                // commits no frame that would rebuild it (issue #103).
+                SkUiSemantics.Invalidate(this);
                 // After the final value: native views below are placed there before they show again.
                 EndAnimationOverNativeViews(nativeHosts);
                 completion.TrySetResult(completed);

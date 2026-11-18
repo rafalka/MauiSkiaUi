@@ -87,7 +87,7 @@ Tests: `PickerWheelSemanticsTests` (one element per wheel, names, hints, values,
 
 `SkUiSemanticsOwner` keeps one surface's tree for its platform bridge (`SkUiView.SemanticsOwner` on the root). It is created only when the platform asks (Android: an accessibility service queries; Apple: a client reads `accessibilityElements`; Windows: a UIA client creates the peer), so surfaces without assistive technology pay nothing.
 
-- **Invalidation:** every committed frame (`SkUiFrameRenderer.PresentFrame`), every scroll offset change (`SkUiScrollController.UpdateState`, also render-thread motion reported back), MAUI semantic property changes (`SkUiView.OnPropertyChanged`), Core semantic setters, focus changes. The tree is rebuilt lazily on the next read.
+- **Invalidation:** every committed frame (`SkUiFrameRenderer.PresentFrame`), every scroll offset change (`SkUiScrollController.UpdateState`, also render-thread motion reported back), MAUI semantic property changes (`SkUiView.OnPropertyChanged`), Core semantic setters, focus changes, the end of a render-thread `AnimateAsync` (the tree built while it ran saw the start values, and its acknowledged end commits no frame). The tree is rebuilt lazily on the next read.
 - **Reports:** while the bridge listens, changes are coalesced over 100 ms (`ReportDelay`) and diffed against the last reported tree (`Diff`: structure changed, ids whose content changed). Headless, without a dispatcher, `Flush` reports on demand.
 
 ## Cost and switching it off

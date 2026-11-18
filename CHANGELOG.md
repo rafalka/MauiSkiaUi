@@ -25,6 +25,12 @@ Publishing (the NuGet publish workflow, [docs/Releasing.md](docs/Releasing.md)) 
 
 - **Fewer allocations (1.14, NFR-2):** pointer events no longer copy the gesture arena per event (a drag allocated an array per move), the render, image, font and trace gates are `System.Threading.Lock`, text measuring looks a font's glyph coverage up once per string instead of once per character, a memory-cache hit of an image allocates no task and no load context, a frame that changes nothing or only moves nodes allocates nothing (render batches and updates are reused), and looks and painters draw with reused paints instead of a new `SKPaint` per call; typing in a drawn entry or editor allocates a third less per keystroke (the edited paragraph's line objects and caret positions are reused), and on Android a hosted native view that follows a scroll live (`ScrollMode` Live) no longer allocates when it is placed each frame. On GPU surfaces (Android, iOS, Mac Catalyst) a label that draws only plain text casts its shadow from its glyphs, which Skia caches, instead of a CPU raster per label: a list with a text shadow per card scrolls at 60 fps on the Galaxy S9 instead of 43 (software surfaces and Windows keep the raster; the two look the same within a few levels). Both .NET lines compile the source as C# 14 (`LangVersion`).
 
+## 1.13.1
+
+### Fixes
+
+- A view that appears with a render-thread animation (`AnimateAsync` on `SkUiView` or `SkUiCoreNode`, e.g. a fade-in from opacity 0) no longer stays missing from the accessibility tree after the animation ends: the tree built while it ran (from the start values) is rebuilt when it ends, though the end commits no frame (issue #103).
+
 ## 1.13.0
 
 ### New features

@@ -381,6 +381,9 @@ public partial class SkUiCoreNode : ISkUiCoreNode, INotifyPropertyChanged, ISkUi
                             break;
                     }
                 }
+                // The semantics tree was built from the start values while it ran; the acknowledged end commits no frame
+                // that would rebuild it (issue #103).
+                SkUiSemantics.Invalidate(this);
                 completion.TrySetResult(completed);
             }
         };
