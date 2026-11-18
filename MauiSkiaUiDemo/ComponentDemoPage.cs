@@ -19,9 +19,15 @@ public abstract class ComponentDemoPage : ContentPage
     private readonly Grid _comparisons = new() { ColumnSpacing = 16, RowSpacing = 12 };
     // Control-specific editors (added by the derived page) come first; the common ones the base page adds for every
     // control (HwAccelerated, sizes, opacity, ...) follow under their own heading.
-    private readonly SkUiVerticalStackLayout _specificEditors = new() { Spacing = 10 };
-    private readonly SkUiVerticalStackLayout _commonEditors = new() { Spacing = 10 };
+    // Spaced on both sides of the line between two editors.
+    private readonly SkUiVerticalStackLayout _specificEditors = new() { Spacing = 7 };
+    private readonly SkUiVerticalStackLayout _commonEditors = new() { Spacing = 7 };
     private readonly SkUiVerticalStackLayout _editors = new() { Spacing = 16, Padding = new Thickness(0, 8, 0, 24) };
+    // A thicker line than the one between editors, above the common editors' heading once the page has editors of its own.
+    private readonly SkUiBox _sectionSeparator = new()
+    {
+        HeightRequest = 2, Color = DemoColors.Caption, Opacity = 0.5, InputTransparent = true, IsVisible = false, Margin = new Thickness(0, 8, 0, 0)
+    };
     private bool _addingCommonEditors;
     private readonly List<Action> _resets = [];
     private readonly List<(string Name, Func<bool> Check)> _checks = [];
@@ -120,7 +126,7 @@ public abstract class ComponentDemoPage : ContentPage
         _previewRow.SizeChanged += OnPreviewRowChanged;
         var root = new Grid
         {
-            Padding = new Thickness(12, 12, 12, 0), RowDefinitions = [_previewRow, new(GridLength.Auto), editorsRow],
+            Padding = new Thickness(EditorsPadding / 2, 12, EditorsPadding / 2, 0), RowDefinitions = [_previewRow, new(GridLength.Auto), editorsRow],
             SafeAreaEdges = new SafeAreaEdges(SafeAreaRegions.Container, SafeAreaRegions.Container, SafeAreaRegions.Container, SafeAreaRegions.None)
         };
         root.Add(_comparisons);
@@ -137,6 +143,7 @@ public abstract class ComponentDemoPage : ContentPage
         SizeChanged += (_, _) =>
         {
             UpdateComparisonLayout(Width);
+            UpdateEditorLayout(Width - EditorsPadding);
             // After this layout pass: a size changed inside it does not reach the drawn preview host.
             if (!_areaFitted)
                 Dispatcher.Dispatch(FitAreaToPage);
@@ -147,10 +154,10 @@ public abstract class ComponentDemoPage : ContentPage
         SyncFrom(skia);
         if (native is not null) SyncFrom(native, native: true);
         _editors.Children.Add(_specificEditors);
+        _editors.Children.Add(_sectionSeparator);
         _editors.Children.Add(new SkUiLabel
         {
-            Text = "Common properties", TextColor = DemoColors.Caption, FontSize = 13, FontFamily = DemoFonts.OpenSansSemibold,
-            Margin = new Thickness(0, 8, 0, 0)
+            Text = "Common properties", TextColor = DemoColors.Caption, FontSize = 13, FontFamily = DemoFonts.OpenSansSemibold
         });
         _editors.Children.Add(_commonEditors);
         _addingCommonEditors = true;
@@ -208,6 +215,8 @@ public abstract class ComponentDemoPage : ContentPage
     private const double StatusHeight = 32;
     /// <summary>A panel's heading and status rows: a panel is this much taller than its preview area.</summary>
     private const double PanelChrome = HeadingHeight + StatusHeight;
+    /// <summary>The page's left and right padding together: the editors area is this much narrower than the page.</summary>
+    private const double EditorsPadding = 24;
     /// <summary>Height of the splitter below the previews (also their spacing to the editors).</summary>
     private const double SplitterHeight = 24;
 
@@ -411,13 +420,98 @@ public abstract class ComponentDemoPage : ContentPage
     protected void AddEditor(string title, View editor, bool property = true)
     {
         var editors = _addingCommonEditors ? _commonEditors : _specificEditors;
+        if (!_addingCommonEditors)
+            _sectionSeparator.IsVisible = true;
         var view = editor as ISkUiView ?? new SkUiMauiContentView { Content = editor };
         var header = new SkUiHorizontalStackLayout { Spacing = 6, HorizontalOptions = LayoutOptions.Start, Children = { Caption(title) } };
         var help = EditorHelp.Shared.Find(GetType(), _documentedTypes, title, property);
         if (help is not null)
             header.Children.Add(_help.CreateButton(header, title, help));
         EditorDescriptions.Add((title, property, help));
-        editors.Children.Add(new SkUiVerticalStackLayout { Spacing = 2, Children = { header, view } });
+        var row = new EditorRow(header, view);
+        _editorRows.Add(row);
+        row.Apply(row.HeaderWidth <= _labelWidth ? _labelWidth : 0);
+        // A line between editors (not above a section's first).
+        if (editors.Children.Count > 0)
+            editors.Children.Add(new SkUiBox { HeightRequest = 1, Color = DemoColors.Border, InputTransparent = true });
+        editors.Children.Add(row.Grid);
+    }
+
+    /// <summary>Narrowest editors area that puts the titles beside their editors (narrower areas put them above).</summary>
+    internal const double InlineEditorsMinWidth = 540;
+    /// <summary>Widest the titles' column gets, as a share of the editors area; a longer title stays above its editor.</summary>
+    private const double MaxLabelShare = 0.4;
+    /// <summary>Widest the titles' column gets.</summary>
+    private const double MaxLabelWidth = 260;
+
+    private readonly List<EditorRow> _editorRows = [];
+    /// <summary>Width of the titles' column beside the editors; 0 puts every title above its editor.</summary>
+    private double _labelWidth;
+
+    /// <summary>
+    /// Puts the editors' titles in one column beside them when the editors area is <paramref name="width"/> wide enough (tablets,
+    /// desktops, phones in landscape), above them otherwise. The column is as wide as the longest title that fits
+    /// <see cref="MaxLabelShare"/> of the area, so the editors line up; a longer title stays above its editor.
+    /// </summary>
+    internal void UpdateEditorLayout(double width)
+    {
+        var labelWidth = 0d;
+        if (width >= InlineEditorsMinWidth)
+        {
+            var limit = Math.Min(MaxLabelWidth, width * MaxLabelShare);
+            foreach (var row in _editorRows)
+                if (row.HeaderWidth <= limit)
+                    labelWidth = Math.Max(labelWidth, row.HeaderWidth);
+        }
+        _labelWidth = Math.Ceiling(labelWidth);
+        foreach (var row in _editorRows)
+            row.Apply(row.HeaderWidth <= _labelWidth ? _labelWidth : 0);
+    }
+
+    /// <summary>An editor and its title: side by side in a titles' column of a given width, or the title above the editor.</summary>
+    private sealed class EditorRow
+    {
+        /// <summary>Space between the titles' column and the editors.</summary>
+        private const double ColumnSpacing = 12;
+        /// <summary>Editors taller than this (a multi-line text, a layout) have their title at the top instead of centered.</summary>
+        private const double TallEditorHeight = 64;
+
+        private readonly SkUiLayout _header;
+        private readonly View _editor;
+        // -1: not applied yet; 0: title above the editor.
+        private double _labelWidth = -1;
+
+        public EditorRow(SkUiLayout header, ISkUiView editor)
+        {
+            _header = header;
+            _editor = (View)editor;
+            Grid = new SkUiGrid { ColumnSpacing = ColumnSpacing, RowSpacing = 2, Children = { header, editor } };
+            _editor.SizeChanged += (_, _) => UpdateHeaderAlignment();
+        }
+
+        public SkUiGrid Grid { get; }
+
+        /// <summary>The title's natural width (its caption and (?) button).</summary>
+        public double HeaderWidth => ((IView)_header).Measure(double.PositiveInfinity, double.PositiveInfinity).Width;
+
+        /// <param name="labelWidth">The titles' column; 0 puts the title above the editor.</param>
+        public void Apply(double labelWidth)
+        {
+            // Exact: the column width the page computed, compared to skip re-applying the same layout.
+            if (labelWidth == _labelWidth)
+                return;
+            _labelWidth = labelWidth;
+            var inline = labelWidth > 0;
+            Grid.ColumnDefinitions = inline ? [new(labelWidth), new(GridLength.Star)] : [new(GridLength.Star)];
+            Grid.RowDefinitions = inline ? [new(GridLength.Auto)] : [new(GridLength.Auto), new(GridLength.Auto)];
+            Microsoft.Maui.Controls.Grid.SetColumn(_editor, inline ? 1 : 0);
+            Microsoft.Maui.Controls.Grid.SetRow(_editor, inline ? 0 : 1);
+            UpdateHeaderAlignment();
+        }
+
+        // Beside a one-line editor the title is centered on it; beside a tall one it stays at the top.
+        private void UpdateHeaderAlignment() =>
+            _header.VerticalOptions = _labelWidth > 0 && _editor.Height <= TallEditorHeight ? LayoutOptions.Center : LayoutOptions.Start;
     }
 
     /// <summary>
