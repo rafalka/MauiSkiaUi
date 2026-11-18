@@ -297,7 +297,9 @@ public class SkUiCoreTable : SkUiCoreGrid
 
     private void PaintTableChrome(SKCanvas canvas)
     {
-        using var paint = new SKPaint { IsAntialias = true, Style = SKPaintStyle.Fill };
+        using var scratch = SkUiScratchPaint.Rent();
+        var paint = scratch.Paint;
+        paint.IsAntialias = true;
 
         if (_trackBackgroundOrder == SkUiCoreTableTrackBackgroundOrder.RowsOverColumns)
         {
@@ -369,7 +371,9 @@ public class SkUiCoreTable : SkUiCoreGrid
     private void PaintCellBackgrounds(SKCanvas canvas)
     {
         if (_cellBackgrounds.Count == 0) return;
-        using var paint = new SKPaint { IsAntialias = true, Style = SKPaintStyle.Fill };
+        using var scratch = SkUiScratchPaint.Rent();
+        var paint = scratch.Paint;
+        paint.IsAntialias = true;
         foreach (var ((row, column), entry) in _cellBackgrounds)
         {
             paint.Color = ToSkColor(entry.Color);

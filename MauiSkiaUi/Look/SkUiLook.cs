@@ -990,11 +990,14 @@ public class SkUiLook
         var inset = 0f;
         if (paint.Style == SkUiRefreshStyle.Overlay)
         {
-            using var fill = new SKPaint { IsAntialias = true, Color = SkUiToggleDrawing.ToSkColor(SkUiColors.DefaultBackground) };
-            canvas.DrawCircle(bounds.MidX, bounds.MidY, Math.Min(bounds.Width, bounds.Height) / 2, fill);
+            using var fill = SkUiScratchPaint.Rent(SkUiToggleDrawing.ToSkColor(SkUiColors.DefaultBackground));
+            canvas.DrawCircle(bounds.MidX, bounds.MidY, Math.Min(bounds.Width, bounds.Height) / 2, fill.Paint);
             inset = Math.Min(bounds.Width, bounds.Height) / 4;
         }
-        using var arc = new SKPaint { Style = SKPaintStyle.Stroke, StrokeCap = SKStrokeCap.Round, IsAntialias = true, Color = paint.Color };
+        using var arcScratch = SkUiScratchPaint.Rent(paint.Color);
+        var arc = arcScratch.Paint;
+        arc.Style = SKPaintStyle.Stroke;
+        arc.StrokeCap = SKStrokeCap.Round;
         canvas.Save();
         canvas.Translate(bounds.Left + inset, bounds.Top + inset);
         DrawActivityIndicator(canvas, bounds.Width - 2 * inset, bounds.Height - 2 * inset, 0, arc);
@@ -1226,7 +1229,8 @@ public class SkUiLook
     {
         const float arm = 3.5f;
         var radius = token.Bounds.Height / 2;
-        using var paint = new SKPaint { IsAntialias = true, Color = token.Fill };
+        using var scratch = SkUiScratchPaint.Rent(token.Fill);
+        var paint = scratch.Paint;
         if (token.IsMore)
         {
             paint.Style = SKPaintStyle.Stroke;
@@ -1278,7 +1282,8 @@ public class SkUiLook
         const float arm = 3.5f;
         var center = new SKPoint(button.Bounds.MidX, button.Bounds.MidY);
         var alpha = button.IsEnabled ? (button.IsPressed ? 0.75f : 1f) : 0.5f;
-        using var paint = new SKPaint { IsAntialias = true, Color = button.Color.WithAlpha((byte)(button.Color.Alpha * alpha)) };
+        using var scratch = SkUiScratchPaint.Rent(button.Color.WithAlpha((byte)(button.Color.Alpha * alpha)));
+        var paint = scratch.Paint;
         canvas.DrawCircle(center, radius, paint);
         paint.Color = button.Background;
         paint.Style = SKPaintStyle.Stroke;
@@ -1313,7 +1318,8 @@ public class SkUiLook
         const float arm = 5;
         var center = new SKPoint(button.Bounds.MidX, button.Bounds.MidY);
         var alpha = button.IsEnabled ? (button.IsPressed ? 0.6f : 1f) : 0.5f;
-        using var paint = new SKPaint { IsAntialias = true, Color = button.Background.WithAlpha((byte)(button.Background.Alpha * alpha)) };
+        using var scratch = SkUiScratchPaint.Rent(button.Background.WithAlpha((byte)(button.Background.Alpha * alpha)));
+        var paint = scratch.Paint;
         canvas.DrawCircle(center, radius, paint);
         paint.Color = button.Color.WithAlpha((byte)(button.Color.Alpha * alpha));
         paint.Style = SKPaintStyle.Stroke;
@@ -1448,7 +1454,8 @@ public class SkUiLook
     protected virtual void DrawTextSelectionHandleCore(SKCanvas canvas, SkUiTextSelectionHandlePaint handle)
     {
         var edge = handle.Edge;
-        using var paint = new SKPaint { IsAntialias = true, Color = handle.Color };
+        using var scratch = SkUiScratchPaint.Rent(handle.Color);
+        var paint = scratch.Paint;
         canvas.DrawRect(new SKRect(edge.MidX - 1, edge.Top, edge.MidX + 1, edge.Bottom), paint);
         const float knob = 4.5f;
         canvas.DrawCircle(edge.MidX, handle.IsStart ? edge.Top - knob + 1 : edge.Bottom + knob - 1, knob, paint);
@@ -1500,7 +1507,8 @@ public class SkUiLook
         var bounds = GetTextInsertionHandleBounds(handle.Caret);
         var radius = bounds.Width / 2;
         var center = new SKPoint(bounds.MidX, bounds.Bottom - radius);
-        using var paint = new SKPaint { IsAntialias = true, Color = handle.Color };
+        using var scratch = SkUiScratchPaint.Rent(handle.Color);
+        var paint = scratch.Paint;
         canvas.DrawCircle(center, radius, paint);
         // The point: from the caret down to where its lines touch the circle (45° either side, the circle being √2 radii below).
         var tangent = radius / MathF.Sqrt(2);
@@ -1584,7 +1592,9 @@ public class SkUiLook
         if (decrement.IsEmpty && increment.IsEmpty)
             return;
         var enabled = buttons.IsEnabled;
-        using var paint = new SKPaint { IsAntialias = true };
+        using var scratch = SkUiScratchPaint.Rent();
+        var paint = scratch.Paint;
+        paint.IsAntialias = true;
         void Press(SKRect button, float amount)
         {
             if (amount <= 0 || button.Width <= 4 || button.Height <= 4)
@@ -1703,11 +1713,12 @@ public class SkUiLook
     protected virtual void DrawTextFieldPasswordRevealButtonCore(SKCanvas canvas, SkUiPasswordRevealButtonPaint button)
     {
         var alpha = button.IsEnabled ? (button.IsPressed ? 0.6f : 1f) : 0.5f;
-        using var paint = new SKPaint
-        {
-            IsAntialias = true, Style = SKPaintStyle.Stroke, StrokeWidth = 1.5f, StrokeCap = SKStrokeCap.Round, StrokeJoin = SKStrokeJoin.Round,
-            Color = button.Color.WithAlpha((byte)(button.Color.Alpha * alpha))
-        };
+        using var scratch = SkUiScratchPaint.Rent(button.Color.WithAlpha((byte)(button.Color.Alpha * alpha)));
+        var paint = scratch.Paint;
+        paint.Style = SKPaintStyle.Stroke;
+        paint.StrokeWidth = 1.5f;
+        paint.StrokeCap = SKStrokeCap.Round;
+        paint.StrokeJoin = SKStrokeJoin.Round;
         DrawPasswordRevealGlyph(canvas, new SKPoint(button.Bounds.MidX, button.Bounds.MidY), button.IsRevealed, paint);
     }
 
@@ -1768,7 +1779,9 @@ public class SkUiLook
         var bounds = field.Bounds;
         if (bounds.Width <= 0 || bounds.Height <= 0)
             return;
-        using var paint = new SKPaint { IsAntialias = true };
+        using var scratch = SkUiScratchPaint.Rent();
+        var paint = scratch.Paint;
+        paint.IsAntialias = true;
         if (field.Style == SkUiTextFieldStyle.Default)
             DrawSearchFieldBackground(canvas, field, paint);
         // The magnifying glass: a ring and a handle to the bottom right (left in right-to-left layouts).
@@ -1878,7 +1891,9 @@ public class SkUiLook
         var borderWidth = Math.Clamp(stepper.BorderWidth, 0, Math.Min(bounds.Width, bounds.Height) / 2);
         var bordered = borderWidth > 0 && stepper.BorderColor.Alpha > 0;
         var enabled = stepper.IsEnabled;
-        using var paint = new SKPaint { IsAntialias = true };
+        using var scratch = SkUiScratchPaint.Rent();
+        var paint = scratch.Paint;
+        paint.IsAntialias = true;
         paint.Color = stepper.Border.WithAlpha((byte)(stepper.Border.Alpha * (enabled ? 0.18f : 0.1f)));
         canvas.DrawRoundRect(bounds, radius, radius, paint);
         // Pressed buttons darken (clipped to the rounded shape).
@@ -2057,7 +2072,9 @@ public class SkUiLook
         var radius = Math.Min(bounds.Width, bounds.Height) / 2;
         if (radius <= 0)
             return;
-        using var fill = new SKPaint { IsAntialias = true };
+        using var scratch = SkUiScratchPaint.Rent();
+        var fill = scratch.Paint;
+        fill.IsAntialias = true;
         if (paint.RingWidth > 0 && paint.Ring.Alpha > 0)
         {
             fill.Color = paint.Ring;

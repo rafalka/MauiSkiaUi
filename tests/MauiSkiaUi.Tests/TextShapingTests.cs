@@ -30,6 +30,54 @@ public class TextShapingTests
         return SkUiShaping.Shape(text, Primary(), 16, direction, face => fonts.TryGetValue(face, out var f) ? f : fonts[face] = new SKFont(face, 16) { LinearMetrics = true });
     }
 
+    /// <summary>The plain path's rule before 1.14 (A5), written out on its own: every character in the simple ranges and in the font.</summary>
+    private static bool WasPlain(string text, SKFont font)
+    {
+        foreach (var c in text)
+        {
+            var simple = c is >= ' ' and <= '~' or >= '\u00A0' and <= '\u017F' or >= '\u2010' and <= '\u2027' or >= '\u2030' and <= '\u205E'
+                or >= '\u20A0' and <= '\u20C0';
+            if (!simple || font.GetGlyph(c) == 0)
+                return false;
+        }
+        return true;
+    }
+
+    [Theory]
+    [InlineData("\u001F")]
+    [InlineData(" ")]
+    [InlineData("~")]
+    [InlineData("\u007F")]
+    [InlineData("\u009F")]
+    [InlineData("\u00A0")]
+    [InlineData("\u017F")]
+    [InlineData("\u0180")]
+    [InlineData("\u200F")]
+    [InlineData("\u2010")]
+    [InlineData("\u2027")]
+    [InlineData("\u2028")]
+    [InlineData("\u202F")]
+    [InlineData("\u2030")]
+    [InlineData("\u205E")]
+    [InlineData("\u205F")]
+    [InlineData("\u209F")]
+    [InlineData("\u20A0")]
+    [InlineData("\u20AC")]
+    [InlineData("\u20C0")]
+    [InlineData("\u20C1")]
+    [InlineData("\uD83D\uDE00")] // a surrogate pair
+    [InlineData("")]
+    public void ThePlainPathTakesTheSameTextAsBefore(string border)
+    {
+        using var font = new SKFont(Primary(), 16);
+        foreach (var text in new[] { border, "Ab" + border, border + "cd", "Ab" + border + "cd" + new string('x', 40) })
+        {
+            var paragraph = SkUiShaping.TryShapePlain(text, font, SkUiTextDirection.LeftToRight);
+            Assert.Equal(WasPlain(text, font), paragraph is not null);
+            Assert.Null(SkUiShaping.TryShapePlain(text, font, SkUiTextDirection.RightToLeft));
+        }
+    }
+
     [Fact]
     public void FallbackGlyphsExtendTheLineButNotByTheirFontsLeading()
     {

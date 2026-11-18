@@ -36,6 +36,15 @@
     <ApplicationVersion>1</ApplicationVersion>
   </PropertyGroup>
 
+  <PropertyGroup>
+    <!--
+      One language for both lines: without it net11 targets compile as C# 15 and net10 targets as C# 14 from the same source, so
+      C# 15 syntax could build on net11 and break the net10 build (which SDK 10 runs by itself). C# 15 adds nothing that saves
+      allocations. Raise it when net10 is dropped.
+    -->
+    <LangVersion>14</LangVersion>
+  </PropertyGroup>
+
   <!--
     Target frameworks, used by every project instead of its own list:
       SkUiLibraryTfms   the packages: netX.0 (headless tests) plus the platform TFMs

@@ -160,6 +160,8 @@ public abstract class SkUiPolyShape : SkUiShape
 
     /// <summary>Sets the vertices (same as the property setter).</summary>
     public SkUiPolyShape SetPoints(params Point[] value) { Points = [.. value]; return this; }
+    /// <summary>Sets the vertices (same as the property setter), without a params array.</summary>
+    public SkUiPolyShape SetPoints(params ReadOnlySpan<Point> value) { Points = [.. value]; return this; }
     /// <summary>Sets the fill rule (same as the property setter).</summary>
     public SkUiPolyShape SetFillRule(FillRule value) { FillRule = value; return this; }
 

@@ -325,6 +325,12 @@ public class SkUiImage : SkUiView
         Transformations = new ObservableCollection<ISkUiImageTransformation>(transformations);
         return this;
     }
+    /// <summary>Replaces the transformations with <paramref name="transformations"/> (one reload), without a params array.</summary>
+    public SkUiImage SetTransformations(params ReadOnlySpan<ISkUiImageTransformation> transformations)
+    {
+        Transformations = new ObservableCollection<ISkUiImageTransformation>(transformations.ToArray());
+        return this;
+    }
     /// <summary>Sets <see cref="CacheType"/> (same as the property setter).</summary>
     public SkUiImage SetCacheType(SkUiImageCacheType value) { CacheType = value; return this; }
     /// <summary>Sets <see cref="FadeAnimationEnabled"/> and, when given, <see cref="FadeAnimationDuration"/> (milliseconds).</summary>

@@ -114,6 +114,7 @@ public static class BenchReport
         ("motionAvgUiMs", s => s.MotionAvgUiMs),
         ("motionMaxUiMs", s => s.MotionMaxUiMs),
         ("allocKB", s => s.AllocatedBytes / 1024.0),
+        ("heapKB", s => s.HeapBytes / 1024.0),
     ];
 
     public static double? Median(IEnumerable<double?> values)

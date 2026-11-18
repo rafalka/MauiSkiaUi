@@ -29,6 +29,8 @@ internal sealed class SkUiAppleTextInput(SkUiOverlayContainer container) : ISkUi
         focus.SetKeyboardTop(frame.Top >= container.Bounds.Height || frame.Height <= 0 ? double.PositiveInfinity : frame.Top);
     }
 
+    private void OnKeyboardHidden() => container.KeyboardFocus?.SetKeyboardTop(double.PositiveInfinity);
+
     /// <summary>Typed characters arrive through <c>insertText</c>.</summary>
     public bool ReceivesCharacters => true;
 
@@ -37,8 +39,22 @@ internal sealed class SkUiAppleTextInput(SkUiOverlayContainer container) : ISkUi
 
     public void Attach(ISkUiTextInputClient client)
     {
-        _keyboardFrame ??= UIKeyboard.Notifications.ObserveWillChangeFrame(OnKeyboardFrame);
-        _keyboardHide ??= UIKeyboard.Notifications.ObserveWillHide((_, _) => container.KeyboardFocus?.SetKeyboardTop(double.PositiveInfinity));
+        if (_keyboardFrame is null)
+        {
+            // Weak: the notification center keeps the observers for as long as they are registered, and a surface removed
+            // from a live layout without DisconnectHandler (which disposes them) must not be kept by them.
+            var weak = new WeakReference<SkUiAppleTextInput>(this);
+            _keyboardFrame = UIKeyboard.Notifications.ObserveWillChangeFrame((sender, args) =>
+            {
+                if (weak.TryGetTarget(out var input))
+                    input.OnKeyboardFrame(sender, args);
+            });
+            _keyboardHide = UIKeyboard.Notifications.ObserveWillHide((_, _) =>
+            {
+                if (weak.TryGetTarget(out var input))
+                    input.OnKeyboardHidden();
+            });
+        }
         var view = _view ??= new SkUiTextInputView(container);
         if (view.Superview is null)
             container.AddSubview(view);
@@ -204,13 +220,16 @@ internal sealed class SkUiTextInputView : UIView, IUITextInput
     private static readonly IntPtr TextWillChange = Selector.GetHandle("textWillChange:");
     private static readonly IntPtr TextDidChange = Selector.GetHandle("textDidChange:");
 
-    private readonly SkUiOverlayContainer _container;
+    // Weak (the container and the field): this view is the container's subview, so the container retains it natively, and
+    // strong references back would close a cycle the GC does not see (see SkUiMetalView).
+    private readonly WeakReference<SkUiOverlayContainer> _container;
+    private WeakReference<ISkUiTextInputClient>? _client;
     private readonly HashSet<UIKeyboardHidUsage> _handledKeys = [];
     private SkUiTextInputTokenizer? _tokenizer;
 
     public SkUiTextInputView(SkUiOverlayContainer container)
     {
-        _container = container;
+        _container = new WeakReference<SkUiOverlayContainer>(container);
         BackgroundColor = UIColor.Clear;
         UserInteractionEnabled = false;
         // Transparent but not hidden: UIKit places the candidate bar, dictation and autofill from its frame.
@@ -220,7 +239,13 @@ internal sealed class SkUiTextInputView : UIView, IUITextInput
     }
 
     /// <summary>The attached field.</summary>
-    internal ISkUiTextInputClient? Client { get; set; }
+    internal ISkUiTextInputClient? Client
+    {
+        get => _client is { } reference && reference.TryGetTarget(out var client) ? client : null;
+        set => _client = value is null ? null : new WeakReference<ISkUiTextInputClient>(value);
+    }
+
+    private SkUiOverlayContainer? Container => _container.TryGetTarget(out var container) ? container : null;
 
     private SkUiTextEditor? Editor => Client?.Editor;
 
@@ -253,7 +278,7 @@ internal sealed class SkUiTextInputView : UIView, IUITextInput
         {
             if (_menu is null)
             {
-                _menuDelegate = new EditMenuDelegate(this);
+                _menuDelegate = new EditMenuDelegate(new WeakReference<SkUiTextInputView>(this));
                 _menu = new UIEditMenuInteraction(_menuDelegate);
                 AddInteraction(_menu);
             }
@@ -281,9 +306,11 @@ internal sealed class SkUiTextInputView : UIView, IUITextInput
     }
 
     /// <summary>Places the edit menu around the field's selection (rather than at the presenting point only).</summary>
-    private sealed class EditMenuDelegate(SkUiTextInputView view) : UIEditMenuInteractionDelegate
+    /// <remarks>Weak: the view retains its interaction natively, which holds this delegate.</remarks>
+    private sealed class EditMenuDelegate(WeakReference<SkUiTextInputView> view) : UIEditMenuInteractionDelegate
     {
-        public override CGRect GetTargetRect(UIEditMenuInteraction interaction, UIEditMenuConfiguration configuration) => view._menuTarget;
+        public override CGRect GetTargetRect(UIEditMenuInteraction interaction, UIEditMenuConfiguration configuration) =>
+            view.TryGetTarget(out var target) ? target._menuTarget : CGRect.Empty;
     }
 
     /// <summary>The field changed by keys or the app: UIKit's input (marked text, suggestions) follows.</summary>
@@ -325,15 +352,15 @@ internal sealed class SkUiTextInputView : UIView, IUITextInput
         var resigned = base.ResignFirstResponder();
         // UIKit took first responder away (another native control, a dismissed keyboard on Mac): the drawn field loses focus,
         // unless the container is taking it back itself.
-        if (resigned && Client is not null && !_container.IsTakingTextInputBack)
-            _container.KeyboardFocus?.OnNativeFocusChanged(false);
+        if (resigned && Client is not null && Container is { IsTakingTextInputBack: false } container)
+            container.KeyboardFocus?.OnNativeFocusChanged(false);
         return resigned;
     }
 
     public override void PressesBegan(NSSet<UIPress> presses, UIPressesEvent evt)
     {
         // While an input method composes, every key is its own (candidate selection, commit with Return).
-        if (Client is not { } client || client.Editor.HasComposition || _container.KeyboardFocus is not { } focus)
+        if (Client is not { } client || client.Editor.HasComposition || Container?.KeyboardFocus is not { } focus)
         {
             base.PressesBegan(presses, evt);
             return;

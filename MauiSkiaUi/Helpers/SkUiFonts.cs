@@ -10,7 +10,7 @@ namespace MauiSkiaUi;
 /// </summary>
 public static class SkUiFonts
 {
-    private static readonly object Gate = new();
+    private static readonly Lock Gate = new();
     private static readonly Dictionary<string, Func<Stream>> Factories = new(StringComparer.Ordinal);
     private static readonly Dictionary<string, SKTypeface> Cache = new(StringComparer.Ordinal);
     private static readonly HashSet<string> Misses = new(StringComparer.Ordinal);

@@ -42,8 +42,9 @@ internal static class SkUiButtonFill
     public static int BeginContentOpacity(SKCanvas canvas, double opacity)
     {
         if (opacity >= 1) return -1;
-        // Only disabled text buttons get here: a paint per recording, copied by the recorder.
-        using var paint = new SKPaint { Color = SKColors.Black.WithAlpha((byte)Math.Round(255 * Math.Clamp(opacity, 0, 1))) };
-        return canvas.SaveLayer(paint);
+        // Only disabled text buttons get here; the recorder copies the paint.
+        using var paint = SkUiScratchPaint.Rent();
+        paint.Paint.Color = SKColors.Black.WithAlpha((byte)Math.Round(255 * Math.Clamp(opacity, 0, 1)));
+        return canvas.SaveLayer(paint.Paint);
     }
 }

@@ -1154,6 +1154,8 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
     internal virtual void OnSkeletonChanged()
     {
         _skeletonState?.Bones.Forget();
+        if (_effects is { } effects)
+            effects.PaintVersion++; // bones instead of glyphs: a text shadow is cast from what is drawn
         if (_renderState is { HasCommitted: true }) // else it records from scratch anyway (content built while detached)
             InvalidateRender(SkUiRenderDirty.Content | SkUiRenderDirty.Props);
     }
@@ -1199,6 +1201,15 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
     }
 
     SKPath? ISkUiShadowCaster.CreateShadowOutline(float width, float height) => CreateShadowOutline(width, height);
+
+    SKPicture? ISkUiShadowCaster.CreateTextShadow(SkUiShadowStyle style, float width, float height) =>
+        DrawsSkeletonInstead ? null : CreateTextShadow(style, width, height);
+
+    /// <summary>
+    /// The view's glyphs as its shadow (<see cref="ISkUiShadowCaster.CreateTextShadow"/>) when it draws nothing but plain text, else
+    /// <c>null</c> (the default: the shadow is cast from what it draws).
+    /// </summary>
+    internal virtual SKPicture? CreateTextShadow(SkUiShadowStyle style, float width, float height) => null;
 
     /// <summary>
     /// The silhouette of the view's own opaque fill, which its shadow is cast from (MAUI on Android draws the shadow of a view

@@ -255,12 +255,15 @@ public partial class SkUiMauiContentView : SkUiView
         if (_snapshot is not { } image)
             return;
         var rect = new SKRect(0, 0, (float)Width, (float)Height);
-        using var paint = new SKPaint { IsAntialias = true };
-        canvas.DrawImage(image, rect, new SKSamplingOptions(SKFilterMode.Linear), paint);
+        using var paint = SkUiScratchPaint.Rent();
+        paint.Paint.IsAntialias = true;
+        canvas.DrawImage(image, rect, new SKSamplingOptions(SKFilterMode.Linear), paint.Paint);
         if (HighlightSnapshots)
         {
-            using var outline = new SKPaint { Color = new SKColor(0xFF, 0x3B, 0x30), IsStroke = true, StrokeWidth = 3, IsAntialias = true };
-            canvas.DrawRect(SKRect.Inflate(rect, -1.5f, -1.5f), outline);
+            using var outline = SkUiScratchPaint.Rent(new SKColor(0xFF, 0x3B, 0x30));
+            outline.Paint.IsStroke = true;
+            outline.Paint.StrokeWidth = 3;
+            canvas.DrawRect(SKRect.Inflate(rect, -1.5f, -1.5f), outline.Paint);
         }
     }
 

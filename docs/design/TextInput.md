@@ -46,7 +46,7 @@ What the device runs must measure for each model (the plan's D0 list): CJK and K
 - **Incremental.** `Update` compares the new paragraphs with the kept ones from both ends and lays out only the changed ones; kept lines are re-indexed and moved. The same text, style and width do nothing.
 - **Ownership.** The layout owns its lines' blobs; replaced ones are disposed (recorded pictures keep their own references), and `Release` disposes them all when the field's drawing resources are released.
 
-Left open in D1: a split caret at bidi boundaries, visual (rather than logical) Left / Right through mixed-direction lines, allocation-free re-shaping of an edited paragraph (one paragraph is shaped per keystroke; its line arrays and blob are new).
+Left open in D1: a split caret at bidi boundaries, visual (rather than logical) Left / Right through mixed-direction lines. Re-shaping an edited paragraph (one per keystroke) reuses the layout's own objects since 1.14: the last paragraph an edit replaced is kept, and the next edit refills its line objects and caret-edge arrays (grown 16 entries past need, so typing reallocates them once per 16 characters). What a keystroke still allocates is the shaping engine's: the shaped paragraph (runs, glyph, position and cluster arrays, advances, bidi levels when shaped), the shaped line and its text blob, and for text with several paragraphs the edited paragraph's string (`TextEditAllocationTests`: 1,596 bytes per edit of a 78-character paragraph on the plain path, 2,580 at 1.13.0). Reusing those needs the engine's runs to carry a length apart from their arrays, a change to every text path.
 
 ## Platform proxies (D2)
 

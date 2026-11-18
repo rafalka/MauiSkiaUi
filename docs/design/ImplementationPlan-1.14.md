@@ -36,6 +36,8 @@ Checked against the code on `devel` (16 November 2026, at 1.12.0).
 
 ## Wave 1
 
+**Status: done** on `1.14-implementation` (17 November 2026), from the stash plus `SkUiListSnapshot`. A2's tests are in `GestureAllocationTests` (hover is measured between two Core nodes: entering and leaving a drawn `SkUi*` view allocates MAUI's `PropertyChanged` args for `IsPointerOver`, outside the router); A5 shipped step 1 only (step 2 measured no faster); A6's bound is 520 bytes per cached load through a Core image (736 at 1.13.0, `ImageAllocationTests`). Numbers: [Benchmarks.md](Benchmarks.md#114-wave-1-17-november-2026).
+
 ### A1 `System.Threading.Lock` for the object gates
 
 Size: S.
@@ -80,13 +82,60 @@ Size: S.
 
 **Done when:** a memory-cache hit allocates no `Task` and no load context, and the lease counts in the existing cache tests are unchanged.
 
-## Wave 2 (outline)
+## Wave 2
 
-Briefs: [A3](ImplementationPlan-PerformanceAndControls.md#a3-pooled-render-batches-and-updates), [A4](ImplementationPlan-PerformanceAndControls.md#a4-shared-scratch-paints), [A7](ImplementationPlan-PerformanceAndControls.md#a7-toolchain-and-api).
+Briefs: [A3](ImplementationPlan-PerformanceAndControls.md#a3-pooled-render-batches-and-updates), [A4](ImplementationPlan-PerformanceAndControls.md#a4-shared-scratch-paints), [A7](ImplementationPlan-PerformanceAndControls.md#a7-toolchain-and-api). Steps written on 17 November 2026, after wave 1's numbers; the facts below were checked against `1.14-implementation` then.
 
-- **A3** pooled render batches and updates, after A1 (same file).
-- **A4** shared scratch paints in looks and painters, alone on `SkUiLook.cs`.
-- **A7** `LangVersion` 14, `params ReadOnlySpan<T>` overloads (the release's only API additions), the runtime-async trial on net11, and Performance.md measured again on .NET 11 devices.
+Order: A3, then A4 (independent files, done one after the other on one branch), then A7, whose numbers describe the result. Each step is measured against wave 1's last commit with `scripts/bench.sh --baseline <commit>`, and the release table against `v1.13.0`.
+
+### Facts that shape wave 2
+
+- **Batches.** `SkUiRenderRecorder.Sync` allocates an `SkUiRenderBatch` (with two `List`s) on every frame it runs, including frames where nothing changed: it returns `null` then and the batch is garbage. Each changed node gets a new `SkUiRenderUpdate` (`Node` is a get-only constructor property). `SkUiFrameRenderer` is the only caller of `Sync` and the only one that commits; the compositor reads a batch only inside `Apply` (`ApplyPending` swaps `_pending` and `_applying`, applies, clears). Batches that are never applied go through `DiscardWithAnimations` (commit after dispose, `Dispose`).
+- **Children pass.** `state.CommittedSources = _scratch.GetRange(start, count).ToArray()` allocates a `List` and an array; the array is kept, the list is not. The `SkUiRenderNode[]` sent with a children pass becomes `node.Children` on the render thread and stays: it cannot be pooled.
+- **Transitions.** `toggle-transitions` (48 switches and 48 check boxes) is a device-only scenario; headless frames are driven with `SkUiTestHelpers`' frame helper (`Renderer.RequestFrame`, `Frame(time)`).
+- **Paints.** 33 `using var … = new SKPaint` sites; out of the brief's skip list 23 remain: 12 in `SkUiLook.cs`, 2 each in `DefaultSkUiLook.cs`, `SkUiCoreTable.cs` and `SkUiMauiContentView.cs`, 1 each in `SkUiBorderGeometry`, `SkUiButtonFill`, `SkUiShapePainter`, `SkUiSliderInput` (a dimming paint, only when disabled) and `SkUiStrokedOutlines`. `DefaultSkUiLook.Paint(color)` (`[ThreadStatic]`, `Reset()` per use) and `SkUiShapePainter._paint` are the patterns.
+- **API.** No `LangVersion` is set. The public `params T[]` members: `SetStrokeDashArray` (`SkUiShape`, `SkUiBorder`, `SkUiCoreShape`, `SkUiCoreBorder`), `SetPoints` (`SkUiPolyShape`, `SkUiCorePolyShape`), `SetTransformations` (`SkUiImage`, `SkUiCoreImage`), the `SkUiCorePolygon` / `SkUiCorePolyline` constructors and `SkUiImageCacheKeys.IgnoreQueryParameters`. The API check is `scripts/api_compat.sh` (`-p:SkUiApiBaseline=1.13.0`).
+
+### A3 Pooled render batches and updates
+
+Size: M. Edits `SkUiRenderRecorder.cs`, `SkUiCompositor.cs`, `SkUiFrameRenderer.cs`.
+
+1. **Measure first.** An allocation test in `RenderAllocationTests`: a Core tree of 50 boxes whose `TranslationX` changes every frame (props only, nothing re-recorded), 60 frames through the frame helper after a warm-up; and the same tree with no change (idle frames). Record bytes per frame for both before any change.
+2. **Children pass:** copy `CollectionsMarshal.AsSpan(_scratch).Slice(start, count).ToArray()`.
+3. **Pool:** the compositor owns a small pool of batches (a `Lock` and a fixed array of at most 4; a lock-free stack would allocate a node per push, and the pool is touched twice per frame). After `Apply` it clears each applied batch and returns it; `Sync` takes a batch from the pool and gives it back itself when nothing changed, so an idle frame allocates nothing. A batch keeps its cleared `SkUiRenderUpdate`s in a spare list (at most 256) that the recorder refills before allocating, so updates travel with their batch and the pool is entered once per frame on each side. `SkUiRenderUpdate.Node` becomes settable (internal type).
+4. **Clearing** sets every reference to `null` (node, pictures, children, props' effects by assigning `default`) without disposing anything: after `Apply` the compositor owns what was committed, and the `Disposed`-node branch of `Apply` keeps disposing the pictures it disposes today. Discarded batches (`DiscardWithAnimations`) are not pooled.
+5. **Tests:** the allocation test asserts the new bounds (idle: 0 bytes; moving: the per-frame floor, with what remains named in a comment); `PipelineTests`, the rendering, transition and animation tests and `MemoryLeakTests` pass unchanged; a test that a pooled batch keeps no picture, node or effect alive (a weak reference to a replaced picture's owner is collected).
+6. **Bench:** the `*-update` scenarios and `skel-*-wave` against wave 1, with `--quiet-gc`.
+
+**Done when:** idle frames allocate nothing, a props-only frame allocates no batch or update, and nothing in the suite or the leak scenarios changes.
+
+**Status: done** (`6d81c16`). Idle frames 408 → 0 bytes, moving 50 nodes 14,720 → 0 bytes per frame (`RenderAllocationTests`). Two allocations outside the brief turned up while measuring and are fixed with it: a new `PresentFrame` delegate per frame request, and `RenderCore`'s reports closure, allocated on every frame because its lambda captured a local. Bench against wave 1 with `--quiet-gc`: all rows within noise.
+
+### A4 Shared scratch paints
+
+Size: S to M. Edits the files listed in the facts; alone on `SkUiLook.cs`.
+
+1. One `[ThreadStatic]` scratch per painter family, reset (`Reset()`) and set at every use: `SkUiLook` (its own private helper, as `DefaultSkUiLook.Paint`), `DefaultSkUiLook` (the existing `Paint`), and one each for the helpers that need it. A site that holds the scratch while it calls into another method of the same family (a nested `Draw…`) takes a second scratch (`Paint2`), never the first.
+2. Debug and once-per-geometry sites stay as they are: `SkUiMauiContentView`'s placeholder drawing and `SkUiStrokedOutlines` (cached outlines). Say so in a comment only where the reason is not obvious.
+3. Tests: `ControlParityTests`, the look, toggle, slider and table tests pass unchanged (pixel output is the test: a leaked shader, path effect or blend mode shows there). Add an allocation test: re-recording a switch, a slider and a token chip 100 times allocates no `SKPaint` (bytes per recording before and after, a bound).
+4. Bench: `core-stress-buttons`, `skui-stress-buttons`, and the scenario that draws sliders, steppers and tokens (add one through `TrySet` if none exists): record time and allocated KB.
+
+**Done when:** no per-call `new SKPaint` is left in the 20 sites outside step 2, and no pixel test changes.
+
+**Status: done.** What changed from the steps: one shared helper, `SkUiScratchPaint`, instead of a scratch per family and a `Paint2` rule. Several of these paints are passed to protected virtual methods (`DrawActivityIndicator`, `DrawPasswordRevealGlyph`), and a subclass's override can call back into the look while one is held, which a fixed second scratch does not cover. The helper is a per-thread stack of 8 paints rented with `using` and reset on return, so every nested rental gets its own paint. `SkUiMauiContentView`'s site draws a native view's snapshot on every recording while one is shown (not debug drawing), so it was converted; `SkUiStrokedOutlines.Compute` (a cache miss) keeps its own paint. 22 sites converted. `PaintAllocationTests`: seven look and painter draws 88 → 0 bytes per call, plus the helper's nesting, reset and depth. New bench scenario `skui-steppers`: 172 KB less per iteration; with `--quiet-gc`, `record` -6.9 %, `update` -4.7 % (within noise); the stress-button and avatar scenarios unchanged.
+
+### A7 Toolchain and API
+
+Size: M. After A3 and A4.
+
+1. `<LangVersion>14</LangVersion>` in `Directory.Build.props`, with the reason (both lines compile the same language; no C# 15 syntax can reach the net11 build alone). Build both lines and the demo.
+2. `params ReadOnlySpan<T>` overloads beside each `params T[]` member in the facts (the array overloads stay; a call with an array still binds to them). `MauiApiParityTests` passes and `scripts/api_compat.sh` against 1.13.0 reports additions only. Tests: each overload sets the same value as the array overload. Docs: the controls' pages list the overload.
+3. Runtime-async trial on net11 targets only (`<Features>runtime-async=on</Features>`): the image and icon scenarios with `--net 11` (allocated KB and timings) and the packed package size, with and without. Kept only if allocations drop and the package does not grow ([D9](ImplementationPlan-PerformanceAndControls.md#decisions)); the numbers go to Benchmarks.md either way.
+4. Performance.md on .NET 11 devices: the scripts and empty tables are prepared with B4; a person runs them.
+
+**Done when:** steps 1 to 3 are in with their numbers, and step 4 is on the verification backlog or done by a person.
+
+**Status: steps 1 to 3 done; step 4 on the verification backlog.** C# 14 for every project (library, tests, benchmarks, demo and samples build on net11 with 0 warnings). Span overloads for the eleven members (`SpanParamsOverloadTests`); `scripts/api_compat.sh --baseline 1.13.0` reports no differences. Runtime async: the assembly 1.3 % smaller, allocations and timings unchanged, so not kept (numbers in [Benchmarks.md](Benchmarks.md#114-runtime-async-trial-17-november-2026)).
 
 ## Wave 3: from the backlog
 
@@ -106,6 +155,8 @@ Facts: `SkUiTextEditLayout` keeps paragraphs by content, so an edit re-shapes on
 
 **Done when:** bytes per keystroke drop to the floor named in step 3 and no text-input test changes.
 
+**Status: done.** Reused: the paragraph and line objects and the caret-edge arrays (the edit layout's own). One spare paragraph, kept in a field, its lines refilled in place; reused arrays grow 16 entries past need. A first version kept two stacks per layout and doubled the arrays: the entry scenarios, which set each text once, then allocated 78 to 187 bytes more per entry, so it was reworked to cost nothing when nobody types (+8 bytes per entry, the field). Per edit (`TextEditAllocationTests`): plain 2,580 → 1,596, shaped 3,228 → 2,244, simple 1,480 → 496 bytes; typing 100 characters on 3,816 → 2,523 bytes per keystroke. The floor is the shaping engine's paragraph and runs (glyph, position and cluster arrays sized by their length, read through `.Length` by every text path), the shaped line and its blob, and the paragraph's string when the text has several: lowering it means runs that carry their length apart from their arrays, a change to the shared engine left for later. A reused layout gives the same lines, edges and carets as a fresh one through growth, wrapping, bidi, surrogate pairs and paragraph edits. Bench against wave 2 (`core-entries`, `core-entries-update`, `skui-entries`): within noise.
+
 ### B2 Text shadows cast on the GPU
 
 Size: M. A stronger agent; alone on `SkUiRenderShadow.cs` and the compositor's shadow code, so after A3.
@@ -121,6 +172,8 @@ Facts: a shadow has two paths ([RenderingPipeline.md](RenderingPipeline.md): gre
 
 **Done when:** the S9 holds 55 fps or more on the text-shadow row, the iPhone 8 is no slower, and software output is unchanged. Device look checks (blur softness against the old output, on both phones) are done before release, not left on the verification backlog.
 
+**Status: steps 1 to 6 done; the device look checks are left for before the release.** Spike, with a new device scenario (`text-shadow-scroll-*`, the stress page's row scrolled at its speed) and a temporary switch: (a) a GPU raster reached 56.7 fps on the S9 with 30 ms spikes; (b) the glyphs drawn with a blur mask filter reached 59.6 fps, about 1 ms per frame over no shadow, and allocated nothing more; the iPhone 8 held 60 fps with both (numbers: [Benchmarks.md](Benchmarks.md#114-text-shadow-spike-18-november-2026)). Chosen: (b). What changed from the steps: the glyphs are recorded on the UI thread into a picture committed with the shadow (`SkUiRenderShadow.Glyphs`, from `ISkUiShadowCaster.CreateTextShadow`), instead of a flag and the label's blob on the render thread: a picture holds its blobs and mask filter, so its lifetime follows the shadow's (the compositor disposes it as it does the outline), and the key that keeps a shadow (`PaintVersion`, bumped by every re-record, now also by skeleton changes) renews it with the text. Glyphs: a plain `SkUiLabel` or `SkUiCoreLabel` (not a subclass, which may draw more) with plain text and no background, chrome, background painter or clip shape, not shown as skeleton bones; everything else, and every raster canvas (software surfaces, Windows, the immediate painter), keeps the content raster and its pixels, so step 4's GPU raster bookkeeping was not needed (a `GlyphShadows` counter instead). Drawn unclipped by the node, the glyph shadow matches the raster within 4 of 255 levels, and for radius 3 at 1× within 10 on macOS and 25 on Linux (FreeType hints the glyphs the raster blurs) (`TextShadowTests`: both layers, two radii, two densities; which labels qualify; the replaced picture released). Against B3 on the devices (`--baseline HEAD`): S9 43.2 → 59.7 fps, 15.5 → 4.6 ms per frame, 991 → 636 KB per window; iPhone 8 60 fps, 7.2 → 4.4 ms, 1,378 → 778 KB; the list without shadows unchanged. The leak scenarios pass headless and, for labels, effects, shimmers and surfaces, on the S9.
+
 ### B3 Overlay bookkeeping on Android
 
 Size: S, after a measurement. Edits `SkUiViewHandler.cs`, so alone on that file.
@@ -133,6 +186,8 @@ Facts: the roadmap names "cheaper overlay bookkeeping on Android" without saying
 
 **Done when:** the measurement is in [Benchmarks.md](Benchmarks.md) and the roadmap item is either closed or fixed.
 
+**Status: done.** Measured with three new device scenarios (`hosted-scroll-drawn` / `-auto` / `-live`) and device `allocKB` (all threads, the motion window). The default mode (snapshots while scrolling) costs 0.2 KB per frame and no frame time, under the threshold; Live placement cost 6.9 KB per frame (four Android `Rect` objects per overlay per placement). Fixed in `SkUiViewHandler.cs`: whole-pixel rectangles as plain integers (`SkUiPixelRect`) on the clip view, no measure and layout for an unchanged placement, no search per clip view in the container's layout pass. After: Live allocates as much as the drawn reference. On the S9 the device tests' hosted-control check and 48 of 49 leak scenarios pass; `TextFieldsEdited` fails (the input method's `InsertText("!")` has no effect), the same with this change reverted and at v1.13.0, so it predates 1.14 on that device. Numbers: [Benchmarks.md](Benchmarks.md#114-overlay-bookkeeping-on-android-17-november-2026).
+
 ### B4 Device frame-time checks
 
 Size: S. Needs a person with the Galaxy S9 and the iPhone 8, in the same session as A7's .NET 11 measurements.
@@ -143,9 +198,11 @@ From the [verification backlog](Roadmap.md#verification-backlog), "Controls: fee
 2. A person runs them on both phones on .NET 11 and records the table in Performance.md.
 3. The verification backlog's "Controls" item is cut down to what was not covered (presenters on Windows, screen readers, tooltips).
 
+**Status: done, by an agent with both phones.** What changed from the steps: bench scenarios instead of demo pages, since the bench app already reports frames, render time and allocations per motion and runs on both phones from one command; new: `collection-fling`, `virtual-stack-fling`, `carousel-swipe`, `swipe-rows`, `refresh-spinning`, `shimmer-list-scroll` (with the existing `collection-snap-fling`, `virtual-fling`, `shimmer-rows` and `expanders-scroll`), and a `heapKB` metric (the managed heap after the motion and a full collection) for the collection view's memory. Run on .NET 11 on both phones; table in [Performance.md](../Performance.md#list-controls-on-devices). Every control keeps up on both (0.7–6 ms per frame); the S9 has one slow frame in the virtual stack layout's scroll (42 ms) and in the refresh indicator's start (40 ms). Two leads, not investigated: the iPhone 8's heap rose across the run (23 → 304 MB) while the S9 stayed at 2–9 MB, although these controls' leak scenarios pass on the iPhone 8; and the S9 counts more frames than its screen shows in recycled lists. On the way: `device_tests.sh` stopped silently before launching on iOS devices below 17 on a machine without `~/.dotnet/packs` (its `mlaunch` lookup failed under `pipefail`); fixed. The "Controls" item of the backlog now lists the feel under a finger, the avatar view, scroll bars, overscroll, presenters, screen readers and tooltips, and the two leads.
+
 ## Verification and release
 
 - Headless: the suite and the leak scenarios on both lines after each step and after the merge.
-- Bench: the full `scripts/bench.sh --baseline v1.13.0` table after wave 1 and again after wave 2, recorded in [Benchmarks.md](Benchmarks.md).
+- Bench: the full `scripts/bench.sh --baseline v1.13.0` table after wave 1 and again after wave 2, recorded in [Benchmarks.md](Benchmarks.md) (both done, 17 November 2026: [after wave 2](Benchmarks.md#114-waves-1-and-2-17-november-2026)).
 - Devices: `scripts/device_tests.sh` on the Galaxy S9 and the iPhone 8 before release (leaks and a drag over a long list). Waves 1 and 2 change nothing that is drawn. B2 does: its look checks are part of the release.
 - Release `1.14.0` when the three waves are in. B2 may delay it (accepted on 16 November 2026); if B2's spike fails, 1.14.0 ships without it and the roadmap item stays open with the spike's numbers.

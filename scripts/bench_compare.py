@@ -40,6 +40,7 @@ METRICS = [
     ("MotionAvgUiMs", "motionAvgUiMs", True),
     ("MotionMaxUiMs", "motionMaxUiMs", True),
     ("AllocatedBytes", "allocKB", True),
+    ("HeapBytes", "heapKB", True),
 ]
 
 LINE = re.compile(r"SKUIBENCH (\{.*\})\s*$")
@@ -58,7 +59,7 @@ def values(samples, scenario, key):
         value = sample.get(key)
         if value is None:
             continue
-        result.append(value / 1024.0 if key == "AllocatedBytes" else float(value))
+        result.append(value / 1024.0 if key in ("AllocatedBytes", "HeapBytes") else float(value))
     return sorted(result)
 
 
@@ -138,7 +139,7 @@ def compare(baseline_path, current_path, threshold, min_ms, markdown, as_json):
             b_lo, b_hi = quartiles(b)
             separated = b_lo > a_hi or b_hi < a_lo
             verdict = "~"
-            timing = key not in ("MotionFps", "AllocatedBytes", "UpdatePictures")
+            timing = key not in ("MotionFps", "AllocatedBytes", "HeapBytes", "UpdatePictures")
             if separated and abs(delta) >= threshold and (not timing or abs(mb - ma) >= min_ms):
                 improved = (delta < 0) == lower_is_better
                 verdict = "faster" if improved else "slower"

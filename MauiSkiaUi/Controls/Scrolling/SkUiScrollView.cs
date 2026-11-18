@@ -319,8 +319,11 @@ public class SkUiScrollView : SkUiContentView, ISkUiScrollHost, ISkUiViewportIns
         if (SkUiDiagnostics.TraceOn)
             SkUiDiagnostics.Write($"scroll {AutomationId ?? GetHashCode().ToString()} moving={moving} dragging={Scroller.Dragging} motion={Scroller.IsMotionRunning} offset={Scroller.X:F0},{Scroller.Y:F0} overlays={_overlayDescendants?.Count ?? 0}");
         if (_overlayDescendants is { Count: > 0 } overlays)
-            foreach (var overlay in overlays.ToArray())
+        {
+            using var snapshot = new SkUiListSnapshot<SkUiMauiContentView>(overlays);
+            foreach (var overlay in snapshot.Span)
                 overlay.NotifyAncestorScrollMotion(moving);
+        }
         OnPropertyChanged(nameof(IsScrolling));
     }
 
@@ -491,7 +494,8 @@ public class SkUiScrollView : SkUiContentView, ISkUiScrollHost, ISkUiViewportIns
             listeners[0].OnAncestorScrollChanged();
             return;
         }
-        foreach (var listener in listeners.ToArray())
+        using var snapshot = new SkUiListSnapshot<ISkUiScrollListener>(listeners);
+        foreach (var listener in snapshot.Span)
             listener.OnAncestorScrollChanged();
     }
 

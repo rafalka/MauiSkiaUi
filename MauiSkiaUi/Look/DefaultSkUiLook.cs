@@ -938,8 +938,9 @@ public class DefaultSkUiLook : SkUiLook
         {
             // Square, unantialiased track: copies tiled one bar width apart meet without a seam (the compositor
             // clips the rounded ends).
-            using var track = new SKPaint { Color = bar.Track };
-            canvas.DrawRect(trackBounds, track);
+            using var track = SkUiScratchPaint.Rent();
+            track.Paint.Color = bar.Track;
+            canvas.DrawRect(trackBounds, track.Paint);
         }
         else
         {
@@ -1106,7 +1107,9 @@ public class DefaultSkUiLook : SkUiLook
             var inner = outer * 0.55f;
             var half = Math.Max(1.5f, diameter * 0.09f) / 2;
             var spoke = new SKRect(centerX - half, centerY - outer - half, centerX + half, centerY - inner + half);
-            using var paint = new SKPaint { IsAntialias = true };
+            using var scratch = SkUiScratchPaint.Rent();
+            var paint = scratch.Paint;
+            paint.IsAntialias = true;
             var save = canvas.Save();
             for (var index = 0; index < spokeCount; index++)
             {

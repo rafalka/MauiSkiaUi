@@ -81,4 +81,7 @@ public sealed record BenchSample(
 {
     /// <summary>Headless: pictures recorded by <see cref="BenchScenario.Update"/>'s frame (what a change re-records).</summary>
     public double? UpdatePictures { get; init; }
+
+    /// <summary>Device: the managed heap after the motion window and a full collection (what the scenario keeps alive).</summary>
+    public long? HeapBytes { get; init; }
 }

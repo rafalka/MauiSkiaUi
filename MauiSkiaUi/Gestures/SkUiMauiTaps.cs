@@ -63,7 +63,8 @@ internal static class SkUiMauiTaps
             return;
         var button = ButtonOf(buttons);
         Point? PositionRelativeTo(IElement? element) => ReferenceEquals(element, sender) ? position : null;
-        foreach (var recognizer in recognizers.ToArray())
+        using var snapshot = new SkUiListSnapshot<IGestureRecognizer>(recognizers);
+        foreach (var recognizer in snapshot.Span)
         {
             if (!IsBridged(recognizer, taps) || (((TapGestureRecognizer)recognizer).Buttons & button) == 0)
                 continue;

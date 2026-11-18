@@ -117,6 +117,7 @@ One scenario catalog, [`tests/Shared/MemoryLeaks`](../../tests/Shared/MemoryLeak
 | `AnimationsRunning` | Render-thread animations and a spinner running at close; nodes detached mid-animation |
 | `ShapedBordersReshaped` | Equal ticket-shaped borders on both layers sharing one outline and content clip (shadowed); some resized, re-stroked and reshaped, some removed while the others keep the shared clip |
 | `SurfaceReplaced` | A page replaces its GPU surface with a software one and back (device only) |
+| `SurfaceRemovedFromLayout` | GPU and software surfaces (a button, a drawn entry, a native overlay, a spinner) removed from a live MAUI `Grid` without disconnecting their handlers, as `Grid.Clear` or a native list's cell does; the second time with a drawn entry focused (device only) |
 | `MovedBetweenSurfaces` | A subtree with gestures, a scroller and a native Entry moves between two surfaces |
 | `CoreControls` | Core buttons, toggles, table and scroll view: clicked, scrolled, rows removed |
 | `NativeOverlays` | Entry / Editor overlays in a drawn scroller (snapshot mode): scrolled, focused, content replaced |

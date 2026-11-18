@@ -216,7 +216,10 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
 #elif IOS || MACCATALYST
         if (VirtualView.HwAccelerated)
         {
-            _gpu = new SkUiMetalView { TouchHandler = OnSurfaceTouch, NativeGestureState = GetNativeGestureState, NativeTapState = GetNativeTapState };
+            _gpu = new SkUiMetalView
+            {
+                TouchHandler = WeakTouchHandler(WeakSelf), NativeGestureState = WeakNativeGestureState(WeakSelf), NativeTapState = WeakNativeTapState(WeakSelf)
+            };
             surfaceNative = _gpu;
         }
         else
@@ -283,13 +286,13 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
         _mauiTapGate = new SkUiNativeGestureGate(taps: true);
         _mauiDeliverer = new SkUiTouchDeliverer(_mauiGate, _mauiTapGate)
         {
-            TouchHandler = OnSurfaceTouch, NativeGestureState = GetNativeGestureState, NativeTapState = GetNativeTapState
+            TouchHandler = WeakTouchHandler(WeakSelf), NativeGestureState = WeakNativeGestureState(WeakSelf), NativeTapState = WeakNativeTapState(WeakSelf)
         };
         platformSurface.AddGestureRecognizer(_mauiGate);
         platformSurface.AddGestureRecognizer(_mauiTapGate);
         platformSurface.AddGestureRecognizer(_mauiDeliverer);
         // Wheel and trackpad scrolling (the Metal view has its own). Weak: the view retains the recognizer natively.
-        var weak = new WeakReference<SkUiViewHandler>(this);
+        var weak = WeakSelf;
         platformSurface.AddGestureRecognizer(new UIKit.UIPanGestureRecognizer(recognizer =>
         {
             if (weak.TryGetTarget(out var handler))
@@ -743,7 +746,21 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
 #elif IOS || MACCATALYST
         if (_gpu is not null) _gpu.Surface.Renderer = _renderer;
 #endif
+#if IOS || MACCATALYST
+        // The display link retains its target from the main run loop while it runs: the tick holds this handler weakly, so
+        // a root removed mid-animation without DisconnectHandler is not kept by the run loop, and the link stops once it goes.
+        var weak = WeakSelf;
+        SkUiUiTicker? ticker = null;
+        ticker = _ticker = new SkUiUiTicker(VirtualView.Dispatcher, () =>
+        {
+            if (weak.TryGetTarget(out var handler))
+                handler.OnUiTick();
+            else
+                ticker!.Stop();
+        });
+#else
         _ticker = new SkUiUiTicker(VirtualView.Dispatcher, OnUiTick);
+#endif
         VirtualView.AnimationClock.RunningChanged += OnClockRunningChanged;
         VirtualView.Loaded += OnLoaded;
         SkUiLook.CurrentChanged += OnLookChanged;
@@ -929,7 +946,16 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
     internal void AttachOverlay(PlatformView child, SkUiMauiContentView owner)
     {
         _overlayViews.Add(child);
+#if IOS || MACCATALYST
+        // Weak: the overlay's clip view retains the recognizer that calls this natively (see WeakSelf).
+        var weak = WeakSelf;
+        var weakOwner = new WeakReference<SkUiMauiContentView>(owner);
+        _container?.AddOverlay(child, touch => weak.TryGetTarget(out var handler) && weakOwner.TryGetTarget(out var target)
+            ? handler._renderer?.TouchOverlayDips(touch, target) ?? SkUiNativeGestureState.None
+            : SkUiNativeGestureState.None);
+#else
         _container?.AddOverlay(child, touch => _renderer?.TouchOverlayDips(touch, owner) ?? SkUiNativeGestureState.None);
+#endif
     }
 
     /// <summary>Removes a previously attached native overlay view.</summary>
@@ -972,7 +998,7 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
     {
 #if ANDROID
         var context = MauiContext!.Context!;
-        Android.Graphics.Rect Px(Rect rect) => new(
+        SkUiPixelRect Px(Rect rect) => new(
             (int)Math.Floor(context.ToPixels(rect.X)), (int)Math.Floor(context.ToPixels(rect.Y)),
             (int)Math.Ceiling(context.ToPixels(rect.Right)), (int)Math.Ceiling(context.ToPixels(rect.Bottom)));
         _container?.SetOverlayBounds(child, Px(bounds), Px(clip));
@@ -1157,6 +1183,26 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
 
     private bool OnSurfaceTouch(SkUiTouchEvent touch) => _renderer?.TouchDips(touch) == true;
 
+#if IOS || MACCATALYST
+    /// <summary>
+    /// This handler, weakly, for callbacks that natively retained objects hold (the Metal view as a subview of the container,
+    /// gesture recognizers, the UI ticker's display link). A strong callback would close a cycle through native retains,
+    /// which the GC does not see: a root removed from a live layout without <c>DisconnectHandler</c> (a <c>Grid</c>'s
+    /// <c>Clear</c>, a native list's cell) would keep its whole tree. MAUI disconnects handlers when a page goes, not when a
+    /// view leaves a layout.
+    /// </summary>
+    private WeakReference<SkUiViewHandler> WeakSelf => field ??= new WeakReference<SkUiViewHandler>(this);
+
+    private static Func<SkUiTouchEvent, bool> WeakTouchHandler(WeakReference<SkUiViewHandler> weak) =>
+        touch => weak.TryGetTarget(out var handler) && handler.OnSurfaceTouch(touch);
+
+    private static Func<SkUiNativeGestureState> WeakNativeGestureState(WeakReference<SkUiViewHandler> weak) =>
+        () => weak.TryGetTarget(out var handler) ? handler.GetNativeGestureState() : SkUiNativeGestureState.None;
+
+    private static Func<SkUiNativeTapState> WeakNativeTapState(WeakReference<SkUiViewHandler> weak) =>
+        () => weak.TryGetTarget(out var handler) ? handler.GetNativeTapState() : SkUiNativeTapState.None;
+#endif
+
     private SkUiNativeGestureState GetNativeGestureState() =>
         ConnectedView is { } view ? view.Router.NativeState : SkUiNativeGestureState.None;
 
@@ -1198,7 +1244,7 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
             surface.GenericMotion += OnAndroidGenericMotion;
 #elif IOS || MACCATALYST
         // Weak: the view retains the recognizer natively, which would root this handler through the callback.
-        var weak = new WeakReference<SkUiViewHandler>(this);
+        var weak = WeakSelf;
         _hover = new UIKit.UIHoverGestureRecognizer(recognizer =>
         {
             if (weak.TryGetTarget(out var handler))
@@ -1603,62 +1649,59 @@ internal sealed class SkUiOverlayContainer : Android.Widget.FrameLayout
             FocusSearch(direction)?.RequestFocus(direction);
     }
 
-    private readonly Dictionary<Android.Views.View, OverlayState> _overlays = [];
-
-    private sealed class OverlayState(SkUiOverlayClip clip)
-    {
-        public SkUiOverlayClip Clip { get; } = clip;
-        public Android.Graphics.Rect Bounds = new();
-        public Android.Graphics.Rect ClipRect = new();
-        public bool Hidden;
-    }
+    private readonly Dictionary<Android.Views.View, SkUiOverlayClip> _overlays = [];
 
     public void AddOverlay(Android.Views.View child, Func<SkUiTouchEvent, SkUiNativeGestureState> overlayTouch)
     {
         if (_overlays.ContainsKey(child)) return;
         var clip = new SkUiOverlayClip(Context!) { OverlayTouch = overlayTouch };
         clip.AddView(child);
-        _overlays[child] = new OverlayState(clip);
+        _overlays[child] = clip;
         AddView(clip);
     }
 
     public void RemoveOverlay(Android.Views.View child)
     {
-        if (!_overlays.Remove(child, out var overlay)) return;
-        overlay.Clip.RemoveView(child);
-        RemoveView(overlay.Clip);
+        if (!_overlays.Remove(child, out var clip)) return;
+        clip.RemoveView(child);
+        RemoveView(clip);
     }
 
     public void SetOverlayHidden(Android.Views.View child, bool hidden)
     {
-        if (!_overlays.TryGetValue(child, out var overlay)) return;
-        overlay.Hidden = hidden;
-        UpdateVisibility(overlay);
+        if (!_overlays.TryGetValue(child, out var clip)) return;
+        clip.Hidden = hidden;
+        UpdateVisibility(clip);
     }
 
-    public void SetOverlayBounds(Android.Views.View child, Android.Graphics.Rect bounds, Android.Graphics.Rect clip)
+    /// <summary>
+    /// Places an overlay at <paramref name="bounds"/>, visible inside <paramref name="clipRect"/> (container pixels). Plain
+    /// integers, no Android <c>Rect</c>s: overlays that follow a scroll live are placed every frame (1.14 B3).
+    /// </summary>
+    public void SetOverlayBounds(Android.Views.View child, SkUiPixelRect bounds, SkUiPixelRect clipRect)
     {
-        if (!_overlays.TryGetValue(child, out var overlay)) return;
-        overlay.Bounds = bounds;
-        overlay.ClipRect = new Android.Graphics.Rect(clip);
-        if (!overlay.ClipRect.Intersect(bounds))
-            overlay.ClipRect.SetEmpty();
-        UpdateVisibility(overlay);
+        if (!_overlays.TryGetValue(child, out var clip)) return;
+        var visible = clipRect.Intersect(bounds);
+        // Exact (whole pixels): an unchanged placement needs no measure and layout (an overlay scrolled out stays empty).
+        // A layout the hosted view asked for (its content changed inside the same frame) still runs.
+        if (clip.IsPlaced && !clip.IsLayoutRequested && bounds == clip.Bounds && visible == clip.Visible)
+            return;
+        clip.IsPlaced = true;
+        clip.Bounds = bounds;
+        clip.Visible = visible;
         // Position directly: waiting for RequestLayout is unreliable here, because the MAUI parent skips re-measuring
         // this container when its own size is unchanged, and then Android never calls OnLayout.
-        LayoutOverlay(overlay);
+        LayoutOverlay(clip);
     }
 
-    private static void LayoutOverlay(OverlayState overlay)
+    private static void LayoutOverlay(SkUiOverlayClip clip)
     {
-        var clip = overlay.ClipRect;
-        overlay.Clip.ChildRect = new Android.Graphics.Rect(
-            overlay.Bounds.Left - clip.Left, overlay.Bounds.Top - clip.Top,
-            overlay.Bounds.Right - clip.Left, overlay.Bounds.Bottom - clip.Top);
-        overlay.Clip.Measure(
-            Android.Views.View.MeasureSpec.MakeMeasureSpec(clip.Width(), Android.Views.MeasureSpecMode.Exactly),
-            Android.Views.View.MeasureSpec.MakeMeasureSpec(clip.Height(), Android.Views.MeasureSpecMode.Exactly));
-        overlay.Clip.Layout(clip.Left, clip.Top, clip.Right, clip.Bottom);
+        var (bounds, visible) = (clip.Bounds, clip.Visible);
+        clip.ChildRect = new SkUiPixelRect(bounds.Left - visible.Left, bounds.Top - visible.Top, bounds.Right - visible.Left, bounds.Bottom - visible.Top);
+        clip.Measure(
+            Android.Views.View.MeasureSpec.MakeMeasureSpec(visible.Width, Android.Views.MeasureSpecMode.Exactly),
+            Android.Views.View.MeasureSpec.MakeMeasureSpec(visible.Height, Android.Views.MeasureSpecMode.Exactly));
+        clip.Layout(visible.Left, visible.Top, visible.Right, visible.Bottom);
     }
 
     /// <summary>
@@ -1666,15 +1709,14 @@ internal sealed class SkUiOverlayContainer : Android.Widget.FrameLayout
     /// empty clip (laid out 0 × 0, so it draws and takes touches nowhere): Android clears the focus inside an invisible
     /// view, which would close the keyboard of a focused field scrolled out of view (a native scroller keeps it).
     /// </summary>
-    private static void UpdateVisibility(OverlayState overlay) =>
-        overlay.Clip.Visibility = overlay.Hidden ? Android.Views.ViewStates.Invisible : Android.Views.ViewStates.Visible;
+    private static void UpdateVisibility(SkUiOverlayClip clip) =>
+        clip.Visibility = clip.Hidden ? Android.Views.ViewStates.Invisible : Android.Views.ViewStates.Visible;
 
     /// <summary>The overlay's laid-out frame and visible (clip view) rectangle in container pixels.</summary>
     public SkUiOverlayPlacement? GetOverlayPlacementPx(Android.Views.View child)
     {
-        if (!_overlays.TryGetValue(child, out var overlay))
+        if (!_overlays.TryGetValue(child, out var clip))
             return null;
-        var clip = overlay.Clip;
         return new SkUiOverlayPlacement(
             new Rect(clip.Left + child.Left, clip.Top + child.Top, child.Width, child.Height),
             new Rect(clip.Left, clip.Top, clip.Width, clip.Height),
@@ -1689,9 +1731,9 @@ internal sealed class SkUiOverlayContainer : Android.Widget.FrameLayout
         for (var index = 0; index < ChildCount; index++)
         {
             var child = GetChildAt(index)!;
-            if (child is SkUiOverlayClip clipView && _overlays.Values.FirstOrDefault(o => ReferenceEquals(o.Clip, clipView)) is { } overlay)
+            if (child is SkUiOverlayClip clipView)
             {
-                LayoutOverlay(overlay);
+                LayoutOverlay(clipView);
             }
             else
             {
@@ -1794,20 +1836,30 @@ internal sealed class SkUiOverlayClip : Android.Views.ViewGroup
     /// <summary>JNI activation constructor.</summary>
     public SkUiOverlayClip(IntPtr handle, Android.Runtime.JniHandleOwnership transfer) : base(handle, transfer) { }
 
-    private Android.Graphics.Rect _childRect = new();
+    /// <summary>The overlay's bounds in the container (pixels), as last placed.</summary>
+    internal SkUiPixelRect Bounds;
+
+    /// <summary>Where the overlay shows in the container (pixels): its bounds within the clip; empty when scrolled out.</summary>
+    internal SkUiPixelRect Visible;
+
+    /// <summary>Whether a snapshot or an invisible drawn ancestor hides the overlay.</summary>
+    internal bool Hidden;
+
+    /// <summary>Whether the overlay was placed at least once.</summary>
+    internal bool IsPlaced;
 
     /// <summary>
     /// Overlay rectangle relative to this clip view (pixels). A change forces the next layout pass: when only the
     /// offset changes (same clip size), Android would otherwise skip re-measuring / re-laying out this view.
     /// </summary>
-    public Android.Graphics.Rect ChildRect
+    public SkUiPixelRect ChildRect
     {
-        get => _childRect;
+        get;
         set
         {
-            if (_childRect.Equals(value))
+            if (field == value)
                 return;
-            _childRect = value;
+            field = value;
             ForceLayout();
         }
     }
@@ -1816,8 +1868,8 @@ internal sealed class SkUiOverlayClip : Android.Views.ViewGroup
     {
         for (var index = 0; index < ChildCount; index++)
             GetChildAt(index)!.Measure(
-                MeasureSpec.MakeMeasureSpec(Math.Max(0, ChildRect.Width()), Android.Views.MeasureSpecMode.Exactly),
-                MeasureSpec.MakeMeasureSpec(Math.Max(0, ChildRect.Height()), Android.Views.MeasureSpecMode.Exactly));
+                MeasureSpec.MakeMeasureSpec(Math.Max(0, ChildRect.Width), Android.Views.MeasureSpecMode.Exactly),
+                MeasureSpec.MakeMeasureSpec(Math.Max(0, ChildRect.Height), Android.Views.MeasureSpecMode.Exactly));
         SetMeasuredDimension(MeasureSpec.GetSize(widthMeasureSpec), MeasureSpec.GetSize(heightMeasureSpec));
     }
 
@@ -1826,6 +1878,19 @@ internal sealed class SkUiOverlayClip : Android.Views.ViewGroup
         for (var index = 0; index < ChildCount; index++)
             GetChildAt(index)!.Layout(ChildRect.Left, ChildRect.Top, ChildRect.Right, ChildRect.Bottom);
     }
+}
+
+/// <summary>A rectangle in whole pixels (Android overlay placement), without an Android <c>Rect</c> per use.</summary>
+internal readonly record struct SkUiPixelRect(int Left, int Top, int Right, int Bottom)
+{
+    public int Width => Right - Left;
+    public int Height => Bottom - Top;
+
+    /// <summary>The overlap with <paramref name="other"/>, or empty (all zero) when they do not overlap, as Android's <c>Rect.intersect</c>.</summary>
+    public SkUiPixelRect Intersect(SkUiPixelRect other) =>
+        Left < other.Right && other.Left < Right && Top < other.Bottom && other.Top < Bottom
+            ? new SkUiPixelRect(Math.Max(Left, other.Left), Math.Max(Top, other.Top), Math.Min(Right, other.Right), Math.Min(Bottom, other.Bottom))
+            : default;
 }
 #elif IOS || MACCATALYST
 // Derives from MauiView (with no cross-platform layout attached, so it only does plain UIKit layout)

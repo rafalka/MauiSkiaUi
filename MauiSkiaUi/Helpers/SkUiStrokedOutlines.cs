@@ -111,6 +111,7 @@ internal static class SkUiStrokedOutlines
 
     private static SKPath Compute(SKPath outline, float thickness, Kind kind)
     {
+        // A paint of its own: runs only on a cache miss.
         using var paint = new SKPaint { Style = SKPaintStyle.Stroke, StrokeWidth = thickness };
         if (kind == Kind.Inside)
             paint.StrokeJoin = SKStrokeJoin.Round;

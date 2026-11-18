@@ -101,6 +101,8 @@ public abstract class SkUiShape : SkUiView, IShape, ISkUiShapeOutline
     public SkUiShape SetStrokeThickness(double value) { SkUiValidate.ThrowIfNegativeOrNotFinite(value, nameof(value)); StrokeThickness = value; return this; }
     /// <summary>Sets the dash pattern, in multiples of the stroke thickness (no values: solid).</summary>
     public SkUiShape SetStrokeDashArray(params double[] value) { StrokeDashArray = [.. value]; return this; }
+    /// <summary>Sets the dash pattern, in multiples of the stroke thickness (no values: solid), without a params array.</summary>
+    public SkUiShape SetStrokeDashArray(params ReadOnlySpan<double> value) { StrokeDashArray = [.. value]; return this; }
     /// <summary>Sets the dash offset (same as the property setter).</summary>
     public SkUiShape SetStrokeDashOffset(double value) { SkUiValidate.ThrowIfNotFinite(value, nameof(value)); StrokeDashOffset = value; return this; }
     /// <summary>Sets the line caps (same as the property setter).</summary>

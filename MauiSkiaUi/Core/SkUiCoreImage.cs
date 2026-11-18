@@ -296,7 +296,13 @@ public class SkUiCoreImage : SkUiCoreNode
     public SkUiCoreImage SetTransformations(params ISkUiImageTransformation[] transformations)
     {
         ArgumentNullException.ThrowIfNull(transformations);
-        var list = transformations.Length == 0 ? null : (ISkUiImageTransformation[])transformations.Clone();
+        return SetTransformations((ReadOnlySpan<ISkUiImageTransformation>)transformations);
+    }
+
+    /// <summary>Replaces the transformations (reloads the source), without a params array.</summary>
+    public SkUiCoreImage SetTransformations(params ReadOnlySpan<ISkUiImageTransformation> transformations)
+    {
+        var list = transformations.IsEmpty ? null : transformations.ToArray();
         if (list is not null && Array.IndexOf(list, null) >= 0)
             throw new ArgumentException("Transformations cannot be null.", nameof(transformations));
         return SetOptions(_options with { Transformations = list }, nameof(Transformations));

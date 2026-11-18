@@ -19,7 +19,7 @@ Abstract base of the drawn shapes, with MAUI's [`Shape`](https://learn.microsoft
 | `StrokeMiterLimit` | 10 | Miter length ÷ half the thickness before a miter is beveled |
 | `Aspect` | `None` (`Fill` on rectangles and ellipses) | `Stretch`: `None`, `Fill`, `Uniform`, `UniformToFill` |
 
-Fluent setters: `SetFill`, `SetStroke`, `SetStrokeThickness`, `SetStrokeDashArray(params double[])`, `SetStrokeDashOffset`, `SetStrokeLineCap`, `SetStrokeLineJoin`, `SetStrokeMiterLimit`, `SetAspect` (they return `SkUiShape`).
+Fluent setters: `SetFill`, `SetStroke`, `SetStrokeThickness`, `SetStrokeDashArray(params double[])` (and `params ReadOnlySpan<double>`, which a list of values binds to without an array), `SetStrokeDashOffset`, `SetStrokeLineCap`, `SetStrokeLineJoin`, `SetStrokeMiterLimit`, `SetAspect` (they return `SkUiShape`).
 
 ## How it works
 

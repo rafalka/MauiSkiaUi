@@ -57,7 +57,7 @@ The Effects stress page: **400 cards** (avatar, title, subtitle) in a scroll vie
 | rounded | `RoundRectangle 12` corners |
 | shaped border | A ticket-shaped `StrokeShape` (a path with notches) with a dashed gradient stroke |
 | card shadow | A soft `Shadow` on the card (opaque card: cast from its outline) |
-| text shadow | A `Shadow` on the title (cast from the glyphs, rasterized once per card) |
+| text shadow | A `Shadow` on the title (cast from the glyphs: rasterized once per card until 1.14; on GPU surfaces since 1.14 drawn from the glyphs, see below the table) |
 | clip | The avatar clipped to a circle (`Clip`) |
 | translucent | The card at 90 % opacity (an opacity layer) |
 | spinner | A running `ActivityIndicator` on the card |
@@ -73,7 +73,7 @@ Render time per frame while scrolling, and frames per second. The change from th
 | clip | 5.7 ms (+15 %) · 60 fps | 5.8 ms (+15 %) · 60 fps | 6.4 ms (+31 %) · 56 fps | 6.0 ms (+23 %) · 58 fps |
 | card shadow | 6.5 ms (+30 %) · 60 fps | 6.2 ms (+24 %) · 60 fps | 6.5 ms (+34 %) · 58 fps | 6.7 ms (+39 %) · 58 fps |
 | translucent | 6.5 ms (+30 %) · 60 fps | 6.3 ms (+26 %) · 60 fps | 6.9 ms (+41 %) · 59 fps | 6.8 ms (+40 %) · 59 fps |
-| text shadow | 7.1 ms (+42 %) · 60 fps | 7.3 ms (+45 %) · 60 fps | 14.3 ms (+192 %) · **44 fps** | 14.0 ms (+190 %) · **44 fps** |
+| text shadow (until 1.14) | 7.1 ms (+42 %) · 60 fps | 7.3 ms (+45 %) · 60 fps | 14.3 ms (+192 %) · **44 fps** | 14.0 ms (+190 %) · **44 fps** |
 | shaped border | 7.5 ms (+51 %) · 60 fps | 7.6 ms (+51 %) · 60 fps | 20.7 ms (+324 %) · **31 fps** | 20.3 ms (+320 %) · **33 fps** |
 | **all** | 7.7 ms (+54 %) · 60 fps | 7.6 ms (+52 %) · 60 fps | 34.0 ms (+595 %) · **27 fps** | 30.8 ms (+539 %) · **31 fps** |
 
@@ -95,9 +95,9 @@ In brackets: 21 October, before borders with the same outline shared their conte
 - **Moderate:**
   - Translucent cards (an opacity layer each) and card shadows from opaque fills cost 24–41 %. The iPhone 8 keeps 60 fps; the S9 keeps 58–59 fps. The blur work is on the GPU, and these numbers don't include GPU time.
 - **Expensive on the S9:**
-  - **Shaped borders** (a path with a dashed gradient stroke, about 20 ms per frame) and **text shadows** (14 ms per frame) take the S9 to 31–44 fps. The iPhone 8 holds 60 fps with both.
+  - **Shaped borders** (a path with a dashed gradient stroke, about 20 ms per frame) and, until 1.14, **text shadows** (14 ms per frame) take the S9 to 31–44 fps. The iPhone 8 holds 60 fps with both.
   - The dashed outline of a complex path is costly on the S9's GL backend.
-  - A text shadow is cast from the glyphs, so each card's shadow is rasterized on the CPU once, when the card first scrolls into view. That is about 50 per second in this scroll, capped at 3 per frame. The iPhone's faster CPU absorbs it; the S9's doesn't.
+  - A text shadow is cast from the glyphs, so until 1.14 each card's shadow was rasterized on the CPU once, when the card first scrolled into view. That is about 50 per second in this scroll, capped at 3 per frame. The iPhone's faster CPU absorbed it; the S9's didn't. Since 1.14 GPU surfaces draw a plain-text label's shadow from its glyphs, whose blurred masks Skia caches: the same list (the bench scenario `text-shadow-scroll`, SkUi\*, 18 November 2026) scrolls at 60 fps on the S9 (43 before, 4.6 ms per frame instead of 15.5) and takes 4.4 ms per frame on the iPhone 8 instead of 7.2, close to the list without shadows ([Benchmarks.md](design/Benchmarks.md#114-text-shadow-spike-18-november-2026)). Rich text, label subclasses (buttons) and software surfaces keep the raster.
 - **All effects together** keep 60 fps on the iPhone 8 (7.7 ms per frame; 52–53 fps and 10 ms on 21 October) but not on the S9 (27–31 fps; 20 fps on 21 October). What made them cheaper since was not investigated: each effect alone costs what it did.
 - **Animated content keeps the surface drawing.** With spinners, the surface composites about 60 frames per second even while nothing scrolls, where a static list composites none. That is little work per frame, but it never stops, which costs battery. With every effect on, even the idle S9 only manages about 40 fps.
 - **First frames:**
@@ -109,7 +109,7 @@ In brackets: 21 October, before borders with the same outline shared their conte
 ### Recommendations for long lists
 
 - Prefer **opaque fills** for shadowed cards: an opaque card, border, button, box or shape casts its shadow from its outline, which is cheap. Shadows on text, images or translucent shapes are rasterized from content.
-- Avoid **text shadows** on many list items on mid-range Android devices; put the shadow on an opaque card behind the text instead.
+- **Text shadows** on many list items: put them on plain-text labels (an `SkUiLabel` or `SkUiCoreLabel` without background, chrome or decorations, sized to its text and not drawn at a shrink / grow-to-fit scale), which GPU surfaces draw from the glyphs. Shadows on rich text or on buttons' text are still rasterized once per item, which mid-range Android devices notice in long lists.
 - Avoid **dashed strokes on complex paths** on many list items; a rounded rectangle, solid stroke or simpler path is much cheaper.
 - Use **running spinners** only while something loads: they keep the surface drawing every frame.
 - **Defer expensive panes** (other tabs, hidden or collapsed sections): `SkUiContentView ContentLoading="WhenShown"` with a `ContentTemplate` creates a pane only when it is first shown (optionally after a delay, so tabs passed through are not created) ([SkUiContentView.md](controls/SkUiContentView.md#loading-content-when-shown)).
@@ -173,6 +173,29 @@ The scenarios create the SkUi\* layer's SVG sources by name, so a baseline witho
 The bench builds in place (`MaximumInPlaceParseLength = int.MaxValue`), so a frame has content to wait for; an app's default runs the first row on a background thread.
 
 Scrolling across it, a scroll that lasts the whole sampling window: 60 fps, 6.8 ms per composited frame on average, 16.4 ms at most. Nothing is recorded while it scrolls, but the first frame records every block whether it shows or not, as in any long tree. Virtualizing top-level blocks is not planned for now ([backlog](design/Roadmap.md#lists-and-scrolling)): only documents much longer than a typical page would gain from it.
+
+## List controls on devices
+
+Bench scenarios (`scripts/bench.sh -t android|ios --net 11 -S …`, [Benchmarks.md](design/Benchmarks.md#scenarios)), 18 November 2026 at 1.14 in progress (after B2), .NET 11 Release (SDK 11.0.100, MAUI 11.0.10), `-n 6`; the iPhone 8 launched through Xcode 26.6's `mlaunch`. Each motion lasts 3 s (`expanders-scroll`, `shimmer-rows`: 1.5 s). *Frames/s* counts composited frames: motions that pause between steps (the carousel, the swipe rows) draw nothing while paused, so judge them by the slowest frame. *Alloc KB* is what every thread allocated during the motion.
+
+| Scenario | What moves | Galaxy S9: frames/s · avg / max ms · alloc KB | iPhone 8: frames/s · avg / max ms · alloc KB |
+| --- | --- | --- | --- |
+| `collection-fling` | A collection view over 10,000 cards (box, two labels), flung at the fastest velocity | 76 · 2.3 / 9.6 · 3,364 | 60 · 3.8 / 4.9 · 1,927 |
+| `collection-snap-fling` | The same over 10,000 buttons, snapping to rows | 79 · 1.5 / 6.4 · 1,231 | 61 · 2.4 / 3.4 · 941 |
+| `virtual-fling` | A virtual scroll view over 10,000 buttons, scrolled towards the end | 117 · 0.7 / 3.5 · 10,169 | 61 · 1.0 / 2.1 · 5,185 |
+| `virtual-stack-fling` | A virtual stack layout over 10,000 cards in a scroll view, scrolled towards the end | 95 · 2.0 / **41.8** · 35,621 | 60 · 0.9 / 2.2 · 25,993 |
+| `carousel-swipe` | A carousel of 30 cards, the next card every 400 ms, animated | 54 · 3.0 / 9.9 · 226 | 49 · 1.7 / 3.1 · 611 |
+| `swipe-rows` | 20 swipe view rows, one opened and the one before closed every 200 ms | 65 · 3.0 / 8.2 · 421 | 60 · 2.9 / 4.0 · 943 |
+| `refresh-spinning` | A refresh view refreshing over 40 cards (the indicator spinning) | 59 · 4.1 / **39.5** · 19 | 60 · 4.1 / 5.1 · 491 |
+| `shimmer-list-scroll` | 120 rows, each a shimmering skeleton, scrolled | 61 · 5.8 / 11.5 · 109 | 59 · 5.6 / 8.0 · 563 |
+| `shimmer-rows` | 60 shimmering rows, still (the waves only) | 60 · 5.7 / 9.7 · 8 | 61 · 6.0 / 8.2 · 244 |
+| `expanders-scroll` | 36 nested expanders, all expanded, scrolled | 60 · 4.5 / 11.2 · 57 | 59 · 4.1 / 5.2 · 287 |
+
+- **Every control keeps up on both phones:** average frame times of 0.7–6 ms, and the slowest frame under a 60 Hz frame (16.7 ms) everywhere except two on the S9.
+- **Two slow frames on the S9:** the virtual stack layout's scroll has one frame of 42 ms (its UI thread also took 10.5 ms once, recycling cards into view), and the refresh view's start has one of 40 ms (the indicator's first frame). Neither shows on the iPhone 8.
+- **Recycled lists allocate while they move:** 1–3.5 MB per second for the collection view and the virtual scroll view, 12 MB per second for the virtual stack layout (its cards are bordered stacks of labels, re-laid out as they are rebound). That is GC pressure on the S9, not frame time.
+- **Memory of the collection view at 10,000 items:** the S9's managed heap after the fling and a full collection was 7 MB for the whole bench app (`heapKB`), against 3–4 MB with the 40-card refresh page or the snapping list: items are recycled, so 10,000 of them keep little. On the iPhone 8 the heap first rose across the run, from 23 MB at the first scenario to 304 MB at the last, while the S9 stayed at 2–9 MB: a leak on iOS and Mac Catalyst. The bench removes each scenario's surface from a live grid, which does not disconnect its handler (MAUI disconnects handlers when a page goes), and natively retained objects (the Metal view, its gesture recognizers, the render loop's list of surfaces) held the removed tree strongly; the leak scenarios passed because they close by popping their page. Fixed in 1.14 (the leak scenario `SurfaceRemovedFromLayout` covers it): the same run now keeps 3–11 MB per scenario, 6–7 MB for this one. On iOS a scenario's `firstFrame` now includes UIKit releasing the previous iteration's root on the main thread, which the leak skipped: `collection-fling` measures 14.5 ms instead of 10.6 (10.6 again when the bench keeps the old roots).
+- **The S9 counts more than 60 frames per second** in the recycled lists and the swipe rows (65–117 on a 60 Hz screen): frames rendered while the UI thread commits during a render-thread scroll, which the display cannot show. Not investigated yet.
 
 ## Reproducing
 

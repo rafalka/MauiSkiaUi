@@ -221,19 +221,23 @@ internal sealed class SkUiImageSlot
             _received = 0;
             _total = null;
             LoadingProgress = 0;
-            Task<SkUiImageLoad> load;
+            ValueTask<SkUiImageLoad> load;
             try
             {
                 load = SkUiImageLoader.LoadAsync(source, options, cancellation.Token, ProgressListener(source, version, dispatcher));
             }
             catch (Exception error)
             {
-                load = Task.FromException<SkUiImageLoad>(error);
+                load = ValueTask.FromException<SkUiImageLoad>(error);
             }
             if (load.IsCompleted)
             {
                 LoadingStarted?.Invoke(new SkUiImageLoadStartedEventArgs(source));
-                Complete(load, version, keepShown);
+                // A memory-cache hit: the result as it is, no task.
+                if (load.IsCompletedSuccessfully)
+                    Complete(load.Result, failure: null, version, keepShown);
+                else
+                    Complete(load.AsTask(), version, keepShown);
                 return LoadingTask = Task.CompletedTask;
             }
             if (!keepShown || _image is null)
@@ -245,7 +249,7 @@ internal sealed class SkUiImageSlot
             IsLoading = true;
             _changed();
             LoadingStarted?.Invoke(new SkUiImageLoadStartedEventArgs(source));
-            return LoadingTask = CompleteAsync(load, version, keepShown, dispatcher);
+            return LoadingTask = CompleteAsync(load.AsTask(), version, keepShown, dispatcher);
         }
     }
 
@@ -372,34 +376,37 @@ internal sealed class SkUiImageSlot
             await dispatcher.DispatchAsync(() => Complete(load, version, keepShown)).ConfigureAwait(false);
     }
 
-    private void Complete(Task<SkUiImageLoad> load, int version, bool keepShown)
+    private void Complete(Task<SkUiImageLoad> load, int version, bool keepShown) =>
+        Complete(load.IsCompletedSuccessfully ? load.Result : null, load.Exception?.InnerException, version, keepShown);
+
+    /// <summary>The load ended with <paramref name="loaded"/>, or failed (<paramref name="failure"/>; <c>null</c>: cancelled).</summary>
+    private void Complete(SkUiImageLoad? loaded, Exception? failure, int version, bool keepShown)
     {
         lock (_gate)
         {
             if (version != _generation || _disposed)
             {
-                if (load.IsCompletedSuccessfully)
-                    load.Result.Image.Release(); // replaced meanwhile (its cancelled event was raised then)
+                loaded?.Image.Release(); // replaced meanwhile (its cancelled event was raised then)
                 return;
             }
             _loading?.Dispose();
             _loading = null;
             var source = _pending!;
-            if (load.IsCompletedSuccessfully)
+            if (loaded is { } result)
             {
                 // An image replacing a shown one (a cache hit set in its place, a larger decode) does not fade: nothing to fade over.
-                var fades = _image is null && FadesIn?.Invoke(load.Result.Origin) == true;
-                Replace(load.Result.Image);
+                var fades = _image is null && FadesIn?.Invoke(result.Origin) == true;
+                Replace(result.Image);
                 IsFading = fades;
                 if (!fades)
                     ShowPlaceholder(null);
                 LoadingProgress = 1;
                 Publish(error: null);
-                Finish(source, SkUiImageLoadStatus.Succeeded, load.Result.Origin, error: null);
+                Finish(source, SkUiImageLoadStatus.Succeeded, result.Origin, error: null);
                 return;
             }
             // Not cancelled by this slot (that changes the generation): a timeout or the source's own cancellation is an error.
-            var error = load.Exception?.InnerException ?? new OperationCanceledException("The image load was cancelled.");
+            var error = failure ?? new OperationCanceledException("The image load was cancelled.");
             if (keepShown && _image is not null)
             {
                 // The same source at another size failed: the image shown is still valid, so it stays (no error state).

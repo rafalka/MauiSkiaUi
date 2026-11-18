@@ -55,7 +55,7 @@ internal sealed class SkUiShadowCache(SKImage? image, int version, SkUiRenderSha
 /// <summary>One node's changes in a committed frame.</summary>
 internal sealed class SkUiRenderUpdate(SkUiRenderNode node)
 {
-    public SkUiRenderNode Node { get; } = node;
+    public SkUiRenderNode Node = node;
     public bool HasProps;
     public SkUiRenderProps Props;
 
@@ -71,11 +71,33 @@ internal sealed class SkUiRenderUpdate(SkUiRenderNode node)
     /// motion by this much, in the same frame as the layout change that caused it.
     /// </summary>
     public SKPoint ScrollShift;
+
+    /// <summary>
+    /// Forgets everything for reuse (<see cref="SkUiRenderBatch.NewUpdate"/>). Disposes nothing: once applied, what the
+    /// update carried belongs to the compositor's tree.
+    /// </summary>
+    public void Clear()
+    {
+        Node = null!;
+        HasProps = false;
+        Props = default;
+        ExplicitAnimatable = 0;
+        HasContent = false;
+        Before = null;
+        After = null;
+        Children = null;
+        ScrollShift = default;
+    }
 }
 
 /// <summary>Everything the UI thread produced for one frame; applied atomically by the render thread.</summary>
 internal sealed class SkUiRenderBatch
 {
+    /// <summary>Cleared updates kept for reuse, at most this many (a frame that changed a large tree does not keep them all).</summary>
+    internal const int MaxSpareUpdates = 256;
+
+    private readonly List<SkUiRenderUpdate> _spare = [];
+
     public readonly List<SkUiRenderUpdate> Updates = [];
     public readonly List<SkUiRenderAnimation> Animations = [];
     public SkUiRenderNode? Root;
@@ -85,6 +107,38 @@ internal sealed class SkUiRenderBatch
 
     /// <summary>The root's <see cref="SkUiView.SurfaceKeepsBottom"/>.</summary>
     public bool KeepsBottom;
+
+    /// <summary>An update for <paramref name="node"/>: a cleared one this batch kept from an earlier frame, else a new one.</summary>
+    public SkUiRenderUpdate NewUpdate(SkUiRenderNode node)
+    {
+        if (_spare.Count == 0)
+            return new SkUiRenderUpdate(node);
+        var update = _spare[^1];
+        _spare.RemoveAt(_spare.Count - 1);
+        update.Node = node;
+        return update;
+    }
+
+    /// <summary>
+    /// Forgets the frame for reuse once it was applied (or recorded nothing): every reference is cleared, nothing is
+    /// disposed, so a pooled batch keeps no picture, node or effect alive. The updates are kept as spares.
+    /// </summary>
+    internal void Recycle()
+    {
+        foreach (var update in Updates)
+        {
+            update.Clear();
+            if (_spare.Count < MaxSpareUpdates)
+                _spare.Add(update);
+        }
+        Updates.Clear();
+        Animations.Clear();
+        Root = null;
+        RootWidth = 0;
+        RootHeight = 0;
+        ClearColor = default;
+        KeepsBottom = false;
+    }
 
     /// <summary>
     /// Releases pictures and effects of a batch that will never be applied (the compositor was disposed; the UI side then
@@ -112,8 +166,8 @@ internal sealed class SkUiRenderBatch
 /// </summary>
 internal sealed class SkUiCompositor : IDisposable
 {
-    private readonly object _pendingLock = new();
-    private readonly object _renderLock = new();
+    private readonly Lock _pendingLock = new();
+    private readonly Lock _renderLock = new();
     private readonly Action<Action> _postToUi;
     private readonly SKPaint _layerPaint = new();
     private readonly SKPaint _shadowPaint = new();
@@ -122,6 +176,11 @@ internal sealed class SkUiCompositor : IDisposable
     private readonly List<SkUiRenderAnimation> _animations = [];
     private List<SkUiRenderBatch> _pending = [];
     private List<SkUiRenderBatch> _applying = [];
+    // Applied batches for the recorder to fill again: a Lock and a fixed array (a lock-free stack allocates a node per
+    // push); each side enters it once per frame.
+    private readonly Lock _poolLock = new();
+    private readonly SkUiRenderBatch?[] _pool = new SkUiRenderBatch?[MaxPooledBatches];
+    private int _pooled;
     private SkUiRenderNode? _root;
     private float _rootWidth;
     private float _rootHeight;
@@ -202,6 +261,18 @@ internal sealed class SkUiCompositor : IDisposable
     /// <summary>Content shadows drawn live (their subtree was changing) since creation (diagnostics / tests).</summary>
     internal int LiveShadows { get; private set; }
 
+    /// <summary>Text shadows drawn from their glyphs (<see cref="SkUiRenderShadow.Glyphs"/>) since creation (diagnostics / tests).</summary>
+    internal int GlyphShadows { get; private set; }
+
+    /// <summary>
+    /// Whether text shadows are drawn from their glyphs on a raster canvas too (tests). By default only GPU canvases draw them:
+    /// a raster canvas would blur the glyphs on the CPU every frame, where a cached raster costs one blur per change.
+    /// </summary>
+    internal bool GlyphShadowsOnRaster { get; set; }
+
+    /// <summary>This frame draws text shadows from their glyphs (a GPU canvas, or <see cref="GlyphShadowsOnRaster"/>).</summary>
+    private bool _glyphShadows;
+
     private long _statFrames;
     private long _statTicks;
     private long _statMaxTicks;
@@ -225,6 +296,36 @@ internal sealed class SkUiCompositor : IDisposable
         Interlocked.Exchange(ref _statFrames, 0);
         Interlocked.Exchange(ref _statTicks, 0);
         Interlocked.Exchange(ref _statMaxTicks, 0);
+    }
+
+    /// <summary>Batches kept for reuse: one per frame in flight, and a few for frames committed before a render.</summary>
+    internal const int MaxPooledBatches = 4;
+
+    /// <summary>UI thread: an empty batch to record a frame into, from the pool when one was applied (A3).</summary>
+    internal SkUiRenderBatch RentBatch()
+    {
+        lock (_poolLock)
+        {
+            if (_pooled == 0)
+                return new SkUiRenderBatch();
+            var batch = _pool[--_pooled]!;
+            _pool[_pooled] = null;
+            return batch;
+        }
+    }
+
+    /// <summary>
+    /// A batch applied (render thread) or one that recorded nothing (UI thread) goes back to the pool, cleared. A batch
+    /// discarded unapplied is not returned: its contents were released, not handed over.
+    /// </summary>
+    internal void ReturnBatch(SkUiRenderBatch batch)
+    {
+        batch.Recycle();
+        lock (_poolLock)
+        {
+            if (_pooled < MaxPooledBatches)
+                _pool[_pooled++] = batch;
+        }
     }
 
     /// <summary>UI thread: queues a recorded frame. Safe to call while the render thread renders.</summary>
@@ -309,6 +410,7 @@ internal sealed class SkUiCompositor : IDisposable
             _spinning = false;
             _rasterizePending = false;
             _rasterizedThisFrame = 0;
+            _glyphShadows = GlyphShadowsOnRaster || canvas.Context is not null;
             if (_root is { } root && _rootWidth > 0 && _rootHeight > 0 && pixelWidth > 0 && pixelHeight > 0)
             {
                 var save = canvas.Save();
@@ -324,14 +426,18 @@ internal sealed class SkUiCompositor : IDisposable
             // while idle, instead of at the start of the next scroll.
             _continuous = _spinning || _animations.Count > 0 || _rasterizePending;
             if (reports is not null)
-                _postToUi(() =>
-                {
-                    foreach (var report in reports)
-                        report();
-                });
+                PostReports(reports);
             return NeedsFrame;
         }
     }
+
+    // Its own method: a lambda capturing `reports` in RenderCore made every frame allocate the closure, reports or not.
+    private void PostReports(List<Action> reports) =>
+        _postToUi(() =>
+        {
+            foreach (var report in reports)
+                report();
+        });
 
     /// <summary>
     /// The root's transform into a surface of <paramref name="pixelWidth"/>×<paramref name="pixelHeight"/>: the root fills it. While
@@ -390,6 +496,7 @@ internal sealed class SkUiCompositor : IDisposable
         {
             updates += batch.Updates.Count;
             Apply(batch);
+            ReturnBatch(batch);
         }
         _applying.Clear();
         return (batches, updates);
@@ -517,6 +624,8 @@ internal sealed class SkUiCompositor : IDisposable
             return;
         if (shadow.Outline is { } outline && !ReferenceEquals(outline, incoming.Shadow?.Outline))
             outline.Dispose();
+        if (shadow.Glyphs is { } glyphs && !ReferenceEquals(glyphs, incoming.Shadow?.Glyphs))
+            glyphs.Dispose();
         if (!ReferenceEquals(shadow.Style, incoming.Shadow?.Style))
             shadow.Style.Dispose();
     }
@@ -747,6 +856,14 @@ internal sealed class SkUiCompositor : IDisposable
             SkUiShadowPainter.DrawOutline(canvas, shadow, _shadowPaint);
             return;
         }
+        if (shadow.Glyphs is { } glyphs && _glyphShadows)
+        {
+            if (node.ShadowCache is not null)
+                DisposeShadowCache(node);
+            GlyphShadows++;
+            SkUiShadowPainter.DrawGlyphs(canvas, shadow, glyphs);
+            return;
+        }
         if (node.ShadowCache is { } cache && cache.Matches(node, shadow, _scale))
         {
             if (!cache.Moving)
@@ -952,6 +1069,7 @@ internal sealed class SkUiCompositor : IDisposable
         if (props.Shadow is { } shadow)
         {
             shadow.Outline?.Dispose();
+            shadow.Glyphs?.Dispose();
             shadow.Style.Dispose();
         }
     }

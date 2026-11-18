@@ -920,6 +920,35 @@ internal sealed class SkUiTextLayout : ISkUiTextFitLayout
     }
 
     /// <summary>
+    /// Whether <see cref="Draw"/> draws every line of <paramref name="text"/> inside the padded slot and without a canvas scale
+    /// (not fitted, or fitted at scale 1). A text shadow drawn from the glyphs (1.14 B2) looks like the content raster only then:
+    /// the raster is cast from what the node's clips keep, and a fit scale would scale the shadow's blur and gradient too.
+    /// </summary>
+    internal bool DrawsInside(string text, in SkUiTextStyle style, Thickness padding, double width, double height)
+    {
+        // Lines shorter than their spacing (LineHeight below 1) fit as boxes while the glyphs reach past them.
+        if (text.Length == 0 || style.LineHeight is > 0 and < 1)
+            return false;
+        var available = Math.Max(0, width - padding.HorizontalThickness);
+        var fitted = Fitted(text, style, available, SkUiTextFit.ContentHeight(height, padding));
+        if (fitted.Scale != 1) // exact: 1 is the unscaled sentinel BeginScaled checks
+            return false;
+        var lineStyle = SkUiTextFit.Unscaled(fitted);
+        EnsureLines(text, available, lineStyle, Primary(lineStyle));
+        var total = 0f;
+        foreach (var line in _lines)
+        {
+            if (line.Width > available + OverflowTolerance)
+                return false;
+            total += line.Height;
+        }
+        return total <= Math.Max(0, height - padding.VerticalThickness) + OverflowTolerance;
+    }
+
+    /// <summary>How far lines may pass the slot, in DIPs, and still count as inside (rounding of measured sizes).</summary>
+    private const double OverflowTolerance = 0.5;
+
+    /// <summary>
     /// Adds the box of each line <see cref="Draw"/> draws (its width and line spacing, where it is placed) to
     /// <paramref name="boxes"/>, in the slot's coordinates: a skeleton's text bars (FR-31). Empty lines add none.
     /// </summary>
