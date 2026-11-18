@@ -37,7 +37,13 @@ internal sealed class SkUiMetalView : UIView
         MultipleTouchEnabled = true;
         ContentMode = UIViewContentMode.TopLeft;
         _surface = new SkUiMetalSurface(layer);
-        var scroll = new UIPanGestureRecognizer(OnScrollGesture)
+        // Weak: the view retains the recognizer natively, and a strong callback would root this view (and its layer).
+        var weak = new WeakReference<SkUiMetalView>(this);
+        var scroll = new UIPanGestureRecognizer(recognizer =>
+        {
+            if (weak.TryGetTarget(out var view))
+                view.OnScrollGesture(recognizer);
+        })
         {
             AllowedScrollTypesMask = UIScrollTypeMask.All,
             AllowedTouchTypes = [],
@@ -52,6 +58,10 @@ internal sealed class SkUiMetalView : UIView
 
     private readonly SkUiNativeGestureGate _gate;
     private readonly SkUiNativeGestureGate _tapGate;
+
+    // Natively retained objects (this view as a subview of the container, its recognizers) hold nothing that leads back to
+    // the handler or the drawn tree: such a cycle runs through native retains, which the GC does not see, so a root removed
+    // from a live layout without DisconnectHandler would never be collected. The handler passes callbacks that hold it weakly.
 
     /// <summary>Whether drawn gestures want the touch; ancestor pan / pinch recognizers wait for this surface's gate.</summary>
     internal Func<SkUiNativeGestureState>? NativeGestureState { get; set; }
@@ -86,7 +96,7 @@ internal sealed class SkUiMetalView : UIView
     public override void MovedToWindow()
     {
         base.MovedToWindow();
-        _surface.IsAttached = Window is not null;
+        _surface.SetAttached(Window is not null);
         if (Window is not null)
         {
             SetNeedsLayout();
@@ -487,7 +497,9 @@ internal sealed class SkUiTouchDeliverer : UIGestureRecognizer
 internal sealed class SkUiOverlayDragRecognizer : UIGestureRecognizer
 {
     private static long _nextPointer = 1L << 40; // distinct from surface pointer ids
-    private readonly UIView _space;
+    // Weak, and the handler's callback holds it weakly: the overlay's clip view retains this recognizer natively, inside the
+    // container, so strong references back to the container or the handler would form a cycle the GC does not see.
+    private readonly WeakReference<UIView> _space;
     private readonly Func<SkUiTouchEvent, SkUiNativeGestureState> _overlayTouch;
     private UITouch? _touch;
     private long _pointer;
@@ -496,7 +508,7 @@ internal sealed class SkUiOverlayDragRecognizer : UIGestureRecognizer
     /// <param name="overlayTouch">Delivers the pointer (surface DIPs) to the drawn tree and returns its drawn state.</param>
     public SkUiOverlayDragRecognizer(UIView space, Func<SkUiTouchEvent, SkUiNativeGestureState> overlayTouch)
     {
-        _space = space;
+        _space = new WeakReference<UIView>(space);
         _overlayTouch = overlayTouch;
         CancelsTouchesInView = true;
         DelaysTouchesBegan = false;
@@ -572,9 +584,9 @@ internal sealed class SkUiOverlayDragRecognizer : UIGestureRecognizer
 
     private SkUiNativeGestureState Forward(SkUiTouchAction action, UIEvent? evt = null)
     {
-        if (_touch is not { } touch)
+        if (_touch is not { } touch || !_space.TryGetTarget(out var space))
             return SkUiNativeGestureState.None;
-        var location = touch.LocationInView(_space);
+        var location = touch.LocationInView(space);
         // The modifier keys, as on the surface (a Ctrl / Shift click on a native view in an item selects as one).
         return _overlayTouch(new SkUiTouchEvent(_pointer, action, new Point(location.X, location.Y), TimeSpan.FromSeconds(touch.Timestamp), Device: SkUiPointerDevices.From(touch))
         {
@@ -591,33 +603,51 @@ internal sealed class SkUiMetalSurface : IDisposable
     // is cleared (before the view leaves its superview) no frame is still presenting into it.
     private readonly Lock _frameLock = new();
     private int _needsFrame = 1;
-    private volatile SkUiFrameRenderer? _renderer;
+    // Weak: the handler owns the renderer, and the renderer holds the drawn root. This surface belongs to the natively
+    // retained Metal view, so a strong reference would close a cycle through native retains (see SkUiMetalView).
+    private volatile WeakReference<SkUiFrameRenderer>? _renderer;
     private volatile bool _continuous;
     private volatile bool _disposed;
+    private volatile bool _attached;
 
     internal SkUiMetalSurface(CAMetalLayer layer) => _layer = layer;
 
-    internal volatile bool IsAttached;
+    /// <summary>
+    /// UI thread: the view entered or left a window. The render loop holds only surfaces in a window that have a renderer,
+    /// so its process-wide list never keeps a removed surface (and the tree it draws) alive.
+    /// </summary>
+    internal void SetAttached(bool attached)
+    {
+        _attached = attached;
+        UpdateRegistration();
+    }
 
     /// <summary>Renderer that composites into this surface; set by the handler after connection.</summary>
     internal SkUiFrameRenderer? Renderer
     {
-        get => _renderer;
+        get => _renderer is { } reference && reference.TryGetTarget(out var renderer) ? renderer : null;
         set
         {
             if (value is null)
             {
                 lock (_frameLock)
                     _renderer = null;
-                SkUiMetalRenderLoop.Unregister(this);
             }
             else
             {
-                _renderer = value;
-                SkUiMetalRenderLoop.Register(this);
+                _renderer = new WeakReference<SkUiFrameRenderer>(value);
             }
+            UpdateRegistration();
             RequestRender();
         }
+    }
+
+    private void UpdateRegistration()
+    {
+        if (_attached && _renderer is not null && !_disposed)
+            SkUiMetalRenderLoop.Register(this);
+        else
+            SkUiMetalRenderLoop.Unregister(this);
     }
 
     /// <summary>Any thread: asks the render loop for a frame.</summary>
@@ -628,7 +658,7 @@ internal sealed class SkUiMetalSurface : IDisposable
     }
 
     /// <summary>Render thread: whether this surface wants a frame now.</summary>
-    internal bool WantsFrame => !_disposed && IsAttached && _renderer is { } renderer
+    internal bool WantsFrame => !_disposed && _attached && Renderer is { } renderer
         // Nothing to draw before the first commit (the layer starts transparent).
         && (renderer.Compositor.HasContent || renderer.Compositor.NeedsFrame)
         && (_continuous || Volatile.Read(ref _needsFrame) != 0);
@@ -653,7 +683,7 @@ internal sealed class SkUiMetalSurface : IDisposable
         }
         lock (_frameLock)
         {
-            if (_renderer is not { } renderer || _disposed)
+            if (Renderer is not { } renderer || _disposed)
                 return false;
             var texture = drawable.Texture;
             var width = (int)texture.Width;

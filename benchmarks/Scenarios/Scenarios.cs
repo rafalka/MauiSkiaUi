@@ -1307,23 +1307,19 @@ internal static class DeviceChecks
     /// <summary>Runs <paramref name="step"/> (with its count, from 0) every <paramref name="interval"/> until the handle is disposed.</summary>
     public static IDisposable Repeat(View root, TimeSpan interval, Action<int> step)
     {
-        var repeat = new Repeating();
-        step(repeat.Count++);
-        root.Dispatcher.StartTimer(interval, () =>
-        {
-            if (repeat.Stopped)
-                return false;
-            step(repeat.Count++);
-            return true;
-        });
-        return repeat;
+        var count = 0;
+        step(count++);
+        var timer = root.Dispatcher.CreateTimer();
+        timer.Interval = interval;
+        timer.Tick += (_, _) => step(count++);
+        timer.Start();
+        return new Repeating(timer);
     }
 
-    private sealed class Repeating : IDisposable
+    /// <summary>Stops the timer at once: a timer that ran until its next tick would keep the scenario's root alive past its iteration.</summary>
+    private sealed class Repeating(IDispatcherTimer timer) : IDisposable
     {
-        public int Count;
-        public bool Stopped;
-        public void Dispose() => Stopped = true;
+        public void Dispose() => timer.Stop();
     }
 }
 

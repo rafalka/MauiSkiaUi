@@ -66,6 +66,7 @@ public static class LeakScenarios
         new("ImageFadingIn", Rendering, "SkUiImage, SkUiImageButton and SkUiCoreImage with FadeAnimationEnabled (a long fade) over a long-lived loading placeholder: sources set once the page is drawn, so they fade in on the render thread; an image and a Core image removed mid-fade; closed while the others still fade.", () => new ImageFadeRun()),
         new("ShapedBordersReshaped", Rendering, "Equal ticket-shaped borders on both layers (each with its own stroke shape) sharing one outline and content clip; some resized, reshaped and given another stroke so they compute their own, some removed while the others keep the shared clip, a stroke shape edited while shown; shadowed so the silhouette is shared too.", () => new ShapedBordersRun()),
         new("SurfaceReplaced", Rendering, "A page replaces its GPU surface with a software one and back; the discarded surfaces are disconnected.", () => new SurfaceReplacedRun()),
+        new("SurfaceRemovedFromLayout", Rendering, "GPU and software surfaces (a tapped button, a drawn entry, a native overlay, a running spinner) removed from a live MAUI Grid without disconnecting their handlers, as Grid.Clear or a native list's cell does, and new ones added in their place; the second time with a drawn entry focused (the platform's text input attached).", () => new SurfaceRemovedRun()),
         new("MovedBetweenSurfaces", Rendering, "A subtree with gestures, a scroller and a native Entry moves between two surfaces and back.", () => new MoveRun()),
         new("TextFieldsEdited", Input, "Drawn entries (a password, a search bar with a long-lived command; a leading label and a trailing image button with a long-lived command), an editor, steppers (on double, a typed decimal one with texts, a typed uint Core one) and numeric entries (a typed int one with split buttons, a Core decimal one with end buttons), with their Core twins: focused (the platform's text input attached), typed in, a word long-pressed (selection handles and the edit menu), tabbed through, the editor scrolled, the steppers and numeric entries stepped, text set by code; closed with a field focused.", () => new TextFieldsRun()),
         new("AccessibleFocused", Input, "Drawn and Core controls with semantic properties, read through a semantics tree that reports changes; focused by Focus() and Tab, activated by Space / Enter and screen-reader actions, a slider stepped; a focused row removed; a button given a long-lived Tag.", () => new AccessibilityRun()),
@@ -3485,6 +3486,67 @@ public static class LeakScenarios
                 foreach (var entry in discarded)
                     if (entry.Reference.Target is { } target)
                         context.TrackDetached(target, entry.Label + " (replaced)");
+            }
+        }
+    }
+
+    /// <summary>
+    /// MAUI disconnects handlers when a page goes, not when a view leaves a layout: a removed surface keeps its handler and
+    /// platform views, and must still be collectable (on Apple, nothing natively retained may hold the tree strongly).
+    /// </summary>
+    private sealed class SurfaceRemovedRun : LeakScenarioRun
+    {
+        private Grid? _grid;
+
+        public override View Build(LeakScenarioContext context)
+        {
+            _grid = new Grid { RowDefinitions = [new RowDefinition(GridLength.Star), new RowDefinition(GridLength.Star)], RowSpacing = 8 };
+            AddSurfaces();
+            return _grid;
+        }
+
+        private void AddSurfaces()
+        {
+            _grid!.Add(Surface(hardware: true), 0, 0);
+            _grid.Add(Surface(hardware: false), 0, 1);
+        }
+
+        private static SkUiContentView Surface(bool hardware)
+        {
+            var stack = new SkUiVerticalStackLayout { Spacing = 8, Padding = new Thickness(12) };
+            stack.Children.Add(Text(hardware ? "GPU surface" : "Software surface", 18));
+            stack.Children.Add(new SkUiButton { Text = "Button", HeightRequest = 44, Command = LeakCommands.Shared });
+            stack.Children.Add(new SkUiEntry { Placeholder = "Drawn entry", HeightRequest = 44 });
+            stack.Children.Add(new SkUiMauiContentView { Content = new Label { Text = "Native label", TextColor = LeakColors.Ink }, HeightRequest = 30 });
+            stack.Children.Add(new SkUiActivityIndicator { IsRunning = true, HeightRequest = 40, WidthRequest = 40 });
+            var root = Root(stack);
+            root.HwAccelerated = hardware;
+            return root;
+        }
+
+        public override async Task InteractAsync(LeakScenarioContext context)
+        {
+            if (!context.IsDevice)
+                return; // about handlers and platform views
+            foreach (var focused in new[] { false, true })
+            {
+                var removed = _grid!.Children.OfType<SkUiContentView>().ToList();
+                foreach (var surface in removed)
+                {
+                    var stack = (SkUiVerticalStackLayout)surface.Content!;
+                    await context.TapAsync(stack.Children[1]);
+                    if (focused)
+                        ((SkUiEntry)stack.Children[2]).Focus();
+                }
+                await context.SettleAsync();
+                // The removed surfaces, their handlers, platform views and what the handlers own must go while the page lives.
+                var discarded = removed.SelectMany(surface => LeakTracker.TrackTree(surface)).ToList();
+                _grid.Clear();
+                AddSurfaces();
+                await context.WaitAsync(300);
+                foreach (var entry in discarded)
+                    if (entry.Reference.Target is { } target)
+                        context.TrackDetached(target, entry.Label + " (removed)");
             }
         }
     }

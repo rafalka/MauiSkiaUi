@@ -19,6 +19,7 @@ public sealed class BenchPage : ContentPage
     private readonly Entry _runs = new() { Text = "6", Keyboard = Keyboard.Numeric, WidthRequest = 60 };
     private readonly Button _run = new() { Text = "Run" };
     private bool _started;
+    private WeakReference<View>? _previousRoot;
     private static readonly TimeSpan Settle = TimeSpan.FromMilliseconds(100);
 
     public BenchPage()
@@ -93,10 +94,13 @@ public sealed class BenchPage : ContentPage
         GC.WaitForPendingFinalizers();
         GC.Collect();
         await Turns(3);
+        if (AliveTypeName(_previousRoot) is { } alive)
+            Console.WriteLine($"SKUIBENCH_WARN previous root {alive} still alive after GC ({scenario.Name} {iteration}, heap {GC.GetTotalMemory(false) / 1024} KB)");
 
         var watch = Stopwatch.StartNew();
         var root = scenario.Build();
         var generate = watch.Elapsed.TotalMilliseconds;
+        _previousRoot = new WeakReference<View>(root);
 
         watch.Restart();
         _host.Add(root);
@@ -154,6 +158,10 @@ public sealed class BenchPage : ContentPage
         return new BenchSample(scenario.Name, DeviceInfo.Current.Platform.ToString(), iteration, generate, add, null, null, null, null,
             firstFrame, update, fps, avg, max, allocated, uiFps, uiAvg, uiMax) { HeapBytes = heap };
     }
+
+    /// <summary>Not async: a local in the async method would be hoisted into its state machine and keep the root alive.</summary>
+    private static string? AliveTypeName(WeakReference<View>? reference) =>
+        reference is not null && reference.TryGetTarget(out var view) ? view.GetType().Name : null;
 
     /// <summary>
     /// Waits until the surface has composited <paramref name="minimumFrames"/> frames with content. Native MAUI trees

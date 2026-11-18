@@ -216,7 +216,10 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
 #elif IOS || MACCATALYST
         if (VirtualView.HwAccelerated)
         {
-            _gpu = new SkUiMetalView { TouchHandler = OnSurfaceTouch, NativeGestureState = GetNativeGestureState, NativeTapState = GetNativeTapState };
+            _gpu = new SkUiMetalView
+            {
+                TouchHandler = WeakTouchHandler(WeakSelf), NativeGestureState = WeakNativeGestureState(WeakSelf), NativeTapState = WeakNativeTapState(WeakSelf)
+            };
             surfaceNative = _gpu;
         }
         else
@@ -283,13 +286,13 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
         _mauiTapGate = new SkUiNativeGestureGate(taps: true);
         _mauiDeliverer = new SkUiTouchDeliverer(_mauiGate, _mauiTapGate)
         {
-            TouchHandler = OnSurfaceTouch, NativeGestureState = GetNativeGestureState, NativeTapState = GetNativeTapState
+            TouchHandler = WeakTouchHandler(WeakSelf), NativeGestureState = WeakNativeGestureState(WeakSelf), NativeTapState = WeakNativeTapState(WeakSelf)
         };
         platformSurface.AddGestureRecognizer(_mauiGate);
         platformSurface.AddGestureRecognizer(_mauiTapGate);
         platformSurface.AddGestureRecognizer(_mauiDeliverer);
         // Wheel and trackpad scrolling (the Metal view has its own). Weak: the view retains the recognizer natively.
-        var weak = new WeakReference<SkUiViewHandler>(this);
+        var weak = WeakSelf;
         platformSurface.AddGestureRecognizer(new UIKit.UIPanGestureRecognizer(recognizer =>
         {
             if (weak.TryGetTarget(out var handler))
@@ -743,7 +746,21 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
 #elif IOS || MACCATALYST
         if (_gpu is not null) _gpu.Surface.Renderer = _renderer;
 #endif
+#if IOS || MACCATALYST
+        // The display link retains its target from the main run loop while it runs: the tick holds this handler weakly, so
+        // a root removed mid-animation without DisconnectHandler is not kept by the run loop, and the link stops once it goes.
+        var weak = WeakSelf;
+        SkUiUiTicker? ticker = null;
+        ticker = _ticker = new SkUiUiTicker(VirtualView.Dispatcher, () =>
+        {
+            if (weak.TryGetTarget(out var handler))
+                handler.OnUiTick();
+            else
+                ticker!.Stop();
+        });
+#else
         _ticker = new SkUiUiTicker(VirtualView.Dispatcher, OnUiTick);
+#endif
         VirtualView.AnimationClock.RunningChanged += OnClockRunningChanged;
         VirtualView.Loaded += OnLoaded;
         SkUiLook.CurrentChanged += OnLookChanged;
@@ -929,7 +946,16 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
     internal void AttachOverlay(PlatformView child, SkUiMauiContentView owner)
     {
         _overlayViews.Add(child);
+#if IOS || MACCATALYST
+        // Weak: the overlay's clip view retains the recognizer that calls this natively (see WeakSelf).
+        var weak = WeakSelf;
+        var weakOwner = new WeakReference<SkUiMauiContentView>(owner);
+        _container?.AddOverlay(child, touch => weak.TryGetTarget(out var handler) && weakOwner.TryGetTarget(out var target)
+            ? handler._renderer?.TouchOverlayDips(touch, target) ?? SkUiNativeGestureState.None
+            : SkUiNativeGestureState.None);
+#else
         _container?.AddOverlay(child, touch => _renderer?.TouchOverlayDips(touch, owner) ?? SkUiNativeGestureState.None);
+#endif
     }
 
     /// <summary>Removes a previously attached native overlay view.</summary>
@@ -1157,6 +1183,26 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
 
     private bool OnSurfaceTouch(SkUiTouchEvent touch) => _renderer?.TouchDips(touch) == true;
 
+#if IOS || MACCATALYST
+    /// <summary>
+    /// This handler, weakly, for callbacks that natively retained objects hold (the Metal view as a subview of the container,
+    /// gesture recognizers, the UI ticker's display link). A strong callback would close a cycle through native retains,
+    /// which the GC does not see: a root removed from a live layout without <c>DisconnectHandler</c> (a <c>Grid</c>'s
+    /// <c>Clear</c>, a native list's cell) would keep its whole tree. MAUI disconnects handlers when a page goes, not when a
+    /// view leaves a layout.
+    /// </summary>
+    private WeakReference<SkUiViewHandler> WeakSelf => field ??= new WeakReference<SkUiViewHandler>(this);
+
+    private static Func<SkUiTouchEvent, bool> WeakTouchHandler(WeakReference<SkUiViewHandler> weak) =>
+        touch => weak.TryGetTarget(out var handler) && handler.OnSurfaceTouch(touch);
+
+    private static Func<SkUiNativeGestureState> WeakNativeGestureState(WeakReference<SkUiViewHandler> weak) =>
+        () => weak.TryGetTarget(out var handler) ? handler.GetNativeGestureState() : SkUiNativeGestureState.None;
+
+    private static Func<SkUiNativeTapState> WeakNativeTapState(WeakReference<SkUiViewHandler> weak) =>
+        () => weak.TryGetTarget(out var handler) ? handler.GetNativeTapState() : SkUiNativeTapState.None;
+#endif
+
     private SkUiNativeGestureState GetNativeGestureState() =>
         ConnectedView is { } view ? view.Router.NativeState : SkUiNativeGestureState.None;
 
@@ -1198,7 +1244,7 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
             surface.GenericMotion += OnAndroidGenericMotion;
 #elif IOS || MACCATALYST
         // Weak: the view retains the recognizer natively, which would root this handler through the callback.
-        var weak = new WeakReference<SkUiViewHandler>(this);
+        var weak = WeakSelf;
         _hover = new UIKit.UIHoverGestureRecognizer(recognizer =>
         {
             if (weak.TryGetTarget(out var handler))

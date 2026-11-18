@@ -92,7 +92,7 @@ Output goes to `artifacts/bench/<timestamp>/` (git-ignored):
   Results are written to logcat.
 - **Apple launch arguments:** `--autorun --exit --runs 6 --scenarios core-labels`, for example via `xcrun simctl launch --console`.
 
-Both runners print one `SKUIBENCH {json}` line per sample, `SKUIBENCH_TABLE` lines, and `SKUIBENCH_DONE`. Problems are printed as `SKUIBENCH_WARN` or `SKUIBENCH_ERROR`. `bench_compare.py collect` turns any such log into a results file.
+Both runners print one `SKUIBENCH {json}` line per sample, `SKUIBENCH_TABLE` lines, and `SKUIBENCH_DONE`. Problems are printed as `SKUIBENCH_WARN` or `SKUIBENCH_ERROR`; the device app warns when the previous iteration's root is still alive after it was removed and the heap collected (a leak that would make `heapKB` climb from iteration to iteration). `bench_compare.py collect` turns any such log into a results file.
 
 ## Scenarios
 

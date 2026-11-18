@@ -92,6 +92,8 @@ A surface's size and its root's layout often disagree for a frame or two: the pl
 
 Metal replaces SkiaSharp's MAUI `SKGLView` on Apple platforms. That view is backed by the deprecated GLKView/OpenGL ES, and it needed a full-frame offscreen blit to avoid ghost strokes. Rendering pauses in the background and resumes in the foreground, because iOS forbids GPU work in the background.
 
+On Apple platforms a surface removed from a live layout must be collectable without `DisconnectHandler`: MAUI disconnects handlers when a page goes, not when a view leaves a layout (`Grid.Clear`, `Children.Remove`, a native list's cell). Objects UIKit retains natively (the `SkUiMetalView` inside its container, gesture recognizers and their targets, the drawn text input's view, a hosted native view's drag recognizer, the UI ticker's `CADisplayLink`, notification observers) are kept alive by the runtime for as long as the native side retains them, so a strong reference from one of them back to the handler, the renderer or the drawn tree closes a cycle the GC does not see. They hold those weakly (the handler's `WeakSelf` callbacks; `SkUiMetalSurface` holds its renderer weakly, the handler owns it), and `SkUiMetalRenderLoop` lists a surface only while it is in a window and has a renderer. The leak scenario `SurfaceRemovedFromLayout` checks this on devices.
+
 ## Animation tiers
 
 | Tier | API | Thread | Examples |
