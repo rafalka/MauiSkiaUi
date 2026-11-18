@@ -19,7 +19,7 @@ Publishing (the NuGet publish workflow, [docs/Releasing.md](docs/Releasing.md)) 
 
 ### Other
 
-- **Fewer allocations (1.14, NFR-2):** pointer events no longer copy the gesture arena per event (a drag allocated an array per move), the render, image, font and trace gates are `System.Threading.Lock`, text measuring looks a font's glyph coverage up once per string instead of once per character, a memory-cache hit of an image allocates no task and no load context, a frame that changes nothing or only moves nodes allocates nothing (render batches and updates are reused), and looks and painters draw with reused paints instead of a new `SKPaint` per call; typing in a drawn entry or editor allocates a third less per keystroke (the edited paragraph's line objects and caret positions are reused). Both .NET lines compile the source as C# 14 (`LangVersion`).
+- **Fewer allocations (1.14, NFR-2):** pointer events no longer copy the gesture arena per event (a drag allocated an array per move), the render, image, font and trace gates are `System.Threading.Lock`, text measuring looks a font's glyph coverage up once per string instead of once per character, a memory-cache hit of an image allocates no task and no load context, a frame that changes nothing or only moves nodes allocates nothing (render batches and updates are reused), and looks and painters draw with reused paints instead of a new `SKPaint` per call; typing in a drawn entry or editor allocates a third less per keystroke (the edited paragraph's line objects and caret positions are reused), and on Android a hosted native view that follows a scroll live (`ScrollMode` Live) no longer allocates when it is placed each frame. Both .NET lines compile the source as C# 14 (`LangVersion`).
 
 ## 1.13.0
 

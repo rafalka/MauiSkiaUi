@@ -124,6 +124,7 @@ The catalog lives in [benchmarks/Scenarios/Scenarios.cs](../../benchmarks/Scenar
 | `skel-content-*`, `skel-static-*` (`skel-skui-*` on the SkUi\* layer) | The same 60 feed cards loading, with the skeleton made from the content (C9b) or by hand from bones laid out the same way (the real content is built too, as a page does). `-loaded`: the data arriving times the switch (texts set, `IsLoading = false`, the effect standing still so the update's own frame is timed); `-wave`: the wave while loading (device frame stats; `-silhouette` in a silhouette). Galaxy S9 (2026-10-14, Release): building 3.0 against 6.0 ms (Core), 44 against 111 ms (SkUi\*, a second tree of bindable views); the switch 64 against 74 ms (Core, within noise), 77 against 135 ms (SkUi\*: the content is laid out already); first frame within noise; 60 fps and 1.4–2.9 ms per frame for both. Managed heap (headless, `SKUIBENCH_RETAINED=1`): 2.2 against 3.8 MB while loading, 1.6 against 3.3 MB after (Core); 8.7 against 17.4, 7.5 against 16.6 MB (SkUi\*): a hand-made skeleton stays with the shimmer after loading |
 | `skel-tax-on`, `skel-tax-off` (`skel-tax-skui-*`) | What a content skeleton costs views outside it: 1,000 labels eight layouts deep change their texts beside a one-card content skeleton loading (`on`) or loaded (`off`). The first C9b version had every node walk up to its root per recording while any shimmer showed its content: headless recording +26–28 % (`on` 2.0 against `off` 1.6 ms Core, 3.2 against 2.4 ms SkUi\*); on a Galaxy S9 within run-to-run noise (+2 to +16 ms of a 90 ms first frame over three runs). With each node's place in a skeleton set from the top, `on` and `off` are the same (headless recording 1.6 / 1.6 ms Core, 2.5 / 2.5 ms SkUi\*); Galaxy S9 (2026-10-14, Release, three rounds against the walk): every phase within noise, building included |
 | `scroll-fling` `[device]` | Render-thread `AnimateScrollTo` through 400 buttons |
+| `hosted-scroll-drawn` / `-auto` / `-live` | Device only: 80 buttons in a scroll view with 20 slots, filled with drawn boxes (the reference) or `SkUiMauiContentView`s hosting a native `Entry` in `ScrollMode` Auto (snapshots while scrolling on Android and Windows) or Live (placed every frame); motion = `AnimateScrollTo` to the end. Compare `allocKB` and the motion stats with the drawn reference for what the overlays cost |
 | `virtual-fling` | `SkUiVirtualScrollView` over 10,000 buttons of three heights (recycled template views): the first frame realizes only the rows near the viewport; on a device, render-thread `AnimateScrollTo` towards the end while rows are realized, measured and anchored |
 | `spinners` `[device]` | 120 activity indicators (render-thread content spin) |
 | `toggle-transitions` `[device]` | 48 switches + 48 check boxes re-toggled every 120 ms: state-change transitions always running (UI clock, one re-record per control per frame) |
@@ -192,6 +193,18 @@ The label and button scenarios allocate the same: their allocations are the tree
 | skel-skui-static-loaded | update | 8.3 | 8.8 | +5.4 | within noise with `--quiet-gc` (-4.6) |
 
 What headless scenarios do not show: per-event and per-frame gains measured by the allocation tests, a drag (80 bytes per move → 0, `GestureAllocationTests`), idle and props-only frames (408 and 14,720 bytes → 0, `RenderAllocationTests`) and chrome draws (88 bytes per call → 0, `PaintAllocationTests`). Device numbers are on the verification backlog (A7 step 4, B4).
+
+### 1.14 overlay bookkeeping on Android (17 November 2026)
+
+[ImplementationPlan-1.14.md](ImplementationPlan-1.14.md) B3, on the Galaxy S9 (Android 10, net10 Release, `-n 6`). On devices `allocKB` is what every thread allocated during the 1.5 s motion window (about 91 frames).
+
+| Scenario | fps | avg / max render ms | allocKB before | allocKB after |
+| --- | ---: | ---: | ---: | ---: |
+| hosted-scroll-drawn (reference) | 60.9 | 3.0 / 7.2 | 247.7 | 249.1 |
+| hosted-scroll-auto (default: snapshots) | 58.8 | 3.4 / 9.4 | 266.2 | 267.1 |
+| hosted-scroll-live | 61.4 | 2.8 / 7.6 | 874.3 | 249.8 |
+
+The cost was in Live placement only: 6.9 KB per frame more than the drawn reference, about 340 bytes per overlay per frame, from the Android `Rect` objects each placement created (four, each with a managed peer); the default mode costs 0.2 KB per frame and no frame time. Fixed: placement keeps whole-pixel rectangles as plain integers, skips the measure and layout of an overlay whose placement did not change, and the container's layout pass no longer searches its overlays for each clip view. Frame rate and render time were not affected either way. Seen on the way: the drawn reference itself allocates about 2.7 KB per frame on the device (a render-thread scroll motion with its reports to the UI thread), which no headless scenario shows; left for a later look.
 
 ### 1.14 runtime-async trial (17 November 2026)
 

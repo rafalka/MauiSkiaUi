@@ -73,6 +73,9 @@ public static class Scenarios
         new SkeletonTax(active: true, skui: true),
         new SkeletonTax(active: false, skui: true),
         new ScrollFling(),
+        new HostedScroll(HostedScroll.Drawn),
+        new HostedScroll(HostedScroll.Auto),
+        new HostedScroll(HostedScroll.Live),
         new VirtualListFling(),
         new CollectionSnapFling(),
         new CollectionChanges(animated: false),
@@ -1188,6 +1191,58 @@ public sealed class ScrollFling : BenchScenario
         var scroll = (SkUiScrollView)root;
         // Longer than MotionDuration so the whole sampling window is in motion. AnimateScrollTo (render-thread
         // animation) is looked up by reflection so older libraries fall back to the UI-thread ScrollToAsync.
+        var duration = MotionDuration + TimeSpan.FromSeconds(0.5);
+        var animate = typeof(SkUiScrollView).GetMethod("AnimateScrollTo", [typeof(double), typeof(double), typeof(TimeSpan)]);
+        if (animate is not null)
+            return animate.Invoke(scroll, [0d, scroll.ContentSize.Height, duration]) as IDisposable;
+        _ = scroll.ScrollToAsync(0, scroll.ContentSize.Height, true);
+        return null;
+    };
+}
+
+/// <summary>
+/// 20 hosted native entries (<c>SkUiMauiContentView</c>) among 80 drawn rows in a scroll view, scrolled to the end: what
+/// the overlay bookkeeping costs per frame while a drawn scroller moves (1.14 B3). <see cref="Drawn"/> puts a drawn box
+/// of the same size where each native view is (the reference); <see cref="Auto"/> is the default mode (snapshots while
+/// scrolling on Android and Windows, live on Apple), <see cref="Live"/> repositions the native views every frame.
+/// </summary>
+public sealed class HostedScroll(string mode) : BenchScenario
+{
+    public const string Drawn = "drawn";
+    public const string Auto = "auto";
+    public const string Live = "live";
+    private const int Hosts = 20;
+    private const int RowsPerHost = 4;
+
+    public override string Name => "hosted-scroll-" + mode;
+    public override string Description => mode == Drawn
+        ? $"{Hosts} drawn boxes among {Hosts * RowsPerHost} SkUiButton rows in a scroll view (reference for hosted-scroll-*); motion = animated scroll to the end"
+        : $"{Hosts} SkUiMauiContentView (native Entry, ScrollMode {(mode == Live ? "Live" : "Auto")}) among {Hosts * RowsPerHost} SkUiButton rows; motion = animated scroll to the end";
+    public override bool DeviceOnly => true;
+
+    public override View Build()
+    {
+        var stack = new SkUiVerticalStackLayout { Spacing = 4, Padding = new Thickness(8) };
+        for (var host = 0; host < Hosts; host++)
+        {
+            for (var row = 0; row < RowsPerHost; row++)
+                stack.Children.Add(new SkUiButton { Text = $"Row {host * RowsPerHost + row:000}", HeightRequest = 44 });
+            if (mode == Drawn)
+            {
+                stack.Children.Add(new SkUiBox { HeightRequest = 44, Color = Colors.LightGray });
+                continue;
+            }
+            var hosted = new SkUiMauiContentView { HeightRequest = 44, Content = new Entry { Text = $"Native {host:00}" } };
+            if (mode == Live)
+                TrySetOption(hosted, "ScrollMode", "Live");
+            stack.Children.Add(hosted);
+        }
+        return Scenarios.Scroll(stack);
+    }
+
+    public override Func<View, IDisposable?>? Motion => root =>
+    {
+        var scroll = (SkUiScrollView)root;
         var duration = MotionDuration + TimeSpan.FromSeconds(0.5);
         var animate = typeof(SkUiScrollView).GetMethod("AnimateScrollTo", [typeof(double), typeof(double), typeof(TimeSpan)]);
         if (animate is not null)

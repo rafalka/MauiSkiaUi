@@ -184,6 +184,8 @@ Facts: the roadmap names "cheaper overlay bookkeeping on Android" without saying
 
 **Done when:** the measurement is in [Benchmarks.md](Benchmarks.md) and the roadmap item is either closed or fixed.
 
+**Status: done.** Measured with three new device scenarios (`hosted-scroll-drawn` / `-auto` / `-live`) and device `allocKB` (all threads, the motion window). The default mode (snapshots while scrolling) costs 0.2 KB per frame and no frame time, under the threshold; Live placement cost 6.9 KB per frame (four Android `Rect` objects per overlay per placement). Fixed in `SkUiViewHandler.cs`: whole-pixel rectangles as plain integers (`SkUiPixelRect`) on the clip view, no measure and layout for an unchanged placement, no search per clip view in the container's layout pass. After: Live allocates as much as the drawn reference. On the S9 the device tests' hosted-control check and 48 of 49 leak scenarios pass; `TextFieldsEdited` fails (the input method's `InsertText("!")` has no effect), the same with this change reverted and at v1.13.0, so it predates 1.14 on that device. Numbers: [Benchmarks.md](Benchmarks.md#114-overlay-bookkeeping-on-android-17-november-2026).
+
 ### B4 Device frame-time checks
 
 Size: S. Needs a person with the Galaxy S9 and the iPhone 8, in the same session as A7's .NET 11 measurements.
