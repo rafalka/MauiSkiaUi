@@ -26,7 +26,9 @@ public static class DemoFlyout
         new("Controls",
         [
             .. ComponentCategoryInfo.Order.Select(category => new DemoFlyoutEntry(
-                ComponentCategoryInfo.Title(category), ComponentCategoryInfo.Route(category), () => new ComponentGalleryPage(category)))
+                ComponentCategoryInfo.Title(category), ComponentCategoryInfo.Route(category), () => new ComponentGalleryPage(category))),
+            // After the categories: the start page and the page tour's base stay the light first gallery.
+            new("All controls", "all-controls", () => new ControlsGalleryPage())
         ]),
         new("Showcase",
         [

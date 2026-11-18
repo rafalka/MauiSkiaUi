@@ -54,7 +54,7 @@ public sealed class CorePressEffectDemoPage : ComponentDemoPage
         OnReset(taps.Clear);
     }
 
-    private static SkUiCoreHost CreateHost(out List<(string Name, SkUiCoreNode Node)> pressables, out SkUiCoreButton inner,
+    internal static SkUiCoreHost CreateHost(out List<(string Name, SkUiCoreNode Node)> pressables, out SkUiCoreButton inner,
         out SkUiCoreNode content)
     {
         pressables = [];

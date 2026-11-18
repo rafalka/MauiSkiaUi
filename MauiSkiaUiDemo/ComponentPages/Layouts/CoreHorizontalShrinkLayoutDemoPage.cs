@@ -32,7 +32,7 @@ public sealed class CoreHorizontalShrinkLayoutDemoPage : ComponentDemoPage
             value => { first.SetLineBreakMode(value); second.SetLineBreakMode(value); }, () => first.LineBreakMode);
     }
 
-    private static SkUiCoreHost CreateHost(out SkUiCoreHorizontalShrinkLayout row, out SkUiCoreLabel first, out SkUiCoreLabel second)
+    internal static SkUiCoreHost CreateHost(out SkUiCoreHorizontalShrinkLayout row, out SkUiCoreLabel first, out SkUiCoreLabel second)
     {
         first = CoreShrinkDemo.Label("A first label", "#BFDBFE");
         second = CoreShrinkDemo.Label("A longer second label", "#BBF7D0");
@@ -70,7 +70,7 @@ public sealed class CoreVerticalShrinkLayoutDemoPage : ComponentDemoPage
         Choice<SkUiShrinkFactor>("Body.Shrink", [SkUiShrinkFactor.None, SkUiShrinkFactor.Auto, 1, 2], SkUiShrinkFactor.Auto, value => column.SetShrink(body, value), () => column.GetShrink(body));
     }
 
-    private static SkUiCoreHost CreateHost(out SkUiCoreVerticalShrinkLayout column, out SkUiCoreLabel body)
+    internal static SkUiCoreHost CreateHost(out SkUiCoreVerticalShrinkLayout column, out SkUiCoreLabel body)
     {
         body = CoreShrinkDemo.Label(
             "A long shrinkable label in a vertical shrink layout. While header, body and footer fit, the layout is only as tall "

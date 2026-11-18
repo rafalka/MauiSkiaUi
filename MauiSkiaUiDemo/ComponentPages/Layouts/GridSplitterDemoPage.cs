@@ -78,7 +78,7 @@ public sealed class GridSplitterDemoPage : ComponentDemoPage
     private static string Format(GridLength length) =>
         length.IsStar ? $"{length.Value:0.##}*" : length.IsAuto ? Auto : $"{length.Value:0}";
 
-    private static SkUiGrid CreatePreview(out SkUiGrid columns, out SkUiGrid rows, out SkUiGridSplitter columnSplitter, out SkUiGridSplitter rowSplitter)
+    internal static SkUiGrid CreatePreview(out SkUiGrid columns, out SkUiGrid rows, out SkUiGridSplitter columnSplitter, out SkUiGridSplitter rowSplitter)
     {
         columnSplitter = new SkUiGridSplitter { AutomationId = "ColumnSplitter" };
         rowSplitter = new SkUiGridSplitter { AutomationId = "RowSplitter" };

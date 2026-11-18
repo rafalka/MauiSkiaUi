@@ -68,7 +68,7 @@ public sealed class CoreGridSplitterDemoPage : ComponentDemoPage
                 Feedback($"Columns {table.GetColumnWidth(0):F0} | {table.GetColumnWidth(1):F0} | {table.GetColumnWidth(2):F0}");
     }
 
-    private static SkUiCoreHost CreateHost(out SkUiCoreTable table, out SkUiCoreGridSplitter[] splitters)
+    internal static SkUiCoreHost CreateHost(out SkUiCoreTable table, out SkUiCoreGridSplitter[] splitters)
     {
         // Fixed columns, the last one taking the rest.
         table = new SkUiCoreTable()

@@ -51,7 +51,7 @@ public sealed class CoreShimmerDemoPage : ComponentDemoPage
         base.OnDisappearing();
     }
 
-    private static SkUiCoreHost CreateHost(out SkUiCoreShimmer shimmer)
+    internal static SkUiCoreHost CreateHost(out SkUiCoreShimmer shimmer)
     {
         shimmer = new SkUiCoreShimmer { SkeletonContent = Skeleton(), Content = Posts(), VerticalAlignment = LayoutAlignment.Start };
         var host = new SkUiCoreHost { BackgroundColor = Colors.White };

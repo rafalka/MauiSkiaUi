@@ -25,14 +25,10 @@ public sealed class CoreDraggerDemoPage : ComponentDemoPage
             () => dragger.KeyboardIncrement, whole: true);
         OnReset(() => panel.SetWidth(PanelWidth).SetHeight(PanelHeight));
 
-        var start = Size.Zero;
-        dragger.DragStarted += (_, _) => start = new Size(panel.Width, panel.Height);
-        dragger.DragDelta += (_, args) =>
-            panel.SetWidth(Math.Max(MinPanelSize, start.Width + args.TotalX)).SetHeight(Math.Max(MinPanelSize, start.Height + args.TotalY));
         dragger.DragCompleted += (_, _) => Feedback($"Panel {panel.Width:F0} x {panel.Height:F0}");
     }
 
-    private static SkUiCoreHost CreateHost(out SkUiCoreLabel panel, out SkUiCoreDragger dragger)
+    internal static SkUiCoreHost CreateHost(out SkUiCoreLabel panel, out SkUiCoreDragger dragger)
     {
         panel = new SkUiCoreLabel()
             .SetText("Drag the corner")
@@ -48,6 +44,12 @@ public sealed class CoreDraggerDemoPage : ComponentDemoPage
         dragger.SetBackground(Colors.White.WithAlpha(0.6f));
         var grid = new SkUiCoreGrid().Add(panel, 0, 0).Add(dragger, 0, 0);
         grid.SetHorizontalAlignment(LayoutAlignment.Start).SetVerticalAlignment(LayoutAlignment.Start).SetMargin(new Thickness(8));
+        // The app's own handling, here so every preview resizes (the controls gallery's too).
+        var resized = panel;
+        var start = Size.Zero;
+        dragger.DragStarted += (_, _) => start = new Size(resized.Width, resized.Height);
+        dragger.DragDelta += (_, args) =>
+            resized.SetWidth(Math.Max(MinPanelSize, start.Width + args.TotalX)).SetHeight(Math.Max(MinPanelSize, start.Height + args.TotalY));
         var host = new SkUiCoreHost();
         host.SetContent(grid);
         return host;

@@ -294,6 +294,77 @@ public class ComponentDemoTests
     }
 
     [Fact]
+    public void ControlsGalleryListsEveryControlOnceWithASampleAndATryItButton()
+    {
+        // One row per control type, opening its main demo (the page without a Key) where it has one.
+        Assert.Equal(ComponentDemos.All.Select(demo => demo.ComponentType).Distinct().OrderBy(type => type.FullName),
+            ControlsGalleryPage.Demos.Select(demo => demo.ComponentType).OrderBy(type => type.FullName));
+        foreach (var demo in ControlsGalleryPage.Demos)
+        {
+            Assert.True(demo.Key is null || ComponentDemos.All.All(other => other.ComponentType != demo.ComponentType || other.Key is not null),
+                $"{demo.DisplayName} should open its main demo.");
+            Assert.False(ControlsGalleryPage.Sample(demo.ComponentType) is SkUiLabel { Text: ControlsGalleryPage.NoSampleText },
+                $"{demo.DisplayName} has no sample in the controls gallery.");
+        }
+        var page = new ControlsGalleryPage();
+        Assert.Equal(ControlsGalleryPage.Demos.Count, page.RowCount);
+        var stack = (SkUiView)((SkUiScrollView)page.Content).Content!;
+        var buttons = Descendants(stack).OfType<SkUiButton>().Where(button => button.AutomationId?.StartsWith("TryIt") == true).ToList();
+        // Rows follow the flyout's category order.
+        Assert.Equal(ComponentCategoryInfo.Order.SelectMany(category => ControlsGalleryPage.Demos.Where(demo => demo.Category == category))
+            .Select(demo => "TryIt" + demo.Name), buttons.Select(button => button.AutomationId));
+    }
+
+    [Fact]
+    public void DraggerPreviewsResizeTheirPanelWhereverTheyAreShown()
+    {
+        // The resize handling lives in the preview builders, so the controls gallery's previews work like the demo pages'.
+        var down = new SkUiKeyEvent(SkUiKey.Down, SkUiKeyModifiers.None, false);
+        DraggerDemoPage.CreatePreview(out var panel, out var dragger);
+        var height = panel.HeightRequest;
+        Assert.True(((ISkUiKeyHandler)dragger).OnKeyDown(down));
+        Assert.True(panel.HeightRequest > height);
+
+        CoreDraggerDemoPage.CreateHost(out var corePanel, out var coreDragger);
+        var coreHeight = corePanel.Height;
+        Assert.True(((ISkUiKeyHandler)coreDragger).OnKeyDown(down));
+        Assert.True(corePanel.Height > coreHeight);
+    }
+
+    [Fact]
+    public void ControlsGalleryPutsSamplesBesideTheirNamesOnWidePagesAndUnderThemOnNarrowOnes()
+    {
+        // The row names' family, so they measure on Linux CI too.
+        using var _ = SkUiTestHelpers.UseBundledFont(DemoFonts.OpenSansSemibold);
+        var page = new ControlsGalleryPage();
+        Assert.Null(page.IsWide);
+        var scroll = (SkUiScrollView)page.Content;
+        var stack = (SkUiView)scroll.Content!;
+        var label = Descendants(stack).OfType<SkUiLabel>().First(label => label.Text == nameof(SkUiSwitch));
+        var sample = Descendants(stack).OfType<SkUiSwitch>().Single();
+        var tryIt = Descendants(stack).OfType<SkUiButton>().Single(button => button.AutomationId == "TryIt" + nameof(SkUiSwitch));
+        foreach (var (width, wide) in new[] { (900.0, true), (360.0, false) })
+        {
+            page.UpdateLayout(width);
+            Assert.Equal(wide, page.IsWide);
+            SkUiTestHelpers.Arrange(scroll, width, 800);
+            var labelBounds = label.Frame;
+            Assert.True(labelBounds.Width > 0 && labelBounds.Height > 0, $"name: {labelBounds}");
+            var sampleBounds = sample.Frame;
+            // Try it stays inside its card (on a 360-wide phone too).
+            Assert.True(tryIt.Frame.Right <= ((SkUiView)tryIt.Parent!).Width + 0.5, $"Try it: {tryIt.Frame} in {((SkUiView)tryIt.Parent!).Width}");
+            if (wide)
+                Assert.True(sampleBounds.Y < labelBounds.Bottom && sampleBounds.X >= labelBounds.Right, $"beside: {labelBounds} {sampleBounds}");
+            else
+                Assert.True(sampleBounds.Y >= labelBounds.Bottom, $"under: {labelBounds} {sampleBounds}");
+            // Every sample measures, lays out and draws.
+            SkUiTestHelpers.Arrange(stack, width, double.PositiveInfinity);
+            using var surface = SkiaSharp.SKSurface.Create(new SkiaSharp.SKImageInfo((int)width, 400));
+            stack.Paint(surface.Canvas);
+        }
+    }
+
+    [Fact]
     public void GalleryShowsTheNarrowScreenNoteWhileThePageShorterSideIsBelowSideBySide()
     {
         var gallery = new ComponentGalleryPage(ComponentCategory.BasicControls);

@@ -34,7 +34,7 @@ public sealed class CoreStateContainerDemoPage : ComponentDemoPage
         };
     }
 
-    private static SkUiCoreHost CreateHost(out SkUiCoreStateContainer states)
+    internal static SkUiCoreHost CreateHost(out SkUiCoreStateContainer states)
     {
         var rows = new SkUiCoreVerticalStackLayout().SetSpacing(6);
         for (var index = 0; index < 4; index++)

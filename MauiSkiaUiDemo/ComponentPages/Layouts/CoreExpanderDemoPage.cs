@@ -44,7 +44,7 @@ public sealed class CoreExpanderDemoPage : ComponentDemoPage
             action(section);
     }
 
-    private static SkUiCoreHost CreateHost(out SkUiCoreExpander[] sections)
+    internal static SkUiCoreHost CreateHost(out SkUiCoreExpander[] sections)
     {
         var stack = new SkUiCoreVerticalStackLayout().SetSpacing(8).SetPadding(new Thickness(10));
         sections = new SkUiCoreExpander[Questions.Length];

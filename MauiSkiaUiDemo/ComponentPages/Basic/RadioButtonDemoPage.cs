@@ -130,7 +130,7 @@ public sealed class RadioButtonDemoPage : ComponentDemoPage
 
     // The radio buttons share the stack with the selection label; the group is named by RadioButtonGroup.GroupName on the
     // stack, as in MAUI.
-    private static SkUiVerticalStackLayout CreateSkiaGroup(out SkUiRadioButton[] radios, out SkUiLabel selected)
+    internal static SkUiVerticalStackLayout CreateSkiaGroup(out SkUiRadioButton[] radios, out SkUiLabel selected)
     {
         var stack = new SkUiVerticalStackLayout { Spacing = 8 };
         RadioButtonGroup.SetGroupName(stack, "SkiaColors");

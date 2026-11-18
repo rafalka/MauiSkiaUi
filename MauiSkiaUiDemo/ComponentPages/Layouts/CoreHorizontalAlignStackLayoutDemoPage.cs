@@ -30,7 +30,7 @@ public sealed class CoreHorizontalAlignStackLayoutDemoPage : ComponentDemoPage
         Number(nameof(SkUiCoreHorizontalAlignStackLayout.Spacing), 0, 24, 8, value => bar.Spacing = value, () => bar.Spacing);
     }
 
-    private static SkUiCoreHost CreateHost(out SkUiCoreHorizontalAlignStackLayout bar, out SkUiCoreLabel title, out SkUiCoreButton back,
+    internal static SkUiCoreHost CreateHost(out SkUiCoreHorizontalAlignStackLayout bar, out SkUiCoreLabel title, out SkUiCoreButton back,
         out SkUiCoreButton menu)
     {
         title = new SkUiCoreLabel().SetText(TitleText).SetTextColor(DemoColors.Ink).SetFontSize(16).SetFontAttributes(FontAttributes.Bold)

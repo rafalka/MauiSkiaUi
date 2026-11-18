@@ -85,7 +85,7 @@ public sealed class CoreGridDemoPage : ComponentDemoPage
         }, () => _cell0.IsVisible);
     }
 
-    private static SkUiCoreHost CreateHost(
+    internal static SkUiCoreHost CreateHost(
         out SkUiCoreGrid grid,
         out SkUiCoreLabel cell0,
         out SkUiCoreLabel cell2)
