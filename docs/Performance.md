@@ -174,6 +174,29 @@ The bench builds in place (`MaximumInPlaceParseLength = int.MaxValue`), so a fra
 
 Scrolling across it, a scroll that lasts the whole sampling window: 60 fps, 6.8 ms per composited frame on average, 16.4 ms at most. Nothing is recorded while it scrolls, but the first frame records every block whether it shows or not, as in any long tree. Virtualizing top-level blocks is not planned for now ([backlog](design/Roadmap.md#lists-and-scrolling)): only documents much longer than a typical page would gain from it.
 
+## List controls on devices
+
+Bench scenarios (`scripts/bench.sh -t android|ios --net 11 -S …`, [Benchmarks.md](design/Benchmarks.md#scenarios)), 18 November 2026 at 1.14 in progress (after B2), .NET 11 Release (SDK 11.0.100, MAUI 11.0.10), `-n 6`; the iPhone 8 launched through Xcode 26.6's `mlaunch`. Each motion lasts 3 s (`expanders-scroll`, `shimmer-rows`: 1.5 s). *Frames/s* counts composited frames: motions that pause between steps (the carousel, the swipe rows) draw nothing while paused, so judge them by the slowest frame. *Alloc KB* is what every thread allocated during the motion.
+
+| Scenario | What moves | Galaxy S9: frames/s · avg / max ms · alloc KB | iPhone 8: frames/s · avg / max ms · alloc KB |
+| --- | --- | --- | --- |
+| `collection-fling` | A collection view over 10,000 cards (box, two labels), flung at the fastest velocity | 76 · 2.3 / 9.6 · 3,364 | 60 · 3.8 / 4.9 · 1,927 |
+| `collection-snap-fling` | The same over 10,000 buttons, snapping to rows | 79 · 1.5 / 6.4 · 1,231 | 61 · 2.4 / 3.4 · 941 |
+| `virtual-fling` | A virtual scroll view over 10,000 buttons, scrolled towards the end | 117 · 0.7 / 3.5 · 10,169 | 61 · 1.0 / 2.1 · 5,185 |
+| `virtual-stack-fling` | A virtual stack layout over 10,000 cards in a scroll view, scrolled towards the end | 95 · 2.0 / **41.8** · 35,621 | 60 · 0.9 / 2.2 · 25,993 |
+| `carousel-swipe` | A carousel of 30 cards, the next card every 400 ms, animated | 54 · 3.0 / 9.9 · 226 | 49 · 1.7 / 3.1 · 611 |
+| `swipe-rows` | 20 swipe view rows, one opened and the one before closed every 200 ms | 65 · 3.0 / 8.2 · 421 | 60 · 2.9 / 4.0 · 943 |
+| `refresh-spinning` | A refresh view refreshing over 40 cards (the indicator spinning) | 59 · 4.1 / **39.5** · 19 | 60 · 4.1 / 5.1 · 491 |
+| `shimmer-list-scroll` | 120 rows, each a shimmering skeleton, scrolled | 61 · 5.8 / 11.5 · 109 | 59 · 5.6 / 8.0 · 563 |
+| `shimmer-rows` | 60 shimmering rows, still (the waves only) | 60 · 5.7 / 9.7 · 8 | 61 · 6.0 / 8.2 · 244 |
+| `expanders-scroll` | 36 nested expanders, all expanded, scrolled | 60 · 4.5 / 11.2 · 57 | 59 · 4.1 / 5.2 · 287 |
+
+- **Every control keeps up on both phones:** average frame times of 0.7–6 ms, and the slowest frame under a 60 Hz frame (16.7 ms) everywhere except two on the S9.
+- **Two slow frames on the S9:** the virtual stack layout's scroll has one frame of 42 ms (its UI thread also took 10.5 ms once, recycling cards into view), and the refresh view's start has one of 40 ms (the indicator's first frame). Neither shows on the iPhone 8.
+- **Recycled lists allocate while they move:** 1–3.5 MB per second for the collection view and the virtual scroll view, 12 MB per second for the virtual stack layout (its cards are bordered stacks of labels, re-laid out as they are rebound). That is GC pressure on the S9, not frame time.
+- **Memory of the collection view at 10,000 items:** the S9's managed heap after the fling and a full collection was 7 MB for the whole bench app (`heapKB`), against 3–4 MB with the 40-card refresh page or the snapping list: items are recycled, so 10,000 of them keep little. On the iPhone 8 the heap rose across the run, from 23 MB at the first scenario to 304 MB at the last, while the S9 stayed at 2–9 MB; the leak scenarios of these controls pass on the iPhone 8 (closed by popping their page), whereas the bench removes each scenario's surface from a live grid. Not investigated yet.
+- **The S9 counts more than 60 frames per second** in the recycled lists and the swipe rows (65–117 on a 60 Hz screen): frames rendered while the UI thread commits during a render-thread scroll, which the display cannot show. Not investigated yet.
+
 ## Reproducing
 
 Both stress pages are in the demo app (`MauiSkiaUiDemo`): **Stress** (the 1,000-button grid) and **Effects stress** (the card list, with **Matrix** in the toolbar for every effect). Run a Release build. Scripted runs start a page and print one `data` line per round (key=value, ms) to the console:

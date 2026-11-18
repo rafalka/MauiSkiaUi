@@ -78,6 +78,12 @@ public static class Scenarios
         new HostedScroll(HostedScroll.Live),
         new TextShadowScroll(shadows: true),
         new TextShadowScroll(shadows: false),
+        new CollectionFling(),
+        new VirtualStackFling(),
+        new CarouselSwipe(),
+        new SwipeRows(),
+        new RefreshSpinning(),
+        new ShimmerListScroll(),
         new VirtualListFling(),
         new CollectionSnapFling(),
         new CollectionChanges(animated: false),
@@ -1257,6 +1263,244 @@ public sealed class TextShadowScroll(bool shadows) : BenchScenario
         var target = Math.Max(0, scroll.ContentSize.Height - scroll.Height);
         var animate = typeof(SkUiScrollView).GetMethod("AnimateScrollTo", [typeof(double), typeof(double), typeof(TimeSpan)]);
         return animate?.Invoke(scroll, [0d, target, TimeSpan.FromSeconds(6)]) as IDisposable;
+    };
+}
+
+/// <summary>
+/// Shared parts of the 1.14 B4 device checks (the verification backlog's "feel and frame time" of list controls): a card row
+/// as an item template, and a motion that repeats a step on the UI thread.
+/// </summary>
+internal static class DeviceChecks
+{
+    private static readonly Color Ink = Color.FromArgb("#1F2937");
+    private static readonly Color Caption = Color.FromArgb("#6B7280");
+    private static readonly Color Line = Color.FromArgb("#D1D5DB");
+    private static readonly Color[] Accents = [Color.FromArgb("#0EA5E9"), Color.FromArgb("#22C55E"), Color.FromArgb("#0F766E"), Color.FromArgb("#B45309")];
+
+    /// <summary>A bordered card (accent box, title, subtitle) that shows its <c>int</c> binding context; 56 to 80 DIPs tall.</summary>
+    public static SkUiView Card()
+    {
+        var accent = new SkUiBox { WidthRequest = 36, HeightRequest = 36, CornerRadius = 18, VerticalOptions = LayoutOptions.Center };
+        var title = new SkUiLabel { FontSize = 15, FontAttributes = FontAttributes.Bold, TextColor = Ink };
+        var subtitle = new SkUiLabel { FontSize = 13, TextColor = Caption };
+        var card = new SkUiBorder
+        {
+            Background = Colors.White, Stroke = Line, StrokeThickness = 1, Padding = new Thickness(12, 0), Margin = new Thickness(8, 2),
+            Content = new SkUiHorizontalStackLayout
+            {
+                Spacing = 12,
+                Children = { accent, new SkUiVerticalStackLayout { VerticalOptions = LayoutOptions.Center, Children = { title, subtitle } } }
+            }
+        };
+        card.BindingContextChanged += (_, _) =>
+        {
+            if (card.BindingContext is not int index)
+                return;
+            accent.Color = Accents[index % Accents.Length];
+            title.Text = $"Item {index:00000}";
+            subtitle.Text = index % 3 == 0 ? "Shipped · 3 items" : "Waiting for pickup";
+            card.HeightRequest = 56 + index % 3 * 12;
+        };
+        return card;
+    }
+
+    /// <summary>Runs <paramref name="step"/> (with its count, from 0) every <paramref name="interval"/> until the handle is disposed.</summary>
+    public static IDisposable Repeat(View root, TimeSpan interval, Action<int> step)
+    {
+        var repeat = new Repeating();
+        step(repeat.Count++);
+        root.Dispatcher.StartTimer(interval, () =>
+        {
+            if (repeat.Stopped)
+                return false;
+            step(repeat.Count++);
+            return true;
+        });
+        return repeat;
+    }
+
+    private sealed class Repeating : IDisposable
+    {
+        public int Count;
+        public bool Stopped;
+        public void Dispose() => Stopped = true;
+    }
+}
+
+/// <summary>A collection view over 10,000 cards flung at the fastest fling (1.14 B4): frame time, allocations and the heap it keeps.</summary>
+public sealed class CollectionFling : BenchScenario
+{
+    public override string Name => "collection-fling";
+    public override string Description => "SkUiCollectionView over 10,000 cards (box, two labels; recycled); motion = a fling at the fastest velocity";
+    public override bool DeviceOnly => true;
+    public override TimeSpan MotionDuration => TimeSpan.FromSeconds(3);
+
+    // Release builds trim: keep the reflected scroll controller and its fling.
+    [System.Diagnostics.CodeAnalysis.DynamicDependency(System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.NonPublicProperties, typeof(SkUiCollectionView))]
+    [System.Diagnostics.CodeAnalysis.DynamicDependency("StartFling", "MauiSkiaUi.SkUiScrollController", "MauiSkiaUi")]
+    public override View Build() => new SkUiCollectionView
+    {
+        Background = Colors.White,
+        ItemsSource = Enumerable.Range(0, 10_000).ToList(),
+        ItemTemplate = new DataTemplate(DeviceChecks.Card)
+    };
+
+    public override Func<View, IDisposable?>? Motion => root =>
+    {
+        // A fling, as a finger's; the scroll controller is internal, so it is reached by reflection.
+        var list = (SkUiCollectionView)root;
+        var controller = typeof(SkUiCollectionView).GetProperty("Controller", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)?.GetValue(list);
+        var fling = controller?.GetType().GetMethod("StartFling", [typeof(Point)]);
+        if (fling is not null)
+            fling.Invoke(controller, [new Point(0, SkUiGestureSettings.FlingMaximumVelocity)]);
+        else
+            _ = list.ScrollToAsync(10_000 * 60, animated: true);
+        return null;
+    };
+}
+
+/// <summary>A virtual stack layout in a scroll view over 10,000 cards, scrolled towards the end (1.14 B4).</summary>
+public sealed class VirtualStackFling : BenchScenario
+{
+    public override string Name => "virtual-stack-fling";
+    public override string Description => "SkUiVirtualVerticalStackLayout in an SkUiScrollView over 10,000 cards (recycled); motion = animated scroll towards the end";
+    public override bool DeviceOnly => true;
+    public override TimeSpan MotionDuration => TimeSpan.FromSeconds(3);
+
+    public override View Build() => Scenarios.Scroll(new SkUiVirtualVerticalStackLayout
+    {
+        ItemsSource = Enumerable.Range(0, 10_000).ToList(),
+        ItemTemplate = new DataTemplate(DeviceChecks.Card)
+    });
+
+    public override Func<View, IDisposable?>? Motion => root =>
+    {
+        var scroll = (SkUiScrollView)root;
+        return scroll.AnimateScrollTo(0, scroll.ContentSize.Height, MotionDuration + TimeSpan.FromSeconds(0.5));
+    };
+}
+
+/// <summary>A carousel of 30 cards moved one card on every 400 ms with its animation (1.14 B4).</summary>
+public sealed class CarouselSwipe : BenchScenario
+{
+    public override string Name => "carousel-swipe";
+    public override string Description => "SkUiCarouselView of 30 cards (280 DIPs wide, peeking); motion = the next card every 400 ms, animated";
+    public override bool DeviceOnly => true;
+    public override TimeSpan MotionDuration => TimeSpan.FromSeconds(3);
+
+    public override View Build() => new SkUiCarouselView
+    {
+        Background = Colors.White, HeightRequest = 220, ItemExtent = 280,
+        ItemsSource = Enumerable.Range(0, 30).ToList(),
+        ItemTemplate = new DataTemplate(DeviceChecks.Card)
+    };
+
+    public override Func<View, IDisposable?>? Motion => root =>
+        DeviceChecks.Repeat(root, TimeSpan.FromMilliseconds(400), step => ((SkUiCarouselView)root).ScrollTo((step + 1) % 30, animate: true));
+}
+
+/// <summary>20 swipe view rows, one opened and the one before closed every 200 ms, alternating sides (1.14 B4).</summary>
+public sealed class SwipeRows : BenchScenario
+{
+    private const int Rows = 20;
+
+    public override string Name => "swipe-rows";
+    public override string Description => $"{Rows} SkUiSwipeView card rows (two items per side) in a scroll view; motion = a row opened and the one before closed every 200 ms, animated";
+    public override bool DeviceOnly => true;
+    public override TimeSpan MotionDuration => TimeSpan.FromSeconds(3);
+
+    public override View Build()
+    {
+        var stack = new SkUiVerticalStackLayout();
+        for (var index = 0; index < Rows; index++)
+        {
+            var card = DeviceChecks.Card();
+            card.BindingContext = index;
+            stack.Children.Add(new SkUiSwipeView
+            {
+                Content = card,
+                LeftItems = [new SwipeItem { Text = "Pin", BackgroundColor = Colors.SteelBlue }, new SwipeItem { Text = "Read", BackgroundColor = Colors.SeaGreen }],
+                RightItems = [new SwipeItem { Text = "Mute", BackgroundColor = Colors.Gray }, new SwipeItem { Text = "Delete", BackgroundColor = Colors.IndianRed }]
+            });
+        }
+        return Scenarios.Scroll(stack);
+    }
+
+    public override Func<View, IDisposable?>? Motion => root =>
+    {
+        var rows = ((SkUiVerticalStackLayout)((SkUiScrollView)root).Content!).Children.Cast<SkUiSwipeView>().ToArray();
+        return DeviceChecks.Repeat(root, TimeSpan.FromMilliseconds(200), step =>
+        {
+            // The rows on screen: the first eight.
+            rows[(step + 7) % 8].Close();
+            rows[step % 8].Open(step % 2 == 0 ? OpenSwipeItem.LeftItems : OpenSwipeItem.RightItems);
+        });
+    };
+}
+
+/// <summary>A refresh view refreshing over a list of 40 cards: the indicator spins while the window lasts (1.14 B4).</summary>
+public sealed class RefreshSpinning : BenchScenario
+{
+    public override string Name => "refresh-spinning";
+    public override string Description => "SkUiRefreshView over an SkUiScrollView of 40 cards; motion = IsRefreshing (the indicator spinning) for the window";
+    public override bool DeviceOnly => true;
+    public override TimeSpan MotionDuration => TimeSpan.FromSeconds(3);
+
+    public override View Build()
+    {
+        var stack = new SkUiVerticalStackLayout();
+        for (var index = 0; index < 40; index++)
+        {
+            var card = DeviceChecks.Card();
+            card.BindingContext = index;
+            stack.Children.Add(card);
+        }
+        return new SkUiRefreshView { Background = Colors.White, Content = Scenarios.Scroll(stack) };
+    }
+
+    public override Func<View, IDisposable?>? Motion => root =>
+    {
+        var refresh = (SkUiRefreshView)root;
+        refresh.IsRefreshing = true;
+        return new Stop(refresh);
+    };
+
+    private sealed class Stop(SkUiRefreshView refresh) : IDisposable
+    {
+        public void Dispose() => refresh.IsRefreshing = false;
+    }
+}
+
+/// <summary>A scrolling list of 120 rows, each its own shimmering skeleton (1.14 B4): the waves while the list moves.</summary>
+public sealed class ShimmerListScroll : BenchScenario
+{
+    private const int Rows = 120;
+
+    public override string Name => "shimmer-list-scroll";
+    public override string Description => $"{Rows} rows in a scroll view, each an SkUiShimmer showing Core bones (avatar, two bars); motion = animated scroll towards the end";
+    public override bool DeviceOnly => true;
+    public override TimeSpan MotionDuration => TimeSpan.FromSeconds(3);
+
+    public override View Build()
+    {
+        var stack = new SkUiVerticalStackLayout { Spacing = 8, Padding = new Thickness(12) };
+        for (var index = 0; index < Rows; index++)
+            stack.Children.Add(new SkUiShimmer
+            {
+                HeightRequest = 48,
+                SkeletonContent = new SkUiCoreHost().SetContent(new SkUiCoreHorizontalStackLayout { Spacing = 10 }
+                    .Add(new SkUiCoreBox { Color = Colors.Black, CornerRadius = 20, Width = 40, Height = 40 })
+                    .Add(new SkUiCoreVerticalStackLayout { Spacing = 6, VerticalAlignment = LayoutAlignment.Center }
+                        .Add(new SkUiCoreBox { Color = Colors.Black, CornerRadius = 4, Width = 160 + index % 3 * 30, Height = 12 })
+                        .Add(new SkUiCoreBox { Color = Colors.Black, CornerRadius = 4, Width = 100, Height = 10 })))
+            });
+        return Scenarios.Scroll(stack);
+    }
+
+    public override Func<View, IDisposable?>? Motion => root =>
+    {
+        var scroll = (SkUiScrollView)root;
+        return scroll.AnimateScrollTo(0, scroll.ContentSize.Height, MotionDuration + TimeSpan.FromSeconds(0.5));
     };
 }
 

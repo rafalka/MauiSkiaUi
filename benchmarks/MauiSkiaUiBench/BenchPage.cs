@@ -122,7 +122,7 @@ public sealed class BenchPage : ContentPage
         }
 
         double? fps = null, avg = null, max = null, uiFps = null, uiAvg = null, uiMax = null;
-        long? allocated = null;
+        long? allocated = null, heap = null;
         if (scenario.Motion is { } motion && root is SkUiView)
         {
             await Task.Delay(Settle);
@@ -136,6 +136,7 @@ public sealed class BenchPage : ContentPage
             var seconds = watch.Elapsed.TotalSeconds;
             allocated = GC.GetTotalAllocatedBytes(precise: true) - allocatedBefore;
             handle?.Dispose();
+            heap = GC.GetTotalMemory(forceFullCollection: true); // after the window: the collection costs it nothing
             if (stats is { } s)
             {
                 fps = s.Frames / seconds;
@@ -151,7 +152,7 @@ public sealed class BenchPage : ContentPage
         }
 
         return new BenchSample(scenario.Name, DeviceInfo.Current.Platform.ToString(), iteration, generate, add, null, null, null, null,
-            firstFrame, update, fps, avg, max, allocated, uiFps, uiAvg, uiMax);
+            firstFrame, update, fps, avg, max, allocated, uiFps, uiAvg, uiMax) { HeapBytes = heap };
     }
 
     /// <summary>

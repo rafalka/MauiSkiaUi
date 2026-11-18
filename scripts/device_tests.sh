@@ -237,7 +237,7 @@ run_ios() {
         # mlaunch directly (installs, then launches and waits): `dotnet build -t:Run` needs a build of the same invocation.
         # ${sdk[@]+...}: an empty array is "unbound" under set -u in macOS's bash 3.2.
         local mlaunch stdout="$OUT/ios.stdout" sdk=() launch_args=()
-        mlaunch="$(find /usr/local/share/dotnet/packs "$HOME/.dotnet/packs" -path "*Microsoft.iOS.Sdk.${TFM%%-*}*/tools/bin/mlaunch" -type f 2>/dev/null | sort -V | tail -1)"
+        mlaunch="$(find /usr/local/share/dotnet/packs "$HOME/.dotnet/packs" -path "*Microsoft.iOS.Sdk.${TFM%%-*}*/tools/bin/mlaunch" -type f 2>/dev/null | sort -V | tail -1 || true)" # find fails on a missing ~/.dotnet/packs
         [[ -n "$mlaunch" ]] || { echo "mlaunch not found (iOS workload)" >&2; exit 1; }
         if [[ -n "$XCODE" ]]; then
             [[ -d "$XCODE/Contents/Developer" ]] && XCODE="$XCODE/Contents/Developer"
