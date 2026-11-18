@@ -13,6 +13,8 @@ Publishing (the NuGet publish workflow, [docs/Releasing.md](docs/Releasing.md)) 
 
 ## Unreleased
 
+## 1.14.0
+
 ### New features
 
 - **`params ReadOnlySpan<T>` overloads (1.14):** beside each `params T[]` member, so a list of values passes without an array: `SetStrokeDashArray` (`SkUiShape`, `SkUiBorder`, `SkUiCoreShape`, `SkUiCoreBorder`), `SetPoints` (`SkUiPolyShape`, `SkUiCorePolyShape`), `SetTransformations` (`SkUiImage`, `SkUiCoreImage`), the `SkUiCorePolygon` and `SkUiCorePolyline` constructors and `SkUiImageCacheKeys.IgnoreQueryParameters`. An array still binds to the array overload.
