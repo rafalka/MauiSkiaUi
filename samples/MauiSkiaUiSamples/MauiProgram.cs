@@ -3,6 +3,10 @@ using MauiSkiaUi;
 using MauiSkiaUi.CommunityToolkit;
 using MauiSkiaUi.Markdown.Math;
 using MauiSkiaUiTour;
+#if MAUI_DEVFLOW
+using Microsoft.Maui.DevFlow.Agent;
+using SkiaUiDevFlow;
+#endif
 
 namespace MauiSkiaUiSamples;
 
@@ -28,6 +32,10 @@ public static class MauiProgram
                 // Only ConfigureFonts, no SkUiFonts.Register: drawn text resolves these aliases too (AppFontsSample).
                 fonts.AddFont("Lobster-Regular.ttf", "Lobster");
             });
+#if MAUI_DEVFLOW
+        // Debug: DevFlow drives the app; SkiaUi's extension lists and taps the drawn controls (docs/DevFlow.md).
+        builder.AddMauiDevFlowAgent(SkiaUiDevFlowExtension.Register);
+#endif
         return builder.Build();
     }
 }

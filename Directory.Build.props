@@ -24,6 +24,8 @@
     <CSharpMathVersion>0.5.1</CSharpMathVersion>
     <!-- HarfBuzzSharp version SkiaSharp.HarfBuzz $(SkiaSharpVersion) depends on (for the Linux native assets of headless projects). -->
     <HarfBuzzSharpVersion>14.2.1.400</HarfBuzzSharpVersion>
+    <!-- The DevFlow agent the demo and samples apps reference in Debug (docs/DevFlow.md): one preview build for both. -->
+    <MauiDevFlowAgentVersion>0.1.0-preview.13.26512.5</MauiDevFlowAgentVersion>
 
     <!--
       Shared product version for SkiaUi.Maui NuGet (PackageVersion/Version) and the demo app

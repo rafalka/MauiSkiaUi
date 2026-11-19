@@ -8,7 +8,7 @@ argument-hint: "[app project path]"
 
 SkiaUi draws a whole page (or a part of it) on one surface: `SkUi*` views and Core nodes have no platform views. DevFlow's own tree therefore reports them with parent-relative frames, has no bounds for Core nodes, and its tap reaches only the surface. The `dev.skiaui` extension in this skill fixes that through `SkUiDiagnostics`: a tree of drawn elements with window bounds, taps delivered through the surface like a real touch, and hit-testing.
 
-The extension is one source file, [assets/SkiaUiDevFlowExtension.cs](assets/SkiaUiDevFlowExtension.cs). The app owns the copy and the DevFlow version (the DevFlow agent is a preview package, so SkiaUi does not ship it in a NuGet package). The SkiaUi demo app compiles the same file, so it builds against the SkiaUi release it came with.
+The extension is one source file, [assets/SkiaUiDevFlowExtension.cs](assets/SkiaUiDevFlowExtension.cs). The app owns the copy and the DevFlow version (the DevFlow agent is a preview package, so SkiaUi does not ship it in a NuGet package). The SkiaUi demo and samples apps compile the same file, so it builds against the SkiaUi release it came with.
 
 ## Rules
 
