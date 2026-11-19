@@ -434,10 +434,12 @@ internal sealed class SkUiCalendarModel(ISkUiCalendarHost host)
     // The month boundaries around a page of a calendar system, worked out once per page: which month a cell is in and its day number
     // are then date comparisons (no calendar call per cell, none for days the calendar does not support).
     // A few pages: a slide draws the page and its neighbor in every frame, and a drag back and forth shows the neighbors either side.
-    private readonly (DateTime Key, SkUiCalendarSystem? System, DateTime Previous, DateTime Start, DateTime Next, DateTime After)[] _monthsCache =
-        new (DateTime, SkUiCalendarSystem?, DateTime, DateTime, DateTime, DateTime)[4];
+    // Last: the page's month's last day, inclusive (the calendar's last month may end on DateTime.MaxValue, with nothing after it);
+    // After: the first day of the month after the next one, if the calendar has one.
+    private readonly (DateTime Key, SkUiCalendarSystem? System, DateTime Previous, DateTime Start, DateTime Last, DateTime? After)[] _monthsCache =
+        new (DateTime, SkUiCalendarSystem?, DateTime, DateTime, DateTime, DateTime?)[4];
     private int _monthsNext;
-    private (DateTime Key, SkUiCalendarSystem? System, DateTime Previous, DateTime Start, DateTime Next, DateTime After) _months;
+    private (DateTime Key, SkUiCalendarSystem? System, DateTime Previous, DateTime Start, DateTime Last, DateTime? After) _months;
 
     private void MonthsAround(DateTime start)
     {
@@ -452,14 +454,17 @@ internal sealed class SkUiCalendarModel(ISkUiCalendarHost host)
             }
         var first = system.MonthStart(start);
         var previous = system.AddMonths(first, -1) is { } before ? system.MonthStart(before) : DateTime.MinValue;
-        var next = system.AddMonths(first, 1) is { } month ? system.MonthStart(month) : SkUiCalendarGrid.AddDays(system.Maximum, 1) ?? DateTime.MaxValue.Date;
-        var after = next <= system.Maximum && system.AddMonths(next, 1) is { } later ? system.MonthStart(later) : DateTime.MaxValue.Date;
-        _months = (start, system, previous, first, next, after);
+        DateTime? next = system.AddMonths(first, 1) is { } month ? system.MonthStart(month) : null;
+        var last = next is { } following ? following.AddDays(-1) : system.Maximum;
+        DateTime? after = next is { } nextMonth && system.AddMonths(nextMonth, 1) is { } later ? system.MonthStart(later) : null;
+        _months = (start, system, previous, first, last, after);
         _monthsCache[_monthsNext] = _months;
         _monthsNext = (_monthsNext + 1) % _monthsCache.Length;
     }
 
     /// <summary>The number a day's cell shows on the page starting at <paramref name="start"/>; -1 for a day the calendar system does not support.</summary>
+    internal int DayNumberOf(DateTime start, DateTime day) => DayNumber(start, day);
+
     private int DayNumber(DateTime start, DateTime day)
     {
         if (_system is not { } system)
@@ -467,9 +472,14 @@ internal sealed class SkUiCalendarModel(ISkUiCalendarHost host)
         if (day < system.Minimum || day > system.Maximum)
             return -1;
         MonthsAround(start);
-        var (_, _, previous, first, next, after) = _months;
-        var from = day >= after ? after : day >= next ? next : day >= first ? first : day >= previous ? previous : DateTime.MinValue;
-        return from == DateTime.MinValue ? system.Day(day) : (day - from).Days + 1;
+        var (_, _, previous, first, last, after) = _months;
+        if (after is { } monthAfter && day >= monthAfter)
+            return (day - monthAfter).Days + 1;
+        if (day > last)
+            return (day - last).Days; // the next month's (it starts the day after the last)
+        if (day >= first)
+            return (day - first).Days + 1;
+        return day >= previous ? (day - previous).Days + 1 : system.Day(day);
     }
 
     /// <summary>The header's title for the page shown (kept until the page, mode, format or culture changes).</summary>
@@ -1130,7 +1140,6 @@ internal sealed class SkUiCalendarModel(ISkUiCalendarHost host)
         return null;
     }
 
-    /// <summary>Whether a month / year / decade cell holds the selection (shown when it is the lowest mode, where cells are chosen).</summary>
     /// <summary>Whether one of the multiple ranges ends between <paramref name="first"/> and <paramref name="last"/> (a loop: a lambda's closure would be allocated on every call).</summary>
     private bool AnyRangeEndsIn(DateTime first, DateTime last)
     {
@@ -1140,6 +1149,7 @@ internal sealed class SkUiCalendarModel(ISkUiCalendarHost host)
         return false;
     }
 
+    /// <summary>Whether a month / year / decade cell holds the selection (shown when it is the lowest mode, where cells are chosen).</summary>
     private bool IsSelectedPeriod(DateTime cell, SkUiCalendarDisplayMode mode)
     {
         if (mode != MinimumDisplayMode)
@@ -1341,7 +1351,7 @@ internal sealed class SkUiCalendarModel(ISkUiCalendarHost host)
         if (_system is null)
             return SkUiCalendarGrid.IsOtherMonth(start, day);
         MonthsAround(start);
-        return day < _months.Start || day >= _months.Next;
+        return day < _months.Start || day > _months.Last;
     }
 
     internal bool PageContains(DateTime date)

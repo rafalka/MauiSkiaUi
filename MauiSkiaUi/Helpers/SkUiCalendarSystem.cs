@@ -58,7 +58,7 @@ internal sealed class SkUiCalendarSystem
         };
         // The Japanese calendar may report a first day before the eras its cultures write start (.NET 10 with ICU: 8 September 1868
         // against Meiji's 23 October): such days cannot be written with their era, so the pages start where the writing does.
-        if (calendar is JapaneseCalendar && With(CultureInfo.GetCultureInfo(HomeCulture)) is { } japanese)
+        if (calendar is JapaneseCalendar && HomeCultureWith() is { } japanese)
         {
             Minimum = FirstWrittenDay(Minimum, japanese);
             MinimumYear = Year(Minimum);
@@ -214,9 +214,21 @@ internal sealed class SkUiCalendarSystem
     {
         if (_culture is { } cached && ReferenceEquals(cached.Culture, culture))
             return cached.Formatting;
-        var formatting = With(culture) ?? With(CultureInfo.GetCultureInfo(HomeCulture)) ?? CultureInfo.InvariantCulture;
+        var formatting = With(culture) ?? HomeCultureWith() ?? CultureInfo.InvariantCulture;
         _culture = (culture, formatting);
         return formatting;
+    }
+
+    private CultureInfo? HomeCultureWith()
+    {
+        try
+        {
+            return With(CultureInfo.GetCultureInfo(HomeCulture));
+        }
+        catch (CultureNotFoundException)
+        {
+            return null; // invariant globalization: no culture to write it but the invariant one
+        }
     }
 
     private CultureInfo? With(CultureInfo culture)

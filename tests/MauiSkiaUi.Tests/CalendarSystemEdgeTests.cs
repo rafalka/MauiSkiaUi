@@ -97,6 +97,16 @@ public sealed class CalendarSystemEdgeTests : IDisposable
         Assert.True(SkUiCalendarGrid.PageEnd(engine.PageStart, SkUiCalendarDisplayMode.Month, 6, system) >= engine.PageStart);
         Assert.True(engine.PageContains(last));
         Assert.True(calendar.CanGoToPrevious);
+        // The calendar's last day is its month's day, not the next month's first (December 9999 has nothing after it).
+        var days = new Dictionary<DateTime, SkUiCalendarDayContext>();
+        calendar.DayPainter = (SKCanvas _, in SkUiCalendarDayContext day) =>
+        {
+            days[day.Date] = day;
+            return false;
+        };
+        surface.Frame(16);
+        Assert.False(days[last].IsAdjacent);
+        Assert.Equal(system.Day(last), engine.DayNumberOf(engine.PageStart, last));
     }
 
     [Fact]
@@ -149,6 +159,19 @@ public sealed class CalendarSystemEdgeTests : IDisposable
         Assert.Equal(6, system.SameMonth(6, 5784, 5785));
         Assert.Equal(6, system.SameMonth(7, 5784, 5785));
         Assert.Equal(7, system.SameMonth(6, 5785, 5787));
+    }
+
+    [Fact]
+    public void KeysMoveIntoAPartlySupportedFirstYearAsFarAsTheCalendarGoes()
+    {
+        var japanese = new JapaneseCalendar();
+        var system = SkUiCalendarSystem.For(japanese)!;
+        // A year back from March 1869 is March 1868, before the calendar's first day: the focus lands on that day.
+        Assert.Equal(system.Minimum, SkUiCalendarGrid.AddYears(new DateTime(1869, 3, 10), -1, system));
+        var yearPage = SkUiCalendarGrid.PageStart(new DateTime(1869, 3, 10), SkUiCalendarDisplayMode.Year, 6, DayOfWeek.Sunday, system);
+        Assert.Equal(system.MonthStart(system.Minimum), SkUiCalendarGrid.MoveCells(new DateTime(1869, 1, 1), SkUiCalendarDisplayMode.Year, -4, system)); // September 1868 is before it
+        Assert.Null(SkUiCalendarGrid.MoveCells(system.Minimum, SkUiCalendarDisplayMode.Year, -3, system)); // already there
+        Assert.Equal(1869, yearPage.Year);
     }
 
     [Fact]

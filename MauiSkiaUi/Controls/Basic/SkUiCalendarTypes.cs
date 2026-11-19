@@ -37,7 +37,7 @@ public enum SkUiCalendarSelectionMode
 /// <summary>What a date picker's popup shows (<see cref="SkUiDatePicker.PopupStyle"/>).</summary>
 public enum SkUiDatePickerPopupStyle
 {
-    /// <summary>The look's choice (<see cref="SkUiLook.DatePickerPopupStyle"/>; wheels on every built-in look).</summary>
+    /// <summary>The look's choice (<see cref="SkUiLook.DatePickerPopupStyle"/> for a date picker, <see cref="SkUiLook.DateTimePickerPopupStyle"/> for a date and time picker; wheels on every built-in look).</summary>
     Default,
     /// <summary>Wheels for the day, the month and the year (<see cref="SkUiDateTimePickerBase.WheelFormat"/>).</summary>
     Wheels,

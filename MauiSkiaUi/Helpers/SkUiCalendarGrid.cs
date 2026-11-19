@@ -78,11 +78,17 @@ internal static class SkUiCalendarGrid
     /// <paramref name="date"/> <paramref name="years"/> years away, the same month and day (or the month's last), or <c>null</c>
     /// outside the range: by twelve months on the Gregorian calendar, by the calendar's years on a system (a Hebrew year has 12 or 13 months).
     /// </summary>
-    public static DateTime? AddYears(DateTime date, long years, SkUiCalendarSystem? system = null) => system is null
-        ? AddMonths(date, 12 * years)
-        : system.Date(system.Year(date) + years, system.SameMonth(system.Month(date), system.Year(date), (int)Math.Clamp(system.Year(date) + years, int.MinValue, int.MaxValue)),
-            system.Day(date)) is { } moved && moved >= system.Minimum && moved <= system.Maximum
-            ? moved : null;
+    public static DateTime? AddYears(DateTime date, long years, SkUiCalendarSystem? system = null)
+    {
+        if (system is null)
+            return AddMonths(date, 12 * years);
+        var year = system.Year(date) + years;
+        if (year < system.MinimumYear || year > system.MaximumYear)
+            return null;
+        // A month the first or last year does not have: as far as the calendar goes (its first or last day).
+        return system.Date(year, system.SameMonth(system.Month(date), system.Year(date), (int)year), system.Day(date))
+            ?? (years < 0 ? system.Minimum : system.Maximum);
+    }
 
     /// <summary>The last day of the week holding <paramref name="date"/>'s first day of week, clamped to <see cref="DateTime"/>'s range.</summary>
     public static DateTime WeekStart(DateTime date, DayOfWeek first)
@@ -212,10 +218,20 @@ internal static class SkUiCalendarGrid
         return mode switch
         {
             SkUiCalendarDisplayMode.Month => AddDays(focus, cells) is { } day && day >= system.Minimum && day <= system.Maximum ? day : null,
-            SkUiCalendarDisplayMode.Year => system.AddMonths(system.MonthStart(focus), cells) is { } month ? system.MonthStart(month) : null,
+            SkUiCalendarDisplayMode.Year => system.AddMonths(system.MonthStart(focus), cells) is { } month ? system.MonthStart(month) : EdgeMonth(focus, cells, system),
             SkUiCalendarDisplayMode.Decade => system.YearStart(system.Year(focus) + (long)cells),
             _ => system.YearStart(Math.Max(system.MinimumYear, (long)system.Year(focus) / 10 * 10 + 10L * cells))
         };
+    }
+
+    /// <summary>
+    /// The calendar's first or last month (by the direction of <paramref name="cells"/>) when a move of the focus by months runs past
+    /// it, unless the focus is already in it: a year page's cells move up to a partly supported first or last year.
+    /// </summary>
+    private static DateTime? EdgeMonth(DateTime focus, int cells, SkUiCalendarSystem system)
+    {
+        var edge = system.MonthStart(cells < 0 ? system.Minimum : system.Maximum);
+        return edge == system.MonthStart(focus) ? null : edge;
     }
 
     /// <summary>
