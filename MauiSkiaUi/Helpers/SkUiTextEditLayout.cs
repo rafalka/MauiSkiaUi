@@ -211,7 +211,7 @@ internal sealed class SkUiTextEditLayout
             SkUiTextRendering.Auto when SkUiShaping.TryShapePlain(text, primary, _style.Direction, spacing) is { } plain => plain,
             _ => SkUiShaping.Shape(text, primary.Typeface, _fontSize, _style.Direction, _fontFor, spacing)
         };
-        if (text.Length == 0 || double.IsPositiveInfinity(_wrapWidth) || paragraph.Width <= _wrapWidth)
+        if (text.Length == 0 || double.IsPositiveInfinity(_wrapWidth) || paragraph.Width <= _wrapWidth + SkUiTextLayout.FitTolerance)
         {
             BuildLine(layout, 0, paragraph, 0, text.Length, text.Length, endsParagraph: true);
             TrimLines(layout, 1);

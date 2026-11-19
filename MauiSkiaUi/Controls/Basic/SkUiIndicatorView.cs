@@ -496,10 +496,13 @@ public class SkUiIndicatorView : SkUiView, ISkUiKeyHandler
         {
             object? item = items is null ? index : index < items.Count ? items[index] : null;
             var selected = selector is not null ? selector.SelectTemplate(item, this) : template;
+            // A new view gets its item before it is attached, so it never inherits the indicator's own context (issue #108).
             if (index >= children.Count)
-                children.Add(CreateIndicatorView(selected));
+                children.Add(CreateIndicatorView(selected, item));
             else if (selector is not null && (index >= _viewTemplates.Count || !ReferenceEquals(_viewTemplates[index], selected)))
-                children[index] = CreateIndicatorView(selected);
+                children[index] = CreateIndicatorView(selected, item);
+            else
+                ((BindableObject)children[index]).BindingContext = item;
             if (selector is not null)
             {
                 if (index < _viewTemplates.Count)
@@ -507,7 +510,6 @@ public class SkUiIndicatorView : SkUiView, ISkUiKeyHandler
                 else
                     _viewTemplates.Add(selected);
             }
-            ((BindableObject)children[index]).BindingContext = item;
         }
         UpdateIndicatorStyles();
     }
@@ -515,9 +517,13 @@ public class SkUiIndicatorView : SkUiView, ISkUiKeyHandler
     /// <summary>For a <see cref="DataTemplateSelector"/>: the template each of the stack's views was made from, by index.</summary>
     private readonly List<DataTemplate?> _viewTemplates = [];
 
-    private static ISkUiView CreateIndicatorView(DataTemplate? template) =>
-        template?.CreateContent() as ISkUiView
-        ?? throw new InvalidOperationException($"{nameof(IndicatorTemplate)} of {nameof(SkUiIndicatorView)} must create drawn (SkUi*) views; put native views inside an SkUiMauiContentView.");
+    private static ISkUiView CreateIndicatorView(DataTemplate? template, object? item)
+    {
+        var view = template?.CreateContent() as ISkUiView
+            ?? throw new InvalidOperationException($"{nameof(IndicatorTemplate)} of {nameof(SkUiIndicatorView)} must create drawn (SkUi*) views; put native views inside an SkUiMauiContentView.");
+        ((BindableObject)view).BindingContext = item;
+        return view;
+    }
 
     /// <summary>The views' backgrounds and the <c>Selected</c> visual state, as MAUI marks them; hidden with a single indicator per <see cref="HideSingle"/>.</summary>
     private void UpdateIndicatorStyles()

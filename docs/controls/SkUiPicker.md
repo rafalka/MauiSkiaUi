@@ -293,6 +293,8 @@ Anchored as a combo box, with drawn rows:
 </sk:SkUiPicker>
 ```
 
+A template's root gets its item as `BindingContext` before it is attached, never the popup's own row object or the picker's context (also in the wheels and `SelectedItemTemplate`), so compiled bindings (`x:DataType`) bind without mismatch warnings.
+
 ### The field's look of the selected item
 
 `SelectedItemTemplate` (SkiaUi; `SkUiPicker` only) shows the selected item in the field through drawn views of the app's, bound to `SelectedItem` (a `DataTemplateSelector` picks per item), inside the field's chrome before the chevron and the clear button; the field grows with them. The views get the field's content area, inside its padding: a field with a set height (48 is common) leaves them about the height of a line of text, so give them no padding of their own and don't reuse a list row's template with its padding (it is squeezed and clipped). They take no taps (a tap opens the list as anywhere on the field), and screen readers read the item's text. While nothing is selected the placeholder shows, and with several choices the texts or tokens.

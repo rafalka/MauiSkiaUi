@@ -110,6 +110,21 @@ public abstract class SkUiPickerPopupContent
     protected abstract SkUiView CreateBody();
 
     /// <summary>
+    /// How short, in DIPs, an anchored popup (<see cref="SkUiPopupPlacement.Anchored"/>) may make the body to fit beside the picker
+    /// before it covers the picker instead (SkiaUi adds its chrome's height). <see cref="double.NaN"/> (default): a few rows, for a
+    /// body that scrolls; <see cref="double.PositiveInfinity"/>: its whole preferred height, for a form that cannot usefully shrink
+    /// (a calendar with buttons): placed whole on the side with more room when it fits there, otherwise moved over the picker,
+    /// inside the window's safe area less the look's <c>PopupMargin</c>, and limited to that area when taller. Set it in the
+    /// constructor or <see cref="CreateBody"/>; read when the popup is placed. Other placements ignore it.
+    /// </summary>
+    /// <exception cref="ArgumentOutOfRangeException">The value is negative.</exception>
+    public double MinimumHeight
+    {
+        get;
+        set => field = value < 0 ? throw new ArgumentOutOfRangeException(nameof(value), value, "The minimum height cannot be negative.") : value;
+    } = double.NaN;
+
+    /// <summary>
     /// The size the body wants, at least <paramref name="minimumWidth"/> and at most <paramref name="maximumWidth"/> wide and
     /// <paramref name="maximumHeight"/> tall (SkiaUi adds its chrome's height). By default: the body measured within them.
     /// </summary>
@@ -262,6 +277,7 @@ internal sealed class SkUiCustomPopup : SkUiContentView, ISkUiKeyHandler, ISkUiP
     private SkUiPickerPopupContent? _content;
     private SkUiPopupRequest? _request;
     private bool _focusedOnce;
+    private double _chromeHeight; // at the width PreferredSize gave
 
     public SkUiCustomPopup(SkUiPickerPopupContent content, SkUiPickerPopupContext context, in SkUiPickerPopupSetup setup, ISkUiPickerOwner owner)
     {
@@ -309,8 +325,13 @@ internal sealed class SkUiCustomPopup : SkUiContentView, ISkUiKeyHandler, ISkUiP
         var chromeHeight = SkUiPopupParts.ExtraHeight(maximumWidth, _title, _appHeader, _appFooter, _footer);
         var body = _content?.PreferredSize(minimumWidth, maximumWidth, Math.Max(0, maximumHeight - chromeHeight)) ?? Size.Zero;
         var width = Math.Clamp(body.Width, Math.Min(minimumWidth, maximumWidth), maximumWidth);
-        return new Size(width, body.Height + SkUiPopupParts.ExtraHeight(width, _title, _appHeader, _appFooter, _footer));
+        _chromeHeight = SkUiPopupParts.ExtraHeight(width, _title, _appHeader, _appFooter, _footer);
+        return new Size(width, body.Height + _chromeHeight);
     }
+
+    /// <inheritdoc />
+    /// <remarks>The app's <see cref="SkUiPickerPopupContent.MinimumHeight"/> for the body, with the chrome's height.</remarks>
+    public double MinimumHeight => _content?.MinimumHeight is { } body && !double.IsNaN(body) ? body + _chromeHeight : double.NaN;
 
     /// <inheritdoc />
     public void SelectionChanged(int index) => _content?.RaisePickerChanged();

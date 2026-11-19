@@ -45,6 +45,27 @@ public sealed class PickerFieldTemplateTests : IDisposable
     }
 
     [Fact]
+    public void TheFieldViewNeverSeesThePickersContext()
+    {
+        var seen = new List<object?>();
+        var template = new DataTemplate(() =>
+        {
+            var label = new SkUiLabel();
+            label.BindingContextChanged += (_, _) => seen.Add(label.BindingContext);
+            return label;
+        });
+        var picker = new SkUiPicker { BindingContext = "the page's view model", ItemsSource = Paints, SelectedItemTemplate = template };
+        Root(picker);
+
+        picker.SelectedIndex = 1;
+        picker.SelectedIndex = 2;
+        picker.BindingContext = "another view model";
+
+        Assert.Equal([Paints[1], Paints[2]], seen);
+        Assert.Equal(Paints[2], picker.FieldView!.BindingContext);
+    }
+
+    [Fact]
     public void TheFieldShowsTheSelectedItemThroughTheTemplate()
     {
         var picker = new SkUiPicker { ItemsSource = Paints, ItemDisplayBinding = Binding.Create(static (Paint paint) => paint.Name), SelectedItemTemplate = Swatch() };

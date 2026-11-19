@@ -61,8 +61,11 @@ public sealed class SkUiTextLineBreakContext
         return _layout.MeasureUnbroken(text, Font);
     }
 
-    /// <summary>Whether <paramref name="text"/> fits <see cref="AvailableWidth"/> on one line per paragraph.</summary>
-    public bool Fits(string text) => double.IsInfinity(AvailableWidth) || Measure(text) <= AvailableWidth;
+    /// <summary>
+    /// Whether <paramref name="text"/> fits <see cref="AvailableWidth"/> on one line per paragraph, as the stock breaking decides it
+    /// (a line a rounding error wider than the width, as text arranged at its measured width, still fits).
+    /// </summary>
+    public bool Fits(string text) => double.IsInfinity(AvailableWidth) || Measure(text) <= AvailableWidth + SkUiTextLayout.FitTolerance;
 
     /// <summary>The lines the label paints without a custom breaker: <see cref="Text"/> broken by <see cref="LineBreakMode"/> and <see cref="MaxLines"/>.</summary>
     public IReadOnlyList<string> Break() => Break(Text, LineBreakMode);

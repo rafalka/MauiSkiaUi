@@ -38,7 +38,7 @@ public static class SkUiPopups
         var look = SkUiLook.Current;
         var rootBounds = SkUiDiagnostics.GetRootBounds(anchor) ?? Rect.Zero;
         var origin = SkUiWindowMetrics.SurfaceOrigin(surfaceRoot);
-        var layout = SkUiPopupGeometry.Layout(new SkUiPopupPlacementInput(rootBounds.Offset(origin.X, origin.Y), rootBounds, SkUiWindowMetrics.WindowSize(surfaceRoot),
+        var layout = SkUiPopupGeometry.Layout(new SkUiPopupPlacementInput(rootBounds.Offset(origin.X, origin.Y), rootBounds, SkUiWindowMetrics.PopupWindowSize(surfaceRoot),
             SkUiWindowMetrics.SafeAreaInsets(surfaceRoot), look.PopupMargin, look.PopupAnchorGap, SkUiPopupPlacement.Window, LayoutOptions.Center, LayoutOptions.Center,
             preferredSize, double.PositiveInfinity, default, anchor.IsRightToLeft));
         var request = new SkUiPopupRequest(anchor, surfaceRoot, content, layout)

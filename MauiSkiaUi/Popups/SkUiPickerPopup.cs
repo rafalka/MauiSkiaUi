@@ -233,6 +233,9 @@ internal sealed class SkUiPickerPopup : SkUiContentView, ISkUiKeyHandler, ISkUiP
     /// <summary>The highlighted item: the selection, then the keyboard's position (tests).</summary>
     internal int HighlightedIndex => _highlighted;
 
+    /// <inheritdoc />
+    public double MinimumHeight => double.NaN; // a few rows: the list scrolls
+
     /// <summary>
     /// The size the content wants: as wide as its widest text (the first items') or templated row, at least
     /// <paramref name="minimumWidth"/>, at most <paramref name="maximumWidth"/>, and as tall as all its rows and its title.
@@ -1032,9 +1035,14 @@ internal sealed class SkUiPickerPopup : SkUiContentView, ISkUiKeyHandler, ISkUiP
             if (!ReferenceEquals(template, _shownTemplate) || host.Content is null)
             {
                 _shownTemplate = template;
-                host.Content = template?.CreateContent() as ISkUiView;
+                // The item before the content is attached: it never inherits the internal Row, whose bindings would
+                // evaluate against it (x:DataType mismatch warnings, issue #108). Set, it ignores inherited contexts.
+                var created = template?.CreateContent() as ISkUiView;
+                if (created is BindableObject fresh)
+                    fresh.BindingContext = row?.Item;
+                host.Content = created;
             }
-            if (host.Content is BindableObject content)
+            else if (host.Content is BindableObject content)
                 content.BindingContext = row?.Item;
             ShowState();
             ForwardSelected();

@@ -105,6 +105,27 @@ public sealed class PickerWheelPartsTests : IDisposable
     }
 
     [Fact]
+    public void TemplatedWheelRowsNeverSeeTheInternalEntry()
+    {
+        var seen = new List<object?>();
+        var column = SkUiPickerColumn.Range(1, 30);
+        column.ItemTemplate = new DataTemplate(() =>
+        {
+            var label = new SkUiLabel { HeightRequest = 30 };
+            label.BindingContextChanged += (_, _) => seen.Add(label.BindingContext);
+            return label;
+        });
+        var content = Open(new SkUiMultiColumnPicker().AddColumn(column), _presenter);
+        using var surface = new SkUiTestSurface(content, 360, 400);
+        surface.Frame();
+        content.Wheel(0).Position = 25; // rows recycled
+        surface.Frame();
+
+        Assert.NotEmpty(seen);
+        Assert.All(seen, context => Assert.True(context is null or int)); // the item, or none while recycled
+    }
+
+    [Fact]
     public void TheLookSetsTheWheelsAndTheFootersButtons()
     {
         SkUiLook.Current = new CustomLook();

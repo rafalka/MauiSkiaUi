@@ -97,6 +97,31 @@ public class IndicatorTemplateTests
     }
 
     [Fact]
+    public void TemplatedIndicatorsNeverSeeTheIndicatorsContext()
+    {
+        // Issue #108's pattern: compiled bindings (x:DataType) warn when a view first inherits the page's view model.
+        var seen = new List<object?>();
+        var items = Items(3);
+        var indicator = new SkUiIndicatorView
+        {
+            BindingContext = PageModel,
+            IndicatorTemplate = new DataTemplate(() =>
+            {
+                var box = new SkUiBox { WidthRequest = 10, HeightRequest = 10 };
+                box.BindingContextChanged += (_, _) => seen.Add(box.BindingContext);
+                return box;
+            })
+        };
+        indicator.ItemsSource = items;
+        items.Add("Item 3");
+
+        Assert.Equal(4, Views(indicator).Count);
+        Assert.Equal(items, seen.Distinct()); // only the items, each its own view's
+    }
+
+    private static readonly object PageModel = new();
+
+    [Fact]
     public void ASelectorChoosesAgainWhenTheItemAtAnIndexChanges()
     {
         var items = Items(3);

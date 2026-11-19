@@ -108,6 +108,54 @@ public sealed class CustomPickerTests : IDisposable
     private static string? FieldValue(SkUiView root, ISkUiAccessibleNode picker) =>
         SkUiSemanticsTree.Build(root).Flatten().First(node => ReferenceEquals(node.Source, picker)).Value;
 
+    /// <summary>A form that cannot usefully shrink (a calendar with buttons), 500 tall.</summary>
+    private sealed class FormPicker(double minimumHeight) : SkUiPickerBase
+    {
+        public FormContent? LastContent { get; private set; }
+
+        protected override SkUiPickerPopupContent CreatePopupContent(SkUiPickerPopupContext context) =>
+            LastContent = new FormContent { MinimumHeight = minimumHeight };
+    }
+
+    private sealed class FormContent : SkUiPickerPopupContent
+    {
+        protected override SkUiView CreateBody() => new SkUiBox { HeightRequest = 500 };
+    }
+
+    [Theory]
+    [InlineData(double.NaN, false)]
+    [InlineData(double.PositiveInfinity, true)]
+    public void AnchoredContentWithAMinimumHeightKeepsItsWholeHeight(double minimumHeight, bool whole)
+    {
+        // Issue #111: a field in the window's lower half with less room than the form on either side.
+        var picker = new FormPicker(minimumHeight) { PopupPlacement = SkUiPopupPlacement.Anchored, UpdateMode = SkUiPickerUpdateMode.WhenFinished };
+        var stack = new SkUiVerticalStackLayout { Children = { new SkUiBox { HeightRequest = 420 }, picker } };
+        var window = new Window(new ContentPage { Content = new SkUiContentView { Content = stack } });
+        ((IWindow)window).FrameChanged(new Rect(0, 0, 400, 800));
+        SkUiTestHelpers.Arrange(stack, 400, 800);
+
+        picker.IsOpen = true;
+
+        var request = Shown();
+        Assert.True(request.PreferredSize.Height > 500); // the form and its OK / Cancel
+        var area = new Rect(0, 0, 400, 800).Inflate(-SkUiLook.Current.PopupMargin.Left, -SkUiLook.Current.PopupMargin.Top);
+        Assert.True(area.Contains(request.Bounds));
+        if (whole)
+        {
+            Assert.Equal(request.PreferredSize.Height, request.Bounds.Height, 3);
+            Assert.True(request.Bounds.IntersectsWith(request.AnchorBounds)); // over the field
+        }
+        else
+        {
+            Assert.True(request.Bounds.Height < request.PreferredSize.Height - 1);
+            Assert.False(request.Bounds.IntersectsWith(request.AnchorBounds));
+        }
+    }
+
+    [Fact]
+    public void ANegativeMinimumHeightThrows() =>
+        Assert.Throws<ArgumentOutOfRangeException>(() => new FormContent { MinimumHeight = -1 });
+
     [Fact]
     public void ItsContentOpensInSkiaUisChromeAndChoosesAtOnce()
     {
