@@ -161,6 +161,25 @@ public sealed class CalendarSystemEdgeTests : IDisposable
         Assert.Equal(7, system.SameMonth(6, 5785, 5787));
     }
 
+    [Theory]
+    [InlineData("UmAlQura")]
+    [InlineData("Japanese")]
+    [InlineData("Hebrew")]
+    public void TheFirstMonthNumbersItsDaysFromTheMonthNotFromTheCalendarsFirstDay(string name)
+    {
+        // The first supported day is mid-month (Umm al-Qura's 30 April 1900 is in its month 1318/1); the page starts there.
+        var calendar = Create(name);
+        var system = SkUiCalendarSystem.For(calendar)!;
+        foreach (var weeks in new[] { 6, 2 })
+        {
+            var control = new SkUiCalendar { CalendarSystem = calendar, DisplayDate = system.Minimum.AddDays(3), VisibleWeeks = weeks };
+            var engine = control.Engine;
+            var start = engine.PageStart;
+            for (var day = system.Minimum; day < system.Minimum.AddDays(10); day = day.AddDays(1))
+                Assert.Equal(calendar.GetDayOfMonth(day), engine.DayNumberOf(start, day));
+        }
+    }
+
     [Fact]
     public void KeysMoveIntoAPartlySupportedFirstYearAsFarAsTheCalendarGoes()
     {
