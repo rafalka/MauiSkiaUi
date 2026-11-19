@@ -7,7 +7,8 @@ namespace MauiSkiaUiDemo;
 /// <see cref="SkUiCalendar"/>: a drawn calendar with month, year, decade and century pages. Swipe or use the header's buttons
 /// to change the month, tap the title to zoom out a level (or pinch), tap a month or year to zoom back in. The editors cover
 /// the selection modes, the day rules, the header and day-name options, the weekly strip and the colors; the presets show a
-/// compact styled calendar, a range booking and days with events (the preset buttons reset what the editors set).
+/// compact styled calendar, a range booking, days with events and a month view with event lines and avatars (the preset buttons
+/// reset what the editors set).
 /// </summary>
 public sealed class CalendarDemoPage : ComponentDemoPage
 {
@@ -15,6 +16,7 @@ public sealed class CalendarDemoPage : ComponentDemoPage
     private const string Styled = "Compact styled header";
     private const string Booking = "Range booking";
     private const string Events = "Events and holidays";
+    private const string MonthView = "Month view (event lines)";
 
     private static readonly Color Gray100 = Color.FromArgb("#F3F4F6");
     private static readonly Color Gray500 = Color.FromArgb("#6B7280");
@@ -85,12 +87,15 @@ public sealed class CalendarDemoPage : ComponentDemoPage
             value => _calendar.SelectionShape = value, () => _calendar.SelectionShape);
         ColorEditor(nameof(SkUiCalendar.SelectionColor), Accent, value => _calendar.SelectionColor = value, () => _calendar.SelectionColor ?? Accent);
         ColorEditor(nameof(SkUiCalendar.TodayColor), Accent, value => _calendar.TodayColor = value, () => _calendar.TodayColor ?? Accent);
+        Choice(nameof(SkUiCalendar.DayMarkerLayout), Enum.GetValues<SkUiCalendarDayMarkerLayout>(), SkUiCalendarDayMarkerLayout.Row,
+            value => _calendar.DayMarkerLayout = value, () => _calendar.DayMarkerLayout);
         Number("FontSize (0 = look's)", 0, 24, 0, value => _calendar.FontSize = value <= 0 ? double.NaN : value,
             () => double.IsNaN(_calendar.FontSize) ? 0 : _calendar.FontSize);
         ActionButton(Plain, () => ApplyPreset(Plain));
         ActionButton(Styled, () => ApplyPreset(Styled));
         ActionButton(Booking, () => ApplyPreset(Booking));
         ActionButton(Events, () => ApplyPreset(Events));
+        ActionButton(MonthView, () => ApplyPreset(MonthView));
         ActionButton("Previous", () => _calendar.GoToPrevious());
         ActionButton("Next", () => _calendar.GoToNext());
         ActionButton("Today", () => _calendar.GoToToday());
@@ -139,6 +144,13 @@ public sealed class CalendarDemoPage : ComponentDemoPage
                 _calendar.DayNameFormat = SkUiCalendarDayNameFormat.FirstLetter;
                 _calendar.DayStyle = EventStyle;
                 break;
+            case MonthView:
+                // A team's month: events as chips under each number, "+N" where a day has more than fits, avatars for birthdays.
+                _calendar.FirstDayOfWeek = DayOfWeek.Monday;
+                _calendar.DayMarkerLayout = SkUiCalendarDayMarkerLayout.Lines;
+                _calendar.SelectionShape = SkUiCalendarSelectionShape.RoundedSquare;
+                _calendar.DayStyle = MonthViewStyle;
+                break;
         }
         Status();
     }
@@ -155,7 +167,7 @@ public sealed class CalendarDemoPage : ComponentDemoPage
                      SkUiCalendar.TextColorProperty, SkUiCalendar.FontSizeProperty, SkUiCalendar.TodayStyleProperty,
                      SkUiCalendar.TodayTextColorProperty, SkUiCalendar.SelectedTextColorProperty, SkUiCalendar.FirstDayOfWeekProperty,
                      SkUiCalendar.MaximumDisplayModeProperty, SkUiCalendar.SelectionShapeProperty, SkUiCalendar.WeekendTextColorProperty,
-                     SkUiCalendar.RangeSelectionTargetProperty
+                     SkUiCalendar.RangeSelectionTargetProperty, SkUiCalendar.DayMarkerLayoutProperty
                  })
             _calendar.ClearValue(property);
         _calendar.BlackoutDates?.Clear();
@@ -180,6 +192,35 @@ public sealed class CalendarDemoPage : ComponentDemoPage
         14 => new SkUiCalendarDayStyle { Markers = [SkUiCalendarMarker.Caption("Holiday", Colors.Crimson)], BackgroundColor = Color.FromArgb("#FEE2E2") },
         19 => new SkUiCalendarDayStyle { Markers = [SkUiCalendarMarker.Dot(Shift), SkUiCalendarMarker.Dot(TimeOff), SkUiCalendarMarker.Dot(Vacation)] },
         21 => new SkUiCalendarDayStyle { IsStrikethrough = true, TextColor = Colors.Gray },
+        _ => null
+    };
+
+    private static readonly SkUiImageSource Avatar = SkUiImageSource.FromVectorText(
+        "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><circle cx='12' cy='12' r='12' fill='#F59E0B'/>" +
+        "<circle cx='12' cy='9' r='4' fill='#FFFFFF'/><path d='M4.5 20a7.5 6 0 0 1 15 0z' fill='#FFFFFF'/></svg>");
+
+    private static readonly SkUiCalendarDayStyle Standup = new() { Markers = [SkUiCalendarMarker.Caption("Standup", Shift)] };
+    private static readonly SkUiCalendarDayStyle Busy = new()
+    {
+        Markers =
+        [
+            SkUiCalendarMarker.Caption("Standup", Shift), SkUiCalendarMarker.Caption("Design review", TimeOff),
+            SkUiCalendarMarker.Caption("1:1", Vacation), SkUiCalendarMarker.Caption("Retro", Colors.SeaGreen)
+        ]
+    };
+    private static readonly SkUiCalendarDayStyle Birthday = new()
+    {
+        Markers = [SkUiCalendarMarker.Caption("Standup", Shift), SkUiCalendarMarker.Image(Avatar), SkUiCalendarMarker.Dot(Vacation)]
+    };
+    private static readonly SkUiCalendarDayStyle Offsite = new() { Markers = [SkUiCalendarMarker.Bar(Vacation), SkUiCalendarMarker.Caption("Offsite", Vacation)] };
+
+    /// <summary>A month of a team's events for the event lines: standups on weekdays, a busy Thursday, birthdays with an avatar.</summary>
+    private static SkUiCalendarDayStyle? MonthViewStyle(DateTime day) => day.Day switch
+    {
+        8 or 22 => Birthday,
+        26 or 27 => Offsite,
+        _ when day.DayOfWeek == DayOfWeek.Thursday => Busy,
+        _ when day.DayOfWeek is not (DayOfWeek.Saturday or DayOfWeek.Sunday) => Standup,
         _ => null
     };
 

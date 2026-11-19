@@ -71,7 +71,8 @@ public class SkUiLook
     // squares, a band with rounded ends, a ring or a fill for today; chevrons, on a circle when the button has a background.
     public void DrawCalendarCell(SKCanvas canvas, SkUiCalendarCellPaint cell) { … }                     // → CalendarCellPainter ?? DrawCalendarCellCore
     public void DrawCalendarNavigationButton(SKCanvas canvas, SkUiCalendarNavigationButtonPaint button) { … } // → CalendarNavigationButtonPainter ?? …Core
-    public virtual double CalendarRowHeight => 44;         // and CalendarHeaderHeight, CalendarDayNamesHeight, CalendarMarkerAreaHeight, font sizes
+    public virtual double CalendarRowHeight => 44;         // and CalendarHeaderHeight, CalendarDayNamesHeight, CalendarMarkerAreaHeight, font sizes,
+                                                           // CalendarMarkerLineHeight (16) and CalendarEventNumberHeight (28) for event lines (1.15)
     public virtual SkUiDatePickerPopupStyle DatePickerPopupStyle => SkUiDatePickerPopupStyle.Wheels; // a date picker's PopupStyle = Default (1.13)
     // Avatars (C8): the intrinsic size, the text size for the content area, colors by mode and name (palette index by a
     // stable hash: AvatarPaletteIndex), and the status badge over the border on the outline's corner arc.

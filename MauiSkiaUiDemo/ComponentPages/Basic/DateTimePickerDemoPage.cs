@@ -32,6 +32,8 @@ public sealed class DateTimePickerDemoPage : ComponentDemoPage
         _skia.Opened += (_, _) => { _opened++; Status(); };
         _skia.Closed += (_, _) => { _closed++; Status(); };
 
+        Choice(nameof(SkUiDateTimePicker.PopupStyle), Enum.GetValues<SkUiDatePickerPopupStyle>(), SkUiDatePickerPopupStyle.Default,
+            value => _skia.PopupStyle = value, () => _skia.PopupStyle);
         Choice(nameof(SkUiDateTimePicker.Format), [ShortFormat, LongFormat], ShortFormat, value => _skia.Format = value, () => _skia.Format);
         Choice(nameof(SkUiDateTimePicker.WheelFormat), [CultureWheels, NoYear, WithSeconds], CultureWheels,
             value => _skia.WheelFormat = value == CultureWheels ? null : value, () => _skia.WheelFormat ?? CultureWheels);

@@ -13,6 +13,22 @@ Publishing (the NuGet publish workflow, [docs/Releasing.md](docs/Releasing.md)) 
 
 ## Unreleased
 
+### New features
+
+- **Date and time picker with a calendar (1.15):** `PopupStyle` and `CalendarStyle` on `SkUiDateTimePicker` and `SkUiCoreDateTimePicker`, as on the date pickers ([SkUiDateTimePicker.md](docs/controls/SkUiDateTimePicker.md#a-calendar-over-the-time-wheels)).
+  - `Calendar`: a month calendar over the picker's time wheels (hour, minutes, seconds, AM / PM); `Default` is the look's (wheels on the built-in looks).
+  - Follows `UpdateMode` as the wheels do: each change applies at once and the popup stays open, or the changes are a draft OK accepts; a tap on a day does not close it.
+  - The range's first and last days offer only the range's times; Tab moves between the calendar and the wheels. The request stays `SkUiDatePopupRequest` (`IncludesTime`).
+- **Calendar image markers (1.15):** `SkUiCalendarMarker.Image(source, size)` and `SkUiCalendarMarkerKind.Image`: avatars or event icons under a day from any image source, through the shared loader and cache, each source loaded once per calendar ([SkUiCalendar.md](docs/controls/SkUiCalendar.md#how-it-works)).
+- **Calendar month view with event lines (1.15):** `DayMarkerLayout` (`Row`, default; `Lines`) and `DayMarkerLineHeight` on both calendars.
+  - With `Lines` the number sits at the top of a day and its markers one per line under it: captions as event chips of their color, bars as thin lines, dots, glyphs and images on one more line; a "+N" line for what does not fit (`SkUiStrings.MoreEventsFormat`).
+  - The look's `CalendarMarkerLineHeight` (16) and `CalendarEventNumberHeight` (28).
+- **Calendar days read their events (1.15):** screen readers read a day's marker captions after its state ("Selected, Standup, Lunch"), in both marker layouts.
+
+### Other
+
+- **Calendar swipes allocate nothing (1.15, NFR-2):** a frame of a calendar's swipe or page slide allocated 0.8 KB, and up to 127 KB with markers (captions laid out again each frame); its drawing now allocates nothing on both layers, with day styles, markers, event lines and a day painter (`CalendarAllocationTests`). Bench scenarios `skui-calendars`, `core-calendars` and the device scenario `calendar-slide`.
+
 ## 1.14.0
 
 ### New features

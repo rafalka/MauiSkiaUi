@@ -2,7 +2,7 @@
 
 **Goal:** close what 1.13 left open on `SkUiCalendar` / `SkUiCoreCalendar` and the pickers built on it, so the calendar's page has no "later" left that an app is likely to hit: the device checks 1.13 shipped without, a measured page slide (and the render-thread slide if the measurement asks for it), a date-and-time popup, platform looks' calendars, image markers, a month view with event lines and calendars other than the Gregorian one.
 
-**Status:** proposed 19 November 2026; [D1](#decisions) agreed the same day. The review's controls planned for 1.15 (F1 segmented control and tab view, F5 chips, F6 range slider and rating) moved to 1.16 ([D10 of the review plan](ImplementationPlan-PerformanceAndControls.md#decisions) and the roadmap are updated).
+**Status:** proposed 19 November 2026; [D1](#decisions) agreed the same day. Built on `1.15-implementation` (19 November 2026): A2, A3, A4, B2, B4 and B5. Open: A1 (devices), B1 (waits for A1), B3 (a decision on look defaults, [below](#b3-platform-looks-calendars)), wave C. The review's controls planned for 1.15 (F1 segmented control and tab view, F5 chips, F6 range slider and rating) moved to 1.16 ([D10 of the review plan](ImplementationPlan-PerformanceAndControls.md#decisions) and the roadmap are updated).
 
 **Baseline:** 1.14.0 (net10 with MAUI 10.0.130 and net11 with MAUI 11.0.10, SDK 11.0.100, SkiaSharp 4.154.0).
 
@@ -17,7 +17,7 @@
 
 - **D1 1.15.0 finishes the calendar; the review's controls start in 1.16.** 1.13 shipped with its device checks pending ([1.13 step 5](ImplementationPlan-1.13.md#step-5-verification-and-release)) and the decision on render-thread page slides (1.13 D2) waiting for them, and its page lists five gaps ([Limits](../controls/SkUiCalendar.md#limits), [Roadmap](Roadmap.md#new-controls-and-packages)). Finishing them now, while the engine is fresh, is cheaper than after three new controls have touched the looks and the gesture code. The review plan's release order shifts by one: 1.16 F1, F5, F6; 1.17 F2, F3; 1.18 F4 phase 1.
 - **D2 Measure before moving the slide.** Wave A measures a page slide on the Galaxy S9 and the iPhone 8. The render-thread slide ([step B1](#b1-render-thread-page-slides-conditional)) is built only if the S9 misses frames (more than 2 % of frames over 16.7 ms across ten slides, or any over 33 ms), as 1.13 D2 said. If it does not, B1 is dropped and the measurement goes in [Performance.md](../Performance.md) as the reason.
-- **D3 The date-and-time popup is the calendar over the time wheels,** in one popup content, not two popups in a row: the calendar on top, the time columns of `SkUiDateTimeWheels` below as the inline wheels (`SkUiPickerWheels`' engine) draw them, OK / Cancel as today. `SkUiDateTimePicker.PopupStyle` (`Wheels`, `Calendar`, `Default` = the look's) reuses `SkUiDatePickerPopupStyle`; the request stays `SkUiDateTimePopupRequest`, so presenters with their own UI keep working. A tap on a day never closes this popup (the time is still to choose): it is always a draft OK accepts, whatever `UpdateMode` says for the wheels.
+- **D3 The date-and-time popup is the calendar over the time wheels,** in one popup content, not two popups in a row: the calendar on top, the time columns of `SkUiDateTimeWheels` below as the inline wheels (`SkUiPickerWheels`' engine) draw them, OK / Cancel as today. `SkUiDateTimePicker.PopupStyle` (`Wheels`, `Calendar`, `Default` = the look's) reuses `SkUiDatePickerPopupStyle`; the request stays `SkUiDatePopupRequest` (with `IncludesTime`, as the date and time wheels' request already is), so presenters with their own UI keep working. A tap on a day never closes this popup (the time is still to choose). *Changed while building:* it follows `UpdateMode` as the wheel popup does (each change applies at once and the popup stays open, or a draft OK accepts) instead of always waiting for OK: the same picker then behaves the same whichever popup it shows, and an app that wants OK already says so with `WhenFinished`. The time wheels are `SkUiWheelsView` over a second `SkUiDateTimeWheels` with only the time columns, built again for each chosen day, so the range's first and last days offer only its times.
 - **D4 Platform looks draw their platform's calendar; popups keep their wheels.** `AndroidMaterial3SkUiLook`, `IosSkUiLook`, `MacSkUiLook` and `WindowsSkUiLook` override `DrawCalendarCellCore`, `DrawCalendarNavigationButtonCore` and the calendar sizes so a calendar on a page looks like the platform's (Material 3's date picker grid, UIKit's `UICalendarView`, AppKit's graphical date picker, WinUI's `CalendarView`). That changes how an existing calendar under a platform look is drawn, which is the point of a platform look and was announced in 1.13's page ("platform looks inherit the default in 1.13"). `DatePickerPopupStyle` stays `Wheels` on every built-in look: switching the pickers' popup to a calendar under a platform look is a behavior change and goes to [Held for 2.0](Roadmap.md#held-for-20). An app opts in with `PopupStyle="Calendar"` or a look that returns it.
 - **D5 Image markers go through the shared image loader.** `SkUiCalendarMarker.Image(source, size)` is drawn from an `SkUiImageSlot` per distinct source held by the model (not per day): a month of birthday avatars with one source each loads each once, and the LRU cache shares them with the rest of the app. A marker whose image has not loaded yet is left out (its room kept); the load invalidates the calendar's content. The slots are released with `ReleaseDrawingResources` and when `DayStyle` stops returning their source (on `RefreshDayStyles`).
 - **D6 A month view with events is markers stacked as lines, not a scheduler.** `DayMarkerLayout` (`Row`, the 1.13 behavior and default; `Lines`) lays a day's markers out one per line under the number when the rows are tall enough (a calendar given the height of a page). A `Caption` becomes an event line (a colored chip with its text, shortened to fit), a `Bar` a thin line, dots and glyphs gather on the last line; what does not fit becomes a "+N" line (`SkUiStrings.MoreEventsFormat`). Events that run across several days drawn as one bar over the cells, time slots, drag to move and a week or day timeline are a scheduler and stay [not planned](Roadmap.md#not-planned).
@@ -65,6 +65,8 @@ Size: S.
 
 **Done when:** both tests pass, the scenarios are in `--list`, and Benchmarks.md has the first numbers.
 
+**Status: done.** A swipe frame's drawing allocated 0.8 KB on a plain calendar and up to 127 KB with markers; it allocates nothing now (`CalendarAllocationTests`), and a whole frame through the pipeline 104 bytes (the re-recorded picture). Causes: the zoom's closure allocated on every `Draw`, marker captions measured and drawn on one layout (laid out twice per frame), per-frame rect jitter laying out shortened captions again (pages now move by a canvas translation), MAUI colors made per frame by the palette, and `HasFlag` boxing in Debug. Numbers: [Benchmarks.md](Benchmarks.md#115-calendar-scenarios-19-november-2026).
+
 ### A3 Edge cases sweep
 
 Size: S. Tests first, fixes where they fail, on both layers:
@@ -74,9 +76,12 @@ Size: S. Tests first, fixes where they fail, on both layers:
 - Right to left during a swipe; `FlowDirection` changed mid-slide.
 - A range with `RangeSelectionTarget = End` across a blackout day with `AllowsDisabledDaysInRange = false`; `MultipleRanges` joining across a month the pages skip.
 - `VisibleWeeks` changed while a week page is mid-slide; `DisplayMode` limits changed to exclude the current mode.
-- A day style function that throws (logged once, the day drawn plain, as other app callbacks).
+
+**Status: done.** `CalendarEdgeCaseTests` (11 tests): all passed against 1.14's code, so the sweep found nothing to fix. The day style that throws was dropped: no app callback of the calendar or the pickers (`DateEnabled`, `DayPainter`) is caught today, and swallowing one would hide the app's bug; it fails fast as they do.
 
 ### A4 Layer parity test
+
+**Status: done** (`CalendarParityTests`): the only difference found is the layers' image convention (`ImageSource` on SkUi, `SkUiImageSource` on Core), which the test knows.
 
 Size: S. A reflection test in `CalendarTests`: every public bindable property of `SkUiCalendar` has a CLR property and a fluent `Set*` of the same name and type on `SkUiCoreCalendar`, and every public method and event exists on both (an explicit list of intended differences, empty today). The same for `SkUiDateRangePicker` / `SkUiCoreDateRangePicker`. New properties in waves B and C are then kept at parity by the test.
 
@@ -97,6 +102,8 @@ Size: L. Only if [D2](#decisions)'s threshold is crossed.
 
 ### B2 The date-and-time popup
 
+**Status: done** (`SkUiDateTimeCalendarPopup`, `DateTimeCalendarPopupTests`, the `CalendarPopupsOpened` leak scenario); see D3 for what changed.
+
 Size: M. [D3](#decisions).
 
 1. `PopupStyle` on `SkUiDateTimePicker` and its Core twin, validated, `Default` reading the look's `DatePickerPopupStyle`.
@@ -105,6 +112,9 @@ Size: M. [D3](#decisions).
 4. Tests in `DatePickerTests` (draft, accept, cancel, rules at the day boundary), the leak scenario `CalendarPopupsOpened` extended with a date-and-time picker, the gallery page's `PopupStyle` switch.
 
 ### B3 Platform looks' calendars
+
+**Status: open, needs a decision.** The look draws only a cell's chrome; what marks today (`TodayStyle`, default `Ring`) and the selected number's color (`SelectedTextColor ?? contrast`) are the calendar's defaults. UIKit's calendar marks today with a colored number and no ring, and its selection is a light circle with an accent number; Material 3 and WinUI differ less (sizes, ring thickness, WinUI's ring for the selection). A look that cannot set those two defaults can draw Material's and WinUI's calendars but not UIKit's. Options: (a) look members the calendar reads when the app sets nothing (`CalendarTodayStyle`, a selected text color from the selection color), with the calendar's properties keeping their values as overrides, which needs the bindables' defaults to mean "the look's"; (b) chrome and sizes only, UIKit's calendar left with the default marks; (c) the look returns a whole `SkUiCalendar` style it applies as an implicit default.
+
 
 Size: M. [D4](#decisions). For each look: the cell chrome (selection, today, range band, focus, press), the navigation buttons, and the sizes, from the platform's own control:
 
@@ -117,6 +127,8 @@ Add a calendar row to `SkUiLookComparisonPage`. Tests: each look draws a month p
 
 ### B4 Image markers
 
+**Status: done** (`CalendarImageMarkerTests`, the `CalendarSwiped` leak scenario). Sources no day drew since the last `RefreshDayStyles` are let go at the next one.
+
 Size: S. [D5](#decisions). `SkUiCalendarMarker.Image(ImageSource source, double size = 0)` (`0`: the marker area's height) and `SkUiCalendarMarkerKind.Image` (appended last). Tests with PNG bytes (`ImageLoadingTests.Png`): a marker draws once loaded, a source used on many days loads once, `RefreshDayStyles` releasing a source no day uses, `ReleaseDrawingResources`; the leak scenario `CalendarSwiped` gets image markers. The samples' "Team calendar" shows avatars for birthdays.
 
 ### B5 Event lines
@@ -125,7 +137,9 @@ Size: M. [D6](#decisions).
 
 1. `DayMarkerLayout` (`Row` default, `Lines`) on both layers; `DayMarkerLineHeight` (the look's new `CalendarMarkerLineHeight`, 16). In `Lines`, the marker area is what is left of the row under the number; a row given no extra height shows the "+N" line only.
 2. `SkUiStrings.MoreEventsFormat` ("+{0}") and the screen reader's day value listing the captions ("Tuesday, November 10, 2026, Selected, 3 events: Standup, …"; `SkUiStrings.EventsFormat`).
-3. `DayTapped` already carries the date; `SkUiCalendarDayContext` gains `MarkerLines` for painters.
+3. `DayTapped` already carries the date. (`MarkerLines` on `SkUiCalendarDayContext` was dropped: `MarkerBounds` is the lines' area, which is what a painter needs.)
+
+**Status: done** (`CalendarEventLinesTests`, a `Lines` case in `CalendarAllocationTests`). The day's captions are read in both layouts, joined after the state; no `EventsFormat` string was needed.
 4. Tests: lines fitted to the row height, the overflow count, right to left, both layers drawing the same pixels. A samples page: a month view of a team's events filling the screen, a day's list under it on a phone.
 
 ## Wave C: other calendar systems (cut line, D8)

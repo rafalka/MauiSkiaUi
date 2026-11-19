@@ -152,7 +152,7 @@ Moved from 1.13 on 17 November 2026. No new control and no behavior change: the 
 
 ### 1.15.0: the calendar, finished (proposed)
 
-Additive only. Closes what 1.13 left open on the calendar; the review's controls (F1, F5, F6) move to 1.16. Steps, decisions and verification: [ImplementationPlan-1.15.md](ImplementationPlan-1.15.md).
+Additive only. Closes what 1.13 left open on the calendar; the review's controls (F1, F5, F6) move to 1.16. Built on `1.15-implementation`: A2 to A4, the date and time popup, image markers and event lines; open: the device checks, platform looks (an API decision), the render-thread slide (if the devices ask for it) and wave C. Steps, decisions and verification: [ImplementationPlan-1.15.md](ImplementationPlan-1.15.md).
 
 - **Wave A, verify and harden:** 1.13's device checks (slide frame times, feel, TalkBack / VoiceOver, keyboards, the pickers' calendar popups), calendar bench scenarios and zero-allocation slide frames, an edge-case sweep, a Core / SkUi parity test.
 - **Wave B, the gaps:** render-thread page slides (only if the Galaxy S9 misses frames), a calendar popup with time wheels for `SkUiDateTimePicker`, platform looks' calendars, image markers, event lines in a month view (not a scheduler).

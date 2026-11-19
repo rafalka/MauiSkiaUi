@@ -578,7 +578,9 @@ MAUI has no calendar; apps use a component library's. `SkUiCalendar` ([SkUiCalen
 - Header with navigation arrows → built in (`HeaderLayout`, `HeaderTextColor`, `HeaderFontSize`, `NavigationButtonColor`, `NavigationButtonBackgroundColor`); a header of the app's own → `IsHeaderVisible = false` with `Title`, `CanGoToPrevious`, `CanGoToNext` and the methods.
 - Special days with icons, backgrounds or text styles → `DayStyle` returning `SkUiCalendarDayStyle` (`TextColor`, `BackgroundColor`, `FontAttributes`, `IsStrikethrough`, `Markers`: dots, bars, icon glyphs, captions under the number); a day template → `DayPainter` (drawn; no view per day).
 - A dialog mode with OK / Cancel → a date picker with `PopupStyle="Calendar"` and `UpdateMode="WhenFinished"`, or `SkUiDateRangePicker` for a range ([SkUiDateRangePicker.md](controls/SkUiDateRangePicker.md)); the calendar's look in it → `CalendarStyle`.
-- Not available: other calendar systems; a calendar popup with time wheels (`SkUiDateTimePicker` keeps its wheels).
+- A date and time picker with a calendar → `SkUiDateTimePicker` with `PopupStyle="Calendar"` (the calendar over its time wheels, 1.15).
+- A month view with events listed in the days → `DayMarkerLayout="Lines"` (captions as event chips, "+N" for the rest, 1.15); avatars or icons from images → `SkUiCalendarMarker.Image`.
+- Not available: other calendar systems; events drawn as one bar across several days, time slots and dragging events (a scheduler's).
 
 ## Platform-specifics
 

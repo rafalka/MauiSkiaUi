@@ -234,6 +234,10 @@ Both paths pass the plan's 55 fps bar on the S9. The glyph path costs about 1 ms
 
 Not kept ([D9](ImplementationPlan-PerformanceAndControls.md#decisions): allocations must drop). After A6 a cached image load runs no async method, and the scenarios' loads are cache hits after their first iteration, so runtime async has nothing to save here. Worth a second look when the phones run .NET 11 (CoreCLR on Android and iOS), with a scenario whose loads actually wait (downloads, first decodes).
 
+### 1.15 calendar scenarios (19 November 2026)
+
+[ImplementationPlan-1.15.md](ImplementationPlan-1.15.md) A2: `scripts/bench.sh --baseline v1.14.0 -n 10 -S skui-calendars,core-calendars` (headless, a year of month calendars with a day style marking every day; update = each to its next month). Every phase within noise of 1.14.0; first-frame allocations 3 to 4 % lower (443 KB SkUi, 341 KB Core). Twelve calendars record in about 0.5 ms and re-record in 0.7 ms, so a calendar's first frame is cheap; what mattered was the swipe frame, which allocated 0.8 to 127 KB per frame and now allocates nothing in the calendar's drawing (`CalendarAllocationTests`; 104 bytes per frame through the pipeline, the re-recorded picture). The device scenario `calendar-slide` (a page slide every 400 ms with markers on every day) is for step A1.
+
 ## Guidance for agents and reviewers
 
 - Before and after any change that touches layout, text, recording, compositing, surfaces or animations:
