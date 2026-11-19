@@ -176,6 +176,37 @@ public class SkUiCalendar : SkUiView, ISkUiCalendarHost, ISkUiKeyHandler, ISkUiF
         validateValue: (_, value) => value is null || Enum.IsDefined((DayOfWeek)value),
         propertyChanged: (view, _, value) => ((SkUiCalendar)view).Revalidated(model => model.FirstDayOfWeek = (DayOfWeek?)value, measure: false));
 
+    /// <summary>Bindable property for <see cref="CalendarSystem"/>.</summary>
+    public static readonly BindableProperty CalendarSystemProperty = BindableProperty.Create(nameof(CalendarSystem), typeof(System.Globalization.Calendar),
+        typeof(SkUiCalendar), null, validateValue: (_, value) => SkUiCalendarSystem.IsSupported((System.Globalization.Calendar?)value),
+        propertyChanged: (view, _, value) => ((SkUiCalendar)view).Revalidated(model => model.CalendarSystem = (System.Globalization.Calendar?)value, measure: false));
+
+    /// <summary>
+    /// The calendar the pages are cut by (1.15): <c>null</c> (default) or a <see cref="System.Globalization.GregorianCalendar"/>,
+    /// the Gregorian one; a <see cref="System.Globalization.ThaiBuddhistCalendar"/>, <see cref="System.Globalization.TaiwanCalendar"/>,
+    /// <see cref="System.Globalization.KoreanCalendar"/> or <see cref="System.Globalization.JapaneseCalendar"/> keeps the Gregorian
+    /// months and numbers years its way; a <see cref="System.Globalization.UmAlQuraCalendar"/>, <see cref="System.Globalization.HijriCalendar"/>,
+    /// <see cref="System.Globalization.PersianCalendar"/> or <see cref="System.Globalization.HebrewCalendar"/> cuts the pages by its
+    /// own months (13 in a Hebrew leap year). Dates stay <see cref="DateTime"/> values: selection, rules and day styles do not change
+    /// with the calendar shown. The pages stop at the days the calendar supports. Titles, month names and day names come from the
+    /// current culture when it can write the calendar, else from the calendar's own culture. Other calendars are ignored (SkUi layer,
+    /// with a warning) or rejected (fluent setter).
+    /// </summary>
+    public System.Globalization.Calendar? CalendarSystem
+    {
+        get => (System.Globalization.Calendar?)GetValue(CalendarSystemProperty);
+        set => SetValue(CalendarSystemProperty, value);
+    }
+
+    /// <summary>Sets <see cref="CalendarSystem"/>; throws for a calendar the pages cannot be cut by.</summary>
+    public SkUiCalendar SetCalendarSystem(System.Globalization.Calendar? value)
+    {
+        if (!SkUiCalendarSystem.IsSupported(value))
+            throw new ArgumentOutOfRangeException(nameof(value), value?.GetType().Name, "The calendar's pages cannot be cut by this calendar.");
+        CalendarSystem = value;
+        return this;
+    }
+
     /// <summary>The week's first day, its first column; <c>null</c> (default): the current culture's.</summary>
     public DayOfWeek? FirstDayOfWeek { get => (DayOfWeek?)GetValue(FirstDayOfWeekProperty); set => SetValue(FirstDayOfWeekProperty, value); }
 

@@ -46,6 +46,26 @@ public class SkUiDateRangePicker : SkUiValuePicker<SkUiDateRange?>
     public static readonly BindableProperty AllowsDisabledDaysInRangeProperty = BindableProperty.Create(nameof(AllowsDisabledDaysInRange), typeof(bool),
         typeof(SkUiDateRangePicker), true);
 
+    /// <summary>Bindable property for <see cref="CalendarSystem"/>.</summary>
+    public static readonly BindableProperty CalendarSystemProperty = BindableProperty.Create(nameof(CalendarSystem), typeof(System.Globalization.Calendar),
+        typeof(SkUiDateRangePicker), null, validateValue: (_, value) => SkUiCalendarSystem.IsSupported((System.Globalization.Calendar?)value));
+
+    /// <summary>The popup calendar's calendar system (1.15; <see cref="SkUiCalendar.CalendarSystem"/>); <c>null</c>: Gregorian. The field's text follows <see cref="DisplayFormat"/> and the culture.</summary>
+    public System.Globalization.Calendar? CalendarSystem
+    {
+        get => (System.Globalization.Calendar?)GetValue(CalendarSystemProperty);
+        set => SetValue(CalendarSystemProperty, value);
+    }
+
+    /// <summary>Sets <see cref="CalendarSystem"/>; throws for a calendar the pages cannot be cut by.</summary>
+    public SkUiDateRangePicker SetCalendarSystem(System.Globalization.Calendar? value)
+    {
+        if (!SkUiCalendarSystem.IsSupported(value))
+            throw new ArgumentOutOfRangeException(nameof(value), value?.GetType().Name, "The calendar's pages cannot be cut by this calendar.");
+        CalendarSystem = value;
+        return this;
+    }
+
     /// <summary>Bindable property for <see cref="DisplayFormat"/>.</summary>
     public static readonly BindableProperty DisplayFormatProperty = BindableProperty.Create(nameof(DisplayFormat), typeof(string), typeof(SkUiDateRangePicker),
         DefaultDisplayFormat, validateValue: SkUiValidate.NotNull,
@@ -129,7 +149,7 @@ public class SkUiDateRangePicker : SkUiValuePicker<SkUiDateRange?>
     /// <inheritdoc />
     protected override SkUiValuePopupContent<SkUiDateRange?> CreateValueContent(SkUiPickerPopupContext context) =>
         new SkUiDateRangePopupContent(new SkUiDateRangeRules(MinimumDate, MaximumDate, BlackoutDates, DateEnabled, MinimumRangeDays, MaximumRangeDays,
-            AllowsDisabledDaysInRange, CalendarStyle));
+            AllowsDisabledDaysInRange, CalendarStyle, CalendarSystem));
 
     /// <inheritdoc />
     /// <remarks>The range by <see cref="DisplayFormat"/>.</remarks>

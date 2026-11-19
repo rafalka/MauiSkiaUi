@@ -157,6 +157,22 @@ public class SkUiCoreCalendar : SkUiCoreNode, ISkUiCalendarHost, ISkUiKeyHandler
     /// <summary>The week's first day, its first column; <c>null</c> (default): the current culture's.</summary>
     public DayOfWeek? FirstDayOfWeek { get => _model.FirstDayOfWeek; set => SetFirstDayOfWeek(value); }
 
+    /// <inheritdoc cref="SkUiCalendar.CalendarSystem" />
+    public System.Globalization.Calendar? CalendarSystem { get => _model.CalendarSystem; set => SetCalendarSystem(value); }
+
+    /// <summary>Sets <see cref="CalendarSystem"/>; throws for a calendar the pages cannot be cut by.</summary>
+    public SkUiCoreCalendar SetCalendarSystem(System.Globalization.Calendar? value)
+    {
+        if (!SkUiCalendarSystem.IsSupported(value))
+            throw new ArgumentOutOfRangeException(nameof(value), value?.GetType().Name, "The calendar's pages cannot be cut by this calendar.");
+        if (ReferenceEquals(_model.CalendarSystem, value))
+            return this;
+        _model.CalendarSystem = value;
+        OnPropertyChanged(nameof(CalendarSystem));
+        PageShapeChanged(measure: false);
+        return this;
+    }
+
     /// <summary>Sets <see cref="FirstDayOfWeek"/>.</summary>
     public SkUiCoreCalendar SetFirstDayOfWeek(DayOfWeek? value)
     {

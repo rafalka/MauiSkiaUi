@@ -198,6 +198,29 @@ internal sealed class SkUiCalendarModel(ISkUiCalendarHost host)
     public bool AllowsDeselection;
     public DateTime? MinimumDate;
     public DateTime? MaximumDate;
+    private SkUiCalendarSystem? _system;
+
+    /// <summary>
+    /// The calendar the pages are cut by (1.15): <c>null</c> or a <see cref="GregorianCalendar"/>, the Gregorian one; a supported
+    /// other calendar (<see cref="SkUiCalendarSystem.IsSupported"/>), its months and years. The host validates it.
+    /// </summary>
+    public Calendar? CalendarSystem
+    {
+        get;
+        set
+        {
+            field = value;
+            _system = SkUiCalendarSystem.For(value);
+            _display = ClampToRange(_display);
+            _focus = _focus is { } focus ? ClampToRange(focus) : null;
+        }
+    }
+
+    /// <summary>The first day the pages show and a day can be chosen: <see cref="MinimumDate"/>, within the calendar system's range.</summary>
+    private DateTime? Min => _system is { } system ? MinimumDate is { } min && min.Date > system.Minimum ? min : system.Minimum : MinimumDate;
+
+    /// <summary>The last day the pages show and a day can be chosen: <see cref="MaximumDate"/>, within the calendar system's range.</summary>
+    private DateTime? Max => _system is { } system ? MaximumDate is { } max && max.Date < system.Maximum ? max : system.Maximum : MaximumDate;
     public Func<DateTime, bool>? DateEnabled;
     public SkUiCalendarRangeTarget RangeSelectionTarget = SkUiCalendarRangeTarget.Auto;
     /// <summary>The fewest days a range the user ends may have (0 or 1: any).</summary>
@@ -360,13 +383,94 @@ internal sealed class SkUiCalendarModel(ISkUiCalendarHost host)
     public IReadOnlyList<SkUiDateRange> SelectedRanges => _rangesSnapshot;
 
     /// <summary>The current culture formatting in the Gregorian calendar the pages are laid out in.</summary>
-    private static CultureInfo Culture => SkUiCalendarGrid.Gregorian(CultureInfo.CurrentCulture);
+    private CultureInfo Culture => _system?.Culture(CultureInfo.CurrentCulture) ?? SkUiCalendarGrid.Gregorian(CultureInfo.CurrentCulture);
+
+    /// <summary>The culture week numbers are counted by: the current one in the Gregorian calendar, whatever calendar the pages use.</summary>
+    private static CultureInfo WeekCulture => SkUiCalendarGrid.Gregorian(CultureInfo.CurrentCulture);
 
     /// <summary>The first day of the week in effect.</summary>
     public DayOfWeek EffectiveFirstDayOfWeek => SkUiCalendarGrid.FirstDayOfWeek(FirstDayOfWeek, Culture);
 
     /// <summary>The first day of the page shown.</summary>
-    public DateTime PageStart => SkUiCalendarGrid.PageStart(_display, _mode, VisibleWeeks, EffectiveFirstDayOfWeek);
+    public DateTime PageStart
+    {
+        get
+        {
+            if (_system is null)
+                return SkUiCalendarGrid.PageStart(_display, _mode, VisibleWeeks, EffectiveFirstDayOfWeek);
+            // A calendar system's date parts cost (and allocate on some calendars): the page start is kept until what it depends on changes.
+            var key = (_display, _mode, VisibleWeeks, EffectiveFirstDayOfWeek, _system);
+            if (key != _pageStartKey)
+            {
+                _pageStartKey = key;
+                _pageStart = SkUiCalendarGrid.PageStart(_display, _mode, VisibleWeeks, EffectiveFirstDayOfWeek, _system);
+            }
+            return _pageStart;
+        }
+    }
+
+    private (DateTime, SkUiCalendarDisplayMode, int, DayOfWeek, SkUiCalendarSystem?) _pageStartKey;
+    private DateTime _pageStart;
+
+    // The last steps asked for (the header's buttons and a slide's neighbor ask every frame), kept for a calendar system.
+    private readonly (DateTime Start, SkUiCalendarDisplayMode Mode, int Weeks, int Pages, SkUiCalendarSystem? System, DateTime? Target)[] _steps = new
+        (DateTime, SkUiCalendarDisplayMode, int, int, SkUiCalendarSystem?, DateTime?)[4];
+    private int _nextStep;
+
+    /// <summary><see cref="SkUiCalendarGrid.Step"/> on the calendar shown, kept for a calendar system.</summary>
+    private DateTime? StepFrom(DateTime start, int pages)
+    {
+        if (_system is null)
+            return SkUiCalendarGrid.Step(start, _mode, VisibleWeeks, pages);
+        foreach (var step in _steps)
+            if (step.System == _system && step.Start == start && step.Mode == _mode && step.Weeks == VisibleWeeks && step.Pages == pages)
+                return step.Target;
+        var target = SkUiCalendarGrid.Step(start, _mode, VisibleWeeks, pages, _system);
+        _steps[_nextStep] = (start, _mode, VisibleWeeks, pages, _system, target);
+        _nextStep = (_nextStep + 1) % _steps.Length;
+        return target;
+    }
+
+    // The month boundaries around a page of a calendar system, worked out once per page: which month a cell is in and its day number
+    // are then date comparisons (no calendar call per cell, none for days the calendar does not support).
+    // A few pages: a slide draws the page and its neighbor in every frame, and a drag back and forth shows the neighbors either side.
+    private readonly (DateTime Key, SkUiCalendarSystem? System, DateTime Previous, DateTime Start, DateTime Next, DateTime After)[] _monthsCache =
+        new (DateTime, SkUiCalendarSystem?, DateTime, DateTime, DateTime, DateTime)[4];
+    private int _monthsNext;
+    private (DateTime Key, SkUiCalendarSystem? System, DateTime Previous, DateTime Start, DateTime Next, DateTime After) _months;
+
+    private void MonthsAround(DateTime start)
+    {
+        var system = _system!;
+        if (_months.Key == start && _months.System == system)
+            return;
+        foreach (var entry in _monthsCache)
+            if (entry.Key == start && entry.System == system)
+            {
+                _months = entry;
+                return;
+            }
+        var first = system.MonthStart(start);
+        var previous = system.AddMonths(first, -1) is { } before ? system.MonthStart(before) : DateTime.MinValue;
+        var next = system.AddMonths(first, 1) is { } month ? system.MonthStart(month) : system.Maximum.AddDays(1);
+        var after = next <= system.Maximum && system.AddMonths(next, 1) is { } later ? system.MonthStart(later) : DateTime.MaxValue.Date;
+        _months = (start, system, previous, first, next, after);
+        _monthsCache[_monthsNext] = _months;
+        _monthsNext = (_monthsNext + 1) % _monthsCache.Length;
+    }
+
+    /// <summary>The number a day's cell shows on the page starting at <paramref name="start"/>; -1 for a day the calendar system does not support.</summary>
+    private int DayNumber(DateTime start, DateTime day)
+    {
+        if (_system is not { } system)
+            return day.Day;
+        if (day < system.Minimum || day > system.Maximum)
+            return -1;
+        MonthsAround(start);
+        var (_, _, previous, first, next, after) = _months;
+        var from = day >= after ? after : day >= next ? next : day >= first ? first : day >= previous ? previous : DateTime.MinValue;
+        return from == DateTime.MinValue ? system.Day(day) : (day - from).Days + 1;
+    }
 
     /// <summary>The header's title for the page shown (kept until the page, mode, format or culture changes).</summary>
     public string Title
@@ -378,7 +482,7 @@ internal sealed class SkUiCalendarModel(ISkUiCalendarHost host)
             if (_title is null || key != _titleKey)
             {
                 _titleKey = key;
-                _title = SkUiCalendarGrid.Title(key.Start, key.Mode, key.Weeks, key.Format, key.Culture);
+                _title = SkUiCalendarGrid.Title(key.Start, key.Mode, key.Weeks, key.Format, key.Culture, _system);
             }
             return _title;
         }
@@ -407,9 +511,9 @@ internal sealed class SkUiCalendarModel(ISkUiCalendarHost host)
     public DateTime ClampToRange(DateTime date)
     {
         var day = date.Date;
-        if (MinimumDate is { } min && day < min.Date)
+        if (Min is { } min && day < min.Date)
             day = min.Date;
-        if (MaximumDate is { } max && day > max.Date && (MinimumDate is not { } low || max.Date >= low.Date))
+        if (Max is { } max && day > max.Date && (Min is not { } low || max.Date >= low.Date))
             day = max.Date;
         return day;
     }
@@ -422,7 +526,7 @@ internal sealed class SkUiCalendarModel(ISkUiCalendarHost host)
     }
 
     private bool IsInRange(DateTime day) =>
-        (MinimumDate is not { } min || day >= min.Date) && (MaximumDate is not { } max || day <= max.Date);
+        (Min is not { } min || day >= min.Date) && (Max is not { } max || day <= max.Date);
 
     private bool IsBlackout(DateTime day)
     {
@@ -489,7 +593,7 @@ internal sealed class SkUiCalendarModel(ISkUiCalendarHost host)
     /// </summary>
     private bool NoDisabledDayBetween(DateTime anchor, DateTime day)
     {
-        var key = (anchor, MinimumDate, MaximumDate, DateEnabled, _rulesVersion);
+        var key = (anchor, Min, Max, DateEnabled, _rulesVersion);
         if (key != _boundsKey)
         {
             _boundsKey = key;
@@ -516,7 +620,7 @@ internal sealed class SkUiCalendarModel(ISkUiCalendarHost host)
 
     /// <summary>Whether a month / year / decade cell can be chosen or opened: part of its span is in the range.</summary>
     private bool IsPeriodEnabled(DateTime cell, SkUiCalendarDisplayMode mode) =>
-        (MaximumDate is not { } max || cell <= max.Date) && (MinimumDate is not { } min || SkUiCalendarGrid.PeriodEnd(cell, mode) >= min.Date);
+        (Max is not { } max || cell <= max.Date) && (Min is not { } min || SkUiCalendarGrid.PeriodEnd(cell, mode, _system) >= min.Date);
 
     private SkUiCalendarDayStyle? StyleOf(DateTime day)
     {
@@ -572,17 +676,28 @@ internal sealed class SkUiCalendarModel(ISkUiCalendarHost host)
     public bool CanStep(int pages)
     {
         var start = PageStart;
-        if (SkUiCalendarGrid.Step(start, _mode, VisibleWeeks, pages) is not { } target)
+        if (StepFrom(start, pages) is not { } target)
             return false;
-        return pages < 0
-            ? MinimumDate is not { } min || SkUiCalendarGrid.PageEnd(target, _mode, VisibleWeeks) >= min.Date
-            : MaximumDate is not { } max || target <= max.Date;
+        if (pages >= 0)
+            return Max is not { } max || target <= max.Date;
+        if (Min is not { } min)
+            return true;
+        // The header asks every frame; a calendar system's page end is kept for the page and the limit.
+        if (_system is not null && _canStepBack.Start == start && _canStepBack.Mode == _mode && _canStepBack.Weeks == VisibleWeeks
+            && _canStepBack.System == _system && _canStepBack.Min == min)
+            return _canStepBack.Result;
+        var result = SkUiCalendarGrid.PageEnd(target, _mode, VisibleWeeks, _system) >= min.Date;
+        if (_system is not null)
+            _canStepBack = (start, _mode, VisibleWeeks, _system, min, result);
+        return result;
     }
+
+    private (DateTime Start, SkUiCalendarDisplayMode Mode, int Weeks, SkUiCalendarSystem? System, DateTime Min, bool Result) _canStepBack;
 
     /// <summary>Moves the page by <paramref name="pages"/> (±1), sliding when <paramref name="animated"/>; returns whether it moved.</summary>
     public bool Step(int pages, bool animated)
     {
-        if (!CanStep(pages) || SkUiCalendarGrid.Step(PageStart, _mode, VisibleWeeks, pages) is not { } target)
+        if (!CanStep(pages) || StepFrom(PageStart, pages) is not { } target)
             return false;
         _display = ClampToRange(target);
         // The focus follows to the same place on the new page when it was on the old one.
@@ -972,7 +1087,7 @@ internal sealed class SkUiCalendarModel(ISkUiCalendarHost host)
     {
         if (mode != MinimumDisplayMode)
             return false;
-        var end = SkUiCalendarGrid.PeriodEnd(cell, mode);
+        var end = SkUiCalendarGrid.PeriodEnd(cell, mode, _system);
         return SelectionMode switch
         {
             SkUiCalendarSelectionMode.Single => _selectedDate is { } date && date >= cell && date <= end,
@@ -1045,7 +1160,7 @@ internal sealed class SkUiCalendarModel(ISkUiCalendarHost host)
     /// <summary>A cell's rectangle on a page of <paramref name="month"/> days (else 4 × 3 periods), mirrored right-to-left.</summary>
     private SKRect CellRect(in Frame frame, bool month, int row, int column)
     {
-        var rows = month ? Math.Clamp(VisibleWeeks, 1, SkUiCalendarGrid.MaxWeeks) : SkUiCalendarGrid.PeriodRows;
+        var rows = month ? Math.Clamp(VisibleWeeks, 1, SkUiCalendarGrid.MaxWeeks) : SkUiCalendarGrid.PeriodRowCount(_mode, _system);
         var columns = month ? 7 : SkUiCalendarGrid.PeriodColumns;
         var left = month && !frame.RightToLeft ? frame.WeekColumn : 0;
         var right = frame.Width - (month && frame.RightToLeft ? frame.WeekColumn : 0);
@@ -1124,7 +1239,7 @@ internal sealed class SkUiCalendarModel(ISkUiCalendarHost host)
                         : default;
         }
         var columns = month ? 7 : SkUiCalendarGrid.PeriodColumns;
-        var rows = month ? Math.Clamp(VisibleWeeks, 1, SkUiCalendarGrid.MaxWeeks) : SkUiCalendarGrid.PeriodRows;
+        var rows = month ? Math.Clamp(VisibleWeeks, 1, SkUiCalendarGrid.MaxWeeks) : SkUiCalendarGrid.PeriodRowCount(_mode, _system);
         for (var row = 0; row < rows; row++)
             for (var column = 0; column < columns; column++)
             {
@@ -1150,7 +1265,7 @@ internal sealed class SkUiCalendarModel(ISkUiCalendarHost host)
 
     private SkUiCalendarHit PeriodHit(DateTime start, int index)
     {
-        if (SkUiCalendarGrid.PeriodCell(start, _mode, index) is not { } cell)
+        if (SkUiCalendarGrid.PeriodCell(start, _mode, index, _system) is not { } cell)
             return default;
         if (SkUiCalendarGrid.IsAdjacentPeriodCell(_mode, index) && !AreAdjacentDaysVisible)
             return default;
@@ -1158,14 +1273,22 @@ internal sealed class SkUiCalendarModel(ISkUiCalendarHost host)
     }
 
     /// <summary>Whether <paramref name="day"/> is a neighbor month's day on the month page starting at <paramref name="start"/> (pages of weeks have none).</summary>
-    private bool IsAdjacent(DateTime start, DateTime day) => VisibleWeeks >= SkUiCalendarGrid.MaxWeeks && (day.Month != start.Month || day.Year != start.Year);
+    private bool IsAdjacent(DateTime start, DateTime day)
+    {
+        if (VisibleWeeks < SkUiCalendarGrid.MaxWeeks)
+            return false;
+        if (_system is null)
+            return SkUiCalendarGrid.IsOtherMonth(start, day);
+        MonthsAround(start);
+        return day < _months.Start || day >= _months.Next;
+    }
 
     private bool PageContains(DateTime date)
     {
         var start = PageStart;
         if (_mode == SkUiCalendarDisplayMode.Month)
-            return date >= start && date <= SkUiCalendarGrid.PageEnd(start, _mode, VisibleWeeks);
-        return SkUiCalendarGrid.PeriodIndex(start, _mode, date) is var index and >= 0 && !SkUiCalendarGrid.IsAdjacentPeriodCell(_mode, index);
+            return date >= start && date <= SkUiCalendarGrid.PageEnd(start, _mode, VisibleWeeks, _system);
+        return SkUiCalendarGrid.PeriodIndex(start, _mode, date, _system) is var index and >= 0 && !SkUiCalendarGrid.IsAdjacentPeriodCell(_mode, index);
     }
 
     #endregion
@@ -1223,7 +1346,7 @@ internal sealed class SkUiCalendarModel(ISkUiCalendarHost host)
     {
         var end = SkUiCalendarGrid.AddDays(weekStart, 6) ?? weekStart;
         return new SkUiCalendarWeekNumberTappedEventArgs(weekStart, end,
-            SkUiCalendarGrid.WeekNumber(weekStart, EffectiveFirstDayOfWeek, Culture), FirstEnabledDay(weekStart, end),
+            SkUiCalendarGrid.WeekNumber(weekStart, EffectiveFirstDayOfWeek, WeekCulture), FirstEnabledDay(weekStart, end),
             LastEnabledDay(weekStart, end));
     }
 
@@ -1328,7 +1451,7 @@ internal sealed class SkUiCalendarModel(ISkUiCalendarHost host)
         else if (moved >= SettleShare || velocity >= FlingVelocity && moved > 0)
             visual = -1;
         var pages = LogicalPages(visual);
-        if (visual != 0 && CanStep(pages) && SkUiCalendarGrid.Step(PageStart, _mode, VisibleWeeks, pages) is { } target)
+        if (visual != 0 && CanStep(pages) && StepFrom(PageStart, pages) is { } target)
         {
             _display = ClampToRange(target);
             // The new page is where the old one's neighbor was, a page away from the offset.
@@ -1368,8 +1491,8 @@ internal sealed class SkUiCalendarModel(ISkUiCalendarHost host)
             SkUiKey.Right => MoveCells(focus, rtl ? -1 : 1),
             SkUiKey.Up => MoveCells(focus, -row),
             SkUiKey.Down => MoveCells(focus, row),
-            SkUiKey.PageUp => shift && month ? SkUiCalendarGrid.AddMonths(focus, -12) : MovePages(focus, -1),
-            SkUiKey.PageDown => shift && month ? SkUiCalendarGrid.AddMonths(focus, 12) : MovePages(focus, 1),
+            SkUiKey.PageUp => shift && month ? SkUiCalendarGrid.AddYears(focus, -1, _system) : MovePages(focus, -1),
+            SkUiKey.PageDown => shift && month ? SkUiCalendarGrid.AddYears(focus, 1, _system) : MovePages(focus, 1),
             SkUiKey.Home when month => SkUiCalendarGrid.WeekStart(focus, EffectiveFirstDayOfWeek),
             SkUiKey.End when month => SkUiCalendarGrid.AddDays(SkUiCalendarGrid.WeekStart(focus, EffectiveFirstDayOfWeek), 6),
             _ => null
@@ -1401,46 +1524,26 @@ internal sealed class SkUiCalendarModel(ISkUiCalendarHost host)
         else
         {
             var today = DateTime.Today;
-            var index = SkUiCalendarGrid.PeriodIndex(start, _mode, _display);
+            var index = SkUiCalendarGrid.PeriodIndex(start, _mode, _display, _system);
             if (index < 0 || SkUiCalendarGrid.IsAdjacentPeriodCell(_mode, index))
-                index = SkUiCalendarGrid.PeriodIndex(start, _mode, today) is var todayIndex and >= 0 && !SkUiCalendarGrid.IsAdjacentPeriodCell(_mode, todayIndex) ? todayIndex : _mode == SkUiCalendarDisplayMode.Year ? 0 : 1;
-            chosen = SkUiCalendarGrid.PeriodCell(start, _mode, index) ?? start;
+                index = SkUiCalendarGrid.PeriodIndex(start, _mode, today, _system) is var todayIndex and >= 0 && !SkUiCalendarGrid.IsAdjacentPeriodCell(_mode, todayIndex) ? todayIndex : _mode == SkUiCalendarDisplayMode.Year ? 0 : 1;
+            chosen = SkUiCalendarGrid.PeriodCell(start, _mode, index, _system) ?? start;
         }
         _focus = ClampToRange(chosen);
         return _focus.Value;
     }
 
     /// <summary><paramref name="focus"/> moved by <paramref name="cells"/> cells: days, months, years or decades by the mode.</summary>
-    private DateTime? MoveCells(DateTime focus, int cells) => _mode switch
-    {
-        SkUiCalendarDisplayMode.Month => SkUiCalendarGrid.AddDays(focus, cells),
-        SkUiCalendarDisplayMode.Year => SkUiCalendarGrid.AddMonths(new DateTime(focus.Year, focus.Month, 1), cells),
-        SkUiCalendarDisplayMode.Decade => SkUiCalendarGrid.AddMonths(new DateTime(focus.Year, 1, 1), 12L * cells),
-        _ => SkUiCalendarGrid.AddMonths(new DateTime(Math.Max(1, focus.Year / 10 * 10), 1, 1), 120L * cells)
-    };
+    private DateTime? MoveCells(DateTime focus, int cells) => SkUiCalendarGrid.MoveCells(focus, _mode, cells, _system);
 
     private DateTime? MovePages(DateTime focus, int pages) => _mode switch
     {
-        SkUiCalendarDisplayMode.Month when VisibleWeeks >= SkUiCalendarGrid.MaxWeeks => SkUiCalendarGrid.AddMonths(focus, pages),
+        SkUiCalendarDisplayMode.Month when VisibleWeeks >= SkUiCalendarGrid.MaxWeeks => SkUiCalendarGrid.AddMonths(focus, pages, _system),
         SkUiCalendarDisplayMode.Month => SkUiCalendarGrid.AddDays(focus, 7L * VisibleWeeks * pages),
-        SkUiCalendarDisplayMode.Year => SkUiCalendarGrid.AddMonths(focus, 12L * pages),
-        SkUiCalendarDisplayMode.Decade => MoveYears(focus, 10L * pages),
-        _ => MoveYears(focus, 100L * pages)
+        SkUiCalendarDisplayMode.Year => SkUiCalendarGrid.AddYears(focus, pages, _system),
+        SkUiCalendarDisplayMode.Decade => SkUiCalendarGrid.MoveYears(focus, 10L * pages, _system),
+        _ => SkUiCalendarGrid.MoveYears(focus, 100L * pages, _system)
     };
-
-    /// <summary>
-    /// A decade or century page's cell <paramref name="years"/> years away, as <see cref="SkUiCalendarGrid.Step"/> pages: a cell
-    /// before year 1 lands on year 1 while it is on the first page (there is no year 0), and nothing comes before that page.
-    /// </summary>
-    private static DateTime? MoveYears(DateTime focus, long years)
-    {
-        var year = focus.Year + years;
-        if (year > 9999)
-            return null;
-        if (year >= 1)
-            return new DateTime((int)year, focus.Month, 1);
-        return focus.Year < -years ? null : new DateTime(1, 1, 1);
-    }
 
     /// <summary>Puts the focus on <paramref name="date"/> (kept in the range); a page holding it slides in.</summary>
     private void MoveFocus(DateTime date)
@@ -1534,7 +1637,7 @@ internal sealed class SkUiCalendarModel(ISkUiCalendarHost host)
         var month = _mode == SkUiCalendarDisplayMode.Month;
         var start = PageStart;
         var columns = month ? 7 : SkUiCalendarGrid.PeriodColumns;
-        var rows = month ? Math.Clamp(VisibleWeeks, 1, SkUiCalendarGrid.MaxWeeks) : SkUiCalendarGrid.PeriodRows;
+        var rows = month ? Math.Clamp(VisibleWeeks, 1, SkUiCalendarGrid.MaxWeeks) : SkUiCalendarGrid.PeriodRowCount(_mode, _system);
         for (var row = 0; row < rows; row++)
             for (var column = 0; column < columns; column++)
             {
@@ -1542,9 +1645,9 @@ internal sealed class SkUiCalendarModel(ISkUiCalendarHost host)
                 var hit = month ? DayHit(start, index) : PeriodHit(start, index);
                 if (hit.Part != SkUiCalendarPart.Cell)
                     continue;
-                var label = month ? hit.Date.ToString("D", culture)
-                    : _mode == SkUiCalendarDisplayMode.Year ? hit.Date.ToString(culture.DateTimeFormat.YearMonthPattern, culture)
-                    : SkUiCalendarGrid.PeriodText(hit.Date, _mode, culture);
+                var label = month ? hit.Date.ToString(SkUiCalendarGrid.LongDatePattern(culture, _system), culture)
+                    : _mode == SkUiCalendarDisplayMode.Year ? hit.Date.ToString(SkUiCalendarGrid.YearMonthPattern(culture, _system), culture)
+                    : SkUiCalendarGrid.PeriodText(hit.Date, _mode, culture, _system);
                 info.AddPart(new SkUiSemanticsPart(PartId(FirstCellPart + index), FirstCellPart + index, ToRect(CellRect(frame, month, row, column)), label,
                     string.Concat("_", hit.Date.ToString(month ? "yyyy-MM-dd" : "yyyy-MM", CultureInfo.InvariantCulture)), hit.IsEnabled, State(hit.Date, month, strings)));
             }
@@ -1613,10 +1716,10 @@ internal sealed class SkUiCalendarModel(ISkUiCalendarHost host)
         var strings = SkUiStrings.Current;
         if (_mode != SkUiCalendarDisplayMode.Month)
         {
-            var text = _mode == SkUiCalendarDisplayMode.Year ? date.ToString(culture.DateTimeFormat.YearMonthPattern, culture) : SkUiCalendarGrid.PeriodText(date, _mode, culture);
+            var text = _mode == SkUiCalendarDisplayMode.Year ? date.ToString(SkUiCalendarGrid.YearMonthPattern(culture, _system), culture) : SkUiCalendarGrid.PeriodText(date, _mode, culture, _system);
             return IsPeriodEnabled(date, _mode) ? text : string.Concat(text, ", ", strings.UnavailableStateText);
         }
-        var parts = new List<string>(4) { date.ToString("D", culture) };
+        var parts = new List<string>(4) { date.ToString(SkUiCalendarGrid.LongDatePattern(culture, _system), culture) };
         if (date == DateTime.Today)
             parts.Add(strings.TodayStateText);
         if (IsSelectedDay(date) || RangeOf(date) is not null)
@@ -1764,7 +1867,7 @@ internal sealed class SkUiCalendarModel(ISkUiCalendarHost host)
             {
                 // The neighbor on the side the page moved away from.
                 var visual = offset < 0 ? 1 : -1;
-                if (SkUiCalendarGrid.Step(start, _mode, VisibleWeeks, LogicalPages(visual)) is { } neighbor)
+                if (StepFrom(start, LogicalPages(visual)) is { } neighbor)
                 {
                     var neighborOffset = (offset + visual) * extent;
                     DrawPage(canvas, frame, _mode, neighbor, horizontal ? neighborOffset : 0, horizontal ? 0 : neighborOffset, palette, styles, look,
@@ -1935,13 +2038,16 @@ internal sealed class SkUiCalendarModel(ISkUiCalendarHost host)
             {
                 var rect = WeekNumberRect(frame, row);
                 rect.Offset(dx, dy);
-                DrawText(canvas, Numbers[SkUiCalendarGrid.WeekNumber(weekStart, first, culture)], SlotWeekNumber, styles.WeekNumber, rect, palette.DayName,
+                DrawText(canvas, Numbers[SkUiCalendarGrid.WeekNumber(weekStart, first, WeekCulture)], SlotWeekNumber, styles.WeekNumber, rect, palette.DayName,
                     TextAlignment.Center);
             }
             for (var column = 0; column < 7; column++)
             {
                 if (SkUiCalendarGrid.AddDays(gridStart, row * 7 + column) is not { } day)
                     continue;
+                var number = DayNumber(start, day);
+                if (number < 0)
+                    continue; // before or after the days the calendar system supports
                 var adjacent = IsAdjacent(start, day);
                 if (adjacent && !AreAdjacentDaysVisible)
                     continue;
@@ -1989,7 +2095,7 @@ internal sealed class SkUiCalendarModel(ISkUiCalendarHost host)
                         day == today && !adjacent, dayEnabled, adjacent, focused, color, style)))
                     continue;
                 var attributes = style?.FontAttributes ?? (day == today && !adjacent ? TodayFontAttributes : FontAttributes);
-                DrawText(canvas, Numbers[day.Day], SlotDay + 10 * (int)attributes, WithAttributes(styles.Day, attributes), numberRect, color, TextAlignment.Center,
+                DrawText(canvas, Numbers[number], SlotDay + 10 * (int)attributes, WithAttributes(styles.Day, attributes), numberRect, color, TextAlignment.Center,
                     style?.IsStrikethrough == true ? TextDecorations.Strikethrough : TextDecorations.None);
                 if (style?.Markers is { Count: > 0 } markers && !markerRect.IsEmpty)
                 {
@@ -2224,11 +2330,11 @@ internal sealed class SkUiCalendarModel(ISkUiCalendarHost host)
     {
         var today = DateTime.Today;
         var enabled = host.CalendarEnabled;
-        var todayIndex = SkUiCalendarGrid.PeriodIndex(start, mode, today);
-        var focusIndex = focusVisible && _focus is { } focus ? SkUiCalendarGrid.PeriodIndex(start, mode, focus) : -1;
-        for (var index = 0; index < SkUiCalendarGrid.PeriodCells; index++)
+        var todayIndex = SkUiCalendarGrid.PeriodIndex(start, mode, today, _system);
+        var focusIndex = focusVisible && _focus is { } focus ? SkUiCalendarGrid.PeriodIndex(start, mode, focus, _system) : -1;
+        for (var index = 0; index < SkUiCalendarGrid.PeriodCellCount(mode, _system); index++)
         {
-            if (SkUiCalendarGrid.PeriodCell(start, mode, index) is not { } date)
+            if (SkUiCalendarGrid.PeriodCell(start, mode, index, _system) is not { } date)
                 continue;
             var adjacent = SkUiCalendarGrid.IsAdjacentPeriodCell(mode, index);
             if (adjacent && !AreAdjacentDaysVisible)
@@ -2248,7 +2354,7 @@ internal sealed class SkUiCalendarModel(ISkUiCalendarHost host)
                 : isToday ? palette.TodayText
                 : palette.Text;
             var attributes = isToday ? TodayFontAttributes : FontAttributes;
-            DrawText(canvas, SkUiCalendarGrid.PeriodText(date, mode, culture), SlotDay + 10 * (int)attributes, WithAttributes(styles.Day, attributes), cell,
+            DrawText(canvas, SkUiCalendarGrid.PeriodText(date, mode, culture, _system), SlotDay + 10 * (int)attributes, WithAttributes(styles.Day, attributes), cell,
                 color, TextAlignment.Center);
         }
     }
