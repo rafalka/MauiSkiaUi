@@ -178,6 +178,21 @@ public sealed class CalendarSystemEdgeTests : IDisposable
             for (var day = system.Minimum; day < system.Minimum.AddDays(10); day = day.AddDays(1))
                 Assert.Equal(calendar.GetDayOfMonth(day), engine.DayNumberOf(start, day));
         }
+
+        // Opened on the first day: it is drawn as its own month's day, with its number, not dimmed as a neighbor month's.
+        var page = new SkUiCalendar { CalendarSystem = calendar, DisplayDate = system.Minimum };
+        SkUiCalendarDayContext? first = null;
+        page.DayPainter = (SKCanvas _, in SkUiCalendarDayContext day) =>
+        {
+            if (day.Date == system.Minimum)
+                first = day;
+            return false;
+        };
+        using var surface = new SkUiTestSurface(page, Width, Height + 6 * 14);
+        surface.Frame(0);
+        Assert.Equal(system.Day(system.Minimum), page.Engine.DayNumberOf(page.Engine.PageStart, system.Minimum));
+        Assert.NotNull(first);
+        Assert.False(first.Value.IsAdjacent);
     }
 
     [Fact]
