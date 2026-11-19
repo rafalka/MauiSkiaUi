@@ -152,11 +152,11 @@ Moved from 1.13 on 17 November 2026. No new control and no behavior change: the 
 
 ### 1.15.0: the calendar, finished (proposed)
 
-Additive only. Closes what 1.13 left open on the calendar; the review's controls (F1, F5, F6) move to 1.16. Built on `1.15-implementation`: A2 to A4, the date and time popup, platform looks' calendars, image markers and event lines; open: the device checks, the render-thread slide (if the devices ask for it) and wave C. Steps, decisions and verification: [ImplementationPlan-1.15.md](ImplementationPlan-1.15.md).
+Additive only. Closes what 1.13 left open on the calendar; the review's controls (F1, F5, F6) move to 1.16. Built on `1.15-implementation`: A2 to A4, the date and time popup, platform looks' calendars, image markers, event lines and other calendar systems (wave C); open: the device checks and the render-thread slide (if the devices ask for it). Steps, decisions and verification: [ImplementationPlan-1.15.md](ImplementationPlan-1.15.md).
 
 - **Wave A, verify and harden:** 1.13's device checks (slide frame times, feel, TalkBack / VoiceOver, keyboards, the pickers' calendar popups), calendar bench scenarios and zero-allocation slide frames, an edge-case sweep, a Core / SkUi parity test.
 - **Wave B, the gaps:** render-thread page slides (only if the Galaxy S9 misses frames), a calendar popup with time wheels for `SkUiDateTimePicker`, platform looks' calendars, image markers, event lines in a month view (not a scheduler).
-- **Wave C (cut line):** other calendar systems (Thai, Japanese, Hijri, Umm al-Qura, Persian, Hebrew) through `System.Globalization.Calendar`; moves to 1.16 if not ready with wave B.
+- **Wave C:** other calendar systems (Thai, Taiwan, Korean, Japanese, Hijri, Umm al-Qura, Persian, Hebrew) through `System.Globalization.Calendar`; in 1.15.
 
 ## Backlog (1.x)
 
@@ -164,7 +164,7 @@ Taken up when a real app needs it, roughly in this order within each area. Items
 
 ### New controls and packages
 
-- **Calendar:** built in [1.13](#1130-and-1131-calendar-shipped); non-Gregorian calendars, a calendar popup with time wheels for `SkUiDateTimePicker`, platform looks' calendars, image markers and a month view with event lines are [1.15](#1150-the-calendar-finished-proposed). A scheduler stays out of scope.
+- **Calendar:** built in [1.13](#1130-and-1131-calendar-shipped); non-Gregorian calendars, a calendar popup with time wheels for `SkUiDateTimePicker`, platform looks' calendars, image markers and a month view with event lines are [1.15](#1150-the-calendar-finished-proposed). A scheduler stays out of scope; so do the Julian and East Asian lunisolar calendars.
 - **Full SVG** in an optional `SkiaUi.Maui.Svg` package on Svg.Skia, for what [1.7's icon reader](ImplementationPlan-1.7.md) leaves out: gradients, `<use>`, filters and CSS in downloaded files and rich illustrations. Needs a vector entry in the image cache and protection against hostile files (design and a spike's findings: [the full SVG plan](ImplementationPlan-FullSvg.md)).
 - **From the November 2026 review** (briefs, order and open decisions: [ImplementationPlan-PerformanceAndControls.md](ImplementationPlan-PerformanceAndControls.md#track-f-features)), from 1.16, roughly in this order. Each is the common pattern on SkiaUi's own API, not a copy of one vendor's control:
   - **Segmented control and tab view** (F1): a tab strip over panes created when first shown, swiped on the carousel's engine.

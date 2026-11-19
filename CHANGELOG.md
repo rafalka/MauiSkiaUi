@@ -26,6 +26,9 @@ Publishing (the NuGet publish workflow, [docs/Releasing.md](docs/Releasing.md)) 
 - **Platform looks' calendars (1.15):** what a calendar leaves unset (`TodayStyle`, `SelectionShape`, `SelectionColor`, `SelectedTextColor`) now comes from the look: `SkUiLook.CalendarTodayStyle`, `CalendarSelectionShape`, `CalendarSelectionColor(accent)`, `CalendarSelectedTextColor(...)` (Skia colors), and `DefaultSkUiLook.CalendarTodayRingWidth` ([SkUiCalendar.md](docs/controls/SkUiCalendar.md#look)).
   - Material 3: its date picker's grid sizes and a 1 dp today ring. iOS: today as the accent number, the selection a light accent tint with an accent number. Mac Catalyst: compact rows and a rounded-square selection. Windows: today filled, the selection a ring.
   - The default look draws as before; values the app set win. Under a platform look, a calendar that set none of these is drawn as its platform's.
+- **Calendar systems (1.15):** `CalendarSystem` (a `System.Globalization.Calendar`) on `SkUiCalendar`, `SkUiCoreCalendar`, `SkUiDateRangePicker` and `SkUiCoreDateRangePicker` (the date pickers' popups through `CalendarStyle`) ([SkUiCalendar.md](docs/controls/SkUiCalendar.md#how-it-works)).
+  - Thai Buddhist, Taiwan, Korean and Japanese: the Gregorian months with their years (Japanese titles with the era). Umm al-Qura, Hijri, Persian and Hebrew: pages cut by their own months; a Hebrew leap year's 13 months on the year page.
+  - Dates stay `DateTime` values; the pages stop at the days the calendar supports; texts from the current culture when it offers the calendar, else the calendar's own. `null` (default) stays Gregorian.
 - **Calendar days read their events (1.15):** screen readers read a day's marker captions after its state ("Selected, Standup, Lunch"), in both marker layouts.
 
 ### Other

@@ -11,6 +11,12 @@ A drawn calendar: a month of days, the months of a year, the years of a decade o
   - The header's buttons, a swipe and `GoToPrevious()` / `GoToNext()` move a page; the page slides with the look's `SkUiTransitionKind.CalendarPage` transition (none with reduce motion). A swipe follows the finger and settles on the next page past a third of the page or after a fling, else back; past the first or last page it stretches a little.
   - A tap on the title steps up a mode; a tap on a month, year or decade steps down to it; a pinch zooms out or in. At the highest mode, the title goes back to the lowest. `MinimumDisplayMode` and `MaximumDisplayMode` limit the modes: `MaximumDisplayMode = Month` keeps the calendar on days, `MinimumDisplayMode = Year` makes a month picker whose month cells are chosen (their first day).
   - The user's changes are written back to `DisplayDate` and `DisplayMode` (two-way, handler values: an app's one-way binding keeps applying).
+- **Calendar systems** (1.15). `CalendarSystem` (a `System.Globalization.Calendar`) sets the calendar the pages are cut by; `null` (default) is the Gregorian one, as before 1.15.
+  - `ThaiBuddhistCalendar`, `TaiwanCalendar`, `KoreanCalendar` and `JapaneseCalendar` keep the Gregorian months and number the years their way ("พฤศจิกายน 2569", "令和8年11月"); decades and centuries count the calendar's years (Gregorian years for the Japanese calendar, whose years start again with each era).
+  - `UmAlQuraCalendar`, `HijriCalendar`, `PersianCalendar` and `HebrewCalendar` cut the pages by their own months; a Hebrew leap year's year page shows its 13 months on 5 rows.
+  - Dates stay `DateTime` values: `SelectedDate`, ranges, `MinimumDate`, `BlackoutDates`, `DateEnabled` and `DayStyle` are the same whatever the calendar shown. The pages stop at the days the calendar supports (Umm al-Qura: 1900 to 2077).
+  - Titles, month names and day names come from the current culture when it offers the calendar (one of its optional calendars), else from the calendar's own culture (Thai, Chinese (Taiwan), Korean, Japanese, Arabic, Persian, Hebrew). Day numbers are digits; week numbers keep the Gregorian rule.
+  - Other calendars are ignored (with MAUI's warning for an invalid value) or rejected by `SetCalendarSystem`. On a date picker's popup, set it through `CalendarStyle`; the range picker has its own `CalendarSystem`.
 - **Weeks.** Six weeks by default, so a month page always has the same height. `VisibleWeeks` (1 to 5) shows that many weeks and pages by weeks: a weekly strip. `FirstDayOfWeek` (default: the culture's) sets the first column. `AreAdjacentDaysVisible` shows the neighbor months' days, dimmed (a tap on one chooses it and slides its month in); a selection or a range on them is drawn as on the month's own days, so a range that crosses the month's end runs on into them. `AreWeekNumbersVisible` adds a column of week numbers (ISO 8601 for Monday weeks under the "first four-day week" rule, else the culture's rule); a tap on one raises `WeekNumberTapped` with the week's first and last days, its number, the first and last days that can be chosen and ready-made ranges (`Range`, `EnabledRange`), so the app can select the whole week.
 - **Day names.** `DayNameFormat` is `Shortest` ("Tu"), `Abbreviated` ("Tue") or `FirstLetter` ("T"). The names come from `SkUiStrings.Current`: its `ShortestDayNames`, `AbbreviatedDayNames` and `FirstLetterDayNames` (seven names from Sunday) when set, else the current culture's; override `SkUiStrings.GetDayName` to read the app's resources. A change of the strings redraws the calendars. While the page shows today, today's day name is drawn in `TodayDayNameTextColor` (default: `TodayColor`, the accent); `IsTodayDayNameHighlighted = false` turns it off.
 - **Selection.** `SelectionMode`:
@@ -146,6 +152,7 @@ A weekly strip above an agenda: `VisibleWeeks="1" MaximumDisplayMode="Month" Are
 | `MinimumDisplayMode` / `MaximumDisplayMode` | `Month` / `Century` | Limit the modes. |
 | `VisibleWeeks` | 6 | 1–6; fewer pages by weeks. |
 | `FirstDayOfWeek` | `null` | The culture's. |
+| `CalendarSystem` | `null` | Gregorian; Thai Buddhist, Taiwan, Korean, Japanese, Umm al-Qura, Hijri, Persian, Hebrew (1.15). |
 | `SelectionMode` | `Single` | `None`, `Single`, `Multiple`, `Range`, `MultipleRanges`. |
 | `SelectedDate` / `SelectedDates` / `SelectedRange` / `SelectedRanges` | none | Two-way; see **Selection**. |
 | `MinimumRangeDays` / `MaximumRangeDays` | 0 / 0 | The length of a range the user chooses (0: any). |
@@ -199,5 +206,6 @@ Methods: `GoToPrevious(animated)`, `GoToNext(animated)`, `GoToDate(date, animate
 
 ## Limits
 
-- Gregorian dates; day and month names and the first day come from the current culture. Other calendar systems are not supported yet: under a culture whose own calendar is another (Thai Buddhist, Hijri), the texts use its Gregorian calendar, so they match the pages.
+- Without `CalendarSystem`, under a culture whose own calendar is another (Thai Buddhist, Hijri), the pages and texts stay Gregorian, as in 1.13; set `CalendarSystem = CultureInfo.CurrentCulture.Calendar` to follow the culture.
+- Calendar systems other than the eight listed (Julian, the East Asian lunisolar calendars) are not supported. The date pickers' wheels stay Gregorian.
 - The calendar in a popup: the date pickers' `PopupStyle = Calendar` ([SkUiDatePicker](SkUiDatePicker.md); over the time wheels for [SkUiDateTimePicker](SkUiDateTimePicker.md), 1.15) and [SkUiDateRangePicker](SkUiDateRangePicker.md).

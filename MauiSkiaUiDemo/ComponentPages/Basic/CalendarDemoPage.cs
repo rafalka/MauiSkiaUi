@@ -17,6 +17,13 @@ public sealed class CalendarDemoPage : ComponentDemoPage
     private const string Booking = "Range booking";
     private const string Events = "Events and holidays";
     private const string MonthView = "Month view (event lines)";
+    private const string Gregorian = "Gregorian";
+    private const string ThaiBuddhist = "Thai Buddhist";
+    private const string Japanese = "Japanese";
+    private const string UmAlQura = "Umm al-Qura";
+    private const string Persian = "Persian";
+    private const string Hebrew = "Hebrew";
+    private static readonly string[] CalendarSystems = [Gregorian, ThaiBuddhist, Japanese, UmAlQura, Persian, Hebrew];
 
     private static readonly Color Gray100 = Color.FromArgb("#F3F4F6");
     private static readonly Color Gray500 = Color.FromArgb("#6B7280");
@@ -87,6 +94,25 @@ public sealed class CalendarDemoPage : ComponentDemoPage
             value => _calendar.SelectionShape = value, () => _calendar.SelectionShape);
         ColorEditor(nameof(SkUiCalendar.SelectionColor), Accent, value => _calendar.SelectionColor = value, () => _calendar.SelectionColor ?? Accent);
         ColorEditor(nameof(SkUiCalendar.TodayColor), Accent, value => _calendar.TodayColor = value, () => _calendar.TodayColor ?? Accent);
+        Choice(nameof(SkUiCalendar.CalendarSystem), CalendarSystems, Gregorian,
+            value => _calendar.CalendarSystem = value switch
+            {
+                ThaiBuddhist => new ThaiBuddhistCalendar(),
+                Japanese => new JapaneseCalendar(),
+                UmAlQura => new UmAlQuraCalendar(),
+                Persian => new PersianCalendar(),
+                Hebrew => new HebrewCalendar(),
+                _ => null
+            },
+            () => _calendar.CalendarSystem switch
+            {
+                ThaiBuddhistCalendar => ThaiBuddhist,
+                JapaneseCalendar => Japanese,
+                UmAlQuraCalendar => UmAlQura,
+                PersianCalendar => Persian,
+                HebrewCalendar => Hebrew,
+                _ => Gregorian
+            });
         Choice(nameof(SkUiCalendar.DayMarkerLayout), Enum.GetValues<SkUiCalendarDayMarkerLayout>(), SkUiCalendarDayMarkerLayout.Row,
             value => _calendar.DayMarkerLayout = value, () => _calendar.DayMarkerLayout);
         Number("FontSize (0 = look's)", 0, 24, 0, value => _calendar.FontSize = value <= 0 ? double.NaN : value,

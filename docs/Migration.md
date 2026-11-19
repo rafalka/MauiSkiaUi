@@ -580,7 +580,8 @@ MAUI has no calendar; apps use a component library's. `SkUiCalendar` ([SkUiCalen
 - A dialog mode with OK / Cancel → a date picker with `PopupStyle="Calendar"` and `UpdateMode="WhenFinished"`, or `SkUiDateRangePicker` for a range ([SkUiDateRangePicker.md](controls/SkUiDateRangePicker.md)); the calendar's look in it → `CalendarStyle`.
 - A date and time picker with a calendar → `SkUiDateTimePicker` with `PopupStyle="Calendar"` (the calendar over its time wheels, 1.15).
 - A month view with events listed in the days → `DayMarkerLayout="Lines"` (captions as event chips, "+N" for the rest, 1.15); avatars or icons from images → `SkUiCalendarMarker.Image`.
-- Not available: other calendar systems; events drawn as one bar across several days, time slots and dragging events (a scheduler's).
+- Hijri, Persian, Hebrew, Thai and Japanese calendars → `CalendarSystem` (1.15; dates stay `DateTime`).
+- Not available: events drawn as one bar across several days, time slots and dragging events (a scheduler's); the Julian and East Asian lunisolar calendars.
 
 ## Platform-specifics
 
