@@ -33,6 +33,12 @@ internal interface ISkUiCalendarHost : ISkUiTransitionHost
     /// <summary>A subclass's drawing of a header button (<paramref name="isNext"/>: the next one); <c>true</c> when it drew it.</summary>
     bool CalendarDrawNavigationButton(SKCanvas canvas, in SkUiCalendarNavigationButtonPaint button, bool isNext);
 
+    /// <summary>The app's <c>TodayStyle</c>, or <c>null</c> when it set none (the look's then).</summary>
+    SkUiCalendarTodayStyle? CalendarTodayStyle { get; }
+
+    /// <summary>The app's <c>SelectionShape</c>, or <c>null</c> when it set none (the look's then).</summary>
+    SkUiCalendarSelectionShape? CalendarSelectionShape { get; }
+
     /// <summary>A subclass's drawing of the header's title; <c>true</c> when it drew it.</summary>
     bool CalendarDrawTitle(SKCanvas canvas, SKRect bounds, string title, SKColor color, bool isPressed);
 
@@ -172,12 +178,14 @@ internal sealed class SkUiCalendarModel(ISkUiCalendarHost host)
     public bool FontAutoScalingEnabled = true;
     public double DayRowHeight = -1;
 
-    public SkUiCalendarTodayStyle TodayStyle = SkUiCalendarTodayStyle.Ring;
+    /// <summary>How today is marked: the app's, else the look's (<see cref="SkUiLook.CalendarTodayStyle"/>).</summary>
+    public SkUiCalendarTodayStyle TodayStyle => host.CalendarTodayStyle ?? SkUiLook.Current.CalendarTodayStyle;
     public Color? TodayColor;
     public Color? TodayTextColor;
     public FontAttributes TodayFontAttributes = FontAttributes.Bold;
 
-    public SkUiCalendarSelectionShape SelectionShape = SkUiCalendarSelectionShape.Circle;
+    /// <summary>The selected days' shape: the app's, else the look's (<see cref="SkUiLook.CalendarSelectionShape"/>).</summary>
+    public SkUiCalendarSelectionShape SelectionShape => host.CalendarSelectionShape ?? SkUiLook.Current.CalendarSelectionShape;
     public Color? SelectionColor;
     public Color? SelectedTextColor;
     public Color? RangeColor;
@@ -1629,12 +1637,17 @@ internal sealed class SkUiCalendarModel(ISkUiCalendarHost host)
         SKColor Selection, SKColor SelectedText, SKColor Range, SKColor RangeText, SKColor Today, SKColor TodayText, SKColor Button,
         SKColor ButtonBackground, SKColor Focus, SKColor TodayDayName, SKColor ButtonBorder);
 
-    private Palette ResolvePalette(bool enabled)
+    private Palette ResolvePalette(bool enabled, SkUiLook look)
     {
         var scheme = SkUiColorScheme.Current;
         var text = TextColor ?? scheme.DefaultForeground;
         var selection = SelectionColor ?? scheme.Accent;
         var today = TodayColor ?? scheme.Accent;
+        // The selection's fill and number: the app's, else the look's (a light tint with an accent number on iOS), from the
+        // selection color the range band is made from too.
+        var baseColor = Sk(selection, true);
+        var fill = SelectionColor is not null ? baseColor : look.CalendarSelectionColor(baseColor);
+        var selectedText = SelectedTextColor is { } own ? Sk(own, enabled) : Tint(look.CalendarSelectedTextColor(fill, baseColor, Sk(text, true)), enabled);
         var todayText = TodayTextColor ?? TodayStyle switch
         {
             SkUiCalendarTodayStyle.Filled => Contrast(today),
@@ -1644,7 +1657,7 @@ internal sealed class SkUiCalendarModel(ISkUiCalendarHost host)
         return new Palette(
             Sk(text, enabled), Sk(AdjacentDayTextColor ?? scheme.Muted, enabled), Sk(DisabledDayTextColor ?? scheme.Disabled, enabled),
             Sk(WeekendTextColor ?? text, enabled), Sk(DayNameTextColor ?? scheme.Muted, enabled), Sk(HeaderTextColor ?? text, enabled),
-            Sk(selection, enabled), Sk(SelectedTextColor ?? Contrast(selection), enabled), RangeColor is { } range ? Sk(range, enabled) : Sk(selection, enabled, RangeAlpha),
+            Tint(fill, enabled), selectedText, RangeColor is { } range ? Sk(range, enabled) : Sk(selection, enabled, RangeAlpha),
             Sk(RangeTextColor ?? text, enabled), Sk(today, enabled), Sk(todayText, enabled), Sk(NavigationButtonColor ?? scheme.Accent, enabled),
             Sk(NavigationButtonBackgroundColor ?? Colors.Transparent, enabled), Sk(scheme.DefaultForeground, true),
             Sk(TodayDayNameTextColor ?? today, enabled), Sk(NavigationButtonBorderColor ?? Colors.Transparent, enabled));
@@ -1659,9 +1672,11 @@ internal sealed class SkUiCalendarModel(ISkUiCalendarHost host)
     /// <paramref name="color"/> as drawn: its alpha times <paramref name="alpha"/>, halved while disabled (as
     /// <see cref="SkUiColors.EnabledTint"/>). On the Skia color, so a frame allocates no MAUI colors.
     /// </summary>
-    private static SKColor Sk(Color color, bool enabled, float alpha = 1)
+    private static SKColor Sk(Color color, bool enabled, float alpha = 1) => Tint(SkUiShapePainter.ToSkColor(color), enabled, alpha);
+
+    /// <summary>A Skia color as drawn: its alpha times <paramref name="alpha"/>, halved while disabled.</summary>
+    private static SKColor Tint(SKColor sk, bool enabled, float alpha = 1)
     {
-        var sk = SkUiShapePainter.ToSkColor(color);
         var scale = enabled ? alpha : alpha * 0.5f;
         return scale == 1 ? sk : sk.WithAlpha((byte)Math.Round(sk.Alpha * scale)); // exact: 1 is the "unchanged" sentinel
     }
@@ -1703,7 +1718,7 @@ internal sealed class SkUiCalendarModel(ISkUiCalendarHost host)
         var culture = Culture;
         var enabled = host.CalendarEnabled;
         var frame = Layout(width, height, look);
-        var palette = ResolvePalette(enabled);
+        var palette = ResolvePalette(enabled, look);
         var styles = ResolveStyles(look, frame.RightToLeft);
         var focusVisible = _keyboard && _focus is not null;
         DrawHeader(canvas, frame, look, palette, styles);

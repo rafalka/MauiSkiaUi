@@ -516,13 +516,16 @@ public class SkUiCoreCalendar : SkUiCoreNode, ISkUiCalendarHost, ISkUiKeyHandler
     }
 
     /// <summary>How today is marked (default a ring).</summary>
-    public SkUiCalendarTodayStyle TodayStyle { get => _model.TodayStyle; set => SetTodayStyle(value); }
+    public SkUiCalendarTodayStyle TodayStyle { get => _todayStyle ?? SkUiCalendarTodayStyle.Ring; set => SetTodayStyle(value); }
+
+    private SkUiCalendarTodayStyle? _todayStyle;
+    private SkUiCalendarSelectionShape? _selectionShape;
 
     /// <summary>Sets <see cref="TodayStyle"/>.</summary>
     public SkUiCoreCalendar SetTodayStyle(SkUiCalendarTodayStyle value)
     {
         ThrowIfUndefined(value);
-        return SetPainted(ref _model.TodayStyle, value, nameof(TodayStyle));
+        return SetPainted(ref _todayStyle, (SkUiCalendarTodayStyle?)value, nameof(TodayStyle));
     }
 
     /// <summary>Today's ring, fill or text color; <c>null</c>: the color scheme's accent.</summary>
@@ -544,13 +547,13 @@ public class SkUiCoreCalendar : SkUiCoreNode, ISkUiCalendarHost, ISkUiKeyHandler
     public SkUiCoreCalendar SetTodayFontAttributes(FontAttributes value) => SetPainted(ref _model.TodayFontAttributes, value, nameof(TodayFontAttributes));
 
     /// <summary>The shape behind a selected day (default a circle).</summary>
-    public SkUiCalendarSelectionShape SelectionShape { get => _model.SelectionShape; set => SetSelectionShape(value); }
+    public SkUiCalendarSelectionShape SelectionShape { get => _selectionShape ?? SkUiCalendarSelectionShape.Circle; set => SetSelectionShape(value); }
 
     /// <summary>Sets <see cref="SelectionShape"/>.</summary>
     public SkUiCoreCalendar SetSelectionShape(SkUiCalendarSelectionShape value)
     {
         ThrowIfUndefined(value);
-        return SetPainted(ref _model.SelectionShape, value, nameof(SelectionShape));
+        return SetPainted(ref _selectionShape, (SkUiCalendarSelectionShape?)value, nameof(SelectionShape));
     }
 
     /// <summary>The selected days' fill (and a range's ends); <c>null</c>: the color scheme's accent.</summary>
@@ -990,6 +993,10 @@ public class SkUiCoreCalendar : SkUiCoreNode, ISkUiCalendarHost, ISkUiKeyHandler
     internal SkUiCalendarModel Engine => _model;
 
     bool ISkUiCalendarHost.CalendarRightToLeft => IsRightToLeft;
+
+    SkUiCalendarTodayStyle? ISkUiCalendarHost.CalendarTodayStyle => _todayStyle;
+
+    SkUiCalendarSelectionShape? ISkUiCalendarHost.CalendarSelectionShape => _selectionShape;
 
     bool ISkUiCalendarHost.CalendarEnabled => IsEnabled;
 

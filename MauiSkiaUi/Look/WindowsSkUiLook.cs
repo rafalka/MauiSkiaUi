@@ -1,3 +1,5 @@
+using SkiaSharp;
+
 namespace MauiSkiaUi;
 
 /// <summary>
@@ -213,4 +215,61 @@ public class WindowsSkUiLook : DefaultSkUiLook
 
     /// <inheritdoc />
     public override SkUiColorScheme GetColorScheme(bool isDark) => isDark ? WindowsSkUiColorScheme.Dark : WindowsSkUiColorScheme.Light;
+
+    // Calendars (1.15): WinUI's calendar view. Today an accent-filled circle with a white number; the selected day an accent ring
+    // around its number (the days' own text color), over today's fill when both; 40 epx cells and 14 epx text.
+
+    /// <inheritdoc />
+    public override SkUiCalendarTodayStyle CalendarTodayStyle => SkUiCalendarTodayStyle.Filled;
+
+    /// <inheritdoc />
+    /// <remarks>The selection is a ring (<see cref="DrawCalendarCellCore"/>), so the number keeps the days' color.</remarks>
+    public override SKColor CalendarSelectedTextColor(SKColor selection, SKColor baseColor, SKColor text) => text;
+
+    /// <inheritdoc />
+    public override double CalendarRowHeight => 40;
+
+    /// <inheritdoc />
+    public override double CalendarDayNamesHeight => 32;
+
+    /// <inheritdoc />
+    public override double CalendarHeaderHeight => 44;
+
+    /// <inheritdoc />
+    public override double CalendarNavigationButtonSize => 32;
+
+    /// <inheritdoc />
+    public override double CalendarFontSize => 14;
+
+    /// <inheritdoc />
+    public override double CalendarHeaderFontSize => 14;
+
+    /// <inheritdoc />
+    /// <remarks>
+    /// A day's selection is a 2 epx ring in the selection color, drawn over the rest (today's fill included); months and years keep
+    /// the default fill. A range keeps its band.
+    /// </remarks>
+    protected override void DrawCalendarCellCore(SKCanvas canvas, SkUiCalendarCellPaint cell)
+    {
+        if (!cell.IsSelected || cell.Kind != SkUiCalendarCellKind.Day)
+        {
+            base.DrawCalendarCellCore(canvas, cell);
+            return;
+        }
+        base.DrawCalendarCellCore(canvas, cell with { IsSelected = false });
+        var shape = CalendarCellShape(cell);
+        if (shape.IsEmpty)
+            return;
+        const float width = 2;
+        var paint = DefaultSkUiLook.Paint(cell.SelectionColor);
+        Stroke(paint, cell.SelectionColor, width);
+        shape.Inflate(-width / 2, -width / 2);
+        var radius = cell.Shape switch
+        {
+            SkUiCalendarSelectionShape.Circle => Math.Min(shape.Width, shape.Height) / 2,
+            SkUiCalendarSelectionShape.RoundedSquare => Math.Min(8, Math.Min(shape.Width, shape.Height) / 4),
+            _ => 0f
+        };
+        canvas.DrawRoundRect(shape, radius, radius, paint);
+    }
 }

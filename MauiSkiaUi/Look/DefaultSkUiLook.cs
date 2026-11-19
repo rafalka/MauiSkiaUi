@@ -233,7 +233,7 @@ public class DefaultSkUiLook : SkUiLook
                 canvas.DrawRoundRect(shape, radius, radius, Paint(cell.TodayColor));
             else if (cell.TodayStyle == SkUiCalendarTodayStyle.Ring)
             {
-                const float ring = 1.5f;
+                var ring = CalendarTodayRingWidth;
                 var paint = Paint(cell.TodayColor);
                 Stroke(paint, cell.TodayColor, ring);
                 var inner = shape;
@@ -256,6 +256,9 @@ public class DefaultSkUiLook : SkUiLook
             canvas.DrawRoundRect(ring, ringRadius, ringRadius, paint);
         }
     }
+
+    /// <summary>The width of the ring that marks today (<see cref="SkUiCalendarTodayStyle.Ring"/>), in DIPs (default 1.5; 1.15).</summary>
+    protected virtual float CalendarTodayRingWidth => 1.5f;
 
     /// <summary>The shape a calendar cell's selection fills: a centered square for a day, a pill for a month or year.</summary>
     protected static SKRect CalendarCellShape(in SkUiCalendarCellPaint cell)
@@ -411,7 +414,7 @@ public class DefaultSkUiLook : SkUiLook
     [ThreadStatic] private static SKRoundRect? _roundRect;
 
     /// <summary>Per-thread reusable fill paint (recording is single-threaded per surface; pictures copy paint state).</summary>
-    private static SKPaint Paint(SKColor color)
+    private protected static SKPaint Paint(SKColor color)
     {
         var paint = _paint ??= new SKPaint();
         paint.Reset();
@@ -420,7 +423,7 @@ public class DefaultSkUiLook : SkUiLook
         return paint;
     }
 
-    private static void Stroke(SKPaint paint, SKColor color, float width)
+    private protected static void Stroke(SKPaint paint, SKColor color, float width)
     {
         paint.Color = color;
         paint.Style = SKPaintStyle.Stroke;
