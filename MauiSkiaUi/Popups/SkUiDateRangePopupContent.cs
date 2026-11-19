@@ -24,6 +24,8 @@ internal sealed class SkUiDateRangePopupContent(SkUiDateRangeRules rules) : SkUi
     /// <inheritdoc />
     protected override SkUiView CreateBody()
     {
+        // A calendar neither scrolls nor shrinks: anchored with too little room beside the field, it covers the field (issue #111).
+        MinimumHeight = double.PositiveInfinity;
         var calendar = new SkUiCalendar
         {
             SelectionMode = SkUiCalendarSelectionMode.Range,

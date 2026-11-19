@@ -66,6 +66,24 @@ public sealed class DateRangePickerTests : IDisposable
     }
 
     [Fact]
+    public void AnAnchoredRangeCalendarIsShownWholeOverItsField()
+    {
+        // Issue #111: the range's calendar neither scrolls nor shrinks; with too little room beside the field it covers the field.
+        var picker = new SkUiDateRangePicker { PopupPlacement = SkUiPopupPlacement.Anchored };
+        var stack = new SkUiVerticalStackLayout { Children = { new SkUiBox { HeightRequest = 150 }, picker } };
+        var window = new Window(new ContentPage { Content = new SkUiContentView { Content = stack } });
+        ((IWindow)window).FrameChanged(new Rect(0, 0, 400, 420));
+        SkUiTestHelpers.Arrange(stack, 400, 420);
+
+        var content = Open(picker, out var request);
+
+        Assert.Equal(double.PositiveInfinity, content.MinimumHeight);
+        Assert.True(request.PreferredSize.Height > request.SpaceAbove && request.PreferredSize.Height > request.SpaceBelow);
+        Assert.Equal(request.PreferredSize.Height, request.Bounds.Height, 3);
+        Assert.True(request.Bounds.IntersectsWith(request.AnchorBounds));
+    }
+
+    [Fact]
     public void TwoTapsChooseTheRangeAndTheFieldShowsIt()
     {
         var picker = new SkUiDateRangePicker { Value = Range(10, 12) };

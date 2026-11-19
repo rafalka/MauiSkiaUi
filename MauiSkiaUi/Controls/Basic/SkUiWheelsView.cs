@@ -752,9 +752,13 @@ internal sealed class SkUiWheelsView : SkUiContentView
                 if (!ReferenceEquals(template, _shownTemplate) || Content is null)
                 {
                     _shownTemplate = template;
-                    Content = template?.CreateContent() as ISkUiView;
+                    // The item before the content is attached, so it never inherits the internal Entry (issue #108).
+                    var created = template?.CreateContent() as ISkUiView;
+                    if (created is BindableObject fresh)
+                        fresh.BindingContext = _entry?.Item;
+                    Content = created;
                 }
-                if (Content is BindableObject content)
+                else if (Content is BindableObject content)
                     content.BindingContext = _entry?.Item;
             }
             ShowState();

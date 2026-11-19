@@ -539,6 +539,35 @@ public sealed class PickerTests : IDisposable
     }
 
     [Fact]
+    public void TemplatedRowsNeverSeeTheInternalRow()
+    {
+        // Issue #108: compiled bindings (x:DataType) warn when the content first inherits the popup's internal Row.
+        var monkeys = Monkeys.Select(name => new Monkey(name)).ToList();
+        var seen = new List<object?>();
+        var picker = new SkUiPicker
+        {
+            ItemsSource = monkeys,
+            ItemDisplayBinding = new Binding(nameof(Monkey.Name)),
+            ItemTemplate = new DataTemplate(() =>
+            {
+                var label = new SkUiLabel { HeightRequest = 60 };
+                label.BindingContextChanged += (_, _) => seen.Add(label.BindingContext);
+                return label;
+            })
+        };
+        Root(picker);
+        picker.IsOpen = true;
+        var content = Assert.IsType<SkUiPickerPopup>(Shown().Content);
+        using var surface = new SkUiTestSurface(content, 300, 200);
+        surface.Frame();
+        content.List.ScrollTo(monkeys.Count - 1, position: ScrollToPosition.End, animate: false); // rows recycled
+        surface.Frame();
+
+        Assert.NotEmpty(seen);
+        Assert.All(seen, context => Assert.True(context is null or Monkey)); // the item, or none while recycled
+    }
+
+    [Fact]
     public void TemplatedRowsWiderThanTheTextsWidenThePopup()
     {
         var picker = new SkUiPicker
@@ -683,9 +712,39 @@ public sealed class PickerTests : IDisposable
 public class PopupGeometryTests
 {
     private static SkUiPopupLayout Layout(Rect anchor, Size preferred, SkUiPopupPlacement placement = SkUiPopupPlacement.Anchored, bool rtl = false,
-        LayoutOptions? horizontal = null, LayoutOptions? vertical = null, double maximumHeight = double.PositiveInfinity, Rect absolute = default) =>
+        LayoutOptions? horizontal = null, LayoutOptions? vertical = null, double maximumHeight = double.PositiveInfinity, Rect absolute = default,
+        double minimumHeight = double.NaN) =>
         SkUiPopupGeometry.Layout(new SkUiPopupPlacementInput(anchor, anchor, new Size(400, 800), new Thickness(0, 40, 0, 20), new Thickness(8), 4, placement,
-            horizontal ?? LayoutOptions.Center, vertical ?? LayoutOptions.Center, preferred, maximumHeight, absolute, rtl));
+            horizontal ?? LayoutOptions.Center, vertical ?? LayoutOptions.Center, preferred, maximumHeight, absolute, rtl, MinimumHeight: minimumHeight));
+
+    [Fact]
+    public void AnchoredContentWithAMinimumHeightKeepsItAndCoversTheAnchor()
+    {
+        // Issue #111: the safe area less the margin is 48–772; an anchor at 400–440 has 348 above and 328 below.
+        var anchor = new Rect(20, 400, 200, 40);
+        var shrunk = Layout(anchor, new Size(200, 600));
+        Assert.Equal(new Rect(20, 48, 200, 348), shrunk.Bounds); // by default, shortened to the larger side
+
+        // Whole: on the side with more room, moved over the anchor to stay in the safe area.
+        var whole = Layout(anchor, new Size(200, 600), minimumHeight: double.PositiveInfinity);
+        Assert.True(whole.OpensAbove);
+        Assert.Equal(new Rect(20, 48, 200, 600), whole.Bounds);
+        Assert.True(whole.Bounds.IntersectsWith(anchor));
+
+        // Down to a minimum of its own: as short as the room when that is enough, else the minimum.
+        Assert.Equal(348, Layout(anchor, new Size(200, 600), minimumHeight: 300).Bounds.Height, 3);
+        Assert.Equal(new Rect(20, 48, 200, 500), Layout(anchor, new Size(200, 600), minimumHeight: 500).Bounds);
+
+        // Fits on a side: placed there beside the anchor as before.
+        Assert.Equal(new Rect(20, 444, 200, 300), Layout(anchor, new Size(200, 300), minimumHeight: double.PositiveInfinity).Bounds);
+        Assert.Equal(new Rect(20, 56, 200, 340), Layout(anchor, new Size(200, 340), minimumHeight: double.PositiveInfinity).Bounds);
+        Assert.Equal(new Rect(20, 144, 200, 600), Layout(new Rect(20, 100, 200, 40), new Size(200, 600), minimumHeight: double.PositiveInfinity).Bounds);
+
+        // Taller than the safe area: limited to it.
+        Assert.Equal(new Rect(20, 48, 200, 724), Layout(anchor, new Size(200, 900), minimumHeight: double.PositiveInfinity).Bounds);
+        // MaxPopupHeight still applies.
+        Assert.Equal(400, Layout(anchor, new Size(200, 600), maximumHeight: 400, minimumHeight: double.PositiveInfinity).Bounds.Height, 3);
+    }
 
     [Fact]
     public void AnchoredPopupsOpenBelowAtLeastAsWideAsTheAnchor()

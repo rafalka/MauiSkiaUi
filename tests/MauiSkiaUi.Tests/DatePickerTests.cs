@@ -291,6 +291,23 @@ public sealed class DatePickerTests : IDisposable
     }
 
     [Fact]
+    public void AnAnchoredCalendarIsShownWholeOverItsField()
+    {
+        // Issue #111: a calendar neither scrolls nor shrinks; with too little room beside the field it covers the field.
+        var picker = new SkUiDatePicker { PopupStyle = SkUiDatePickerPopupStyle.Calendar, PopupPlacement = SkUiPopupPlacement.Anchored };
+        var stack = new SkUiVerticalStackLayout { Children = { new SkUiBox { HeightRequest = 150 }, picker } };
+        var window = new Window(new ContentPage { Content = new SkUiContentView { Content = stack } });
+        ((IWindow)window).FrameChanged(new Rect(0, 0, 400, 420));
+        SkUiTestHelpers.Arrange(stack, 400, 420);
+
+        OpenCalendar(picker, out var request);
+
+        Assert.True(request.PreferredSize.Height > request.SpaceAbove && request.PreferredSize.Height > request.SpaceBelow);
+        Assert.Equal(request.PreferredSize.Height, request.Bounds.Height, 3);
+        Assert.True(request.Bounds.IntersectsWith(request.AnchorBounds));
+    }
+
+    [Fact]
     public void ACalendarPopupChoosesADayAndCloses()
     {
         var picker = Arranged(new SkUiDatePicker

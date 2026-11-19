@@ -610,9 +610,12 @@ public partial class SkUiPicker : SkUiPickerBase
             // The field takes the taps; screen readers read the field (the item's text).
             view.InputTransparent = true;
             AutomationProperties.SetIsInAccessibleTree(view, false);
+            // The item before the view is attached, so its bindings never see the picker's own context (issue #108).
+            view.BindingContext = item;
             AttachChild(view);
         }
-        _fieldView!.BindingContext = item;
+        else
+            _fieldView!.BindingContext = item;
         Model.HidesText = true;
         InvalidateMeasureOverride();
         InvalidatePaint();

@@ -60,6 +60,13 @@ internal interface ISkUiPickerPopupContent
     /// </summary>
     Size PreferredSize(double minimumWidth, double maximumWidth, double maximumHeight);
 
+    /// <summary>
+    /// How short an anchored popup of this content may get beside its anchor before it covers the anchor instead, read after
+    /// <see cref="PreferredSize"/>: NaN for a few rows (a list, which scrolls), positive infinity for its whole height (a
+    /// calendar or wheels, which neither scroll nor shrink).
+    /// </summary>
+    double MinimumHeight { get; }
+
     /// <summary>Creates the request that carries the content (and links it back).</summary>
     SkUiPopupRequest CreateRequest(View anchor, View? platformAnchor, in SkUiPopupLayout layout, in SkUiPopupRequestOptions options);
 
@@ -1023,7 +1030,7 @@ internal sealed class SkUiPickerModel
             var rootBounds = SkUiDiagnostics.GetRootBounds(model._owner.Node) ?? Rect.Zero;
             var origin = SkUiWindowMetrics.SurfaceOrigin(surfaceRoot);
             var anchorBounds = rootBounds.Offset(origin.X, origin.Y);
-            var windowSize = SkUiWindowMetrics.WindowSize(surfaceRoot);
+            var windowSize = SkUiWindowMetrics.PopupWindowSize(surfaceRoot);
             var rowStyle = new SkUiPickerRowStyle(model.FontFamily, model.EffectiveFontSize, model.FontAttributes, model.FontAutoScalingEnabled, model.CharacterSpacing,
                 model.TextColor, model.SelectionBackground);
             var requiresAccept = model.UpdateMode == SkUiPickerUpdateMode.WhenFinished;
@@ -1052,7 +1059,7 @@ internal sealed class SkUiPickerModel
                 maximumWidth, Math.Min(maximumHeight, windowSize.Height > 0 ? windowSize.Height : double.PositiveInfinity));
             var layout = SkUiPopupGeometry.Layout(new SkUiPopupPlacementInput(anchorBounds, rootBounds, windowSize,
                 safeArea, look.PopupMargin, look.PopupAnchorGap, placement, look.PopupHorizontalOptions,
-                look.PopupVerticalOptions, preferred, maximumHeight, model.PopupBounds, rightToLeft, minimumWidth, maximumWidth));
+                look.PopupVerticalOptions, preferred, maximumHeight, model.PopupBounds, rightToLeft, minimumWidth, maximumWidth, content.MinimumHeight));
             var request = content.CreateRequest(anchor, surfaceRoot, layout,
                 new SkUiPopupRequestOptions(model.Title, look.GetPopupOverlayColor(layout.Placement), !SkUiMotion.IsMotionReduced, chrome));
             request.CornerRadius = look.GetPopupCornerRadius(layout.Placement);

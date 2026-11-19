@@ -8,7 +8,7 @@ Drawn text with wrapping, truncation, fonts, alignment, padding and MAUI Label's
 
 Text is shaped with **HarfBuzz**: ligatures, kerning, Arabic joining, Indic reordering and mark placement. **Bidirectional** paragraphs (RTL and mixed LTR/RTL) are resolved with the Unicode bidi algorithm. **Font fallback** is per character, so a font that lacks a script or emoji falls back to a system font that has it. The primary font is always used where it has the glyph, including spaces and punctuation. Measure accounts for padding and the line-break mode.
 
-Line breaking works on the shaped widths and never splits a grapheme. It breaks after spaces and hyphens, and between CJK ideographs and kana. Shaped lines are cached as text blobs per wrap width, so color and alignment changes don't re-shape. Passive by default: does not consume taps unless `Tapped` / `TappedCommand` is set.
+Line breaking works on the shaped widths and never splits a grapheme. It breaks after spaces and hyphens, and between CJK ideographs and kana. A line may be up to 0.05 DIP wider than the width it is broken at and still fit, so text arranged at its measured width (less a rounding error of the layout's arithmetic) is never wrapped or truncated. Shaped lines are cached as text blobs per wrap width, so color and alignment changes don't re-shape. Passive by default: does not consume taps unless `Tapped` / `TappedCommand` is set.
 
 **Rendering modes (`TextRendering`):**
 

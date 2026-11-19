@@ -220,7 +220,7 @@ internal sealed class SkUiRichTextLayout : ISkUiTextSpanFonts, ISkUiTextFitLayou
         // Span text is always shaped and custom breakers do not apply: neither decides these lines.
         style = style with { LineBreaker = null, Rendering = SkUiTextRendering.Shaped };
         if (style == _style && text.SameLayout(_text) && !double.IsNaN(_brokenWidth)
-            && (width == _brokenWidth || (_naturalFit && width >= _maxLineWidth)))
+            && (width == _brokenWidth || (_naturalFit && width + SkUiTextLayout.FitTolerance >= _maxLineWidth)))
         {
             _text = text; // newer paints, same lines
             return;
@@ -387,9 +387,9 @@ internal sealed class SkUiRichTextLayout : ISkUiTextSpanFonts, ISkUiTextFitLayou
             var paragraph = ShapeParagraph(full, spanOf, start, end);
             start = next;
             _widestParagraph = Math.Max(_widestParagraph, paragraph.Width);
-            if (double.IsInfinity(width) || mode == LineBreakMode.NoWrap || paragraph.Width <= width)
+            if (double.IsInfinity(width) || mode == LineBreakMode.NoWrap || paragraph.Width <= width + SkUiTextLayout.FitTolerance)
             {
-                fits &= !(paragraph.Width > width); // NoWrap: drawn past the width
+                fits &= !(paragraph.Width > width + SkUiTextLayout.FitTolerance); // NoWrap: drawn past the width
                 lines.Add(SkUiShaping.BuildStyledLine(paragraph, 0, paragraph.Text.Length, this, emptySpan));
                 last = (paragraph, 0, emptySpan);
                 continue;

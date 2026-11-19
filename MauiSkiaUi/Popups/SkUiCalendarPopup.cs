@@ -82,6 +82,10 @@ internal sealed class SkUiCalendarPopup : SkUiContentView, ISkUiKeyHandler, ISkU
     }
 
     /// <inheritdoc />
+    /// <remarks>Whole: it neither scrolls nor shrinks, so with too little room beside its field it covers the field (issue #111).</remarks>
+    public double MinimumHeight => double.PositiveInfinity;
+
+    /// <inheritdoc />
     public Size PreferredSize(double minimumWidth, double maximumWidth, double maximumHeight)
     {
         // As wide as the calendar wants (seven touch-sized columns and its margin), within the popup's widths.

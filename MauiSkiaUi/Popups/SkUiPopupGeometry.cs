@@ -35,6 +35,10 @@ internal readonly record struct SkUiPopupLayout(
 /// <param name="IsRightToLeft">The anchor lays out right to left.</param>
 /// <param name="MinimumWidth">The least width the app wants (a picker's <c>MinPopupWidth</c> / <c>PopupWidth</c>); NaN: none, so an anchored popup is at least the anchor's width.</param>
 /// <param name="MaximumWidth">The most width the app allows (a picker's <c>MaxPopupWidth</c> / <c>PopupWidth</c>), within the safe area.</param>
+/// <param name="MinimumHeight">
+/// How short an anchored popup may get to fit beside its anchor before it covers the anchor instead (the content's
+/// <c>MinimumHeight</c>); NaN: a few rows (<c>MinimumExtent</c>), positive infinity: its whole preferred height.
+/// </param>
 internal readonly record struct SkUiPopupPlacementInput(
     Rect AnchorBounds,
     Rect AnchorBoundsInPlatformAnchor,
@@ -50,7 +54,8 @@ internal readonly record struct SkUiPopupPlacementInput(
     Rect AbsoluteBounds,
     bool IsRightToLeft,
     double MinimumWidth = double.NaN,
-    double MaximumWidth = double.PositiveInfinity);
+    double MaximumWidth = double.PositiveInfinity,
+    double MinimumHeight = double.NaN);
 
 /// <summary>
 /// Places popups (pure geometry, window coordinates): anchored below the anchor or flipped above when the content fits there
@@ -62,7 +67,7 @@ internal static class SkUiPopupGeometry
 {
     /// <summary>
     /// Below this, anchored popups are not made any smaller to fit beside their anchor: they move into the safe area instead,
-    /// over the anchor.
+    /// over the anchor. Content that cannot usefully shrink sets its own (<see cref="SkUiPopupPlacementInput.MinimumHeight"/>).
     /// </summary>
     private const double MinimumExtent = 48;
 
@@ -253,12 +258,14 @@ internal static class SkUiPopupGeometry
         var minimum = double.IsNaN(input.MinimumWidth) ? anchor.Width : input.MinimumWidth;
         var width = Math.Min(Math.Max(minimum, input.PreferredSize.Width), maximum.Width);
         var wanted = Math.Min(input.PreferredSize.Height, maximum.Height);
-        // Below when it fits there, else on the side with more room (as a combo box), never smaller than a few rows.
+        // Below when it fits there, else on the side with more room (as a combo box), never smaller than a few rows (or the
+        // content's own minimum: a form that cannot shrink keeps its whole height).
         opensAbove = wanted > spaceBelow && spaceAbove > spaceBelow;
         var room = opensAbove ? spaceAbove : spaceBelow;
+        var least = double.IsNaN(input.MinimumHeight) ? MinimumExtent : input.MinimumHeight;
         // Never taller than the safe area (less the margin), and kept inside it: with too little room beside the anchor, a
-        // popup of the minimum extent covers the anchor rather than leaving the window.
-        var height = Math.Min(Math.Max(Math.Min(wanted, room), Math.Min(wanted, MinimumExtent)), area.Height);
+        // popup of the minimum height covers the anchor rather than leaving the window.
+        var height = Math.Min(Math.Max(Math.Min(wanted, room), Math.Min(wanted, least)), area.Height);
         var left = input.IsRightToLeft ? anchor.Right - width : anchor.Left;
         left = Clamp(left, area.Left, area.Right - width);
         var top = opensAbove ? anchor.Top - input.AnchorGap - height : anchor.Bottom + input.AnchorGap;

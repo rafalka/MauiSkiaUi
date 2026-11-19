@@ -205,7 +205,9 @@ internal sealed class SkUiTextFit
         {
             if (!Matches(entry, layout, text, key) || width > entry.Width || height > entry.Height)
                 continue;
-            if (entry.Position == path.Last || (width >= entry.Extent.Width && height + HeightTolerance >= entry.Extent.Height))
+            // The extent is scaled; the lines take FitTolerance at the base size, so in the slot it is scaled too.
+            if (entry.Position == path.Last
+                || (width + SkUiTextLayout.FitTolerance * path.At(entry.Position).Scale >= entry.Extent.Width && height + HeightTolerance >= entry.Extent.Height))
                 return Remember(entry with { Width = width, Height = height }, path);
             if (layout.Fits(text, path.At(entry.Position), width, height, out _))
                 return Remember(Measured(layout, text, key, width, height, entry.Position, path), path);

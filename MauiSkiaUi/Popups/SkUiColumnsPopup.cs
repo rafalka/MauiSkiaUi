@@ -106,6 +106,10 @@ internal sealed class SkUiColumnsPopup : SkUiContentView, ISkUiKeyHandler, ISkUi
     }
 
     /// <inheritdoc />
+    /// <remarks>Whole: it neither scrolls nor shrinks, so with too little room beside its field it covers the field (issue #111).</remarks>
+    public double MinimumHeight => double.PositiveInfinity;
+
+    /// <inheritdoc />
     public Size PreferredSize(double minimumWidth, double maximumWidth, double maximumHeight)
     {
         var width = Math.Clamp(Math.Ceiling(_wheels.PreferredWidth()), Math.Min(minimumWidth, maximumWidth), maximumWidth);

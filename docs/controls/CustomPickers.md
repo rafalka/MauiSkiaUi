@@ -79,9 +79,12 @@ public class ColorPicker : SkUiValuePicker<Color?>
 | `Complete(value)` | Chosen: applied (also when the popup waits for OK, as if OK was pressed) and the popup closes |
 | `OnValueChanged()` | `Value` changed (the user, the Clear button, the app changing the picker's value while open): the body follows |
 | `PreferredSize(min, max, maxHeight)` | The body's size (by default it is measured); SkiaUi adds the chrome |
+| `MinimumHeight` | How short an anchored popup may make the body beside the field before it covers the field instead. `NaN` (default): a few rows, for a body that scrolls. `double.PositiveInfinity`: the whole body, for a form that cannot shrink (a calendar with buttons). Negative throws |
 | `Request`, `IsOpen`, `Body` | The popup's request while open, and the body built |
 
 **Immediately or on OK.** Without `UpdateMode="WhenFinished"`, each `SetValue` changes the picker at once. A body for one tap (swatches) calls `Complete` instead, and one that is turned or dragged (wheels, a slider) calls `SetValue` and stays open until a dismissal. With it, `SetValue` keeps a draft that OK (or Enter) applies, and Cancel, Escape and a dismissal drop it. The popup is placed, sized, dimmed and closed like every picker's: the picker disabled, hidden, removed or `IsOpen = false`, an anchored popup's scroller scrolled, the window resized.
+
+**Anchored forms stay whole.** By default an anchored popup is cut down to the room beside its field, and the body scrolls or is clipped. A body that cannot usefully shrink sets `MinimumHeight = double.PositiveInfinity` in its constructor or `CreateBody`. The popup then keeps its whole height: placed beside the field when it fits on a side, otherwise moved over the field, always inside the window's safe area less the look's `PopupMargin` (and limited to that area when it is taller). A number in between lets it shrink down to that height first. The built-in calendar and wheel popups always behave this way.
 
 **Wheels as a body.** [SkUiPickerWheels](SkUiPickerWheels.md) makes a good body. Set its `CommitDelay` to zero (the value picker's draft already waits for OK), turn the columns' `SelectionChanged` into `SetValue`, and set the columns from `Value` in `OnValueChanged`, as the samples' `DurationPicker` does.
 

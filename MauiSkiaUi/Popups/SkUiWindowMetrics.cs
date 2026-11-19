@@ -3,6 +3,8 @@ namespace MauiSkiaUi;
 /// <summary>What popups are placed in: the window's size, its safe area, and where a drawn surface sits in it (UI thread).</summary>
 internal static class SkUiWindowMetrics
 {
+    private static bool _unknownWindowTraced;
+
     /// <summary>
     /// The size in DIPs of the window <paramref name="surfaceRoot"/> is shown in, in the coordinates popups are placed in (those
     /// of <see cref="SurfaceOrigin"/>); zero when unknown.
@@ -23,12 +25,45 @@ internal static class SkUiWindowMetrics
 
     private static bool IsKnown(double width, double height) => width > 0 && height > 0 && double.IsFinite(width) && double.IsFinite(height);
 
-    /// <summary>The bounds of the platform window <paramref name="surfaceRoot"/> is shown in, DIPs; zero without one (headless).</summary>
+    /// <summary>
+    /// <see cref="WindowSize(SkUiView)"/> for placing a popup: traces once when <paramref name="surfaceRoot"/> is shown in a
+    /// window whose size is unknown, so popups are not kept inside it (a custom window handler that never reports the frame
+    /// to MAUI, on a platform whose window is not measured directly).
+    /// </summary>
+    public static Size PopupWindowSize(SkUiView surfaceRoot)
+    {
+        var size = WindowSize(surfaceRoot);
+        if (size == Size.Zero && !_unknownWindowTraced && SkUiDiagnostics.GetWindowOrigin(surfaceRoot) is not null)
+        {
+            _unknownWindowTraced = true;
+            System.Diagnostics.Trace.WriteLine("SkiaUi: a popup opened in a window whose size is unknown (not laid out yet, or MAUI's "
+                + "Window.Width / Height are not set), so it is not kept inside the window. A custom window handler should report the "
+                + "frame (IWindow.FrameChanged).");
+        }
+        return size;
+    }
+
+    /// <summary>
+    /// The bounds of the platform window <paramref name="surfaceRoot"/> is shown in, DIPs, measured from the platform view, so a
+    /// custom window handler or an embedded MAUI host that never sets MAUI's <c>Window</c> frame still places popups (issue
+    /// #107); zero without one (headless) or before it is laid out.
+    /// </summary>
     private static Size PlatformWindowSize(SkUiView surfaceRoot)
     {
 #if IOS || MACCATALYST
         if (surfaceRoot.Handler?.PlatformView is UIKit.UIView { Window: { } window })
             return new Size(window.Bounds.Width, window.Bounds.Height);
+#elif ANDROID
+        // The root of the view's window (the activity's decor view, or a dialog's): what GetLocationInWindow (SurfaceOrigin)
+        // measures from.
+        if (surfaceRoot.Handler?.PlatformView is Android.Views.View { IsAttachedToWindow: true, RootView: { } root } view)
+        {
+            var density = view.Resources?.DisplayMetrics?.Density ?? 1;
+            return new Size(root.Width / density, root.Height / density);
+        }
+#elif WINDOWS
+        if (surfaceRoot.Handler?.PlatformView is Microsoft.UI.Xaml.FrameworkElement { XamlRoot: { } xamlRoot })
+            return new Size(xamlRoot.Size.Width, xamlRoot.Size.Height);
 #endif
         _ = surfaceRoot;
         return Size.Zero;

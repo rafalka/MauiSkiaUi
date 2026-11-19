@@ -462,7 +462,7 @@ internal sealed class SkUiTextLayout : ISkUiTextFitLayout
         width = double.IsNaN(width) ? 0 : Math.Max(0, width);
         style = style with { Rendering = Resolve(style.Rendering) };
         if (style == _style && !double.IsNaN(_brokenWidth)
-            && (width == _brokenWidth || (_naturalFit && width >= _maxLineWidth)))
+            && (width == _brokenWidth || (_naturalFit && width + FitTolerance >= _maxLineWidth)))
             return;
         _brokenWidth = double.NaN; // until the lines are complete (a custom breaker may throw)
         _style = style;
@@ -684,9 +684,9 @@ internal sealed class SkUiTextLayout : ISkUiTextFitLayout
             }
             var paragraph = ShapeParagraph(source, primary);
             _widestParagraph = Math.Max(_widestParagraph, paragraph.Width);
-            if (double.IsInfinity(width) || mode == LineBreakMode.NoWrap || paragraph.Width <= width)
+            if (double.IsInfinity(width) || mode == LineBreakMode.NoWrap || paragraph.Width <= width + FitTolerance)
             {
-                fits &= !(paragraph.Width > width); // NoWrap: drawn past the width
+                fits &= !(paragraph.Width > width + FitTolerance); // NoWrap: drawn past the width
                 specs.Add(new LineSpec(paragraph, 0, source.Length, null));
                 continue;
             }
@@ -749,7 +749,7 @@ internal sealed class SkUiTextLayout : ISkUiTextFitLayout
                 if (words && index > start && boundary[index] && CanBreakBefore(text, index))
                     lastBreak = index;
                 var advance = advances[index];
-                if (used + advance > width && index > start && text[index] != ' ')
+                if (used + advance > width + FitTolerance && index > start && text[index] != ' ')
                     break;
                 used += advance;
                 index++;
@@ -947,6 +947,13 @@ internal sealed class SkUiTextLayout : ISkUiTextFitLayout
 
     /// <summary>How far lines may pass the slot, in DIPs, and still count as inside (rounding of measured sizes).</summary>
     private const double OverflowTolerance = 0.5;
+
+    /// <summary>
+    /// DIPs a line may be wider than the width it is broken at and still fit on one line: text measured at its natural
+    /// width and arranged at that width less the paddings comes back a rounding error narrower (float shaping vs double
+    /// layout arithmetic, issue #110), and must not wrap or truncate there.
+    /// </summary>
+    internal const double FitTolerance = 0.05;
 
     /// <summary>
     /// Adds the box of each line <see cref="Draw"/> draws (its width and line spacing, where it is placed) to
