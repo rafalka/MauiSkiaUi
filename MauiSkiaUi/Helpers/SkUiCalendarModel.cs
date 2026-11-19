@@ -226,6 +226,7 @@ internal sealed class SkUiCalendarModel(ISkUiCalendarHost host)
         {
             _dayStyle = value;
             _dayStyles.Clear();
+            SweepMarkerImages();
         }
     }
 
@@ -241,7 +242,54 @@ internal sealed class SkUiCalendarModel(ISkUiCalendarHost host)
     {
         _dayStyles.Clear();
         _rulesVersion++;
+        SweepMarkerImages();
     }
+
+    // Image markers (1.15): one slot per distinct source, not per day, marked with the generation it was last drawn in.
+    private readonly Dictionary<SkUiImageSource, (SkUiImageSlot Slot, int Generation)> _markerImages = [];
+    private int _markerGeneration;
+
+    /// <summary>The slot that draws <paramref name="source"/>, loading it the first time it is asked for.</summary>
+    private SkUiImageSlot MarkerImage(SkUiImageSource source)
+    {
+        if (_markerImages.TryGetValue(source, out var entry))
+        {
+            if (entry.Generation != _markerGeneration)
+                _markerImages[source] = (entry.Slot, _markerGeneration);
+            return entry.Slot;
+        }
+        var slot = new SkUiImageSlot(host, () => host.CalendarInvalidate());
+        _markerImages[source] = (slot, _markerGeneration);
+        _ = slot.Load(source, default);
+        return slot;
+    }
+
+    /// <summary>
+    /// The day styles are asked again: the images no day drew since the last time are let go (their cache entries go back to the
+    /// cache), the others kept so the days that still show them do not wait for a load.
+    /// </summary>
+    private void SweepMarkerImages()
+    {
+        if (_markerImages.Count == 0)
+            return;
+        List<SkUiImageSource>? unused = null;
+        foreach (var (source, entry) in _markerImages)
+            if (entry.Generation != _markerGeneration)
+                (unused ??= []).Add(source);
+        if (unused is not null)
+            foreach (var source in unused)
+            {
+                _markerImages[source].Slot.Dispose();
+                _markerImages.Remove(source);
+            }
+        _markerGeneration++;
+    }
+
+    /// <summary>The image markers loaded or loading (tests).</summary>
+    internal int MarkerImageCount => _markerImages.Count;
+
+    /// <summary>The loads of the image markers (completed when idle; tests).</summary>
+    internal Task MarkerImagesLoading => Task.WhenAll(_markerImages.Values.Select(entry => entry.Slot.LoadingTask));
 
     #endregion
 
@@ -1901,7 +1949,7 @@ internal sealed class SkUiCalendarModel(ISkUiCalendarHost host)
 
     /// <summary>
     /// Draws a day's markers in one centered row in <paramref name="area"/>: dots, bars (as wide as half the number's shape),
-    /// icon glyphs as tall as the area, captions in the look's small size; what does not fit is left out, a caption shortened.
+    /// icon glyphs as tall as the area, captions in the look's small size, images (once loaded); what does not fit is left out, a caption shortened.
     /// </summary>
     private void DrawMarkers(SKCanvas canvas, IReadOnlyList<SkUiCalendarMarker> markers, SKRect area, SKRect numberRect, SKColor text, bool bright,
         SkUiLook look)
@@ -1923,6 +1971,7 @@ internal sealed class SkUiCalendarModel(ISkUiCalendarHost host)
                 SkUiCalendarMarkerKind.Dot => dot,
                 SkUiCalendarMarkerKind.Bar => barWidth,
                 SkUiCalendarMarkerKind.Glyph => glyph,
+                SkUiCalendarMarkerKind.Image => marker.Source is null ? 0 : marker.Size > 0 ? (float)marker.Size : glyph,
                 _ => marker.Text is { Length: > 0 } caption
                     ? (float)Math.Ceiling(MeasureCustomText(caption, captionSize, FontAttributes.None, marker.FontFamily))
                     : 0
@@ -1952,6 +2001,23 @@ internal sealed class SkUiCalendarModel(ISkUiCalendarHost host)
                 case SkUiCalendarMarkerKind.Glyph when width >= glyph && marker.Text is { Length: > 0 } icon:
                     DrawCustomText(canvas, icon, SKRect.Create(x, area.Top, glyph, area.Height), color, glyph * 0.85, FontAttributes.None, marker.FontFamily,
                         TextAlignment.Center);
+                    break;
+                case SkUiCalendarMarkerKind.Image when width >= widths[index] && marker.Source is { } source:
+                    // Left out (its room kept) until loaded; the load redraws the calendar.
+                    if (MarkerImage(source) is { Image: not null } image)
+                    {
+                        var square = widths[index];
+                        var bounds = SKRect.Create(x, area.MidY - square / 2, square, square);
+                        var layer = -1;
+                        if (!bright)
+                        {
+                            paint.Color = SKColors.Black.WithAlpha(128);
+                            layer = canvas.SaveLayer(bounds, paint);
+                        }
+                        image.Paint(canvas, bounds, Aspect.AspectFit);
+                        if (layer >= 0)
+                            canvas.RestoreToCount(layer);
+                    }
                     break;
                 case SkUiCalendarMarkerKind.Caption when width > 0 && marker.Text is { Length: > 0 } caption:
                     DrawCustomText(canvas, caption, SKRect.Create(x, area.Top, width, area.Height), color, captionSize, FontAttributes.None,
@@ -2039,6 +2105,10 @@ internal sealed class SkUiCalendarModel(ISkUiCalendarHost host)
     public void Release()
     {
         _texts.Release();
+        // The image markers' cache entries go back to the cache; they are loaded again (from memory) when drawn.
+        foreach (var entry in _markerImages.Values)
+            entry.Slot.Dispose();
+        _markerImages.Clear();
         _layerPaint?.Dispose();
         _layerPaint = null;
         _markerPaint?.Dispose();

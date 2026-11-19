@@ -194,12 +194,17 @@ public enum SkUiCalendarMarkerKind
     /// <summary>An icon: a glyph of an icon font (<see cref="SkUiCalendarMarker.Text"/> in <see cref="SkUiCalendarMarker.FontFamily"/>).</summary>
     Glyph,
     /// <summary>A short caption in small text (shortened to the cell's width).</summary>
-    Caption
+    Caption,
+    /// <summary>
+    /// An image (<see cref="SkUiCalendarMarker.Source"/>, 1.15): a PNG, an SVG, a URL, through the shared image loader and cache;
+    /// left out until it has loaded.
+    /// </summary>
+    Image
 }
 
 /// <summary>
-/// One mark in the area under a day's number (<see cref="SkUiCalendarDayStyle.Markers"/>): a dot, a bar, an icon glyph or a
-/// caption, for events such as holidays, birthdays, shifts or time off. The marks of a day sit in one row, centered, in the
+/// One mark in the area under a day's number (<see cref="SkUiCalendarDayStyle.Markers"/>): a dot, a bar, an icon glyph, a
+/// caption or an image, for events such as holidays, birthdays, shifts or time off. The marks of a day sit in one row, centered, in the
 /// order given; what does not fit is left out.
 /// </summary>
 public sealed class SkUiCalendarMarker
@@ -216,6 +221,14 @@ public sealed class SkUiCalendarMarker
     /// <summary>The glyph's or caption's font family (an icon font for a glyph); <c>null</c>: the calendar's.</summary>
     public string? FontFamily { get; init; }
 
+    /// <summary>The image of an <see cref="SkUiCalendarMarkerKind.Image"/> marker (1.15).</summary>
+    public SkUiImageSource? Source { get; init; }
+
+    /// <summary>
+    /// The image's width and height in DIPs (1.15); 0: as tall as the marker area. Fitted into that square, keeping its aspect.
+    /// </summary>
+    public double Size { get; init; }
+
     /// <summary>A dot of <paramref name="color"/>.</summary>
     public static SkUiCalendarMarker Dot(Color? color = null) => new() { Kind = SkUiCalendarMarkerKind.Dot, Color = color };
 
@@ -228,6 +241,19 @@ public sealed class SkUiCalendarMarker
 
     /// <summary>The caption <paramref name="text"/> in <paramref name="color"/>.</summary>
     public static SkUiCalendarMarker Caption(string text, Color? color = null) => new() { Kind = SkUiCalendarMarkerKind.Caption, Text = text, Color = color };
+
+    /// <summary>
+    /// The image <paramref name="source"/> (a MAUI <c>ImageSource</c> or a file name converts), <paramref name="size"/> DIPs square
+    /// (0: as tall as the marker area), for avatars or event icons (1.15). Each source is loaded once per calendar however many days
+    /// show it, and shared with the rest of the app through the image cache. Tint an SVG with
+    /// <see cref="SkUiImageSource.FromVector(SkUiImageSource, Color?, double)"/>; <see cref="Color"/> does not apply.
+    /// </summary>
+    public static SkUiCalendarMarker Image(SkUiImageSource source, double size = 0)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+        SkUiValidate.ThrowIfNegativeOrNotFinite(size, nameof(size));
+        return new() { Kind = SkUiCalendarMarkerKind.Image, Source = source, Size = size };
+    }
 }
 
 /// <summary>
