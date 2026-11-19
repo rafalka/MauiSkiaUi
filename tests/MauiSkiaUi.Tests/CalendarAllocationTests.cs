@@ -55,17 +55,17 @@ public sealed class CalendarAllocationTests : IDisposable
     /// The fewest bytes per draw of three batches of 60 draws of the calendar mid-swipe into a recording canvas, after a warm-up:
     /// what recording the calendar's content costs, without the frame pipeline around it.
     /// </summary>
-    private static long BytesPerSwipeDraw(SkUiCalendarModel engine)
+    private static long BytesPerSwipeDraw(SkUiCalendarModel engine, int width = Width)
     {
         using var recorder = new SKPictureRecorder();
-        var canvas = recorder.BeginRecording(new SKRect(0, 0, Width, Height));
+        var canvas = recorder.BeginRecording(new SKRect(0, 0, width, Height));
         var frame = 0;
         engine.BeginDrag();
         void Step()
         {
             // Back and forth within the page, so both neighbors are drawn and the drag never settles.
-            engine.Drag(-60 + frame % 12 * 10, Width, Height);
-            engine.Draw(canvas, Width, Height);
+            engine.Drag(-60 + frame % 12 * 10, width, Height);
+            engine.Draw(canvas, width, Height);
             frame++;
         }
         for (var i = 0; i < 30; i++) Step();
@@ -129,6 +129,31 @@ public sealed class CalendarAllocationTests : IDisposable
         var bytes = BytesPerSwipeDraw(calendar.Engine);
 
         _output.WriteLine($"Core swipe (styled {styled}, painter {painter}): {bytes} bytes per frame");
+        Assert.Equal(0, bytes);
+    }
+
+    /// <summary>
+    /// A caption too wide for its cell shrinks to fit. Cells of a column grid differ in width by float rounding, so without
+    /// snapping the text's slot every cell missed the layout's fit cache and fitted the caption again: 70 KB per frame at 1.15
+    /// before the fix, found on the Galaxy S9 (the device's font made "Off" overflow; this caption overflows in any font).
+    /// </summary>
+    [Fact]
+    public void AShrunkCaptionIsFittedOnceNotPerCell()
+    {
+        var squeezed = new SkUiCalendarDayStyle
+        {
+            Markers = [SkUiCalendarMarker.Dot(Colors.Red), SkUiCalendarMarker.Bar(Colors.Blue), SkUiCalendarMarker.Caption("Vacation days", Colors.Green)]
+        };
+        var calendar = new SkUiCalendar
+        {
+            DisplayDate = November, AreWeekNumbersVisible = true, FontFamily = SkUiTestHelpers.BundledFontFamily, DayStyle = _ => squeezed,
+        };
+        using var surface = new SkUiTestSurface(calendar, 360, Height);
+        surface.Frame();
+
+        var bytes = BytesPerSwipeDraw(calendar.Engine, 360);
+
+        _output.WriteLine($"shrunk captions: {bytes} bytes per draw");
         Assert.Equal(0, bytes);
     }
 

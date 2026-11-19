@@ -2368,9 +2368,17 @@ internal sealed class SkUiCalendarModel(ISkUiCalendarHost host)
         paint.Color = color;
         var save = canvas.Save();
         canvas.Translate(rect.Left, rect.Top);
-        _texts.Get(text, slot).Draw(canvas, text, style, default, rect.Width, rect.Height, horizontal, TextAlignment.Center, paint, decorations);
+        // Cells of a column grid differ in width by float rounding (10^-5 DIP from column to column): a slot handed to the layout
+        // as it is would miss its fit cache in every cell, so a text that shrinks or shortens to fit (a marker caption) would be
+        // fitted and laid out again for each day of each frame. Snapped to 1/16 DIP, every column gives the same slot.
+        var width = MathF.Round(rect.Width * SlotSnap) / SlotSnap;
+        var height = MathF.Round(rect.Height * SlotSnap) / SlotSnap;
+        _texts.Get(text, slot).Draw(canvas, text, style, default, width, height, horizontal, TextAlignment.Center, paint, decorations);
         canvas.RestoreToCount(save);
     }
+
+    /// <summary>The fraction of a DIP text slots are snapped to (<see cref="DrawText"/>).</summary>
+    private const float SlotSnap = 16;
 
     /// <summary>Disposes the text blobs and the layer paint (the node's pictures are gone); they are made again when drawn.</summary>
     public void Release()
