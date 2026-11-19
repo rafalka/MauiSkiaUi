@@ -1562,16 +1562,30 @@ internal sealed class SkUiCalendarModel(ISkUiCalendarHost host)
         return new Palette(
             Sk(text, enabled), Sk(AdjacentDayTextColor ?? scheme.Muted, enabled), Sk(DisabledDayTextColor ?? scheme.Disabled, enabled),
             Sk(WeekendTextColor ?? text, enabled), Sk(DayNameTextColor ?? scheme.Muted, enabled), Sk(HeaderTextColor ?? text, enabled),
-            Sk(selection, enabled), Sk(SelectedTextColor ?? Contrast(selection), enabled), Sk(RangeColor ?? selection.WithAlpha(selection.Alpha * 0.22f), enabled),
+            Sk(selection, enabled), Sk(SelectedTextColor ?? Contrast(selection), enabled), RangeColor is { } range ? Sk(range, enabled) : Sk(selection, enabled, RangeAlpha),
             Sk(RangeTextColor ?? text, enabled), Sk(today, enabled), Sk(todayText, enabled), Sk(NavigationButtonColor ?? scheme.Accent, enabled),
             Sk(NavigationButtonBackgroundColor ?? Colors.Transparent, enabled), Sk(scheme.DefaultForeground, true),
             Sk(TodayDayNameTextColor ?? today, enabled), Sk(NavigationButtonBorderColor ?? Colors.Transparent, enabled));
     }
 
-    private static SKColor Sk(Color color, bool enabled) => SkUiShapePainter.ToSkColor(SkUiColors.EnabledTint(color, enabled));
+    /// <summary>The range band's alpha share of the selection color when <c>RangeColor</c> is not set.</summary>
+    private const float RangeAlpha = 0.22f;
+
+    private static readonly Color NearBlack = Color.FromRgb(0x1C, 0x1C, 0x1E);
+
+    /// <summary>
+    /// <paramref name="color"/> as drawn: its alpha times <paramref name="alpha"/>, halved while disabled (as
+    /// <see cref="SkUiColors.EnabledTint"/>). On the Skia color, so a frame allocates no MAUI colors.
+    /// </summary>
+    private static SKColor Sk(Color color, bool enabled, float alpha = 1)
+    {
+        var sk = SkUiShapePainter.ToSkColor(color);
+        var scale = enabled ? alpha : alpha * 0.5f;
+        return scale == 1 ? sk : sk.WithAlpha((byte)Math.Round(sk.Alpha * scale)); // exact: 1 is the "unchanged" sentinel
+    }
 
     /// <summary>White or near black, whichever reads on <paramref name="fill"/>.</summary>
-    private static Color Contrast(Color fill) => 0.299 * fill.Red + 0.587 * fill.Green + 0.114 * fill.Blue > 0.62 ? Color.FromRgb(0x1C, 0x1C, 0x1E) : Colors.White;
+    private static Color Contrast(Color fill) => 0.299 * fill.Red + 0.587 * fill.Green + 0.114 * fill.Blue > 0.62 ? NearBlack : Colors.White;
 
     /// <summary>The text styles of one drawing (font scaling and the look read once).</summary>
     private readonly record struct Styles(SkUiTextStyle Day, SkUiTextStyle DayName, SkUiTextStyle Title, SkUiTextStyle WeekNumber, SkUiTextDirection Direction);
@@ -1616,13 +1630,22 @@ internal sealed class SkUiCalendarModel(ISkUiCalendarHost host)
         canvas.ClipRect(frame.GridArea);
         if (_zoom is { IsRunning: true } zoom)
         {
-            // The page left fades and scales away; the new one fades and scales in. Zooming out, both shrink.
+            // The page left fades and scales away; the new one fades and scales in. Zooming out, both shrink. (No lambdas in
+            // this method: their closure would be allocated on every draw, also on the frames of a swipe.)
             var t = Math.Clamp(zoom.Value, 0, 1);
             var zoomingOut = _mode > _zoomFromMode;
             var fromScale = zoomingOut ? 1 - ZoomScale * t : 1 + ZoomScale * t;
             var toScale = zoomingOut ? 1 + ZoomScale * (1 - t) : 1 - ZoomScale * (1 - t);
-            DrawLayer(canvas, frame, 1 - t, fromScale, () => DrawPage(canvas, frame, _zoomFromMode, _zoomFromStart, 0, 0, palette, styles, look, culture, false, withDayNames: true));
-            DrawLayer(canvas, frame, t, toScale, () => DrawPage(canvas, frame, _mode, PageStart, 0, 0, palette, styles, look, culture, focusVisible, withDayNames: true));
+            if (BeginLayer(canvas, frame, 1 - t, fromScale) is var fromSave and >= 0)
+            {
+                DrawPage(canvas, frame, _zoomFromMode, _zoomFromStart, 0, 0, palette, styles, look, culture, false, withDayNames: true);
+                canvas.RestoreToCount(fromSave);
+            }
+            if (BeginLayer(canvas, frame, t, toScale) is var toSave and >= 0)
+            {
+                DrawPage(canvas, frame, _mode, PageStart, 0, 0, palette, styles, look, culture, focusVisible, withDayNames: true);
+                canvas.RestoreToCount(toSave);
+            }
         }
         else
         {
@@ -1655,17 +1678,17 @@ internal sealed class SkUiCalendarModel(ISkUiCalendarHost host)
         canvas.RestoreToCount(save);
     }
 
-    private void DrawLayer(SKCanvas canvas, in Frame frame, float alpha, float scale, Action draw)
+    /// <summary>Starts a faded, scaled layer over the grid area and returns its save count to restore, or -1 when it is not visible.</summary>
+    private int BeginLayer(SKCanvas canvas, in Frame frame, float alpha, float scale)
     {
         if (alpha <= 0.001f)
-            return;
+            return -1;
         var paint = _layerPaint ??= new SKPaint();
         paint.Color = SKColors.Black.WithAlpha((byte)Math.Clamp(alpha * 255, 0, 255));
         var area = frame.GridArea;
         var save = canvas.SaveLayer(area, paint);
         canvas.Scale(scale, scale, area.MidX, area.MidY);
-        draw();
-        canvas.RestoreToCount(save);
+        return save;
     }
 
     private void DrawHeader(SKCanvas canvas, in Frame frame, SkUiLook look, in Palette palette, in Styles styles)
@@ -1740,7 +1763,7 @@ internal sealed class SkUiCalendarModel(ISkUiCalendarHost host)
         canvas.RestoreToCount(save);
     }
 
-    private string[] DayNames(DayOfWeek first, CultureInfo culture)
+    internal string[] DayNames(DayOfWeek first, CultureInfo culture)
     {
         var strings = SkUiStrings.Current;
         var key = (first, DayNameFormat, culture, strings, SkUiStrings.Version);
@@ -1786,14 +1809,19 @@ internal sealed class SkUiCalendarModel(ISkUiCalendarHost host)
     private void DrawPage(SKCanvas canvas, in Frame frame, SkUiCalendarDisplayMode mode, DateTime start, float dx, float dy, in Palette palette,
         in Styles styles, SkUiLook look, CultureInfo culture, bool focusVisible, bool withDayNames)
     {
+        // The page moves by a canvas translation, so its cells keep the same rects on every frame of a slide: a text drawn in a
+        // rect whose width changed by a rounding error (a shortened caption) would be laid out again.
+        var save = canvas.Save();
+        canvas.Translate(dx, dy);
         if (mode == SkUiCalendarDisplayMode.Month)
         {
             if (withDayNames)
-                DrawDayNames(canvas, frame, start, palette, styles, culture, dx, dy);
-            DrawMonthPage(canvas, frame, start, dx, dy, palette, styles, look, culture, focusVisible);
+                DrawDayNames(canvas, frame, start, palette, styles, culture);
+            DrawMonthPage(canvas, frame, start, 0, 0, palette, styles, look, culture, focusVisible);
         }
         else
-            DrawPeriodPage(canvas, frame, mode, start, dx, dy, palette, styles, look, culture, focusVisible);
+            DrawPeriodPage(canvas, frame, mode, start, 0, 0, palette, styles, look, culture, focusVisible);
+        canvas.RestoreToCount(save);
     }
 
     private void DrawMonthPage(SKCanvas canvas, in Frame frame, DateTime start, float dx, float dy, in Palette palette, in Styles styles,
@@ -1943,10 +1971,17 @@ internal sealed class SkUiCalendarModel(ISkUiCalendarHost host)
     }
 
     private static int CustomSlot(double fontSize, FontAttributes attributes, string? family) =>
-        HashCode.Combine(fontSize, attributes, family) | 0x40000000; // never one of the calendar's own slots
+        (HashCode.Combine(fontSize, attributes, family) | 0x40000000) & ~MeasureSlot; // never one of the calendar's own slots
+
+    /// <summary>
+    /// Marks the layout a text is measured with (unbounded), apart from the one it is drawn with (in its room): a layout keeps the
+    /// lines of one width, so sharing one would lay the text out again twice per frame.
+    /// </summary>
+    private const int MeasureSlot = 0x20000000;
 
     private double MeasureCustomText(string text, double fontSize, FontAttributes attributes, string? family) =>
-        _texts.Get(text, CustomSlot(fontSize, attributes, family)).Measure(text, CustomStyle(fontSize, attributes, family), default, double.PositiveInfinity).Width;
+        _texts.Get(text, CustomSlot(fontSize, attributes, family) | MeasureSlot)
+            .Measure(text, CustomStyle(fontSize, attributes, family), default, double.PositiveInfinity).Width;
 
     /// <summary>Draws the app's text (a marker caption or glyph, a day painter's text) in <paramref name="bounds"/>.</summary>
     internal void DrawCustomText(SKCanvas canvas, string text, SKRect bounds, SKColor color, double fontSize, FontAttributes attributes, string? family,

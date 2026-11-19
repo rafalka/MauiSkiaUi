@@ -958,6 +958,9 @@ public class SkUiCoreCalendar : SkUiCoreNode, ISkUiCalendarHost, ISkUiKeyHandler
 
     #region Engine host, drawing and input
 
+    /// <summary>The engine (tests).</summary>
+    internal SkUiCalendarModel Engine => _model;
+
     bool ISkUiCalendarHost.CalendarRightToLeft => IsRightToLeft;
 
     bool ISkUiCalendarHost.CalendarEnabled => IsEnabled;

@@ -89,6 +89,9 @@ public static class Scenarios
         new CollectionChanges(animated: false),
         new CollectionChanges(animated: true),
         new PickerWheels(),
+        new Calendars(core: false),
+        new Calendars(core: true),
+        new CalendarSlide(),
         new Steppers(),
         new Spinners(),
         new ToggleTransitions(),
@@ -1975,3 +1978,99 @@ public sealed class PickerWheels : BenchScenario
                     column.SelectedIndex = (column.SelectedIndex + 1) % Math.Max(1, column.ItemsSource?.Count ?? 1);
     };
 }
+
+/// <summary>
+/// A year of month calendars with an event style on every day (1.15 A2): the first frame lays out and records 12 calendars;
+/// the update moves each to the next month (every calendar re-records with new day styles).
+/// </summary>
+public sealed class Calendars(bool core) : BenchScenario
+{
+    private const int Months = 12;
+    private static readonly DateTime First = new(2026, 1, 1);
+    private static readonly SkUiCalendarDayStyle Shift = new() { Markers = [SkUiCalendarMarker.Bar(Colors.SteelBlue)] };
+    private static readonly SkUiCalendarDayStyle Meeting = new() { Markers = [SkUiCalendarMarker.Dot(Colors.OrangeRed), SkUiCalendarMarker.Dot(Colors.SeaGreen)] };
+    private static readonly SkUiCalendarDayStyle Holiday = new() { TextColor = Colors.Red, Markers = [SkUiCalendarMarker.Caption("Holiday", Colors.Red)] };
+
+    public override string Name => core ? "core-calendars" : "skui-calendars";
+    public override string Description => $"{Months} {(core ? "SkUiCoreCalendar" : "SkUiCalendar")} month pages in a 2-column grid, a day style with markers on every day; update = each to its next month";
+
+    private static SkUiCalendarDayStyle? Style(DateTime day) => (day.Day % 7) switch
+    {
+        0 => Holiday,
+        1 or 2 or 3 => Shift,
+        4 => null,
+        _ => Meeting
+    };
+
+    public override View Build()
+    {
+        if (core)
+        {
+            var grid = Scenarios.CoreGrid(Months);
+            grid.StartUpdating();
+            for (var i = 0; i < Months; i++)
+                grid.Add(new SkUiCoreCalendar().SetDisplayDate(First.AddMonths(i)).SetFirstDayOfWeek(DayOfWeek.Monday).SetDayStyle(Style), i / 2, i % 2);
+            grid.EndUpdating();
+            return Scenarios.Scroll(Scenarios.Host(grid));
+        }
+        var skui = Scenarios.SkUiGrid(Months);
+        skui.StartUpdating();
+        for (var i = 0; i < Months; i++)
+        {
+            var calendar = new SkUiCalendar { DisplayDate = First.AddMonths(i), FirstDayOfWeek = DayOfWeek.Monday, DayStyle = Style };
+            Grid.SetRow(calendar, i / 2);
+            Grid.SetColumn(calendar, i % 2);
+            skui.Children.Add(calendar);
+        }
+        skui.EndUpdating();
+        return Scenarios.Scroll(skui);
+    }
+
+    public override Action<View>? Update => root =>
+    {
+        foreach (var calendar in CalendarsUnder(root))
+            calendar();
+    };
+
+    /// <summary>A "next month, not animated" action per calendar in the tree.</summary>
+    private static IEnumerable<Action> CalendarsUnder(View root)
+    {
+        var content = ((SkUiScrollView)root).Content;
+        if (content is SkUiCoreHost { Content: SkUiCoreGrid coreGrid })
+        {
+            foreach (var child in coreGrid.Children)
+                if (child is SkUiCoreCalendar coreCalendar)
+                    yield return () => coreCalendar.GoToNext(animated: false);
+        }
+        else if (content is SkUiGrid grid)
+        {
+            foreach (var child in grid.Children)
+                if (child is SkUiCalendar calendar)
+                    yield return () => calendar.GoToNext(animated: false);
+        }
+    }
+}
+
+/// <summary>One month calendar with markers on every day, sliding to the next month every 400 ms with the look's transition (1.15 A1, A2).</summary>
+public sealed class CalendarSlide : BenchScenario
+{
+    private static readonly SkUiCalendarDayStyle Marked = new()
+    {
+        Markers = [SkUiCalendarMarker.Dot(Colors.OrangeRed), SkUiCalendarMarker.Bar(Colors.SteelBlue), SkUiCalendarMarker.Caption("Off", Colors.SeaGreen)]
+    };
+
+    public override string Name => "calendar-slide";
+    public override string Description => "SkUiCalendar (420 tall, markers on every day, week numbers); motion = the next month every 400 ms, animated (re-records every frame)";
+    public override bool DeviceOnly => true;
+    public override TimeSpan MotionDuration => TimeSpan.FromSeconds(4);
+
+    public override View Build() => new SkUiCalendar
+    {
+        Background = Colors.White, HeightRequest = 420, DisplayDate = new DateTime(2026, 1, 1), AreWeekNumbersVisible = true,
+        DayStyle = _ => Marked
+    };
+
+    public override Func<View, IDisposable?>? Motion => root =>
+        DeviceChecks.Repeat(root, TimeSpan.FromMilliseconds(400), _ => ((SkUiCalendar)root).GoToNext(animated: true));
+}
+
