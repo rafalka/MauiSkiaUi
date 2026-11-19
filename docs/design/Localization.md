@@ -12,6 +12,7 @@ SkiaUi shows or reads out only a few texts of its own; everything else (labels, 
 | `SearchPlaceholderText` | "Search" | The placeholder of a picker list's search field (`IsSearchEnabled`), unless the picker sets its own `SearchPlaceholder` |
 | `NoResultsText` | "No results" | What a picker's list shows when nothing matches its search |
 | `CutText`, `CopyText`, `PasteText` | "Cut", "Copy", "Paste" | The items of a text field's edit menu on Windows (Android and Apple platforms show their system menu, in the system's language) |
+| `MoreEventsFormat` | "+{0}" | A calendar day's line for the events that do not fit (`DayMarkerLayout="Lines"`, 1.15), with their count as `{0}` |
 | `MoreTokensFormat` | "+{0}" | The token that stands for the chosen items that do not fit in a picker's field (`MaxTokenLines`), with their count as `{0}` |
 | `DayText`, `MonthText`, `YearText` | "Day", "Month", "Year" | The headers of a date picker's wheels (`AreColumnHeadersVisible`), and what screen readers call the wheels, headers shown or not |
 | `HourText`, `MinuteText`, `SecondText` | "Hour", "Minute", "Second" | The headers of a time picker's wheels, and what screen readers call them |
@@ -21,7 +22,7 @@ SkiaUi shows or reads out only a few texts of its own; everything else (labels, 
 | `ExpandedStateText` / `CollapsedStateText` | "Expanded" / "Collapsed" | What screen readers read after the header of an `SkUiExpander` or a collapsible collection view group |
 | `MoveUpText`, `MoveDownText`, `MoveLeftText`, `MoveRightText` | "Move up", "Move down", "Move left", "Move right" | The screen-reader actions that move an item of a reorderable collection view (`CanReorderItems`) one place, named by the way one place goes on screen |
 
-The date and time pickers' month names, AM / PM, the order of their wheels and their fields' texts come from `CultureInfo.CurrentCulture` (read when the field's value changes and at each opening), not from `SkUiStrings`.
+A calendar with a `CalendarSystem` (1.15) writes its titles, month and day names with the current culture when it offers that calendar, else with the calendar's own culture ([SkUiCalendar](../controls/SkUiCalendar.md#how-it-works)). The date and time pickers' month names, AM / PM, the order of their wheels and their fields' texts come from `CultureInfo.CurrentCulture` (read when the field's value changes and at each opening), not from `SkUiStrings`.
 
 ## How to translate
 

@@ -1,6 +1,6 @@
 # SkiaUi implementation plan: allocation pass and new controls
 
-**Status:** from [a review](Review-2026-11.md) of the architecture, the implementation and the .NET 10 / 11 and C# 14 / 15 feature use (16 November 2026). The findings are agreed and on the [roadmap](Roadmap.md): track A is release 1.14 (moved from 1.13 on 17 November 2026, when the calendar took 1.13), planned step by step in [ImplementationPlan-1.14.md](ImplementationPlan-1.14.md) (which wins where the two differ), and track F is on the backlog. [D1](#decisions) is agreed; the other decisions are still proposed, each to be agreed before its package starts.
+**Status:** from [a review](Review-2026-11.md) of the architecture, the implementation and the .NET 10 / 11 and C# 14 / 15 feature use (16 November 2026). The findings are agreed and on the [roadmap](Roadmap.md): track A is release 1.14 (moved from 1.13 on 17 November 2026, when the calendar took 1.13), planned step by step in [ImplementationPlan-1.14.md](ImplementationPlan-1.14.md) (which wins where the two differ), and track F is on the backlog, starting in 1.16 (moved from 1.15 on 19 November 2026, when finishing the calendar took 1.15: [ImplementationPlan-1.15.md](ImplementationPlan-1.15.md)). [D1](#decisions) is agreed; the other decisions are still proposed, each to be agreed before its package starts.
 
 **Goal:**
 
@@ -82,7 +82,7 @@ Proposed. Agree them before the first step.
 - **D7 The data grid (F9) is SkUi\* only at first** and waits for a decision on the virtual stack's horizontal layout (backlog).
 - **D8 Backdrop blur (F10) ships only if the Galaxy S9 holds 50 fps** with one blurred bar over a scrolling list. Otherwise it stays a spike with its numbers in Performance.md.
 - **D9 Runtime async (A7) is enabled only if** the image-load scenarios allocate less and the package does not grow.
-- **D10 Releases (proposed):** 1.13 the calendar (not part of this plan); 1.14 track A; 1.15 F1, F5, F6; 1.16 F2, F3; 1.17 F4 phase 1; then F7, F8, F9, F10 as apps ask.
+- **D10 Releases (proposed):** 1.13 the calendar (not part of this plan); 1.14 track A; 1.15 the calendar finished (not part of this plan; agreed 19 November 2026, which moved everything below by one release); 1.16 F1, F5, F6; 1.17 F2, F3; 1.18 F4 phase 1; then F7, F8, F9, F10 as apps ask.
 
 ## Order and parallel work
 

@@ -1,3 +1,5 @@
+using SkiaSharp;
+
 namespace MauiSkiaUi;
 
 /// <summary>
@@ -173,4 +175,25 @@ public class IosSkUiLook : DefaultSkUiLook
 
     /// <inheritdoc />
     public override SkUiColorScheme GetColorScheme(bool isDark) => isDark ? IosSkUiColorScheme.Dark : IosSkUiColorScheme.Light;
+
+    // Calendars (1.15): UIKit's calendar view. Today is its number in the accent (no ring); the selected day a light tint of the
+    // accent with the number in the accent; plain accent chevrons (the default drawing without a background).
+
+    /// <inheritdoc />
+    public override SkUiCalendarTodayStyle CalendarTodayStyle => SkUiCalendarTodayStyle.Text;
+
+    /// <inheritdoc />
+    /// <remarks>UIKit's selected day: the accent at about an eighth.</remarks>
+    public override SKColor CalendarSelectionColor(SKColor accent) => accent.WithAlpha((byte)Math.Round(accent.Alpha * 0.14));
+
+    /// <inheritdoc />
+    /// <remarks>On the light tint, the number in the selection's own color; on a solid selection (the app's), white or near black.</remarks>
+    public override SKColor CalendarSelectedTextColor(SKColor selection, SKColor baseColor, SKColor text) =>
+        selection.Alpha < 128 ? baseColor : CalendarContrast(selection);
+
+    /// <inheritdoc />
+    public override double CalendarDayNameFontSize => 13;
+
+    /// <inheritdoc />
+    public override double CalendarFontSize => 20;
 }

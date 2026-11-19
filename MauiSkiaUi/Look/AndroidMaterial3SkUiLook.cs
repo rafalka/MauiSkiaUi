@@ -122,4 +122,28 @@ public class AndroidMaterial3SkUiLook : AndroidSkUiLook
 
     /// <inheritdoc />
     public override SkUiColorScheme GetColorScheme(bool isDark) => isDark ? AndroidMaterial3SkUiColorScheme.Dark : AndroidMaterial3SkUiColorScheme.Light;
+
+    // Calendars (1.15): Material 3's date picker grid. Days in 48 dp rows under 40 dp weekday labels, their 40 dp circles from
+    // the default drawing; today an outlined 1 dp circle; a 56 dp header with 40 dp icon buttons and the 14 dp title.
+
+    /// <inheritdoc />
+    public override double CalendarRowHeight => 48;
+
+    /// <inheritdoc />
+    public override double CalendarDayNamesHeight => 40;
+
+    /// <inheritdoc />
+    public override double CalendarHeaderHeight => 56;
+
+    /// <inheritdoc />
+    public override double CalendarNavigationButtonSize => 40;
+
+    /// <inheritdoc />
+    public override double CalendarHeaderFontSize => 14;
+
+    /// <inheritdoc />
+    public override double CalendarDayNameFontSize => 14;
+
+    /// <inheritdoc />
+    protected override float CalendarTodayRingWidth => 1;
 }

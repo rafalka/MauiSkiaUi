@@ -35,6 +35,20 @@ public class SkUiCoreDateRangePicker : SkUiCoreValuePicker<SkUiDateRange?>
     /// <inheritdoc cref="SkUiCalendar.MaximumRangeDays" />
     public int MaximumRangeDays { get => _maximumRangeDays; set => SetMaximumRangeDays(value); }
 
+    /// <inheritdoc cref="SkUiDateRangePicker.CalendarSystem" />
+    public System.Globalization.Calendar? CalendarSystem { get => _calendarSystem; set => SetCalendarSystem(value); }
+
+    private System.Globalization.Calendar? _calendarSystem;
+
+    /// <summary>Sets <see cref="CalendarSystem"/>; throws for a calendar the pages cannot be cut by.</summary>
+    public SkUiCoreDateRangePicker SetCalendarSystem(System.Globalization.Calendar? value)
+    {
+        if (!SkUiCalendarSystem.IsSupported(value))
+            throw new ArgumentOutOfRangeException(nameof(value), value?.GetType().Name, "The calendar's pages cannot be cut by this calendar.");
+        SetProperty(ref _calendarSystem, value, nameof(CalendarSystem));
+        return this;
+    }
+
     /// <inheritdoc cref="SkUiCalendar.AllowsDisabledDaysInRange" />
     public bool AllowsDisabledDaysInRange { get => _allowsDisabledDaysInRange; set => SetAllowsDisabledDaysInRange(value); }
 
@@ -115,7 +129,7 @@ public class SkUiCoreDateRangePicker : SkUiCoreValuePicker<SkUiDateRange?>
     /// <inheritdoc />
     protected override SkUiValuePopupContent<SkUiDateRange?> CreateValueContent(SkUiPickerPopupContext context) =>
         new SkUiDateRangePopupContent(new SkUiDateRangeRules(_minimumDate, _maximumDate, _blackoutDates, _dateEnabled, _minimumRangeDays, _maximumRangeDays,
-            _allowsDisabledDaysInRange, _calendarStyle));
+            _allowsDisabledDaysInRange, _calendarStyle, _calendarSystem));
 
     /// <inheritdoc cref="SkUiDateRangePicker.FormatValue" />
     protected override string? FormatValue(SkUiDateRange? value) => value is { } range ? SkUiDateRangePicker.FormatRange(range, _displayFormat) : null;

@@ -375,7 +375,8 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
 
     /// <summary>Effective (inherited or explicit) right-to-left flow direction.</summary>
     internal bool IsRightToLeft =>
-        ((IVisualElementController)this).EffectiveFlowDirection.HasFlag(EffectiveFlowDirection.RightToLeft);
+        // A mask test, not HasFlag: HasFlag boxes the enum where the JIT does not optimize it (Debug), on a per-frame path.
+        (((IVisualElementController)this).EffectiveFlowDirection & EffectiveFlowDirection.RightToLeft) != 0;
 
     /// <summary>Width of the coordinate space children are arranged in (mirroring axis for RTL).</summary>
     internal virtual double ChildrenSpaceWidth => Frame.Width;

@@ -11,6 +11,13 @@ A drawn calendar: a month of days, the months of a year, the years of a decade o
   - The header's buttons, a swipe and `GoToPrevious()` / `GoToNext()` move a page; the page slides with the look's `SkUiTransitionKind.CalendarPage` transition (none with reduce motion). A swipe follows the finger and settles on the next page past a third of the page or after a fling, else back; past the first or last page it stretches a little.
   - A tap on the title steps up a mode; a tap on a month, year or decade steps down to it; a pinch zooms out or in. At the highest mode, the title goes back to the lowest. `MinimumDisplayMode` and `MaximumDisplayMode` limit the modes: `MaximumDisplayMode = Month` keeps the calendar on days, `MinimumDisplayMode = Year` makes a month picker whose month cells are chosen (their first day).
   - The user's changes are written back to `DisplayDate` and `DisplayMode` (two-way, handler values: an app's one-way binding keeps applying).
+- **Calendar systems** (1.15). `CalendarSystem` (a `System.Globalization.Calendar`) sets the calendar the pages are cut by; `null` (default) is the Gregorian one, as before 1.15.
+  - `ThaiBuddhistCalendar`, `TaiwanCalendar`, `KoreanCalendar` and `JapaneseCalendar` keep the Gregorian months and number the years their way ("พฤศจิกายน 2569", "令和8年11月"); decades and centuries count the calendar's years (Gregorian years for the Japanese calendar, whose years start again with each era).
+  - `UmAlQuraCalendar`, `HijriCalendar`, `PersianCalendar` and `HebrewCalendar` cut the pages by their own months; a Hebrew leap year's year page shows its 13 months on 5 rows.
+  - Dates stay `DateTime` values: `SelectedDate`, ranges, `MinimumDate`, `BlackoutDates`, `DateEnabled` and `DayStyle` are the same whatever the calendar shown. The pages stop at the days the calendar supports (Umm al-Qura: 1900 to 2077).
+  - Titles, month names and day names come from the current culture when it offers the calendar (one of its optional calendars), else from the calendar's own culture (Thai, Chinese (Taiwan), Korean, Japanese, Arabic, Persian, Hebrew). The first day of the week stays the current culture's (or `FirstDayOfWeek`); day numbers are digits; week numbers keep the Gregorian rule.
+  - At the ends of a calendar's range, days it does not support are neither drawn nor read by screen readers, and months it does not have at all (the Japanese calendar's first months of 1868) have no cell. The Japanese pages start where its eras can be written (23 October 1868).
+  - Other calendars are ignored (with MAUI's warning for an invalid value) or rejected by `SetCalendarSystem`. On a date picker's popup, set it through `CalendarStyle`; the range picker has its own `CalendarSystem`.
 - **Weeks.** Six weeks by default, so a month page always has the same height. `VisibleWeeks` (1 to 5) shows that many weeks and pages by weeks: a weekly strip. `FirstDayOfWeek` (default: the culture's) sets the first column. `AreAdjacentDaysVisible` shows the neighbor months' days, dimmed (a tap on one chooses it and slides its month in); a selection or a range on them is drawn as on the month's own days, so a range that crosses the month's end runs on into them. `AreWeekNumbersVisible` adds a column of week numbers (ISO 8601 for Monday weeks under the "first four-day week" rule, else the culture's rule); a tap on one raises `WeekNumberTapped` with the week's first and last days, its number, the first and last days that can be chosen and ready-made ranges (`Range`, `EnabledRange`), so the app can select the whole week.
 - **Day names.** `DayNameFormat` is `Shortest` ("Tu"), `Abbreviated` ("Tue") or `FirstLetter` ("T"). The names come from `SkUiStrings.Current`: its `ShortestDayNames`, `AbbreviatedDayNames` and `FirstLetterDayNames` (seven names from Sunday) when set, else the current culture's; override `SkUiStrings.GetDayName` to read the app's resources. A change of the strings redraws the calendars. While the page shows today, today's day name is drawn in `TodayDayNameTextColor` (default: `TodayColor`, the accent); `IsTodayDayNameHighlighted = false` turns it off.
 - **Selection.** `SelectionMode`:
@@ -29,14 +36,15 @@ A drawn calendar: a month of days, the months of a year, the years of a decade o
   - an image: `PreviousButtonIcon` / `NextButtonIcon` (a PNG, an SVG, a URL: any image source, through the shared loader and cache; tint an SVG with `SkUiImageSource.FromVector(source, color)`), drawn at `NavigationButtonGlyphSize` (half the button by default);
   - both are mirrored right to left and dimmed while pressed or disabled.
   - **Drawn by a subclass:** override `OnDrawNavigationButton(canvas, button, isNext)` or `OnDrawTitle(canvas, bounds, title, color, isPressed)` and return `true` to draw them your way (`DrawCalendarText` draws text through the calendar); taps keep working. App-wide, the look's `CalendarNavigationButtonPainter` replaces every calendar's buttons. A header made of views of your own: `IsHeaderVisible = false` with `Title`, `CanGoToPrevious`, `CanGoToNext` and the methods.
-- **Look.** Every color is `null` by default and takes the color scheme's color when drawn (accent, foreground, muted, disabled), so the calendar follows a dark-mode switch on both layers. One set of font properties (`FontFamily`, `FontSize`, `FontAttributes`, `FontAutoScalingEnabled`) covers every cell kind; the header, the day names and today have their own size, weight and color. Today is a ring, a fill, a colored number or not marked (`TodayStyle`); selected days are circles, rounded squares or squares (`SelectionShape`); a range is a band with rounded ends between its first and last days.
+- **Look.** Every color is `null` by default and takes the color scheme's color when drawn (accent, foreground, muted, disabled), so the calendar follows a dark-mode switch on both layers. One set of font properties (`FontFamily`, `FontSize`, `FontAttributes`, `FontAutoScalingEnabled`) covers every cell kind; the header, the day names and today have their own size, weight and color. Today is a ring, a fill, a colored number or not marked (`TodayStyle`); selected days are circles, rounded squares or squares (`SelectionShape`); a range is a band with rounded ends between its first and last days. What the app leaves unset (`TodayStyle`, `SelectionShape`, `SelectionColor`, `SelectedTextColor`) is the look's (1.15), so a platform look draws its platform's calendar ([Look](#look)).
 - **Events under the days.** `DayStyle` is a function that returns an `SkUiCalendarDayStyle` for a day, or `null`: `TextColor`, `BackgroundColor`, `FontAttributes`, `IsStrikethrough` and `Markers`. It is asked once per day while drawing and remembered; call `RefreshDayStyles()` when the data behind it changes.
-  - **Markers** sit in an area under the number (`DayMarkerAreaHeight`; by default the look's 14 DIPs as soon as `DayStyle` or `DayPainter` is set, and rows grow by it): `SkUiCalendarMarker.Dot(color)`, `Bar(color)` (as wide as half the number's circle), `Glyph(glyph, fontFamily, color)` (an icon of an icon font, as tall as the area) and `Caption(text, color)` (the look's 10-DIP text, shortened to fit). A day's markers sit in one centered row in the order given; what does not fit is left out. Shifts, time off and vacation as colored bars, birthdays as a glyph, a holiday as a caption.
+  - **Markers** sit in an area under the number (`DayMarkerAreaHeight`; by default the look's 14 DIPs as soon as `DayStyle` or `DayPainter` is set, and rows grow by it): `SkUiCalendarMarker.Dot(color)`, `Bar(color)` (as wide as half the number's circle), `Glyph(glyph, fontFamily, color)` (an icon of an icon font, as tall as the area), `Caption(text, color)` (the look's 10-DIP text, shortened to fit) and `Image(source, size)` (1.15: any image source through the shared loader and cache, as tall as the area or `size` DIPs square; each source loads once per calendar however many days show it, and is left out until loaded; tint an SVG with `SkUiImageSource.FromVector`). A day's markers sit in one centered row in the order given; what does not fit is left out. Shifts, time off and vacation as colored bars, birthdays as a glyph or an avatar, a holiday as a caption.
+  - **A month view with events** (1.15): `DayMarkerLayout="Lines"` puts the number at the top of each day (the look's `CalendarEventNumberHeight`, 28) and its markers one per line under it (`DayMarkerLineHeight`, the look's 16): a caption is an event chip of its color with its text, a bar a thin line, and dots, glyphs and images share one more line. Give the calendar the height of the page and the rows hold as many lines as fit; sized by itself, a row holds three (or `DayMarkerAreaHeight`, or the whole `DayRowHeight`). What does not fit becomes a "+N" line (`SkUiStrings.MoreEventsFormat`). Events drawn as one bar across several days, time slots and dragging events are a scheduler's, not the calendar's.
   - **A day of your own.** `DayPainter` (`SkUiCalendarDayPainter`) draws each day the app's way after the look's chrome: it gets an `SkUiCalendarDayContext` with the day, its `Bounds`, `NumberBounds` and `MarkerBounds`, its state (selected, range part, today, enabled, adjacent, focused), the number's `TextColor` and the day's `Style`, and `DrawText(...)` to draw text through the calendar's text engine (shaped, laid out once and kept). Return `true` to draw the day's contents yourself (the calendar then draws neither the number nor the markers), `false` to have them drawn over yours. Use it for avatars, prices, progress rings or icons from images.
   - Why not a view per day: a month page and its two neighbors hold over a hundred days, and each would be a measured, recorded view on every swipe. The painter gives the same freedom on both layers with nothing to create.
 - **Size.** As wide as it is given (seven 44-DIP columns by itself), as tall as the header (48), the day names (28) and the weeks (`DayRowHeight`, default the look's 44). Given more height, the rows stretch. Year, decade and century pages use the same area in 4 rows of 3.
 - **Keyboard** (one tab stop): arrows move a focus by day and week (by cell on the other pages; mirrored right to left), Page Up / Down by page (with Shift by a year), Home / End to the week's ends, Enter / Space choose (or open a month or year). The focus moves to the next page when it leaves the page, and the focused cell has a ring while the keyboard drives the calendar.
-- **Screen readers.** The calendar is an adjustable element: its name is the title, its value the focused day with its state ("Tuesday, November 10, 2026, Selected"); increment / decrement move a day, activate chooses it. Its children are elements of their own: the header's title (activating it changes the display mode) and buttons (`SkUiStrings.PreviousText`, `NextText`), and every cell of the page with its full date ("Tuesday, November 10, 2026") and its state ("Selected, Today"); a day that cannot be chosen is read dimmed. Activating a day chooses it. A cell's element keeps its id while the page changes, and its automation id is the calendar's with the date (`MyCalendar_2026-11-10`; `_Title`, `_Previous`, `_Next` for the header).
+- **Screen readers.** The calendar is an adjustable element: its name is the title, its value the focused day with its state ("Tuesday, November 10, 2026, Selected"); increment / decrement move a day, activate chooses it. Its children are elements of their own: the header's title (activating it changes the display mode) and buttons (`SkUiStrings.PreviousText`, `NextText`), and every cell of the page with its full date ("Tuesday, November 10, 2026") and its state ("Selected, Today"), then its markers' captions, its events (1.15: "Selected, Standup, Lunch"); a day that cannot be chosen is read dimmed. Activating a day chooses it. A cell's element keeps its id while the page changes, and its automation id is the calendar's with the date (`MyCalendar_2026-11-10`; `_Title`, `_Previous`, `_Next` for the header).
 - **Right to left,** the columns, the header and the swipe are mirrored.
 
 ## How to use
@@ -120,6 +128,20 @@ calendar.WeekNumberTapped += (_, e) => calendar.SelectedRange = e.EnabledRange; 
 
 A full example over the app's data (appointments, out-of-office days, public holidays, a day's agenda): the samples app's "Team calendar" (`samples/MauiSkiaUiSamples/Samples/Controls/Calendar/TeamCalendarSample.cs`).
 
+A month view with event lines (chips, "+N" for what does not fit, an avatar on birthdays):
+
+```csharp
+var calendar = new SkUiCalendar
+{
+    DayMarkerLayout = SkUiCalendarDayMarkerLayout.Lines, // the number at the top, one event per line under it
+    DayStyle = day => events.TryGetValue(day, out var list)
+        ? new SkUiCalendarDayStyle { Markers = [.. list.Select(e => e.IsBirthday
+            ? SkUiCalendarMarker.Image(e.Avatar)
+            : SkUiCalendarMarker.Caption(e.Title, e.Color))] }
+        : null,
+};
+```
+
 A weekly strip above an agenda: `VisibleWeeks="1" MaximumDisplayMode="Month" AreDayNamesVisible="True"`. A month picker (card expiry): `MinimumDisplayMode="Year" MaximumDisplayMode="Decade"`; the chosen month is `SelectedDate`'s month.
 
 ## Key properties
@@ -131,6 +153,7 @@ A weekly strip above an agenda: `VisibleWeeks="1" MaximumDisplayMode="Month" Are
 | `MinimumDisplayMode` / `MaximumDisplayMode` | `Month` / `Century` | Limit the modes. |
 | `VisibleWeeks` | 6 | 1–6; fewer pages by weeks. |
 | `FirstDayOfWeek` | `null` | The culture's. |
+| `CalendarSystem` | `null` | Gregorian; Thai Buddhist, Taiwan, Korean, Japanese, Umm al-Qura, Hijri, Persian, Hebrew (1.15). |
 | `SelectionMode` | `Single` | `None`, `Single`, `Multiple`, `Range`, `MultipleRanges`. |
 | `SelectedDate` / `SelectedDates` / `SelectedRange` / `SelectedRanges` | none | Two-way; see **Selection**. |
 | `MinimumRangeDays` / `MaximumRangeDays` | 0 / 0 | The length of a range the user chooses (0: any). |
@@ -141,6 +164,8 @@ A weekly strip above an agenda: `VisibleWeeks="1" MaximumDisplayMode="Month" Are
 | `RangeSelectionTarget` | `Auto` | Which end of the range a tap sets; two-way. |
 | `DayStyle` | `null` | Per-day colors, weight, strike-through, markers. |
 | `DayMarkerAreaHeight` | -1 | The area under the number for markers (the look's 14 with `DayStyle` or `DayPainter`, else none). |
+| `DayMarkerLayout` | `Row` | `Lines`: a month view with event lines (1.15). |
+| `DayMarkerLineHeight` | -1 | One event line's height with `Lines` (the look's 16). |
 | `DayPainter` | `null` | Draws each day the app's way. |
 | `NavigationOrientation` | `Horizontal` | The swipe's direction; vertical also turns the header buttons' chevrons up and down (`SkUiCalendarNavigationButtonPaint.Direction`). |
 | `IsSwipeEnabled` / `IsPinchEnabled` | `true` | |
@@ -159,8 +184,8 @@ A weekly strip above an agenda: `VisibleWeeks="1" MaximumDisplayMode="Month" Are
 | `AreAdjacentDaysVisible` / `AreWeekNumbersVisible` | `true` / `false` | |
 | `TextColor`, `FontFamily`, `FontSize`, `FontAttributes`, `FontAutoScalingEnabled` | scheme / look's / look's 16 / none / `true` | Days, months, years. |
 | `DayRowHeight` | -1 | A row's height when the calendar sizes itself (the look's 44). |
-| `TodayStyle` / `TodayColor` / `TodayTextColor` / `TodayFontAttributes` | `Ring` / accent / text / bold | |
-| `SelectionShape` / `SelectionColor` / `SelectedTextColor` | `Circle` / accent / contrast | |
+| `TodayStyle` / `TodayColor` / `TodayTextColor` / `TodayFontAttributes` | the look's (`Ring`) / accent / text / bold | Unset: the look's (1.15). |
+| `SelectionShape` / `SelectionColor` / `SelectedTextColor` | the look's (`Circle` / accent / contrast) | Unset: the look's (1.15). |
 | `RangeColor` / `RangeTextColor` | light selection color / text | |
 | `AdjacentDayTextColor` / `DisabledDayTextColor` / `WeekendTextColor` | muted / disabled / text | |
 | `Title`, `CanGoToPrevious`, `CanGoToNext` | read-only | For a header of your own. |
@@ -171,11 +196,17 @@ Methods: `GoToPrevious(animated)`, `GoToNext(animated)`, `GoToDate(date, animate
 
 - `SkUiLook.DrawCalendarCell(canvas, SkUiCalendarCellPaint)` and `DrawCalendarNavigationButton(canvas, SkUiCalendarNavigationButtonPaint)`, each with a painter delegate (`CalendarCellPainter`, `CalendarNavigationButtonPainter`) and a `…Core` override. The cell paint carries the cell's bounds and kind (day or period), the selection shape, whether it is selected, its range part and whether the band runs on to its left or right, today, focus, press, enabled, and the resolved colors.
 - The look draws the cell's chrome in the cell above its marker area; the calendar draws the number, the markers and the day painter's drawing.
-- Sizes: `CalendarHeaderHeight` (48), `CalendarMarkerAreaHeight` (14), `CalendarMarkerFontSize` (10), `CalendarDayNamesHeight` (28), `CalendarRowHeight` (44), `CalendarWeekNumberWidth` (32), `CalendarNavigationButtonSize` (36), `CalendarFontSize` (16), `CalendarHeaderFontSize` (17), `CalendarDayNameFontSize` (12).
-- Platform looks draw the default calendar in 1.13.
+- Sizes: `CalendarHeaderHeight` (48), `CalendarMarkerAreaHeight` (14), `CalendarMarkerFontSize` (10), `CalendarMarkerLineHeight` (16) and `CalendarEventNumberHeight` (28) for event lines (1.15), `CalendarDayNamesHeight` (28), `CalendarRowHeight` (44), `CalendarWeekNumberWidth` (32), `CalendarNavigationButtonSize` (36), `CalendarFontSize` (16), `CalendarHeaderFontSize` (17), `CalendarDayNameFontSize` (12).
+- **What the app leaves unset** (1.15): `CalendarTodayStyle` (default `Ring`), `CalendarSelectionShape` (`Circle`), `CalendarSelectionColor(accent)` (the accent) and `CalendarSelectedTextColor(selection, baseColor, text)` (white or near black, whichever reads); the colors are Skia colors, so drawing allocates nothing. On the SkUi layer a property counts as set once the app set it (a style, a binding or a value; `ClearValue` gives it back to the look); the getters read the property's default while it is unset. `DefaultSkUiLook.CalendarTodayRingWidth` (1.5) is today's ring.
+- **Platform looks** (1.15) draw their platform's calendar:
+  - `AndroidMaterial3SkUiLook`: Material 3's date picker grid: 48 dp rows of 40 dp circles under 40 dp weekday labels, a 56 dp header with 40 dp buttons and a 14 dp title, today a 1 dp ring.
+  - `IosSkUiLook`: UIKit's calendar view: today is its number in the accent (no ring), the selected day a light accent tint with its number in the accent, 20 pt day numbers.
+  - `MacSkUiLook`: AppKit's graphical date picker: compact 32 pt rows, a solid accent rounded square for the selected day, today as on iOS.
+  - `WindowsSkUiLook`: WinUI's calendar view: today an accent-filled circle, the selected day an accent ring around its number in the days' own color, 40 epx cells and 14 epx text.
+  - An app that set these properties keeps its values; the date pickers' popups keep their wheels on every built-in look.
 
 ## Limits
 
-- Gregorian dates; day and month names and the first day come from the current culture. Other calendar systems are not supported yet: under a culture whose own calendar is another (Thai Buddhist, Hijri), the texts use its Gregorian calendar, so they match the pages.
-- Markers take icon glyphs, not image sources (a day painter can draw images).
-- The calendar in a popup: the date pickers' `PopupStyle = Calendar` ([SkUiDatePicker](SkUiDatePicker.md)) and [SkUiDateRangePicker](SkUiDateRangePicker.md). `SkUiDateTimePicker` keeps its wheels.
+- Without `CalendarSystem`, under a culture whose own calendar is another (Thai Buddhist, Hijri), the pages and texts stay Gregorian, as in 1.13; set `CalendarSystem = CultureInfo.CurrentCulture.Calendar` to follow the culture.
+- Calendar systems other than the eight listed (Julian, the East Asian lunisolar calendars) are not supported. The date pickers' wheels stay Gregorian.
+- The calendar in a popup: the date pickers' `PopupStyle = Calendar` ([SkUiDatePicker](SkUiDatePicker.md); over the time wheels for [SkUiDateTimePicker](SkUiDateTimePicker.md), 1.15) and [SkUiDateRangePicker](SkUiDateRangePicker.md).

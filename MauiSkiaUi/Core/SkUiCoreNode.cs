@@ -204,8 +204,9 @@ public partial class SkUiCoreNode : ISkUiCoreNode, INotifyPropertyChanged, ISkUi
             }
             if (node.HostOwner is not { } host) return SkUiTextDirection.Auto;
             var effective = ((IVisualElementController)host).EffectiveFlowDirection;
-            if (effective.HasFlag(EffectiveFlowDirection.RightToLeft)) return SkUiTextDirection.RightToLeft;
-            return effective.HasFlag(EffectiveFlowDirection.Explicit) ? SkUiTextDirection.LeftToRight : SkUiTextDirection.Auto;
+            // Mask tests, not HasFlag: HasFlag boxes the enum where the JIT does not optimize it (Debug), on a per-frame path.
+            if ((effective & EffectiveFlowDirection.RightToLeft) != 0) return SkUiTextDirection.RightToLeft;
+            return (effective & EffectiveFlowDirection.Explicit) != 0 ? SkUiTextDirection.LeftToRight : SkUiTextDirection.Auto;
         }
     }
 

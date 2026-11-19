@@ -197,6 +197,21 @@ Bench scenarios (`scripts/bench.sh -t android|ios --net 11 -S …`, [Benchmarks.
 - **Memory of the collection view at 10,000 items:** the S9's managed heap after the fling and a full collection was 7 MB for the whole bench app (`heapKB`), against 3–4 MB with the 40-card refresh page or the snapping list: items are recycled, so 10,000 of them keep little. On the iPhone 8 the heap first rose across the run, from 23 MB at the first scenario to 304 MB at the last, while the S9 stayed at 2–9 MB: a leak on iOS and Mac Catalyst. The bench removes each scenario's surface from a live grid, which does not disconnect its handler (MAUI disconnects handlers when a page goes), and natively retained objects (the Metal view, its gesture recognizers, the render loop's list of surfaces) held the removed tree strongly; the leak scenarios passed because they close by popping their page. Fixed in 1.14 (the leak scenario `SurfaceRemovedFromLayout` covers it): the same run now keeps 3–11 MB per scenario, 6–7 MB for this one. On iOS a scenario's `firstFrame` now includes UIKit releasing the previous iteration's root on the main thread, which the leak skipped: `collection-fling` measures 14.5 ms instead of 10.6 (10.6 again when the bench keeps the old roots).
 - **The S9 counts more than 60 frames per second** in the recycled lists and the swipe rows (65–117 on a 60 Hz screen): frames rendered while the UI thread commits during a render-thread scroll, which the display cannot show. Not investigated yet.
 
+## Calendar on devices
+
+`calendar-slide` (`scripts/bench.sh -t android|ios -S calendar-slide,carousel-swipe --baseline v1.14.0 -n 6`), 19 November 2026 on the 1.15 branch: a 420-tall `SkUiCalendar` with markers on every day (a dot, a bar and the caption "Off") and week numbers, moved to the next month every 400 ms with its slide. A slide re-records the calendar's one node on the UI thread every frame ([SkUiCalendar](controls/SkUiCalendar.md)). The S9 ran net10 (Mono), the iPhone 8 net11 (launched through Xcode 26.6's `mlaunch`).
+
+| | Galaxy S9 1.14.0 | Galaxy S9 1.15 | iPhone 8 1.14.0 | iPhone 8 1.15 |
+| --- | ---: | ---: | ---: | ---: |
+| UI thread per frame, avg / max ms | 21.9 / **51.1** | 5.0 / 10.2 | 4.1 / 14.2 | 2.3 / 7.4 |
+| Render thread per frame, avg / max ms | 3.0 / 6.8 | 4.2 / 7.4 | 1.4 / 3.3 | 2.2 / 6.1 |
+| Frames per second over the motion | 21 | 44 | 43 | 45 |
+| Allocated over the motion | 25.9 MB | 0.64 MB | 17.5 MB | 0.53 MB |
+
+- **Every frame of a slide fits a 60 Hz frame on both phones in 1.15.** 44 frames per second is what the scenario can show: a slide fills 280 ms of each 400 ms (60 × 0.7 = 42; the carousel's longer animation shows 49–52 in the same scenario). So slides stay on the UI thread ([1.15 plan, B1](design/ImplementationPlan-1.15.md#b1-render-thread-page-slides-conditional)).
+- **What 1.14 paid for:** marker captions laid out again in every frame, and a caption that shrinks to fit (the S9's font made "Off" overflow) fitted again in every cell, since cells of a grid differ in width by float rounding. At 1.15 the calendar's drawing allocates nothing per frame; what is left is the new picture each frame and the work of a page change (a new title, a new month's day styles).
+- **The render thread takes 1 ms more per frame at 1.15 on both phones** (playing the recorded calendar back). Within the budget; not investigated yet.
+
 ## Reproducing
 
 Both stress pages are in the demo app (`MauiSkiaUiDemo`): **Stress** (the 1,000-button grid) and **Effects stress** (the card list, with **Matrix** in the toolbar for every effect). Run a Release build. Scripted runs start a page and print one `data` line per round (key=value, ms) to the console:

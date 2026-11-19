@@ -2,7 +2,8 @@ namespace MauiSkiaUi;
 
 /// <summary>What a date range picker's calendar is opened with (read when the popup opens).</summary>
 internal readonly record struct SkUiDateRangeRules(DateTime? MinimumDate, DateTime? MaximumDate, IList<DateTime>? BlackoutDates,
-    Func<DateTime, bool>? DateEnabled, int MinimumRangeDays, int MaximumRangeDays, bool AllowsDisabledDaysInRange, Style? CalendarStyle);
+    Func<DateTime, bool>? DateEnabled, int MinimumRangeDays, int MaximumRangeDays, bool AllowsDisabledDaysInRange, Style? CalendarStyle,
+    System.Globalization.Calendar? CalendarSystem = null);
 
 /// <summary>
 /// The popup of a date range picker (<see cref="SkUiDateRangePicker"/>, <see cref="Core.SkUiCoreDateRangePicker"/>): a month calendar in
@@ -38,6 +39,8 @@ internal sealed class SkUiDateRangePopupContent(SkUiDateRangeRules rules) : SkUi
             calendar.BlackoutDates = blackout.ToList(); // as opened
         if (rules.CalendarStyle is { } style)
             calendar.Style = style;
+        if (rules.CalendarSystem is { } system)
+            calendar.CalendarSystem = system;
         else if (Context.FontFamily is { } family)
             calendar.FontFamily = family;
         _calendar = calendar;

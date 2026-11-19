@@ -47,6 +47,7 @@ var core = new SkUiCoreDateRangePicker().SetDisplayFormat("{0:yyyy-MM-dd} / {1:y
 | `MinimumRangeDays` / `MaximumRangeDays` | 0 / 0 | The range's length, both ends counted (0: any) |
 | `AllowsDisabledDaysInRange` | `true` | `false`: a range may not run over a day that cannot be chosen |
 | `CalendarStyle` | `null` | A `Style` for the popup's calendar |
+| `CalendarSystem` | `null` | The popup calendar's calendar system (1.15, [SkUiCalendar](SkUiCalendar.md#how-it-works)); the field's text follows `DisplayFormat` and the culture |
 | `Title`, `Placeholder`, `UpdateMode`, `PopupPlacement`, `PopupPresenter`, `IsClearButtonVisible`, `IsPopupClearButtonVisible`, … | | As `SkUiPicker`'s (`SkUiPickerBase`) |
 
 ## Limits

@@ -30,7 +30,7 @@ A drawn date picker with **MAUI's `DatePicker` API**: change the XAML prefix of 
 - `PopupStyle` is `Default` (the look's `DatePickerPopupStyle`: wheels on every built-in look, so a look of the app's can make calendars the app's default), `Wheels` or `Calendar`.
 - `CalendarStyle` is a `Style` with `TargetType="skui:SkUiCalendar"` for the popup's calendar: colors, fonts, header, `FirstDayOfWeek`, week numbers. The picker sets the calendar's selection, range and day rule itself; without a style the calendar takes the picker's font family.
 - The request is `SkUiDatePopupRequest` as with the wheels (its columns describe the date), so a presenter with its own date UI keeps working whatever the style.
-- `SkUiDateTimePicker` keeps its wheels (a calendar with time wheels is not offered yet).
+- `SkUiDateTimePicker` has the same `PopupStyle` and `CalendarStyle` since 1.15: the calendar over its time wheels ([SkUiDateTimePicker](SkUiDateTimePicker.md)).
 
 ```xml
 <skui:SkUiDatePicker PopupStyle="Calendar" Date="{Binding Due}" MinimumDate="{Binding Today}">

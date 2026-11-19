@@ -178,6 +178,12 @@ public class SkUiStrings
     /// <summary>A calendar day that cannot be chosen (outside the range, a blackout date), as screen readers read it after the date. Default "Unavailable".</summary>
     public virtual string UnavailableStateText { get; set => Set(ref field, value); } = "Unavailable";
 
+    /// <summary>
+    /// A calendar day's line for the events that do not fit (<c>DayMarkerLayout</c> <c>Lines</c>, 1.15): a .NET composite format
+    /// whose <c>{0}</c> is how many. Default "+{0}".
+    /// </summary>
+    public virtual string MoreEventsFormat { get; set => Set(ref field, value); } = "+{0}";
+
     /// <summary>A calendar's button to the previous page (month, year, …), as screen readers read it. Default "Previous".</summary>
     public virtual string PreviousText { get; set => Set(ref field, value); } = "Previous";
 

@@ -13,6 +13,28 @@ Publishing (the NuGet publish workflow, [docs/Releasing.md](docs/Releasing.md)) 
 
 ## Unreleased
 
+### New features
+
+- **Date and time picker with a calendar (1.15):** `PopupStyle` and `CalendarStyle` on `SkUiDateTimePicker` and `SkUiCoreDateTimePicker`, as on the date pickers ([SkUiDateTimePicker.md](docs/controls/SkUiDateTimePicker.md#a-calendar-over-the-time-wheels)).
+  - `Calendar`: a month calendar over the picker's time wheels (hour, minutes, seconds, AM / PM); `Default` is the look's new `DateTimePickerPopupStyle` (wheels on the built-in looks; a look that gives date pickers calendars does not change date and time pickers).
+  - Follows `UpdateMode` as the wheels do: each change applies at once and the popup stays open, or the changes are a draft OK accepts; a tap on a day does not close it.
+  - The range's first and last days offer only the range's times; Tab moves between the calendar and the wheels. The request stays `SkUiDatePopupRequest` (`IncludesTime`).
+- **Calendar image markers (1.15):** `SkUiCalendarMarker.Image(source, size)` and `SkUiCalendarMarkerKind.Image`: avatars or event icons under a day from any image source, through the shared loader and cache, each source loaded once per calendar ([SkUiCalendar.md](docs/controls/SkUiCalendar.md#how-it-works)).
+- **Calendar month view with event lines (1.15):** `DayMarkerLayout` (`Row`, default; `Lines`) and `DayMarkerLineHeight` on both calendars.
+  - With `Lines` the number sits at the top of a day and its markers one per line under it: captions as event chips of their color, bars as thin lines, dots, glyphs and images on one more line; a "+N" line for what does not fit (`SkUiStrings.MoreEventsFormat`).
+  - The look's `CalendarMarkerLineHeight` (16) and `CalendarEventNumberHeight` (28).
+- **Platform looks' calendars (1.15):** what a calendar leaves unset (`TodayStyle`, `SelectionShape`, `SelectionColor`, `SelectedTextColor`) now comes from the look: `SkUiLook.CalendarTodayStyle`, `CalendarSelectionShape`, `CalendarSelectionColor(accent)`, `CalendarSelectedTextColor(...)` (Skia colors), and `DefaultSkUiLook.CalendarTodayRingWidth` ([SkUiCalendar.md](docs/controls/SkUiCalendar.md#look)).
+  - Material 3: its date picker's grid sizes and a 1 dp today ring. iOS: today as the accent number, the selection a light accent tint with an accent number. Mac Catalyst: compact rows and a rounded-square selection. Windows: today filled, the selection a ring.
+  - The default look draws as before; values the app set win. Under a platform look, a calendar that set none of these is drawn as its platform's.
+- **Calendar systems (1.15):** `CalendarSystem` (a `System.Globalization.Calendar`) on `SkUiCalendar`, `SkUiCoreCalendar`, `SkUiDateRangePicker` and `SkUiCoreDateRangePicker` (the date pickers' popups through `CalendarStyle`) ([SkUiCalendar.md](docs/controls/SkUiCalendar.md#how-it-works)).
+  - Thai Buddhist, Taiwan, Korean and Japanese: the Gregorian months with their years (Japanese titles with the era). Umm al-Qura, Hijri, Persian and Hebrew: pages cut by their own months; a Hebrew leap year's 13 months on the year page.
+  - Dates stay `DateTime` values; the pages stop at the days the calendar supports; texts from the current culture when it offers the calendar, else the calendar's own. `null` (default) stays Gregorian.
+- **Calendar days read their events (1.15):** screen readers read a day's marker captions after its state ("Selected, Standup, Lunch"), in both marker layouts.
+
+### Other
+
+- **Calendar swipes allocate nothing (1.15, NFR-2):** a frame of a calendar's swipe or page slide allocated 0.8 KB, and up to 127 KB with markers (captions laid out again each frame, and a caption that shrinks to fit fitted again in every cell); its drawing now allocates nothing on both layers. On the Galaxy S9 a slide with markers on every day now keeps every frame inside 60 Hz (UI thread 5 ms on average, 21 ms at 1.14; [Performance.md](docs/Performance.md#calendar-on-devices)), with day styles, markers, event lines and a day painter (`CalendarAllocationTests`). Bench scenarios `skui-calendars`, `core-calendars` and the device scenario `calendar-slide`.
+
 ## 1.14.0
 
 ### New features

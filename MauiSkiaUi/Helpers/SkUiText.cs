@@ -1024,14 +1024,14 @@ internal sealed class SkUiTextLayout : ISkUiTextFitLayout
     /// </summary>
     internal static void DrawDecorations(SKCanvas canvas, TextDecorations decorations, float left, float baseline, float width, float size, in SKFontMetrics metrics, SKPaint paint)
     {
-        if (decorations.HasFlag(TextDecorations.Underline))
+        if ((decorations & TextDecorations.Underline) != 0)
         {
             var thickness = metrics.UnderlineThickness is { } underline && underline > 0 ? underline : size / 16;
             // Skia: distance from the baseline to the top of the stroke.
             var position = metrics.UnderlinePosition ?? size / 10;
             canvas.DrawRect(left, baseline + position, width, thickness, paint);
         }
-        if (decorations.HasFlag(TextDecorations.Strikethrough))
+        if ((decorations & TextDecorations.Strikethrough) != 0)
         {
             var thickness = metrics.StrikeoutThickness is { } strikeout && strikeout > 0 ? strikeout : size / 16;
             // Skia: distance from the baseline to the bottom of the stroke (negative: above the baseline).

@@ -176,6 +176,37 @@ public class SkUiCalendar : SkUiView, ISkUiCalendarHost, ISkUiKeyHandler, ISkUiF
         validateValue: (_, value) => value is null || Enum.IsDefined((DayOfWeek)value),
         propertyChanged: (view, _, value) => ((SkUiCalendar)view).Revalidated(model => model.FirstDayOfWeek = (DayOfWeek?)value, measure: false));
 
+    /// <summary>Bindable property for <see cref="CalendarSystem"/>.</summary>
+    public static readonly BindableProperty CalendarSystemProperty = BindableProperty.Create(nameof(CalendarSystem), typeof(System.Globalization.Calendar),
+        typeof(SkUiCalendar), null, validateValue: (_, value) => SkUiCalendarSystem.IsSupported((System.Globalization.Calendar?)value),
+        propertyChanged: (view, _, value) => ((SkUiCalendar)view).Revalidated(model => model.CalendarSystem = (System.Globalization.Calendar?)value, measure: false));
+
+    /// <summary>
+    /// The calendar the pages are cut by (1.15): <c>null</c> (default) or a <see cref="System.Globalization.GregorianCalendar"/>,
+    /// the Gregorian one; a <see cref="System.Globalization.ThaiBuddhistCalendar"/>, <see cref="System.Globalization.TaiwanCalendar"/>,
+    /// <see cref="System.Globalization.KoreanCalendar"/> or <see cref="System.Globalization.JapaneseCalendar"/> keeps the Gregorian
+    /// months and numbers years its way; a <see cref="System.Globalization.UmAlQuraCalendar"/>, <see cref="System.Globalization.HijriCalendar"/>,
+    /// <see cref="System.Globalization.PersianCalendar"/> or <see cref="System.Globalization.HebrewCalendar"/> cuts the pages by its
+    /// own months (13 in a Hebrew leap year). Dates stay <see cref="DateTime"/> values: selection, rules and day styles do not change
+    /// with the calendar shown. The pages stop at the days the calendar supports. Titles, month names and day names come from the
+    /// current culture when it can write the calendar, else from the calendar's own culture. Other calendars are ignored (SkUi layer,
+    /// with a warning) or rejected (fluent setter).
+    /// </summary>
+    public System.Globalization.Calendar? CalendarSystem
+    {
+        get => (System.Globalization.Calendar?)GetValue(CalendarSystemProperty);
+        set => SetValue(CalendarSystemProperty, value);
+    }
+
+    /// <summary>Sets <see cref="CalendarSystem"/>; throws for a calendar the pages cannot be cut by.</summary>
+    public SkUiCalendar SetCalendarSystem(System.Globalization.Calendar? value)
+    {
+        if (!SkUiCalendarSystem.IsSupported(value))
+            throw new ArgumentOutOfRangeException(nameof(value), value?.GetType().Name, "The calendar's pages cannot be cut by this calendar.");
+        CalendarSystem = value;
+        return this;
+    }
+
     /// <summary>The week's first day, its first column; <c>null</c> (default): the current culture's.</summary>
     public DayOfWeek? FirstDayOfWeek { get => (DayOfWeek?)GetValue(FirstDayOfWeekProperty); set => SetValue(FirstDayOfWeekProperty, value); }
 
@@ -245,6 +276,46 @@ public class SkUiCalendar : SkUiView, ISkUiCalendarHost, ISkUiKeyHandler, ISkUiF
 
     /// <summary>Sets <see cref="DayMarkerAreaHeight"/>.</summary>
     public SkUiCalendar SetDayMarkerAreaHeight(double value) { SkUiValidate.ThrowIfNotFinite(value, nameof(value)); DayMarkerAreaHeight = value; return this; }
+
+    /// <summary>Bindable property for <see cref="DayMarkerLayout"/>.</summary>
+    public static readonly BindableProperty DayMarkerLayoutProperty = BindableProperty.Create(nameof(DayMarkerLayout), typeof(SkUiCalendarDayMarkerLayout),
+        typeof(SkUiCalendar), SkUiCalendarDayMarkerLayout.Row, validateValue: (_, value) => Enum.IsDefined((SkUiCalendarDayMarkerLayout)value),
+        propertyChanged: (view, _, value) => ((SkUiCalendar)view).Measured(model => model.DayMarkerLayout = (SkUiCalendarDayMarkerLayout)value));
+
+    /// <summary>
+    /// How a day's markers are laid out (1.15): <see cref="SkUiCalendarDayMarkerLayout.Row"/> (default) in one row under the
+    /// number, or <see cref="SkUiCalendarDayMarkerLayout.Lines"/>, a month view with events: the number at the top of the day
+    /// (the look's <see cref="SkUiLook.CalendarEventNumberHeight"/>) and the markers one per line under it, as many as the row's
+    /// height holds (give the calendar the height of the page). Sized by itself, a row holds three lines, or
+    /// <see cref="DayMarkerAreaHeight"/> when set.
+    /// </summary>
+    public SkUiCalendarDayMarkerLayout DayMarkerLayout
+    {
+        get => (SkUiCalendarDayMarkerLayout)GetValue(DayMarkerLayoutProperty);
+        set => SetValue(DayMarkerLayoutProperty, value);
+    }
+
+    /// <summary>Sets <see cref="DayMarkerLayout"/>.</summary>
+    public SkUiCalendar SetDayMarkerLayout(SkUiCalendarDayMarkerLayout value)
+    {
+        ThrowIfUndefined(value);
+        DayMarkerLayout = value;
+        return this;
+    }
+
+    /// <summary>Bindable property for <see cref="DayMarkerLineHeight"/>.</summary>
+    public static readonly BindableProperty DayMarkerLineHeightProperty = BindableProperty.Create(nameof(DayMarkerLineHeight), typeof(double), typeof(SkUiCalendar), -1d,
+        validateValue: SkUiValidate.Finite,
+        propertyChanged: (view, _, value) => ((SkUiCalendar)view).Measured(model => model.DayMarkerLineHeight = (double)value));
+
+    /// <summary>
+    /// The height of one event line with <see cref="DayMarkerLayout"/> <see cref="SkUiCalendarDayMarkerLayout.Lines"/> (1.15);
+    /// negative (default -1): the look's (<see cref="SkUiLook.CalendarMarkerLineHeight"/>, 16).
+    /// </summary>
+    public double DayMarkerLineHeight { get => (double)GetValue(DayMarkerLineHeightProperty); set => SetValue(DayMarkerLineHeightProperty, value); }
+
+    /// <summary>Sets <see cref="DayMarkerLineHeight"/>.</summary>
+    public SkUiCalendar SetDayMarkerLineHeight(double value) { SkUiValidate.ThrowIfNotFinite(value, nameof(value)); DayMarkerLineHeight = value; return this; }
 
     /// <summary>
     /// Draws each day the app's way (events, avatars, prices), after the look's selection and today: the painter gets the
@@ -975,9 +1046,13 @@ public class SkUiCalendar : SkUiView, ISkUiCalendarHost, ISkUiKeyHandler, ISkUiF
     /// <summary>Bindable property for <see cref="TodayStyle"/>.</summary>
     public static readonly BindableProperty TodayStyleProperty = BindableProperty.Create(nameof(TodayStyle), typeof(SkUiCalendarTodayStyle), typeof(SkUiCalendar), SkUiCalendarTodayStyle.Ring,
         validateValue: (_, value) => Enum.IsDefined((SkUiCalendarTodayStyle)value),
-        propertyChanged: (view, _, value) => ((SkUiCalendar)view).Painted(model => model.TodayStyle = (SkUiCalendarTodayStyle)value));
+        propertyChanged: (view, _, _) => ((SkUiCalendar)view).Painted(static _ => { }));
 
-    /// <summary>How today is marked (default a ring).</summary>
+    /// <summary>
+    /// How today is marked. Not set: the look's (<see cref="SkUiLook.CalendarTodayStyle"/>, 1.15): a ring on the default look, the
+    /// number in the accent on iOS and Mac Catalyst, a filled circle on Windows. The getter reads <see cref="SkUiCalendarTodayStyle.Ring"/>
+    /// while it is not set.
+    /// </summary>
     public SkUiCalendarTodayStyle TodayStyle { get => (SkUiCalendarTodayStyle)GetValue(TodayStyleProperty); set => SetValue(TodayStyleProperty, value); }
 
     /// <summary>Sets <see cref="TodayStyle"/>.</summary>
@@ -1033,9 +1108,12 @@ public class SkUiCalendar : SkUiView, ISkUiCalendarHost, ISkUiKeyHandler, ISkUiF
     /// <summary>Bindable property for <see cref="SelectionShape"/>.</summary>
     public static readonly BindableProperty SelectionShapeProperty = BindableProperty.Create(nameof(SelectionShape), typeof(SkUiCalendarSelectionShape), typeof(SkUiCalendar), SkUiCalendarSelectionShape.Circle,
         validateValue: (_, value) => Enum.IsDefined((SkUiCalendarSelectionShape)value),
-        propertyChanged: (view, _, value) => ((SkUiCalendar)view).Painted(model => model.SelectionShape = (SkUiCalendarSelectionShape)value));
+        propertyChanged: (view, _, _) => ((SkUiCalendar)view).Painted(static _ => { }));
 
-    /// <summary>The shape behind a selected day (default a circle).</summary>
+    /// <summary>
+    /// The shape behind a selected day. Not set: the look's (<see cref="SkUiLook.CalendarSelectionShape"/>, 1.15): a circle, a
+    /// rounded square on Mac Catalyst. The getter reads <see cref="SkUiCalendarSelectionShape.Circle"/> while it is not set.
+    /// </summary>
     public SkUiCalendarSelectionShape SelectionShape { get => (SkUiCalendarSelectionShape)GetValue(SelectionShapeProperty); set => SetValue(SelectionShapeProperty, value); }
 
     /// <summary>Sets <see cref="SelectionShape"/>.</summary>
@@ -1050,7 +1128,7 @@ public class SkUiCalendar : SkUiView, ISkUiCalendarHost, ISkUiKeyHandler, ISkUiF
     public static readonly BindableProperty SelectionColorProperty = BindableProperty.Create(nameof(SelectionColor), typeof(Color), typeof(SkUiCalendar), null,
         propertyChanged: (view, _, value) => ((SkUiCalendar)view).Painted(model => model.SelectionColor = (Color?)value));
 
-    /// <summary>The selected days' fill (and a range's ends); <c>null</c>: the color scheme's accent.</summary>
+    /// <summary>The selected days' fill (and a range's ends); <c>null</c>: the look's from the color scheme's accent (<see cref="SkUiLook.CalendarSelectionColor"/>: the accent itself, a light tint of it on iOS).</summary>
     public Color? SelectionColor { get => (Color?)GetValue(SelectionColorProperty); set => SetValue(SelectionColorProperty, value); }
 
     /// <summary>Sets <see cref="SelectionColor"/>.</summary>
@@ -1064,7 +1142,7 @@ public class SkUiCalendar : SkUiView, ISkUiCalendarHost, ISkUiKeyHandler, ISkUiF
     public static readonly BindableProperty SelectedTextColorProperty = BindableProperty.Create(nameof(SelectedTextColor), typeof(Color), typeof(SkUiCalendar), null,
         propertyChanged: (view, _, value) => ((SkUiCalendar)view).Painted(model => model.SelectedTextColor = (Color?)value));
 
-    /// <summary>The selected days' number color; <c>null</c>: white or near black, whichever reads on <see cref="SelectionColor"/>.</summary>
+    /// <summary>The selected days' number color; <c>null</c>: the look's (<see cref="SkUiLook.CalendarSelectedTextColor"/>: white or near black, whichever reads on the selection; the accent on iOS's light tint).</summary>
     public Color? SelectedTextColor { get => (Color?)GetValue(SelectedTextColorProperty); set => SetValue(SelectedTextColorProperty, value); }
 
     /// <summary>Sets <see cref="SelectedTextColor"/>.</summary>
@@ -1415,6 +1493,11 @@ public class SkUiCalendar : SkUiView, ISkUiCalendarHost, ISkUiKeyHandler, ISkUiF
     #region Engine host, drawing and input
 
     bool ISkUiCalendarHost.CalendarRightToLeft => IsRightToLeft;
+
+    // Read as drawn: not set (also after ClearValue, which raises no change when the value stays the same), the look's.
+    SkUiCalendarTodayStyle? ISkUiCalendarHost.CalendarTodayStyle => IsSet(TodayStyleProperty) ? TodayStyle : null;
+
+    SkUiCalendarSelectionShape? ISkUiCalendarHost.CalendarSelectionShape => IsSet(SelectionShapeProperty) ? SelectionShape : null;
 
     bool ISkUiCalendarHost.CalendarEnabled => IsEnabled;
 

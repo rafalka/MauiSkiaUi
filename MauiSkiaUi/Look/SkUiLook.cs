@@ -1077,6 +1077,39 @@ public class SkUiLook
     /// <summary>The font size of calendar marker captions (default 10); icon glyphs fill the marker area's height.</summary>
     public virtual double CalendarMarkerFontSize => 10;
 
+    /// <summary>The height of one event line of a calendar with <c>DayMarkerLayout</c> <c>Lines</c> that sets no <c>DayMarkerLineHeight</c>, in DIPs (default 16, 1.15).</summary>
+    public virtual double CalendarMarkerLineHeight => 16;
+
+    /// <summary>The height of the number at the top of a day of a calendar with <c>DayMarkerLayout</c> <c>Lines</c>, in DIPs (default 28, 1.15).</summary>
+    public virtual double CalendarEventNumberHeight => 28;
+
+    /// <summary>
+    /// How calendars mark today when the app sets no <c>TodayStyle</c> (1.15; default <see cref="SkUiCalendarTodayStyle.Ring"/>):
+    /// platform looks mark it as their platform does (iOS and Mac Catalyst: the number in the accent; Windows: a filled circle).
+    /// </summary>
+    public virtual SkUiCalendarTodayStyle CalendarTodayStyle => SkUiCalendarTodayStyle.Ring;
+
+    /// <summary>The shape of calendars' selected days when the app sets no <c>SelectionShape</c> (1.15; default <see cref="SkUiCalendarSelectionShape.Circle"/>).</summary>
+    public virtual SkUiCalendarSelectionShape CalendarSelectionShape => SkUiCalendarSelectionShape.Circle;
+
+    /// <summary>
+    /// The color a calendar's selected day is drawn in when the app sets no <c>SelectionColor</c> (1.15), from the accent (default:
+    /// the accent itself; iOS: a light tint of it). A Skia color, so drawing allocates nothing.
+    /// </summary>
+    public virtual SKColor CalendarSelectionColor(SKColor accent) => accent;
+
+    /// <summary>
+    /// The color of a selected day's number when the app sets no <c>SelectedTextColor</c> (1.15). <paramref name="selection"/> is the
+    /// selection as drawn, <paramref name="baseColor"/> the color it was made from (the app's <c>SelectionColor</c>, else the accent),
+    /// <paramref name="text"/> the days' text color. Default: white or near black, whichever reads on the selection
+    /// (<see cref="CalendarContrast"/>).
+    /// </summary>
+    public virtual SKColor CalendarSelectedTextColor(SKColor selection, SKColor baseColor, SKColor text) => CalendarContrast(selection);
+
+    /// <summary>White or near black (#1C1C1E), whichever reads on <paramref name="fill"/>.</summary>
+    protected static SKColor CalendarContrast(SKColor fill) =>
+        0.299 * fill.Red + 0.587 * fill.Green + 0.114 * fill.Blue > 0.62 * 255 ? new SKColor(0x1C, 0x1C, 0x1E) : SKColors.White;
+
     /// <summary>Optional calendar cell painter; when set, replaces <see cref="DrawCalendarCellCore"/>.</summary>
     public Action<SKCanvas, SkUiCalendarCellPaint>? CalendarCellPainter { get; set; }
 
@@ -1181,6 +1214,14 @@ public class SkUiLook
     /// <c>false</c>: the list; <see cref="IosSkUiLook"/>: <c>true</c>, as iOS's picker). A list with several choices stays a list.
     /// </summary>
     public virtual bool PickerPaneShowsWheel => false;
+
+    /// <summary>
+    /// What a date and time picker's popup shows when its <c>PopupStyle</c> is <see cref="SkUiDatePickerPopupStyle.Default"/> (1.15;
+    /// default <see cref="SkUiDatePickerPopupStyle.Wheels"/> on every built-in look; <see cref="SkUiDatePickerPopupStyle.Calendar"/>:
+    /// the calendar over the time wheels). Apart from <see cref="DatePickerPopupStyle"/>, so a look that gives date pickers calendars
+    /// does not change date and time pickers. <see cref="SkUiDatePickerPopupStyle.Default"/> counts as wheels.
+    /// </summary>
+    public virtual SkUiDatePickerPopupStyle DateTimePickerPopupStyle => SkUiDatePickerPopupStyle.Wheels;
 
     /// <summary>
     /// What a date picker's popup shows when its <c>PopupStyle</c> is <see cref="SkUiDatePickerPopupStyle.Default"/> (default

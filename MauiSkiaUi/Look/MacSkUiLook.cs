@@ -1,3 +1,5 @@
+using SkiaSharp;
+
 namespace MauiSkiaUi;
 
 /// <summary>
@@ -43,4 +45,34 @@ public class MacSkUiLook : IosSkUiLook
 
     /// <inheritdoc />
     public override SkUiColorScheme GetColorScheme(bool isDark) => isDark ? MacSkUiColorScheme.Dark : MacSkUiColorScheme.Light;
+
+    // Calendars (1.15): AppKit's graphical date picker. Compact rows, today's number in the accent (as iOS), the selected day a
+    // solid accent rounded square with a white number, small chevrons.
+
+    /// <inheritdoc />
+    public override SkUiCalendarSelectionShape CalendarSelectionShape => SkUiCalendarSelectionShape.RoundedSquare;
+
+    /// <inheritdoc />
+    public override SKColor CalendarSelectionColor(SKColor accent) => accent;
+
+    /// <inheritdoc />
+    public override double CalendarRowHeight => 32;
+
+    /// <inheritdoc />
+    public override double CalendarDayNamesHeight => 24;
+
+    /// <inheritdoc />
+    public override double CalendarHeaderHeight => 36;
+
+    /// <inheritdoc />
+    public override double CalendarNavigationButtonSize => 24;
+
+    /// <inheritdoc />
+    public override double CalendarFontSize => 13;
+
+    /// <inheritdoc />
+    public override double CalendarHeaderFontSize => 13;
+
+    /// <inheritdoc />
+    public override double CalendarDayNameFontSize => 11;
 }
