@@ -81,14 +81,14 @@ internal sealed class SkUiDateTimeModel
     public bool Loop = true;
     public bool ShowsHeaders;
 
-    /// <summary>What a date picker's popup shows (a time or a date and time picker always shows wheels).</summary>
+    /// <summary>What a date or a date and time picker's popup shows (a time picker always shows wheels).</summary>
     public SkUiDatePickerPopupStyle PopupStyle;
 
     /// <summary>The app's style of the popup's calendar, or <c>null</c>.</summary>
     public Style? CalendarStyle;
 
-    /// <summary>Whether the popup is a calendar now: a date picker's <see cref="PopupStyle"/>, or the look's.</summary>
-    internal bool ShowsCalendar => Kind == SkUiDateTimeKind.Date
+    /// <summary>Whether the popup is a calendar now (over the time wheels for a date and time picker): <see cref="PopupStyle"/>, or the look's.</summary>
+    internal bool ShowsCalendar => Kind != SkUiDateTimeKind.Time
         && (PopupStyle == SkUiDatePickerPopupStyle.Default ? SkUiLook.Current.DatePickerPopupStyle : PopupStyle) == SkUiDatePickerPopupStyle.Calendar;
     public int VisibleRows = DefaultVisibleRows;
 
@@ -135,10 +135,18 @@ internal sealed class SkUiDateTimeModel
 
     private ISkUiPickerPopupContent CreateContent(SkUiPickerPopupSetup context)
     {
-        var wheels = SkUiDateTimeWheels.Create(new SkUiDateTimeSettings(Kind, WheelFormat, Minimum, Maximum, Value, Highlighted, HourInterval, MinuteInterval,
-            SecondInterval, BlackoutDates, DateEnabled, Loop, ShowsHeaders), CultureInfo.CurrentCulture, SkUiStrings.Current);
+        var settings = new SkUiDateTimeSettings(Kind, WheelFormat, Minimum, Maximum, Value, Highlighted, HourInterval, MinuteInterval,
+            SecondInterval, BlackoutDates, DateEnabled, Loop, ShowsHeaders);
+        var wheels = SkUiDateTimeWheels.Create(settings, CultureInfo.CurrentCulture, SkUiStrings.Current);
         // Weak: a request kept by a presenter (a popup still shown after its page went) keeps no picker alive.
         var weak = new WeakReference<SkUiDateTimeModel>(this);
+        if (ShowsCalendar && Kind == SkUiDateTimeKind.DateAndTime)
+            return new SkUiDateTimeCalendarPopup(wheels, settings, context, CalendarStyle, () => weak.TryGetTarget(out var model) ? model.Value : null,
+                indices =>
+                {
+                    if (weak.TryGetTarget(out var model))
+                        model._choose(wheels.ValueOf(indices));
+                });
         if (ShowsCalendar)
             return new SkUiCalendarPopup(wheels, context, CalendarStyle, () => weak.TryGetTarget(out var model) ? model.Value : null,
                 indices =>

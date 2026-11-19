@@ -59,7 +59,7 @@ public static class LeakScenarios
         new("DisplayBindingChips", Controls, "Chips an app control builds from view-model items through a long-lived SkUiDisplayBinding over a long-lived binding (as one in app resources), fading on press: texts read from a list, from a sequence and one item alone, chips tapped, the items replaced and read again.", () => new DisplayBindingRun()),
         new("PickerWheelsOpened", Controls, "SkUiPicker with several choices and SkUiMultiColumnPicker, and their Core twins, over long-lived collections (columns' items, a long-lived presenter that keeps the last request): tapped open, rows toggled and wheels set through the request, completed with a selection, a draft accepted (UpdateMode WhenFinished), dismissed, closed by IsOpen = false and by hiding, columns removed while open; inline SkUiPickerWheels over the same items: chosen with a key, set by the app, built again when a column comes and goes; pickers of your own (a value picker and one on SkUiPickerBase) whose popup bodies hold their picker, completed through the request the presenter keeps; closed with a popup open.", () => new PickerWheelsRun()),
         new("DateTimePickersOpened", Controls, "SkUiDatePicker, SkUiTimePicker and SkUiDateTimePicker, and the Core date and time pickers, with long-lived blackout dates and a long-lived day rule, on a long-lived presenter that keeps the last request: tapped open, wheels turned (a month without the chosen day, a time before the minimum), a date and a time set and completed through the typed requests, a draft accepted (UpdateMode WhenFinished), cleared, dismissed, the range changed while open; closed with a popup open.", () => new DateTimePickersRun()),
-        new("CalendarPopupsOpened", Controls, "SkUiDatePicker with a calendar popup, SkUiDateRangePicker and SkUiCoreDateRangePicker, with long-lived blackout dates and a long-lived day rule, on a long-lived presenter that keeps the last request: tapped open, the calendar laid out, a date completed, a range drafted and accepted (UpdateMode WhenFinished), a range completed, dismissed; closed with a popup open.", () => new CalendarPopupsRun()),
+        new("CalendarPopupsOpened", Controls, "SkUiDatePicker with a calendar popup, SkUiDateTimePicker with a calendar over its time wheels, SkUiDateRangePicker and SkUiCoreDateRangePicker, with long-lived blackout dates and a long-lived day rule, on a long-lived presenter that keeps the last request: tapped open, the calendar laid out, a date completed, a range drafted and accepted (UpdateMode WhenFinished), a range completed, dismissed; closed with a popup open.", () => new CalendarPopupsRun()),
         new("CalendarSwiped", Controls, "SkUiCalendar and SkUiCoreCalendar with long-lived blackout dates, a long-lived day rule and a long-lived day style (with an image marker of a long-lived source): a day tapped, swiped to the next month, the title tapped (the year page zooms in), pinched, a range chosen, the next month asked for by code; closed mid-slide.", () => new CalendarRun()),
         new("GesturesMixed", Input, "Tap, double tap, long press, swipe, pan and pinch recognizers (drawn and Core); closed with a finger still down.", () => new GesturesRun()),
         new("AnimationsRunning", Rendering, "Render-thread animations (fade-in from 0, move, rotate, scale), a spinner; closed while they run; a node detached mid-animation.", () => new AnimationsRun()),
@@ -2981,6 +2981,7 @@ public static class LeakScenarios
         private static readonly Func<DateTime, bool> Weekdays = date => date.DayOfWeek is not (DayOfWeek.Saturday or DayOfWeek.Sunday);
 
         private SkUiDatePicker? _date;
+        private SkUiDateTimePicker? _dateTime;
         private SkUiDateRangePicker? _range;
         private SkUiCoreDateRangePicker? _coreRange;
         private int _changes;
@@ -2993,6 +2994,12 @@ public static class LeakScenarios
                 PopupStyle = SkUiDatePickerPopupStyle.Calendar, DateEnabled = Weekdays
             }, "calendar date picker");
             _date.DateSelected += (_, _) => _changes++;
+            _dateTime = context.Track(new SkUiDateTimePicker
+            {
+                Title = "Meeting", Date = new DateTime(2026, 11, 10, 9, 0, 0), BlackoutDates = Holidays, PopupPresenter = LeakPopupPresenter.Shared,
+                PopupStyle = SkUiDatePickerPopupStyle.Calendar, DateEnabled = Weekdays, UpdateMode = SkUiPickerUpdateMode.WhenFinished
+            }, "calendar date and time picker");
+            _dateTime.DateSelected += (_, _) => _changes++;
             _range = context.Track(new SkUiDateRangePicker
             {
                 Title = "Stay", BlackoutDates = Holidays, PopupPresenter = LeakPopupPresenter.Shared, UpdateMode = SkUiPickerUpdateMode.WhenFinished,
@@ -3003,6 +3010,7 @@ public static class LeakScenarios
             _coreRange.SetPopupPresenter(LeakPopupPresenter.Shared);
             var stack = new SkUiVerticalStackLayout { Spacing = 12, Padding = new Thickness(12) };
             stack.Children.Add(_date);
+            stack.Children.Add(_dateTime);
             stack.Children.Add(_range);
             stack.Children.Add(new SkUiCoreHost().SetContent(_coreRange));
             return Root(stack);
@@ -3023,6 +3031,16 @@ public static class LeakScenarios
             _date!.IsOpen = true;
             Track(context);
             LeakPopupPresenter.Shared.Dismiss();
+            await context.SettleAsync();
+            // The date and time: laid out (the calendar over the time wheels), a draft accepted.
+            await context.TapAsync(_dateTime!);
+            Track(context);
+            var dateTime = (SkUiDatePopupRequest)LeakPopupPresenter.Shared.Last!;
+            var popup = (SkUiView)dateTime.Content!;
+            popup.Measure(320, 640);
+            popup.Arrange(new Rect(0, 0, 320, 640));
+            dateTime.SetDate(new DateTime(2026, 11, 13, 14, 30, 0));
+            dateTime.Accept();
             await context.SettleAsync();
             // The range: a draft accepted.
             await context.TapAsync(_range!);
@@ -3053,6 +3071,7 @@ public static class LeakScenarios
 
         public override string? CheckInteraction() =>
             _date?.Date != new DateTime(2026, 11, 12) ? $"the date picker has {_date?.Date}, not the date completed"
+            : _dateTime?.Date != new DateTime(2026, 11, 13, 14, 30, 0) ? $"the date and time picker has {_dateTime?.Date}, not the draft accepted"
             : _range?.Value != new SkUiDateRange(new DateTime(2026, 11, 16), new DateTime(2026, 11, 20)) ? "the range picker's draft was not accepted"
             : _coreRange?.Value != new SkUiDateRange(new DateTime(2026, 11, 2), new DateTime(2026, 11, 4)) ? "the Core range picker's range was not applied"
             : _changes == 0 ? "no change was reported"

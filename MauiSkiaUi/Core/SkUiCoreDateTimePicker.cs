@@ -169,6 +169,28 @@ public class SkUiCoreDateTimePicker : SkUiCoreDateTimePickerBase
         return this;
     }
 
+    /// <inheritdoc cref="SkUiDateTimePicker.PopupStyle" />
+    public SkUiDatePickerPopupStyle PopupStyle { get => Dates.PopupStyle; set => SetPopupStyle(value); }
+
+    /// <inheritdoc cref="SkUiDateTimePicker.CalendarStyle" />
+    public Style? CalendarStyle { get => Dates.CalendarStyle; set => SetCalendarStyle(value); }
+
+    /// <summary>Sets <see cref="PopupStyle"/>.</summary>
+    public SkUiCoreDateTimePicker SetPopupStyle(SkUiDatePickerPopupStyle value)
+    {
+        if (!Enum.IsDefined(value))
+            throw new ArgumentOutOfRangeException(nameof(value));
+        Wheels(SetProperty(ref Dates.PopupStyle, value, nameof(PopupStyle)));
+        return this;
+    }
+
+    /// <summary>Sets <see cref="CalendarStyle"/>.</summary>
+    public SkUiCoreDateTimePicker SetCalendarStyle(Style? value)
+    {
+        Wheels(SetProperty(ref Dates.CalendarStyle, value, nameof(CalendarStyle)));
+        return this;
+    }
+
     /// <inheritdoc />
     private protected override void ChooseValue(DateTime? value) => SetDate(value);
 

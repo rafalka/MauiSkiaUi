@@ -120,7 +120,7 @@ public sealed class CalendarImageMarkerTests : IDisposable
         Assert.Throws<ArgumentNullException>(() => SkUiCalendarMarker.Image(null!));
         Assert.Throws<ArgumentOutOfRangeException>(() => SkUiCalendarMarker.Image(SkUiImageSource.FromFile("a.png"), -1));
         Assert.Throws<ArgumentOutOfRangeException>(() => SkUiCalendarMarker.Image(SkUiImageSource.FromFile("a.png"), double.NaN));
-        var marker = SkUiCalendarMarker.Image("a.png", 16);
+        var marker = SkUiCalendarMarker.Image(SkUiImageSource.FromFile("a.png"), 16);
         Assert.Equal(SkUiCalendarMarkerKind.Image, marker.Kind);
         Assert.Equal(16, marker.Size);
     }
