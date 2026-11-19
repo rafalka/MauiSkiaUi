@@ -2,7 +2,7 @@
 
 **Goal:** close what 1.13 left open on `SkUiCalendar` / `SkUiCoreCalendar` and the pickers built on it, so the calendar's page has no "later" left that an app is likely to hit: the device checks 1.13 shipped without, a measured page slide (and the render-thread slide if the measurement asks for it), a date-and-time popup, platform looks' calendars, image markers, a month view with event lines and calendars other than the Gregorian one.
 
-**Status:** proposed 19 November 2026; [D1](#decisions) agreed the same day. Built on `1.15-implementation` (19 November 2026): A2, A3, A4, B2, B3, B4, B5 and wave C (taken into the release on 19 November 2026: D8's cut line does not apply). Open: A1 (devices), B1 (waits for A1). The review's controls planned for 1.15 (F1 segmented control and tab view, F5 chips, F6 range slider and rating) moved to 1.16 ([D10 of the review plan](ImplementationPlan-PerformanceAndControls.md#decisions) and the roadmap are updated).
+**Status:** proposed 19 November 2026; [D1](#decisions) agreed the same day. Built on `1.15-implementation` (19 November 2026): A2, A3, A4, B2, B3, B4, B5 and wave C (taken into the release on 19 November 2026: D8's cut line does not apply). A1's frame times measured on both phones (19 November 2026), which made B1 unnecessary; A1's checks by hand stay on the verification backlog. The review's controls planned for 1.15 (F1 segmented control and tab view, F5 chips, F6 range slider and rating) moved to 1.16 ([D10 of the review plan](ImplementationPlan-PerformanceAndControls.md#decisions) and the roadmap are updated).
 
 **Baseline:** 1.14.0 (net10 with MAUI 10.0.130 and net11 with MAUI 11.0.10, SDK 11.0.100, SkiaSharp 4.154.0).
 
@@ -42,6 +42,8 @@ Checked against `devel` at 1.14.0 (19 November 2026).
 Independent steps; A1 needs the devices, the rest run headless.
 
 ### A1 Device checks of 1.13
+
+**Status: frame times done; the checks by hand are on the [verification backlog](Roadmap.md#verification-backlog).** By an agent with both phones connected (19 November 2026), the bench scenario `calendar-slide` (a 420-tall month with markers on every day and week numbers, the next month every 400 ms, animated) against v1.14.0. The first S9 run found the slide at 36 fps with the UI thread at 11 / 31 ms per frame (average / worst): the calendar's draw allocated about 90 KB per frame, almost all in the markers. A caption that shrinks to fit (the S9's font made "Off" overflow its cell) was fitted again in every cell, because cells of a grid differ in width by float rounding and the fit cache compares widths exactly; text slots are now snapped to 1/16 DIP (`AShrunkCaptionIsFittedOnceNotPerCell`). After the fix the S9 draws every frame of a slide inside the 60 Hz budget (UI 5.0 / 10.2 ms, render 4.2 / 7.4 ms, 44 fps, the most the scenario can show: a slide fills 280 ms of each 400), allocating 0.64 MB over the motion instead of 26 MB at 1.14. Numbers for both phones: [Performance.md](../Performance.md#calendar-on-devices). Items 2 to 5 (the feel, TalkBack and VoiceOver, keyboards, the popups on each presenter) need hands on the phones.
 
 Size: M (a device session). On the Galaxy S9 (Android 10) and the iPhone 8 (iOS 16.7), the net11 build, with the demo's calendar, date picker and range picker gallery pages and the samples' "Team calendar":
 
@@ -90,6 +92,8 @@ Size: S. A reflection test in `CalendarTests`: every public bindable property of
 B1 waits for A1; B2 to B5 are independent of each other and of A, and can be built in parallel, one branch each (they touch different files except `SkUiCalendarTypes.cs`, where each adds its own types: merge in any order).
 
 ### B1 Render-thread page slides (conditional)
+
+**Status: not needed** ([D2](#decisions)): after A1's fix no frame of a slide on the Galaxy S9 is over 16.7 ms (UI 10.2 ms at worst, render 7.4 ms), so the slide stays on the UI thread, as 1.13 D2 decided. The risks weighed for it (pages as internal render children, taps against render-thread offsets, the semantics tree after a slide) are not taken on.
 
 Size: L. Only if [D2](#decisions)'s threshold is crossed.
 

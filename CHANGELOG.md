@@ -33,7 +33,7 @@ Publishing (the NuGet publish workflow, [docs/Releasing.md](docs/Releasing.md)) 
 
 ### Other
 
-- **Calendar swipes allocate nothing (1.15, NFR-2):** a frame of a calendar's swipe or page slide allocated 0.8 KB, and up to 127 KB with markers (captions laid out again each frame); its drawing now allocates nothing on both layers, with day styles, markers, event lines and a day painter (`CalendarAllocationTests`). Bench scenarios `skui-calendars`, `core-calendars` and the device scenario `calendar-slide`.
+- **Calendar swipes allocate nothing (1.15, NFR-2):** a frame of a calendar's swipe or page slide allocated 0.8 KB, and up to 127 KB with markers (captions laid out again each frame, and a caption that shrinks to fit fitted again in every cell); its drawing now allocates nothing on both layers. On the Galaxy S9 a slide with markers on every day now keeps every frame inside 60 Hz (UI thread 5 ms on average, 21 ms at 1.14; [Performance.md](docs/Performance.md#calendar-on-devices)), with day styles, markers, event lines and a day painter (`CalendarAllocationTests`). Bench scenarios `skui-calendars`, `core-calendars` and the device scenario `calendar-slide`.
 
 ## 1.14.0
 

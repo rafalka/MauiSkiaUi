@@ -238,6 +238,10 @@ Not kept ([D9](ImplementationPlan-PerformanceAndControls.md#decisions): allocati
 
 [ImplementationPlan-1.15.md](ImplementationPlan-1.15.md) A2: `scripts/bench.sh --baseline v1.14.0 -n 10 -S skui-calendars,core-calendars` (headless, a year of month calendars with a day style marking every day; update = each to its next month). Every phase within noise of 1.14.0; first-frame allocations 3 to 4 % lower (443 KB SkUi, 341 KB Core). Twelve calendars record in about 0.5 ms and re-record in 0.7 ms, so a calendar's first frame is cheap; what mattered was the swipe frame, which allocated 0.8 to 127 KB per frame and now allocates nothing in the calendar's drawing (`CalendarAllocationTests`; 104 bytes per frame through the pipeline, the re-recorded picture). The device scenario `calendar-slide` (a page slide every 400 ms with markers on every day) is for step A1.
 
+### 1.15 calendar slide on devices (19 November 2026)
+
+[ImplementationPlan-1.15.md](ImplementationPlan-1.15.md) A1: `calendar-slide` and `carousel-swipe` against v1.14.0, `-n 6`, the S9 on net10, the iPhone 8 on net11 (`mlaunch`). The first S9 run, before the slot fix, showed the slide at 36 fps (UI thread 11.2 / 31.1 ms) and a probe in the bench's copy of the library put 88 KB of each draw's 89 KB in the markers; the fixed runs and their table are in [Performance.md](../Performance.md#calendar-on-devices). A run with the S9's lock screen up measures nothing (every frame wait times out): unlock it, and keep it awake through the builds.
+
 ## Guidance for agents and reviewers
 
 - Before and after any change that touches layout, text, recording, compositing, surfaces or animations:
