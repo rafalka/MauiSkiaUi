@@ -2,7 +2,7 @@
 
 **Goal:** close what 1.13 left open on `SkUiCalendar` / `SkUiCoreCalendar` and the pickers built on it, so the calendar's page has no "later" left that an app is likely to hit: the device checks 1.13 shipped without, a measured page slide (and the render-thread slide if the measurement asks for it), a date-and-time popup, platform looks' calendars, image markers, a month view with event lines and calendars other than the Gregorian one.
 
-**Status:** proposed 19 November 2026; [D1](#decisions) agreed the same day. Built on `1.15-implementation` (19 November 2026): A2, A3, A4, B2, B4 and B5. Open: A1 (devices), B1 (waits for A1), B3 (a decision on look defaults, [below](#b3-platform-looks-calendars)), wave C. The review's controls planned for 1.15 (F1 segmented control and tab view, F5 chips, F6 range slider and rating) moved to 1.16 ([D10 of the review plan](ImplementationPlan-PerformanceAndControls.md#decisions) and the roadmap are updated).
+**Status:** proposed 19 November 2026; [D1](#decisions) agreed the same day. Built on `1.15-implementation` (19 November 2026): A2, A3, A4, B2, B3, B4 and B5. Open: A1 (devices), B1 (waits for A1), wave C. The review's controls planned for 1.15 (F1 segmented control and tab view, F5 chips, F6 range slider and rating) moved to 1.16 ([D10 of the review plan](ImplementationPlan-PerformanceAndControls.md#decisions) and the roadmap are updated).
 
 **Baseline:** 1.14.0 (net10 with MAUI 10.0.130 and net11 with MAUI 11.0.10, SDK 11.0.100, SkiaSharp 4.154.0).
 
@@ -113,7 +113,7 @@ Size: M. [D3](#decisions).
 
 ### B3 Platform looks' calendars
 
-**Status: open, needs a decision.** The look draws only a cell's chrome; what marks today (`TodayStyle`, default `Ring`) and the selected number's color (`SelectedTextColor ?? contrast`) are the calendar's defaults. UIKit's calendar marks today with a colored number and no ring, and its selection is a light circle with an accent number; Material 3 and WinUI differ less (sizes, ring thickness, WinUI's ring for the selection). A look that cannot set those two defaults can draw Material's and WinUI's calendars but not UIKit's. Options: (a) look members the calendar reads when the app sets nothing (`CalendarTodayStyle`, a selected text color from the selection color), with the calendar's properties keeping their values as overrides, which needs the bindables' defaults to mean "the look's"; (b) chrome and sizes only, UIKit's calendar left with the default marks; (c) the look returns a whole `SkUiCalendar` style it applies as an implicit default.
+**Status: done** with option (a), chosen 19 November 2026: the look's `CalendarTodayStyle`, `CalendarSelectionShape`, `CalendarSelectionColor(accent)` and `CalendarSelectedTextColor(selection, baseColor, text)` (Skia colors: drawing allocates nothing) answer what the app leaves unset; on the SkUi layer "unset" is `IsSet` false (read as drawn, so `ClearValue` of an unchanged value counts), on Core never set; the getters keep reading the 1.13 defaults. Material 3, iOS, Mac and Windows set them and their sizes; Windows draws the selection as a ring. Tests: `CalendarLookDefaultsTests`. The comparison page's row was left out: MAUI has no calendar to put beside it; the looks were checked on a rendered sheet of all five.
 
 
 Size: M. [D4](#decisions). For each look: the cell chrome (selection, today, range band, focus, press), the navigation buttons, and the sizes, from the platform's own control:

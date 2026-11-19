@@ -23,6 +23,9 @@ Publishing (the NuGet publish workflow, [docs/Releasing.md](docs/Releasing.md)) 
 - **Calendar month view with event lines (1.15):** `DayMarkerLayout` (`Row`, default; `Lines`) and `DayMarkerLineHeight` on both calendars.
   - With `Lines` the number sits at the top of a day and its markers one per line under it: captions as event chips of their color, bars as thin lines, dots, glyphs and images on one more line; a "+N" line for what does not fit (`SkUiStrings.MoreEventsFormat`).
   - The look's `CalendarMarkerLineHeight` (16) and `CalendarEventNumberHeight` (28).
+- **Platform looks' calendars (1.15):** what a calendar leaves unset (`TodayStyle`, `SelectionShape`, `SelectionColor`, `SelectedTextColor`) now comes from the look: `SkUiLook.CalendarTodayStyle`, `CalendarSelectionShape`, `CalendarSelectionColor(accent)`, `CalendarSelectedTextColor(...)` (Skia colors), and `DefaultSkUiLook.CalendarTodayRingWidth` ([SkUiCalendar.md](docs/controls/SkUiCalendar.md#look)).
+  - Material 3: its date picker's grid sizes and a 1 dp today ring. iOS: today as the accent number, the selection a light accent tint with an accent number. Mac Catalyst: compact rows and a rounded-square selection. Windows: today filled, the selection a ring.
+  - The default look draws as before; values the app set win. Under a platform look, a calendar that set none of these is drawn as its platform's.
 - **Calendar days read their events (1.15):** screen readers read a day's marker captions after its state ("Selected, Standup, Lunch"), in both marker layouts.
 
 ### Other

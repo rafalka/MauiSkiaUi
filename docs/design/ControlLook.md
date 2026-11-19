@@ -71,6 +71,11 @@ public class SkUiLook
     // squares, a band with rounded ends, a ring or a fill for today; chevrons, on a circle when the button has a background.
     public void DrawCalendarCell(SKCanvas canvas, SkUiCalendarCellPaint cell) { … }                     // → CalendarCellPainter ?? DrawCalendarCellCore
     public void DrawCalendarNavigationButton(SKCanvas canvas, SkUiCalendarNavigationButtonPaint button) { … } // → CalendarNavigationButtonPainter ?? …Core
+    // What a calendar leaves unset (1.15): platform looks mark today and the selection as their platform does.
+    public virtual SkUiCalendarTodayStyle CalendarTodayStyle => SkUiCalendarTodayStyle.Ring;          // iOS / Mac: Text; Windows: Filled
+    public virtual SkUiCalendarSelectionShape CalendarSelectionShape => SkUiCalendarSelectionShape.Circle; // Mac: RoundedSquare
+    public virtual SKColor CalendarSelectionColor(SKColor accent) => accent;                           // iOS: a light tint
+    public virtual SKColor CalendarSelectedTextColor(SKColor selection, SKColor baseColor, SKColor text) => CalendarContrast(selection);
     public virtual double CalendarRowHeight => 44;         // and CalendarHeaderHeight, CalendarDayNamesHeight, CalendarMarkerAreaHeight, font sizes,
                                                            // CalendarMarkerLineHeight (16) and CalendarEventNumberHeight (28) for event lines (1.15)
     public virtual SkUiDatePickerPopupStyle DatePickerPopupStyle => SkUiDatePickerPopupStyle.Wheels; // a date picker's PopupStyle = Default (1.13)
