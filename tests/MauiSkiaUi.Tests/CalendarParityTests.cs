@@ -11,8 +11,13 @@ namespace MauiSkiaUi.Tests;
 /// </summary>
 public class CalendarParityTests
 {
-    /// <summary>Members one layer has on purpose and the other does not (empty today).</summary>
-    private static readonly HashSet<string> IntendedDifferences = [];
+    /// <summary>Members one layer has on purpose and the other does not.</summary>
+    private static readonly HashSet<string> IntendedDifferences =
+    [
+        // The SkUi layer gives a property back to the look with ClearValue; Core has no bindable store.
+        "SkUiCoreCalendar.ClearTodayStyle()",
+        "SkUiCoreCalendar.ClearSelectionShape()",
+    ];
 
     public static TheoryData<Type, Type> Pairs => new()
     {

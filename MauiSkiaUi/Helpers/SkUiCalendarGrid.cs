@@ -80,7 +80,8 @@ internal static class SkUiCalendarGrid
     /// </summary>
     public static DateTime? AddYears(DateTime date, long years, SkUiCalendarSystem? system = null) => system is null
         ? AddMonths(date, 12 * years)
-        : system.Date(system.Year(date) + years, system.Month(date), system.Day(date)) is { } moved && moved >= system.Minimum && moved <= system.Maximum
+        : system.Date(system.Year(date) + years, system.SameMonth(system.Month(date), system.Year(date), (int)Math.Clamp(system.Year(date) + years, int.MinValue, int.MaxValue)),
+            system.Day(date)) is { } moved && moved >= system.Minimum && moved <= system.Maximum
             ? moved : null;
 
     /// <summary>The last day of the week holding <paramref name="date"/>'s first day of week, clamped to <see cref="DateTime"/>'s range.</summary>
@@ -125,7 +126,9 @@ internal static class SkUiCalendarGrid
                 SkUiCalendarDisplayMode.Decade => SystemStepYears(system, start, 10, pages),
                 _ => SystemStepYears(system, start, 100, pages)
             };
-            return step is { } date && date >= system.Minimum && date <= system.Maximum ? date : null;
+            // A week page may start before the calendar's first day (its first week): it is a page while it reaches that day.
+            var reaches = mode == SkUiCalendarDisplayMode.Month && weeks < MaxWeeks && step is { } week && AddDays(week, 7L * weeks - 1) >= system.Minimum;
+            return step is { } date && (date >= system.Minimum || reaches) && date <= system.Maximum ? date : null;
         }
         return mode switch
         {
@@ -363,6 +366,8 @@ internal static class SkUiCalendarGrid
         {
             case SkUiCalendarDisplayMode.Month:
                 var shown = weeks >= MaxWeeks ? start : AddDays(start, 7L * weeks / 2) ?? start;
+                if (system is not null)
+                    shown = system.Clamp(shown); // a first week may start before the calendar's first day, which it cannot write
                 return shown.ToString(string.IsNullOrEmpty(format) ? YearMonthPattern(culture, system) : format, culture);
             case SkUiCalendarDisplayMode.Year:
                 return start.Year.ToString(culture);

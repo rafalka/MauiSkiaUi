@@ -16,7 +16,7 @@ Publishing (the NuGet publish workflow, [docs/Releasing.md](docs/Releasing.md)) 
 ### New features
 
 - **Date and time picker with a calendar (1.15):** `PopupStyle` and `CalendarStyle` on `SkUiDateTimePicker` and `SkUiCoreDateTimePicker`, as on the date pickers ([SkUiDateTimePicker.md](docs/controls/SkUiDateTimePicker.md#a-calendar-over-the-time-wheels)).
-  - `Calendar`: a month calendar over the picker's time wheels (hour, minutes, seconds, AM / PM); `Default` is the look's (wheels on the built-in looks).
+  - `Calendar`: a month calendar over the picker's time wheels (hour, minutes, seconds, AM / PM); `Default` is the look's new `DateTimePickerPopupStyle` (wheels on the built-in looks; a look that gives date pickers calendars does not change date and time pickers).
   - Follows `UpdateMode` as the wheels do: each change applies at once and the popup stays open, or the changes are a draft OK accepts; a tap on a day does not close it.
   - The range's first and last days offer only the range's times; Tab moves between the calendar and the wheels. The request stays `SkUiDatePopupRequest` (`IncludesTime`).
 - **Calendar image markers (1.15):** `SkUiCalendarMarker.Image(source, size)` and `SkUiCalendarMarkerKind.Image`: avatars or event icons under a day from any image source, through the shared loader and cache, each source loaded once per calendar ([SkUiCalendar.md](docs/controls/SkUiCalendar.md#how-it-works)).

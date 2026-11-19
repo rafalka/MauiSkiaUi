@@ -531,7 +531,10 @@ public class SkUiCoreCalendar : SkUiCoreNode, ISkUiCalendarHost, ISkUiKeyHandler
         return SetMeasured(ref _model.DayRowHeight, value, nameof(DayRowHeight));
     }
 
-    /// <summary>How today is marked (default a ring).</summary>
+    /// <summary>
+    /// How today is marked. Not set: the look's (<see cref="SkUiLook.CalendarTodayStyle"/>, 1.15); the getter reads
+    /// <see cref="SkUiCalendarTodayStyle.Ring"/> while it is not set; <see cref="ClearTodayStyle"/> gives it back to the look.
+    /// </summary>
     public SkUiCalendarTodayStyle TodayStyle { get => _todayStyle ?? SkUiCalendarTodayStyle.Ring; set => SetTodayStyle(value); }
 
     private SkUiCalendarTodayStyle? _todayStyle;
@@ -562,8 +565,17 @@ public class SkUiCoreCalendar : SkUiCoreNode, ISkUiCalendarHost, ISkUiKeyHandler
     /// <summary>Sets <see cref="TodayFontAttributes"/>.</summary>
     public SkUiCoreCalendar SetTodayFontAttributes(FontAttributes value) => SetPainted(ref _model.TodayFontAttributes, value, nameof(TodayFontAttributes));
 
-    /// <summary>The shape behind a selected day (default a circle).</summary>
+    /// <summary>
+    /// The shape behind a selected day. Not set: the look's (<see cref="SkUiLook.CalendarSelectionShape"/>, 1.15); the getter reads
+    /// <see cref="SkUiCalendarSelectionShape.Circle"/> while it is not set; <see cref="ClearSelectionShape"/> gives it back to the look.
+    /// </summary>
     public SkUiCalendarSelectionShape SelectionShape { get => _selectionShape ?? SkUiCalendarSelectionShape.Circle; set => SetSelectionShape(value); }
+
+    /// <summary>Gives <see cref="TodayStyle"/> back to the look (as <c>ClearValue</c> on <see cref="SkUiCalendar"/>; 1.15).</summary>
+    public SkUiCoreCalendar ClearTodayStyle() => SetPainted(ref _todayStyle, null, nameof(TodayStyle));
+
+    /// <summary>Gives <see cref="SelectionShape"/> back to the look (as <c>ClearValue</c> on <see cref="SkUiCalendar"/>; 1.15).</summary>
+    public SkUiCoreCalendar ClearSelectionShape() => SetPainted(ref _selectionShape, null, nameof(SelectionShape));
 
     /// <summary>Sets <see cref="SelectionShape"/>.</summary>
     public SkUiCoreCalendar SetSelectionShape(SkUiCalendarSelectionShape value)
@@ -572,13 +584,13 @@ public class SkUiCoreCalendar : SkUiCoreNode, ISkUiCalendarHost, ISkUiKeyHandler
         return SetPainted(ref _selectionShape, (SkUiCalendarSelectionShape?)value, nameof(SelectionShape));
     }
 
-    /// <summary>The selected days' fill (and a range's ends); <c>null</c>: the color scheme's accent.</summary>
+    /// <summary>The selected days' fill (and a range's ends); <c>null</c>: the look's from the color scheme's accent (<see cref="SkUiLook.CalendarSelectionColor"/>).</summary>
     public Color? SelectionColor { get => _model.SelectionColor; set => SetSelectionColor(value); }
 
     /// <summary>Sets <see cref="SelectionColor"/>.</summary>
     public SkUiCoreCalendar SetSelectionColor(Color? value) => SetPainted(ref _model.SelectionColor, value, nameof(SelectionColor));
 
-    /// <summary>The selected days' number color; <c>null</c>: white or near black, whichever reads on <see cref="SelectionColor"/>.</summary>
+    /// <summary>The selected days' number color; <c>null</c>: the look's (<see cref="SkUiLook.CalendarSelectedTextColor"/>).</summary>
     public Color? SelectedTextColor { get => _model.SelectedTextColor; set => SetSelectedTextColor(value); }
 
     /// <summary>Sets <see cref="SelectedTextColor"/>.</summary>

@@ -35,7 +35,7 @@ var core = new SkUiCoreDateTimePicker().SetMinuteInterval(15).SetWheelFormat("dd
 `PopupStyle = Calendar` (1.15) opens a month calendar ([SkUiCalendar](SkUiCalendar.md)) with the picker's time columns as wheels under it (the hour, minutes, seconds and AM / PM its wheel format shows), instead of all the wheels. As with the wheels, each change (a day, a wheel) applies at once and the popup stays open, or, with `UpdateMode="WhenFinished"`, the changes are a draft OK accepts; a tap on a day never closes it, since the time is still to choose.
 
 - The calendar keeps the picker's days (the range, `BlackoutDates`, `DateEnabled`), and the time wheels the range's times on its first and last days: with `MinimumDate` at 9:30 on the 12th, choosing the 12th moves an earlier time to 9:30 and dims the earlier hours.
-- `PopupStyle` is `Default` (the look's `DatePickerPopupStyle`: wheels on every built-in look), `Wheels` or `Calendar`; `CalendarStyle` styles the calendar, as on [SkUiDatePicker](SkUiDatePicker.md#a-calendar-instead-of-wheels).
+- `PopupStyle` is `Default` (the look's `DateTimePickerPopupStyle`, apart from the date pickers' `DatePickerPopupStyle`: wheels on every built-in look), `Wheels` or `Calendar`; `CalendarStyle` styles the calendar, as on [SkUiDatePicker](SkUiDatePicker.md#a-calendar-instead-of-wheels).
 - Keys: the calendar's (arrows, Page Up / Down, Home / End); Tab moves between the calendar and the wheels (arrows then turn the wheels); Enter or Space accept (or close); Escape cancels.
 - The request is `SkUiDatePopupRequest` with `IncludesTime`, as with the wheels, so a presenter with its own date and time UI keeps working.
 

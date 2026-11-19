@@ -88,8 +88,13 @@ internal sealed class SkUiDateTimeModel
     public Style? CalendarStyle;
 
     /// <summary>Whether the popup is a calendar now (over the time wheels for a date and time picker): <see cref="PopupStyle"/>, or the look's.</summary>
-    internal bool ShowsCalendar => Kind != SkUiDateTimeKind.Time
-        && (PopupStyle == SkUiDatePickerPopupStyle.Default ? SkUiLook.Current.DatePickerPopupStyle : PopupStyle) == SkUiDatePickerPopupStyle.Calendar;
+    internal bool ShowsCalendar => Kind switch
+    {
+        SkUiDateTimeKind.Date => (PopupStyle == SkUiDatePickerPopupStyle.Default ? SkUiLook.Current.DatePickerPopupStyle : PopupStyle) == SkUiDatePickerPopupStyle.Calendar,
+        SkUiDateTimeKind.DateAndTime => (PopupStyle == SkUiDatePickerPopupStyle.Default ? SkUiLook.Current.DateTimePickerPopupStyle : PopupStyle)
+            == SkUiDatePickerPopupStyle.Calendar,
+        _ => false
+    };
     public int VisibleRows = DefaultVisibleRows;
 
     /// <summary>The field's format by default: MAUI's short date ("d"), short time ("t"), short date and time ("g").</summary>

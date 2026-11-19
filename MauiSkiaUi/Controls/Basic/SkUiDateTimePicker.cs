@@ -85,7 +85,7 @@ public class SkUiDateTimePicker : SkUiDateTimePickerBase
     /// <summary>
     /// What the popup shows (1.15): <see cref="SkUiDatePickerPopupStyle.Wheels"/>, a month <see cref="SkUiDatePickerPopupStyle.Calendar"/>
     /// over the time wheels, or <see cref="SkUiDatePickerPopupStyle.Default"/> (default): the look's
-    /// (<see cref="SkUiLook.DatePickerPopupStyle"/>, wheels on the built-in looks). As with the wheels, each change applies at once
+    /// (<see cref="SkUiLook.DateTimePickerPopupStyle"/>, wheels on the built-in looks). As with the wheels, each change applies at once
     /// and the popup stays open, or it is a draft OK accepts with <c>UpdateMode</c> <c>WhenFinished</c>; a tap on a day does not
     /// close it. The calendar keeps the wheels' days (the range, <see cref="BlackoutDates"/>, <see cref="DateEnabled"/>) and the
     /// time wheels the range's times on its first and last days; the request is <see cref="SkUiDatePopupRequest"/> either way.

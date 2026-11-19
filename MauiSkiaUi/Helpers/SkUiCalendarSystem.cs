@@ -56,6 +56,13 @@ internal sealed class SkUiCalendarSystem
             HebrewCalendar => "he-IL",
             _ => "en-US"
         };
+        // The Japanese calendar may report a first day before the eras its cultures write start (.NET 10 with ICU: 8 September 1868
+        // against Meiji's 23 October): such days cannot be written with their era, so the pages start where the writing does.
+        if (calendar is JapaneseCalendar && With(CultureInfo.GetCultureInfo(HomeCulture)) is { } japanese)
+        {
+            Minimum = FirstWrittenDay(Minimum, japanese);
+            MinimumYear = Year(Minimum);
+        }
     }
 
     /// <summary>The calendar.</summary>
@@ -111,21 +118,46 @@ internal sealed class SkUiCalendarSystem
     public int DaysInMonth(int year, int month) => HasGregorianMonths ? DateTime.DaysInMonth(year - _yearOffset, month) : Calendar.GetDaysInMonth(year, month);
 
     /// <summary>The first day of <paramref name="date"/>'s month, or <see cref="Minimum"/> in the first, partly supported month.</summary>
-    public DateTime MonthStart(DateTime date) => Clamp(date.AddDays(1 - Day(date)));
+    public DateTime MonthStart(DateTime date)
+    {
+        // A day outside the range has no parts this calendar can give (a week page may start before the first day).
+        var day = Clamp(date);
+        return Clamp(day.AddDays(1 - Day(day)));
+    }
+
+    /// <summary>The first day from <paramref name="from"/> that <paramref name="culture"/> can write with its era (at most a year on).</summary>
+    private static DateTime FirstWrittenDay(DateTime from, CultureInfo culture)
+    {
+        for (var day = from; day < from.AddDays(400); day = day.AddDays(1))
+        {
+            try
+            {
+                _ = day.ToString("gg y M d", culture);
+                return day;
+            }
+            catch (ArgumentOutOfRangeException)
+            {
+            }
+        }
+        return from;
+    }
 
     /// <summary>
-    /// The day of <paramref name="year"/>, <paramref name="month"/> and <paramref name="day"/> (the month's last day when it has fewer),
-    /// kept within <see cref="Minimum"/> and <see cref="Maximum"/>; <c>null</c> for a year outside the calendar's.
+    /// The day of <paramref name="year"/>, <paramref name="month"/> and <paramref name="day"/> (the month's last day when it has fewer);
+    /// in the month that holds <see cref="Minimum"/> or <see cref="Maximum"/>, kept within them; <c>null</c> for a month the calendar
+    /// does not support at all (a year outside its years, a month before its first or after its last).
     /// </summary>
     public DateTime? Date(long year, int month, int day)
     {
         if (year < MinimumYear || year > MaximumYear)
             return null;
         var y = (int)year;
-        // Before the first supported day, or after the last, is that day (the first and last years are only partly supported).
-        if (y == MinimumYear && (month < Month(Minimum) || month == Month(Minimum) && day < Day(Minimum)))
+        // The first and last years are only partly supported: their months outside the range have no days here.
+        if (y == MinimumYear && month < Month(Minimum) || y == MaximumYear && month > Month(Maximum))
+            return null;
+        if (y == MinimumYear && month == Month(Minimum) && day < Day(Minimum))
             return Minimum;
-        if (y == MaximumYear && (month > Month(Maximum) || month == Month(Maximum) && day > Day(Maximum)))
+        if (y == MaximumYear && month == Month(Maximum) && day > Day(Maximum))
             return Maximum;
         month = Math.Clamp(month, 1, MonthsInYear(y));
         day = Math.Clamp(day, 1, DaysInMonth(y, month));
@@ -154,7 +186,22 @@ internal sealed class SkUiCalendarSystem
     }
 
     /// <summary>The first day of <paramref name="year"/> (or <see cref="Minimum"/> in the first year), or <c>null</c> outside the calendar's years.</summary>
-    public DateTime? YearStart(long year) => Date(year, 1, 1);
+    public DateTime? YearStart(long year) => year == MinimumYear ? Minimum : Date(year, 1, 1); // the first year starts where the calendar does
+
+    /// <summary>
+    /// <paramref name="month"/> of <paramref name="fromYear"/> as the same month of <paramref name="toYear"/>: the same number, but
+    /// for the Hebrew calendar between a leap year and a common one (Adar I and II against Adar; the months after them a place apart).
+    /// </summary>
+    public int SameMonth(int month, int fromYear, int toYear)
+    {
+        if (Calendar is not HebrewCalendar || toYear < MinimumYear || toYear > MaximumYear)
+            return month;
+        var (fromLeap, toLeap) = (MonthsInYear(fromYear) == 13, MonthsInYear(toYear) == 13);
+        if (fromLeap == toLeap || month <= 5)
+            return month;
+        // Leap: 6 Adar I, 7 Adar II, 8 Nisan ...; common: 6 Adar, 7 Nisan ... (Adar of a common year is Adar II's, as Purim is).
+        return fromLeap ? (month <= 7 ? 6 : month - 1) : (month == 6 ? 7 : month + 1);
+    }
 
     /// <summary><paramref name="date"/> within the calendar's range.</summary>
     public DateTime Clamp(DateTime date) => date < Minimum ? Minimum : date > Maximum ? Maximum : date;

@@ -1216,6 +1216,14 @@ public class SkUiLook
     public virtual bool PickerPaneShowsWheel => false;
 
     /// <summary>
+    /// What a date and time picker's popup shows when its <c>PopupStyle</c> is <see cref="SkUiDatePickerPopupStyle.Default"/> (1.15;
+    /// default <see cref="SkUiDatePickerPopupStyle.Wheels"/> on every built-in look; <see cref="SkUiDatePickerPopupStyle.Calendar"/>:
+    /// the calendar over the time wheels). Apart from <see cref="DatePickerPopupStyle"/>, so a look that gives date pickers calendars
+    /// does not change date and time pickers. <see cref="SkUiDatePickerPopupStyle.Default"/> counts as wheels.
+    /// </summary>
+    public virtual SkUiDatePickerPopupStyle DateTimePickerPopupStyle => SkUiDatePickerPopupStyle.Wheels;
+
+    /// <summary>
     /// What a date picker's popup shows when its <c>PopupStyle</c> is <see cref="SkUiDatePickerPopupStyle.Default"/> (default
     /// <see cref="SkUiDatePickerPopupStyle.Wheels"/> on every built-in look; a look of the app's can return
     /// <see cref="SkUiDatePickerPopupStyle.Calendar"/>). <see cref="SkUiDatePickerPopupStyle.Default"/> counts as wheels.
