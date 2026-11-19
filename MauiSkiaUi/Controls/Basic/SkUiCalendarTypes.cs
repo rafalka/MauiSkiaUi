@@ -184,6 +184,19 @@ public enum SkUiCalendarRangeTarget
     End
 }
 
+/// <summary>How a calendar lays out a day's markers (<c>DayMarkerLayout</c>, 1.15).</summary>
+public enum SkUiCalendarDayMarkerLayout
+{
+    /// <summary>One centered row under the number (default): dots, bars, glyphs, captions and images side by side.</summary>
+    Row,
+    /// <summary>
+    /// A month view with events: the number at the top of the day and its markers one per line under it, as tall as the row
+    /// allows. A caption is an event line (a chip of its color with its text), a bar a thin line; dots, glyphs and images
+    /// share the last line. What does not fit becomes a "+N" line (<see cref="SkUiStrings.MoreEventsFormat"/>).
+    /// </summary>
+    Lines
+}
+
 /// <summary>What a calendar marker under a day is (<see cref="SkUiCalendarMarker.Kind"/>).</summary>
 public enum SkUiCalendarMarkerKind
 {

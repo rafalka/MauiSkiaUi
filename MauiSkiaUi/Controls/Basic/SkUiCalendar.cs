@@ -246,6 +246,46 @@ public class SkUiCalendar : SkUiView, ISkUiCalendarHost, ISkUiKeyHandler, ISkUiF
     /// <summary>Sets <see cref="DayMarkerAreaHeight"/>.</summary>
     public SkUiCalendar SetDayMarkerAreaHeight(double value) { SkUiValidate.ThrowIfNotFinite(value, nameof(value)); DayMarkerAreaHeight = value; return this; }
 
+    /// <summary>Bindable property for <see cref="DayMarkerLayout"/>.</summary>
+    public static readonly BindableProperty DayMarkerLayoutProperty = BindableProperty.Create(nameof(DayMarkerLayout), typeof(SkUiCalendarDayMarkerLayout),
+        typeof(SkUiCalendar), SkUiCalendarDayMarkerLayout.Row, validateValue: (_, value) => Enum.IsDefined((SkUiCalendarDayMarkerLayout)value),
+        propertyChanged: (view, _, value) => ((SkUiCalendar)view).Measured(model => model.DayMarkerLayout = (SkUiCalendarDayMarkerLayout)value));
+
+    /// <summary>
+    /// How a day's markers are laid out (1.15): <see cref="SkUiCalendarDayMarkerLayout.Row"/> (default) in one row under the
+    /// number, or <see cref="SkUiCalendarDayMarkerLayout.Lines"/>, a month view with events: the number at the top of the day
+    /// (the look's <see cref="SkUiLook.CalendarEventNumberHeight"/>) and the markers one per line under it, as many as the row's
+    /// height holds (give the calendar the height of the page). Sized by itself, a row holds three lines, or
+    /// <see cref="DayMarkerAreaHeight"/> when set.
+    /// </summary>
+    public SkUiCalendarDayMarkerLayout DayMarkerLayout
+    {
+        get => (SkUiCalendarDayMarkerLayout)GetValue(DayMarkerLayoutProperty);
+        set => SetValue(DayMarkerLayoutProperty, value);
+    }
+
+    /// <summary>Sets <see cref="DayMarkerLayout"/>.</summary>
+    public SkUiCalendar SetDayMarkerLayout(SkUiCalendarDayMarkerLayout value)
+    {
+        ThrowIfUndefined(value);
+        DayMarkerLayout = value;
+        return this;
+    }
+
+    /// <summary>Bindable property for <see cref="DayMarkerLineHeight"/>.</summary>
+    public static readonly BindableProperty DayMarkerLineHeightProperty = BindableProperty.Create(nameof(DayMarkerLineHeight), typeof(double), typeof(SkUiCalendar), -1d,
+        validateValue: SkUiValidate.Finite,
+        propertyChanged: (view, _, value) => ((SkUiCalendar)view).Measured(model => model.DayMarkerLineHeight = (double)value));
+
+    /// <summary>
+    /// The height of one event line with <see cref="DayMarkerLayout"/> <see cref="SkUiCalendarDayMarkerLayout.Lines"/> (1.15);
+    /// negative (default -1): the look's (<see cref="SkUiLook.CalendarMarkerLineHeight"/>, 16).
+    /// </summary>
+    public double DayMarkerLineHeight { get => (double)GetValue(DayMarkerLineHeightProperty); set => SetValue(DayMarkerLineHeightProperty, value); }
+
+    /// <summary>Sets <see cref="DayMarkerLineHeight"/>.</summary>
+    public SkUiCalendar SetDayMarkerLineHeight(double value) { SkUiValidate.ThrowIfNotFinite(value, nameof(value)); DayMarkerLineHeight = value; return this; }
+
     /// <summary>
     /// Draws each day the app's way (events, avatars, prices), after the look's selection and today: the painter gets the
     /// day's parts, state and colors and can draw text through the calendar. Returning <c>true</c> skips the calendar's number

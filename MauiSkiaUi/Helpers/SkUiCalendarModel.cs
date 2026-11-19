@@ -199,6 +199,8 @@ internal sealed class SkUiCalendarModel(ISkUiCalendarHost host)
     /// <summary>Whether a range the user ends may run over days that cannot be chosen (they are still not chosen themselves).</summary>
     public bool AllowsDisabledDaysInRange = true;
     public double DayMarkerAreaHeight = -1;
+    public SkUiCalendarDayMarkerLayout DayMarkerLayout = SkUiCalendarDayMarkerLayout.Row;
+    public double DayMarkerLineHeight = -1;
     public SkUiCalendarDayPainter? DayPainter;
 
     private IList<DateTime>? _blackoutDates;
@@ -385,6 +387,9 @@ internal sealed class SkUiCalendarModel(ISkUiCalendarHost host)
 
     /// <summary>Text layouts kept (tests).</summary>
     internal int CachedTextCount => _texts.Count;
+
+    /// <summary>The texts laid out and kept (tests).</summary>
+    internal IEnumerable<string> CachedTexts => _texts.Texts;
 
     #endregion
 
@@ -985,7 +990,9 @@ internal sealed class SkUiCalendarModel(ISkUiCalendarHost host)
     #region Layout
 
     /// <summary>Where the parts of a calendar of a size go (left-to-right; <see cref="CellRect"/> and the header mirror).</summary>
-    private readonly record struct Frame(float Width, float Height, float HeaderHeight, float DayNamesHeight, float WeekColumn, float MarkerArea, bool RightToLeft)
+    // EventNumber: with DayMarkerLayout Lines, the number's height at the top of a day (the markers take the rest), else 0.
+    private readonly record struct Frame(float Width, float Height, float HeaderHeight, float DayNamesHeight, float WeekColumn, float MarkerArea, bool RightToLeft,
+        float EventNumber = 0)
     {
         public float GridTop(bool month) => HeaderHeight + (month ? DayNamesHeight : 0);
         public SKRect GridArea => new(0, HeaderHeight, Width, Height);
@@ -996,12 +1003,20 @@ internal sealed class SkUiCalendarModel(ISkUiCalendarHost host)
         var header = IsHeaderVisible ? (float)ResolvedHeaderHeight(look) : 0;
         var dayNames = AreDayNamesVisible ? (float)look.CalendarDayNamesHeight : 0;
         var weeks = AreWeekNumbersVisible ? (float)look.CalendarWeekNumberWidth : 0;
-        return new Frame(width, height, header, dayNames, weeks, (float)MarkerArea(look), host.CalendarRightToLeft);
+        return new Frame(width, height, header, dayNames, weeks, (float)MarkerArea(look), host.CalendarRightToLeft,
+            DayMarkerLayout == SkUiCalendarDayMarkerLayout.Lines ? (float)look.CalendarEventNumberHeight : 0);
     }
 
     /// <summary>The marker area's height under each day: the set one, else the look's when the app styles or paints days, else none.</summary>
     private double MarkerArea(SkUiLook look) => DayMarkerAreaHeight >= 0 ? DayMarkerAreaHeight
+        : DayMarkerLayout == SkUiCalendarDayMarkerLayout.Lines ? LinesSizedByItself * MarkerLineHeight(look)
         : _dayStyle is not null || DayPainter is not null ? look.CalendarMarkerAreaHeight : 0;
+
+    /// <summary>The event lines a day holds when a calendar with <see cref="SkUiCalendarDayMarkerLayout.Lines"/> sizes itself.</summary>
+    private const int LinesSizedByItself = 3;
+
+    /// <summary>An event line's height: the set one, else the look's.</summary>
+    private double MarkerLineHeight(SkUiLook look) => DayMarkerLineHeight > 0 ? DayMarkerLineHeight : look.CalendarMarkerLineHeight;
 
     /// <summary>The size of a calendar: the width given (else seven touch-sized columns), the header, day names and weeks.</summary>
     public Size Measure(double widthConstraint, double heightConstraint)
@@ -1010,8 +1025,12 @@ internal sealed class SkUiCalendarModel(ISkUiCalendarHost host)
         var row = DayRowHeight > 0 ? DayRowHeight : look.CalendarRowHeight;
         var weekColumn = AreWeekNumbersVisible ? look.CalendarWeekNumberWidth : 0;
         var width = double.IsFinite(widthConstraint) ? widthConstraint : 7 * row + weekColumn;
+        // Event lines: the number's own height and the lines under it, or the row height set for the whole day.
+        var day = DayMarkerLayout == SkUiCalendarDayMarkerLayout.Lines
+            ? DayRowHeight > 0 ? DayRowHeight : look.CalendarEventNumberHeight + MarkerArea(look)
+            : row + MarkerArea(look);
         var height = (IsHeaderVisible ? ResolvedHeaderHeight(look) : 0) + (AreDayNamesVisible ? look.CalendarDayNamesHeight : 0)
-            + Math.Clamp(VisibleWeeks, 1, 6) * (row + MarkerArea(look));
+            + Math.Clamp(VisibleWeeks, 1, 6) * day;
         return new Size(width, height);
     }
 
@@ -1532,13 +1551,26 @@ internal sealed class SkUiCalendarModel(ISkUiCalendarHost host)
             return IsSelectedPeriod(date, _mode) ? strings.SelectedStateText : null;
         var today = date == DateTime.Today;
         var selected = IsSelectedDay(date) || RangeOf(date) is not null;
-        return (today, selected) switch
+        var state = (today, selected) switch
         {
             (true, true) => string.Concat(strings.SelectedStateText, ", ", strings.TodayStateText),
             (true, false) => strings.TodayStateText,
             (false, true) => strings.SelectedStateText,
             _ => null
         };
+        return Captions(date) is { } captions ? state is null ? captions : string.Concat(state, ", ", captions) : state;
+    }
+
+    /// <summary>The captions of a day's markers (its events), as screen readers read them after its state, or <c>null</c> (1.15).</summary>
+    private string? Captions(DateTime date)
+    {
+        if (StyleOf(date)?.Markers is not { Count: > 0 } markers)
+            return null;
+        string? captions = null;
+        foreach (var marker in markers)
+            if (marker.Kind == SkUiCalendarMarkerKind.Caption && marker.Text is { Length: > 0 } text)
+                captions = captions is null ? text : string.Concat(captions, ", ", text);
+        return captions;
     }
 
     /// <summary>A screen reader activated a part (<see cref="AddParts"/>); returns whether it acted.</summary>
@@ -1583,6 +1615,8 @@ internal sealed class SkUiCalendarModel(ISkUiCalendarHost host)
             parts.Add(strings.SelectedStateText);
         if (!IsChoosable(date))
             parts.Add(strings.UnavailableStateText);
+        if (Captions(date) is { } captions)
+            parts.Add(captions);
         return string.Join(", ", parts);
     }
 
@@ -1918,7 +1952,8 @@ internal sealed class SkUiCalendarModel(ISkUiCalendarHost host)
                 var isToday = day == today && !adjacent && TodayStyle != SkUiCalendarTodayStyle.None;
                 var focused = focusVisible && _focus == day;
                 // The number and the look's chrome take the cell above the marker area.
-                var marker = frame.MarkerArea > 0 && cell.Height > frame.MarkerArea ? frame.MarkerArea : 0;
+                var marker = frame.EventNumber > 0 ? Math.Max(0, cell.Height - frame.EventNumber)
+                    : frame.MarkerArea > 0 && cell.Height > frame.MarkerArea ? frame.MarkerArea : 0;
                 var numberRect = new SKRect(cell.Left, cell.Top, cell.Right, cell.Bottom - marker);
                 var markerRect = marker > 0 ? new SKRect(cell.Left, numberRect.Bottom, cell.Right, cell.Bottom) : SKRect.Empty;
                 look.DrawCalendarCell(canvas, new SkUiCalendarCellPaint(numberRect, SkUiCalendarCellKind.Day, SelectionShape, selected, part, toLeft, toRight,
@@ -1942,7 +1977,12 @@ internal sealed class SkUiCalendarModel(ISkUiCalendarHost host)
                 DrawText(canvas, Numbers[day.Day], SlotDay + 10 * (int)attributes, WithAttributes(styles.Day, attributes), numberRect, color, TextAlignment.Center,
                     style?.IsStrikethrough == true ? TextDecorations.Strikethrough : TextDecorations.None);
                 if (style?.Markers is { Count: > 0 } markers && !markerRect.IsEmpty)
-                    DrawMarkers(canvas, markers, markerRect, numberRect, palette.Text, enabled && dayEnabled && !adjacent, look);
+                {
+                    if (frame.EventNumber > 0)
+                        DrawMarkerLines(canvas, markers, markerRect, numberRect, palette.Text, enabled && dayEnabled && !adjacent, look);
+                    else
+                        DrawMarkers(canvas, markers, markerRect, numberRect, palette.Text, enabled && dayEnabled && !adjacent, look);
+                }
             }
         }
     }
@@ -1952,7 +1992,7 @@ internal sealed class SkUiCalendarModel(ISkUiCalendarHost host)
     /// icon glyphs as tall as the area, captions in the look's small size, images (once loaded); what does not fit is left out, a caption shortened.
     /// </summary>
     private void DrawMarkers(SKCanvas canvas, IReadOnlyList<SkUiCalendarMarker> markers, SKRect area, SKRect numberRect, SKColor text, bool bright,
-        SkUiLook look)
+        SkUiLook look, bool smallOnly = false)
     {
         const float gap = 3;
         const float dot = 5;
@@ -1963,9 +2003,16 @@ internal sealed class SkUiCalendarModel(ISkUiCalendarHost host)
         // Widths first, to center the row.
         Span<float> widths = stackalloc float[Math.Min(markers.Count, 8)];
         var total = 0f;
+        var counted = 0;
         for (var index = 0; index < widths.Length; index++)
         {
             var marker = markers[index];
+            // The last line of event lines: only the small marks (dots, glyphs, images) share it.
+            if (smallOnly && IsLineMarker(marker))
+            {
+                widths[index] = 0;
+                continue;
+            }
             widths[index] = marker.Kind switch
             {
                 SkUiCalendarMarkerKind.Dot => dot,
@@ -1976,13 +2023,15 @@ internal sealed class SkUiCalendarModel(ISkUiCalendarHost host)
                     ? (float)Math.Ceiling(MeasureCustomText(caption, captionSize, FontAttributes.None, marker.FontFamily))
                     : 0
             };
-            total += widths[index] + (index > 0 ? gap : 0);
+            total += widths[index] + (counted++ > 0 ? gap : 0);
         }
         var x = Math.Max(area.Left + 1, area.MidX - total / 2);
         var paint = _markerPaint ??= new SKPaint { IsAntialias = true };
         for (var index = 0; index < widths.Length && x < area.Right - 1; index++)
         {
             var marker = markers[index];
+            if (smallOnly && IsLineMarker(marker))
+                continue;
             var width = Math.Min(widths[index], area.Right - 1 - x);
             var color = marker.Color is { } own ? SkUiShapePainter.ToSkColor(own) : text;
             if (!bright)
@@ -2027,6 +2076,107 @@ internal sealed class SkUiCalendarModel(ISkUiCalendarHost host)
             x += widths[index] + gap;
         }
     }
+
+    /// <summary>Whether a marker takes a line of its own with <see cref="SkUiCalendarDayMarkerLayout.Lines"/> (a caption or a bar).</summary>
+    private static bool IsLineMarker(SkUiCalendarMarker marker) =>
+        marker.Kind == SkUiCalendarMarkerKind.Bar || marker.Kind == SkUiCalendarMarkerKind.Caption && marker.Text is { Length: > 0 };
+
+    /// <summary>Whether a marker shares the last line with <see cref="SkUiCalendarDayMarkerLayout.Lines"/> (a dot, a glyph, an image).</summary>
+    private static bool IsSmallMarker(SkUiCalendarMarker marker) => marker.Kind switch
+    {
+        SkUiCalendarMarkerKind.Dot => true,
+        SkUiCalendarMarkerKind.Glyph => marker.Text is { Length: > 0 },
+        SkUiCalendarMarkerKind.Image => marker.Source is not null,
+        _ => false
+    };
+
+    /// <summary>
+    /// Draws a day's markers as event lines in <paramref name="area"/> (<see cref="SkUiCalendarDayMarkerLayout.Lines"/>): a caption as
+    /// a chip of its color with its text, a bar as a thin line, one per line in the order given, then the dots, glyphs and images
+    /// together on one more line. When they do not all fit, the last line that fits says how many are left out instead.
+    /// </summary>
+    private void DrawMarkerLines(SKCanvas canvas, IReadOnlyList<SkUiCalendarMarker> markers, SKRect area, SKRect numberRect, SKColor text, bool bright,
+        SkUiLook look)
+    {
+        var lineHeight = (float)MarkerLineHeight(look);
+        var lines = (int)Math.Floor((area.Height + 0.5f) / lineHeight);
+        if (lines <= 0)
+            return;
+        int lineMarkers = 0, smallMarkers = 0;
+        for (var index = 0; index < markers.Count; index++)
+        {
+            if (IsLineMarker(markers[index]))
+                lineMarkers++;
+            else if (IsSmallMarker(markers[index]))
+                smallMarkers++;
+        }
+        var needed = lineMarkers + (smallMarkers > 0 ? 1 : 0);
+        var overflow = needed > lines;
+        // With too many, the last line says how many are left out: the lines before it show the first events.
+        var shownLines = overflow ? lines - 1 : lineMarkers;
+        const float inset = 2;
+        var paint = _markerPaint ??= new SKPaint { IsAntialias = true };
+        var top = area.Top;
+        var shown = 0;
+        for (var index = 0; index < markers.Count && shown < shownLines; index++)
+        {
+            var marker = markers[index];
+            if (!IsLineMarker(marker))
+                continue;
+            var color = marker.Color is { } own ? SkUiShapePainter.ToSkColor(own) : text;
+            if (!bright)
+                color = color.WithAlpha((byte)(color.Alpha / 2));
+            var line = new SKRect(area.Left + inset, top + 1, area.Right - inset, top + lineHeight - 1);
+            paint.Color = color;
+            if (marker.Kind == SkUiCalendarMarkerKind.Bar)
+            {
+                const float barHeight = 3;
+                var barTop = line.MidY - barHeight / 2;
+                canvas.DrawRoundRect(new SKRect(line.Left, barTop, line.Right, barTop + barHeight), barHeight / 2, barHeight / 2, paint);
+            }
+            else
+            {
+                canvas.DrawRoundRect(line, 3, 3, paint);
+                var textColor = ContrastSk(color);
+                DrawCustomText(canvas, marker.Text!, new SKRect(line.Left + 3, line.Top, line.Right - 3, line.Bottom), textColor,
+                    look.CalendarMarkerFontSize, FontAttributes.None, marker.FontFamily, TextAlignment.Start);
+            }
+            top += lineHeight;
+            shown++;
+        }
+        var rest = SKRect.Create(area.Left, top, area.Width, lineHeight);
+        if (overflow)
+        {
+            var left = markers.Count - shown;
+            var more = MoreEventsText(left);
+            DrawCustomText(canvas, more, new SKRect(rest.Left + inset + 3, rest.Top, rest.Right - inset, rest.Bottom),
+                bright ? text : text.WithAlpha((byte)(text.Alpha / 2)), look.CalendarMarkerFontSize, FontAttributes.None, null, TextAlignment.Start);
+        }
+        else if (smallMarkers > 0)
+            DrawMarkers(canvas, markers, rest, numberRect, text, bright, look, smallOnly: true);
+    }
+
+    // The "+N" texts, made once per count and strings format (a frame allocates none).
+    private readonly Dictionary<int, string> _moreEvents = [];
+    private string? _moreEventsFormat;
+
+    private string MoreEventsText(int count)
+    {
+        var format = SkUiStrings.Current.MoreEventsFormat;
+        if (!ReferenceEquals(format, _moreEventsFormat))
+        {
+            _moreEvents.Clear();
+            _moreEventsFormat = format;
+        }
+        if (!_moreEvents.TryGetValue(count, out var text))
+            _moreEvents[count] = text = string.Format(Culture, format, count);
+        return text;
+    }
+
+    /// <summary>White or near black on <paramref name="fill"/> (an event chip's text).</summary>
+    private static SKColor ContrastSk(SKColor fill) =>
+        fill.Alpha < 128 ? new SKColor(0x1C, 0x1C, 0x1E)
+        : 0.299 * fill.Red + 0.587 * fill.Green + 0.114 * fill.Blue > 0.62 * 255 ? new SKColor(0x1C, 0x1C, 0x1E) : SKColors.White;
 
     /// <summary>A style for the app's text (markers, a day painter's): one line, shrinking a little, then shortened.</summary>
     private SkUiTextStyle CustomStyle(double fontSize, FontAttributes attributes, string? family)
@@ -2135,6 +2285,9 @@ internal sealed class SkUiCalendarTexts
     private readonly Dictionary<(string Text, int Slot), SkUiTextLayout> _layouts = [];
 
     public int Count => _layouts.Count;
+
+    /// <summary>The texts kept (tests).</summary>
+    public IEnumerable<string> Texts => _layouts.Keys.Select(key => key.Text);
 
     public SkUiTextLayout Get(string text, int slot)
     {

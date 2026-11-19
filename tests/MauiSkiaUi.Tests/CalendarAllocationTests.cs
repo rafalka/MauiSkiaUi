@@ -82,10 +82,11 @@ public sealed class CalendarAllocationTests : IDisposable
     }
 
     [Theory]
-    [InlineData(false, false)]
-    [InlineData(true, false)]
-    [InlineData(true, true)]
-    public void ASwipeFrameAllocatesNothing(bool styled, bool painter)
+    [InlineData(false, false, false)]
+    [InlineData(true, false, false)]
+    [InlineData(true, true, false)]
+    [InlineData(true, false, true)]
+    public void ASwipeFrameAllocatesNothing(bool styled, bool painter, bool lines)
     {
         var calendar = new SkUiCalendar
         {
@@ -95,12 +96,18 @@ public sealed class CalendarAllocationTests : IDisposable
         };
         if (styled) calendar.DayStyle = Style;
         if (painter) calendar.DayPainter = Price;
+        if (lines)
+        {
+            // Event lines with an overflow line: Off fits, "+N" for the rest.
+            calendar.DayMarkerLayout = SkUiCalendarDayMarkerLayout.Lines;
+            calendar.DayMarkerAreaHeight = 30;
+        }
         using var surface = new SkUiTestSurface(calendar, Width, Height);
         surface.Frame();
 
         var bytes = BytesPerSwipeDraw(calendar.Engine);
 
-        _output.WriteLine($"SkUi swipe (styled {styled}, painter {painter}): {bytes} bytes per frame");
+        _output.WriteLine($"SkUi swipe (styled {styled}, painter {painter}, lines {lines}): {bytes} bytes per frame");
         Assert.Equal(0, bytes);
     }
 

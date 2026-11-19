@@ -1077,6 +1077,12 @@ public class SkUiLook
     /// <summary>The font size of calendar marker captions (default 10); icon glyphs fill the marker area's height.</summary>
     public virtual double CalendarMarkerFontSize => 10;
 
+    /// <summary>The height of one event line of a calendar with <c>DayMarkerLayout</c> <c>Lines</c> that sets no <c>DayMarkerLineHeight</c>, in DIPs (default 16, 1.15).</summary>
+    public virtual double CalendarMarkerLineHeight => 16;
+
+    /// <summary>The height of the number at the top of a day of a calendar with <c>DayMarkerLayout</c> <c>Lines</c>, in DIPs (default 28, 1.15).</summary>
+    public virtual double CalendarEventNumberHeight => 28;
+
     /// <summary>Optional calendar cell painter; when set, replaces <see cref="DrawCalendarCellCore"/>.</summary>
     public Action<SKCanvas, SkUiCalendarCellPaint>? CalendarCellPainter { get; set; }
 
