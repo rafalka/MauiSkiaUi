@@ -77,4 +77,19 @@
     <Compile Include="../../tests/Shared/PageTour/PageTour.cs" Link="Diagnostics/PageTour.cs" />
   </ItemGroup>
 
+  <!--
+    DevFlow in Debug (docs/DevFlow.md): tools and AI agents drive the app, and SkiaUi's dev.skiaui extension (the file the
+    skiaui-devflow skill copies into apps) lists and taps its drawn controls. Never in Release: the agent opens a port.
+    The agent's port is in .mauidevflow (9224), so it runs beside the demo's (9223) on one Mac.
+  -->
+  <PropertyGroup Condition="'$(Configuration)' == 'Debug'">
+    <DefineConstants>$(DefineConstants);MAUI_DEVFLOW</DefineConstants>
+  </PropertyGroup>
+  <ItemGroup Condition="'$(Configuration)' == 'Debug'">
+    <PackageReference Include="Microsoft.Maui.DevFlow.Agent" Version="$(MauiDevFlowAgentVersion)" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="../../plugins/skiaui-devflow/skills/skiaui-devflow/assets/SkiaUiDevFlowExtension.cs" Link="Diagnostics/SkiaUiDevFlowExtension.cs" />
+  </ItemGroup>
+
 </Project>

@@ -85,7 +85,7 @@ executable() {
 }
 
 # Known exceptions, not failures. A block (one logged exception with its stack) matching one of these is skipped.
-#   DevFlow's agent (Debug demo) retrying its broker on localhost:19223 when no broker runs.
+#   DevFlow's agent (Debug demo and samples) retrying its broker on localhost:19223 when no broker runs.
 #   Cancellations: image loads of views scrolled away or pages left, timers stopped.
 #   MAUI's packaged-app probe (Package.Current) in an unpackaged app.
 #   SkUiColumnsModel.Compose: a Format naming columns not added yet, caught (columns are added one by one).

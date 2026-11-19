@@ -1,7 +1,7 @@
 // SkiaUi DevFlow extension: copy this file into a .NET MAUI app that uses SkiaUi (SkiaUi.Maui) and the DevFlow agent
 // (Microsoft.Maui.DevFlow.Agent), then register it: builder.AddMauiDevFlowAgent(SkiaUiDevFlowExtension.Register).
 // Setup and tool reference: https://github.com/rafalka/MauiSkiaUi/blob/master/docs/DevFlow.md
-// The SkiaUi demo app compiles this same file, so it builds against the current SkiaUi and DevFlow versions.
+// The SkiaUi demo and samples apps compile this same file, so it builds against the current SkiaUi and DevFlow versions.
 #if MAUI_DEVFLOW
 #nullable enable
 using System;

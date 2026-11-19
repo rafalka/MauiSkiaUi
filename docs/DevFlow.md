@@ -6,7 +6,7 @@
 - **Core nodes:** listed (they are visual tree elements), but with no bounds or text.
 - **Taps:** `ui tap` fails for both, since neither has a platform view to tap.
 
-SkiaUi provides a DevFlow agent extension, `dev.skiaui`, built on [`SkUiDiagnostics`](controls/SkUiCore.md). It gives a tree of drawn elements with window bounds, taps delivered through the surface like a real touch, and hit-testing. The extension is one source file that the app copies: [SkiaUiDevFlowExtension.cs](../plugins/skiaui-devflow/skills/skiaui-devflow/assets/SkiaUiDevFlowExtension.cs). The DevFlow agent is a preview package with a changing API, so SkiaUi doesn't ship the extension as a NuGet package. The app owns its copy and its DevFlow version. The demo app compiles the same file, so the copy in each SkiaUi release builds against that release.
+SkiaUi provides a DevFlow agent extension, `dev.skiaui`, built on [`SkUiDiagnostics`](controls/SkUiCore.md). It gives a tree of drawn elements with window bounds, taps delivered through the surface like a real touch, and hit-testing. The extension is one source file that the app copies: [SkiaUiDevFlowExtension.cs](../plugins/skiaui-devflow/skills/skiaui-devflow/assets/SkiaUiDevFlowExtension.cs). The DevFlow agent is a preview package with a changing API, so SkiaUi doesn't ship the extension as a NuGet package. The app owns its copy and its DevFlow version. The demo and samples apps compile the same file, so the copy in each SkiaUi release builds against that release.
 
 For AI coding agents, the **[skiaui-devflow skill](../plugins/skiaui-devflow/README.md)** does the setup below and knows how to read the tools' results (Claude Code: `/plugin marketplace add rafalka/MauiSkiaUi`, then `/plugin install skiaui-devflow@skiaui`).
 
@@ -76,3 +76,12 @@ A tap is a press delivered through the surface root (hit-testing, the gesture ar
 - Give drawn controls an `AutomationId` (`SkUi*` views: the property; Core nodes: `SetAutomationId`), so taps can find them without text or coordinates.
 - When a tap reports `taken: false` on some text, the tappable element is usually around it (a row, a button). Find it in `tree` and tap that instead.
 - UI-test frameworks that read the accessibility tree (Appium, Maestro) find drawn elements without this extension: see [Migration.md](Migration.md) (UI tests) and [Accessibility.md](design/Accessibility.md).
+
+## In this repository
+
+The demo (`MauiSkiaUiDemo`) and samples (`samples/MauiSkiaUiSamples`) apps reference the agent and register `dev.skiaui` in Debug, with the agent version pinned once as `MauiDevFlowAgentVersion` in `Directory.Build.props`. The benchmark and device-test apps don't reference it (they build Release by default): an agent would skew the timings and hold references the leak checks look for.
+
+- **Ports:** the demo's agent listens on 9223 (DevFlow's default) and the samples app's on 9224 (`samples/MauiSkiaUiSamples/.mauidevflow`), so both run on one Mac (iOS simulators share the host's ports).
+- **Android:** forward a free host port to the app's port and pass it to the CLI, e.g. `adb -s <serial> reverse tcp:19223 tcp:19223` (the broker), `adb -s <serial> forward tcp:9333 tcp:9223` (`tcp:9224` for the samples app), then `maui devflow --agent-host localhost --agent-port 9333 …`. A host port already used by another agent (a demo on an iOS simulator) answers for that app instead.
+- **Drawn controls:** use `maui devflow extensions call dev.skiaui tree` / `tap`, not `ui tap`. DevFlow's `ui query` and `ui property` / `set-property` still work for `SkUi*` views by `AutomationId` (the demo's component pages name the preview `SkiaPreview` and each editor `Edit<Property>`).
+- **One change per CLI run:** a command that changes the app takes a short lease for that CLI process, and the next process is refused ("Another DevFlow session is driving this app") for a few seconds. Send several `MAUI …` commands through one `maui devflow batch` (commands without the `ui` prefix), or wait.
