@@ -46,7 +46,7 @@ public class SkUiCoreSearchBar : SkUiCoreInputView
     /// <summary>Sets <see cref="SearchCommandParameter"/>.</summary>
     public SkUiCoreSearchBar SetSearchCommandParameter(object? value)
     {
-        SetProperty(ref _searchCommandParameter, value, nameof(SearchCommandParameter));
+        SetParameterProperty(ref _searchCommandParameter, value, nameof(SearchCommandParameter));
         return this;
     }
 

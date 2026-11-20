@@ -180,7 +180,7 @@ public class SkUiCoreExpander : SkUiCoreNode
     /// <summary>Sets <see cref="CommandParameter"/>.</summary>
     public SkUiCoreExpander SetCommandParameter(object? value)
     {
-        SetProperty(ref _commandParameter, value, nameof(CommandParameter));
+        SetParameterProperty(ref _commandParameter, value, nameof(CommandParameter));
         return this;
     }
 

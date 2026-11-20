@@ -274,7 +274,7 @@ public partial class SkUiPicker
         UpdateMultipleState();
         if (previous.Length == current.Length && previous.SequenceEqual(current))
             return;
-        Model.RunSelectionChangedCommand();
+        Model.RunSelectionChangedCommand(SelectionChangedCommandParameter);
         SelectionChanged?.Invoke(this, new SkUiSelectionChangedEventArgs(previous, current));
     }
 

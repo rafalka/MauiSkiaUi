@@ -13,6 +13,13 @@ Publishing (the NuGet publish workflow, [docs/Releasing.md](docs/Releasing.md)) 
 
 ## Unreleased
 
+### Fixes
+
+- **Stale command parameter after an `Equals` replacement (#114):** a command parameter replaced by another instance that `Equals` the old one (a list row view model replaced by a new instance with the same Id, `CommandParameter="{Binding .}"`) now reaches the command. MAUI raises no property change for an `Equals` value, so the SkUi* controls passed the first instance on every tap, as a native MAUI `Button` does not.
+  - SkUi* layer: `SkUiButton`, `SkUiImageButton`, `SkUiCheckBox`, `SkUiSwipeItemView`, the pickers' `SelectionChangedCommandParameter` and every view's `TappedCommandParameter`, `DoubleTappedCommandParameter`, `LongPressedCommandParameter` and `SwipedCommandParameter` read the parameter when the command runs.
+  - Core layer: the command parameter setters (buttons, image button, check box, `TappedCommandParameter`, pickers, expander, search bar, entry, tile layout) treat another object that only `Equals` the old one as a change, so the new instance is kept and raises `PropertyChanged` (the same object, or an equal primitive, enum, string or other plain value, is still no change).
+  - As with MAUI's `Button`, a control's enabled look still follows `CanExecute` for the parameter it last saw change; the tap asks with the current one.
+
 ## 1.15.0
 
 ### New features

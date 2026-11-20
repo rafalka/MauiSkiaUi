@@ -472,7 +472,7 @@ public partial class SkUiPicker : SkUiPickerBase
         Model.SelectionChanged();
         if (_suppressSelectedIndexChanged)
             return;
-        Model.RunSelectionChangedCommand();
+        Model.RunSelectionChangedCommand(SelectionChangedCommandParameter);
         SelectedIndexChanged?.Invoke(this, EventArgs.Empty);
     }
 

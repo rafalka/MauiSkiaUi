@@ -36,7 +36,8 @@ public class SkUiCheckBox : SkUiToggleControl
     private SkUiCommandSlot<SkUiCheckBox> CommandSlot => _command ??= new(this, static box => box.OnCommandStateChanged());
 
     /// <inheritdoc />
-    protected override bool CanReceiveTap => _command is not { Command: not null, CanExecute: false };
+    // Asks with the store's parameter, as the buttons do: the slot's copy can be an old instance that Equals it (issue #114).
+    protected override bool CanReceiveTap => _command?.Command is not { } command || command.CanExecute(CommandParameter);
 
     private void OnCommandStateChanged()
     {
@@ -50,7 +51,11 @@ public class SkUiCheckBox : SkUiToggleControl
     private protected override void RaiseCheckedChanged(bool isChecked)
     {
         base.RaiseCheckedChanged(isChecked);
-        _command?.Execute();
+        if (_command is not { } slot)
+            return;
+        // Synced from the store first: MAUI raises no change for a parameter that Equals the old one (issue #114).
+        slot.SetParameter(CommandParameter);
+        slot.Execute();
     }
 
     /// <summary>Bindable checkmark/fill color while checked.</summary>
