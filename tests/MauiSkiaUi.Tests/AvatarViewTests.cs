@@ -277,26 +277,59 @@ public sealed class AvatarViewTests : IDisposable
     [Fact]
     public void AutoSizedTextFitsTheRectangleInscribedInTheOutline()
     {
-        // A circle: in by (1 − √½) of its radius on each side; a rounded rectangle: of its largest corner radius; the
-        // padded content area wins where it is smaller; any other outline leaves the content area.
+        // A circle: the square inside it; a rounded rectangle: corners on its arcs; an ellipse of cubics (as a MAUI Ellipse
+        // stroke shape is drawn, which Skia does not see as an oval): corners on it; content inside the clip: unchanged.
         var content = new SKRect(0, 0, 48, 48);
-        var cut = 24 * (1 - Math.Sqrt(0.5));
         using var circle = new SKPath();
         circle.AddOval(content);
-        AssertRect(new SKRect((float)cut, (float)cut, (float)(48 - cut), (float)(48 - cut)), SkUiAvatarContent.Inscribed(content, circle));
-        AssertRect(new SKRect(10, 10, 38, 38), SkUiAvatarContent.Inscribed(new SKRect(10, 10, 38, 38), circle));
+        var half = (float)(24 * Math.Sqrt(0.5));
+        AssertRect(new SKRect(24 - half, 24 - half, 24 + half, 24 + half), SkUiAvatarContent.Inscribed(content, circle));
+        Assert.Equal(new SKRect(12, 12, 36, 36), SkUiAvatarContent.Inscribed(new SKRect(12, 12, 36, 36), circle));
         using var rounded = new SKPath();
         rounded.AddRoundRect(new SKRoundRect(new SKRect(0, 0, 80, 40), 8));
-        var corner = (float)(8 * (1 - Math.Sqrt(0.5)));
-        AssertRect(new SKRect(corner, corner, 80 - corner, 40 - corner), SkUiAvatarContent.Inscribed(new SKRect(0, 0, 80, 40), rounded));
-        using var triangle = new SKPath();
-        triangle.AddPoly([new SKPoint(0, 48), new SKPoint(24, 0), new SKPoint(48, 48)]);
-        Assert.Equal(content, SkUiAvatarContent.Inscribed(content, triangle));
+        AssertCornersOnOutline(new SKRect(0, 0, 80, 40), rounded);
+        using var ellipse = new SKPath();
+        const float Kappa = 0.5522848f; // cubic control distance of a quarter ellipse, in radii
+        var (rx, ry, cx, cy) = (30f, 20f, 30f, 20f);
+        ellipse.MoveTo(cx + rx, cy);
+        ellipse.CubicTo(cx + rx, cy + ry * Kappa, cx + rx * Kappa, cy + ry, cx, cy + ry);
+        ellipse.CubicTo(cx - rx * Kappa, cy + ry, cx - rx, cy + ry * Kappa, cx - rx, cy);
+        ellipse.CubicTo(cx - rx, cy - ry * Kappa, cx - rx * Kappa, cy - ry, cx, cy - ry);
+        ellipse.CubicTo(cx + rx * Kappa, cy - ry, cx + rx, cy - ry * Kappa, cx + rx, cy);
+        ellipse.Close();
+        Assert.False(ellipse.IsOval);
+        AssertCornersOnOutline(new SKRect(0, 0, 60, 40), ellipse);
+
+        // Drawn: long text in a stroked Ellipse shrinks to the inside of the outline, larger than its minimum (a quarter).
+        var avatar = new SkUiAvatarView
+        {
+            Text = "WWWWWWWW", Initials = SkUiAvatarInitials.None, FontFamily = SkUiTestHelpers.BundledFontFamily, TextColor = Colors.Red,
+            BackgroundColor = Colors.White, StrokeShape = new Ellipse(), StrokeThickness = 2, Stroke = Colors.White
+        };
+        using var bitmap = Render(avatar, 48, 48);
+        var inked = Enumerable.Range(0, 48).Where(x => Enumerable.Range(14, 20).Any(y => bitmap.GetPixel(x, y) is var color && color.Red - color.Green > 40)).ToList();
+        Assert.NotEmpty(inked);
+        Assert.True(inked.Min() > 4 && inked.Max() < 43, $"Ink from {inked.Min()} to {inked.Max()}: past the outline");
+        Assert.True(inked.Max() - inked.Min() > 26, $"Ink from {inked.Min()} to {inked.Max()}: shrunk more than the outline needs");
 
         static void AssertRect(SKRect expected, SKRect actual) =>
-            Assert.True(Math.Abs(expected.Left - actual.Left) < 0.01 && Math.Abs(expected.Top - actual.Top) < 0.01
-                && Math.Abs(expected.Right - actual.Right) < 0.01 && Math.Abs(expected.Bottom - actual.Bottom) < 0.01, $"{actual}, expected {expected}");
+            Assert.True(Math.Abs(expected.Left - actual.Left) < RectTolerance && Math.Abs(expected.Top - actual.Top) < RectTolerance
+                && Math.Abs(expected.Right - actual.Right) < RectTolerance && Math.Abs(expected.Bottom - actual.Bottom) < RectTolerance, $"{actual}, expected {expected}");
+
+        // Every corner just inside the outline (no farther in than the search's precision allows), and none outside.
+        static void AssertCornersOnOutline(SKRect content, SKPath clip)
+        {
+            var inscribed = SkUiAvatarContent.Inscribed(content, clip);
+            Assert.True(inscribed.Width < content.Width && Math.Abs(inscribed.Width / inscribed.Height - content.Width / content.Height) < RectTolerance, $"{inscribed}");
+            var (x, y) = (inscribed.MidX, inscribed.MidY);
+            var corners = new[] { (inscribed.Left, inscribed.Top), (inscribed.Right, inscribed.Top), (inscribed.Left, inscribed.Bottom), (inscribed.Right, inscribed.Bottom) };
+            Assert.All(corners, corner => Assert.True(clip.Contains(x + (corner.Item1 - x) * 0.999f, y + (corner.Item2 - y) * 0.999f), $"{corner} outside"));
+            Assert.Contains(corners, corner => !clip.Contains(x + (corner.Item1 - x) * 1.01f, y + (corner.Item2 - y) * 1.01f));
+        }
     }
+
+    /// <summary>DIPs inscribed rectangles may be off: the search bisects each half diagonal to 2⁻¹² of it.</summary>
+    private const float RectTolerance = 0.02f;
 
     [Fact]
     public void TheBadgeSitsOnTheOutlineOverTheBorder()

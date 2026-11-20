@@ -226,31 +226,36 @@ internal sealed class SkUiAvatarContent
     }
 
     /// <summary>
-    /// <paramref name="content"/> within the rectangle inscribed in <paramref name="clip"/> when the clip is an oval or a
-    /// rounded rectangle: its bounds inset by (1 − √½) of the largest corner radius, where a corner's arc crosses its
-    /// diagonal. Other clips leave the content area as it is.
+    /// The largest rectangle of <paramref name="content"/>'s shape, about its center, whose corners are inside
+    /// <paramref name="clip"/>: each half diagonal runs from the center until it leaves the clip (a circle's square, a
+    /// rounded rectangle's corners where their arcs cross). Any outline works this way (an ellipse, a stroked shape, a
+    /// look's own corners) with no allocation; content already inside the clip is returned as it is.
     /// </summary>
     internal static SKRect Inscribed(SKRect content, SKPath clip)
     {
-        var inscribed = clip.Bounds;
-        if (clip.IsOval)
-            inscribed.Inflate(-inscribed.Width / 2 * Cut, -inscribed.Height / 2 * Cut);
-        else if (clip.IsRoundRect)
-        {
-            using var rounded = clip.GetRoundRect();
-            var (horizontal, vertical) = (0f, 0f);
-            foreach (var radius in rounded.Radii)
-                (horizontal, vertical) = (Math.Max(horizontal, radius.X), Math.Max(vertical, radius.Y));
-            inscribed.Inflate(-horizontal * Cut, -vertical * Cut);
-        }
-        else
+        var (centerX, centerY) = (content.MidX, content.MidY);
+        if (content.Width <= 0 || content.Height <= 0 || !clip.Contains(centerX, centerY))
             return content;
-        var inside = SKRect.Intersect(content, inscribed);
-        return inside.Width > 0 && inside.Height > 0 ? inside : content;
+        var scale = 1f;
+        foreach (var (cornerX, cornerY) in (ReadOnlySpan<(float, float)>)[(content.Left, content.Top), (content.Right, content.Top), (content.Left, content.Bottom), (content.Right, content.Bottom)])
+        {
+            if (clip.Contains(centerX + (cornerX - centerX) * scale, centerY + (cornerY - centerY) * scale))
+                continue;
+            // Inside at low, outside at high: bisect to a fraction of a DIP along the half diagonal.
+            var (low, high) = (0f, scale);
+            for (var step = 0; step < InscribedSteps; step++)
+            {
+                var middle = (low + high) / 2;
+                if (clip.Contains(centerX + (cornerX - centerX) * middle, centerY + (cornerY - centerY) * middle)) low = middle; else high = middle;
+            }
+            scale = low;
+        }
+        var (halfWidth, halfHeight) = (content.Width / 2 * scale, content.Height / 2 * scale);
+        return new SKRect(centerX - halfWidth, centerY - halfHeight, centerX + halfWidth, centerY + halfHeight);
     }
 
-    /// <summary>1 − √½: how far in from a rounded corner's bounding corner its arc crosses the diagonal, in radii.</summary>
-    private const float Cut = 0.29289322f;
+    /// <summary>Bisection steps along a half diagonal in <see cref="Inscribed"/>: 2⁻¹² of it, well under a DIP for any avatar.</summary>
+    private const int InscribedSteps = 12;
 
     /// <summary>The text's style: the set font size, or (negative) the look's size for a <paramref name="content"/> area, shrinking to fit.</summary>
     private SkUiTextStyle Style(Size content)
