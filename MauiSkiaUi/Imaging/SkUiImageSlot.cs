@@ -192,6 +192,19 @@ internal sealed class SkUiImageSlot
     /// </summary>
     public Task Load(SkUiImageSource? source, in SkUiImageOptions options, bool keepShown = false)
     {
+        // The start is dispatched outside the lock: the dispatcher is the app's, and one waiting for another thread would
+        // deadlock. Called under the lock (a placeholder, which shares its owner's; a LoadingFinished handler setting a
+        // fallback), there is no outside: the load starts at once, as without a dispatcher.
+        var canDefer = !_gate.IsHeldByCurrentThread;
+        Action? start = null;
+        var task = Load(source, options, keepShown, canDefer, ref start);
+        start?.Invoke();
+        return task;
+    }
+
+    /// <summary>As <see cref="Load(SkUiImageSource?, in SkUiImageOptions, bool)"/>; a deferred start is left in <paramref name="start"/>.</summary>
+    private Task Load(SkUiImageSource? source, in SkUiImageOptions options, bool keepShown, bool canDefer, ref Action? start)
+    {
         lock (_gate)
         {
             ObjectDisposedException.ThrowIf(_disposed, this);
@@ -226,7 +239,7 @@ internal sealed class SkUiImageSlot
             // source, the decode size and the transformations one at a time) start one load instead of one per change,
             // each cancelling the last. A memory-cache hit and a source that loads synchronously (a glyph) still show now.
             ValueTask<SkUiImageLoad>? started = null;
-            if (dispatcher is null || source.LoadsSynchronously || !SkUiImageLoader.TryPeek(source, options, out var hit))
+            if (dispatcher is null || !canDefer || source.LoadsSynchronously || !SkUiImageLoader.TryPeek(source, options, out var hit))
                 started = Start(source, options, version, dispatcher, cancellation.Token);
             else if (hit is not null)
                 started = new ValueTask<SkUiImageLoad>(new SkUiImageLoad(hit, SkUiImageOrigin.MemoryCache));
@@ -248,7 +261,7 @@ internal sealed class SkUiImageSlot
             LoadingStarted?.Invoke(new SkUiImageLoadStartedEventArgs(source));
             return LoadingTask = started is { } running
                 ? CompleteAsync(running.AsTask(), version, keepShown, dispatcher)
-                : StartLater(source, options, version, keepShown, dispatcher!, cancellation.Token);
+                : StartLater(source, options, version, keepShown, dispatcher!, cancellation.Token, out start);
         }
     }
 
@@ -268,15 +281,28 @@ internal sealed class SkUiImageSlot
 
     /// <summary>
     /// Starts the load on <paramref name="dispatcher"/>'s next turn unless it was replaced by then (nothing started, so
-    /// nothing to cancel); the task completes once its result is published.
+    /// nothing to cancel); the task completes once its result is published. The caller runs <paramref name="start"/> (it
+    /// dispatches the start) once it has left the lock.
     /// </summary>
     private Task StartLater(SkUiImageSource source, SkUiImageOptions options, int version, bool keepShown, IDispatcher dispatcher,
-        CancellationToken token)
+        CancellationToken token, out Action start)
     {
-        // Continuations run asynchronously: code awaiting LoadingTask does not run under the lock.
+        // Continuations run asynchronously: code awaiting LoadingTask does not run where it completes (Begin may run inline).
         var running = new TaskCompletionSource<Task>(TaskCreationOptions.RunContinuationsAsynchronously);
-        if (!dispatcher.Dispatch(Begin))
-            Begin();
+        start = () =>
+        {
+            bool dispatched;
+            try
+            {
+                dispatched = dispatcher.Dispatch(Begin);
+            }
+            catch (Exception)
+            {
+                dispatched = false; // a dispatcher shutting down: start now, so LoadingTask completes
+            }
+            if (!dispatched)
+                Begin();
+        };
         return running.Task.Unwrap();
 
         void Begin()
@@ -412,7 +438,9 @@ internal sealed class SkUiImageSlot
     private async Task CompleteAsync(Task<SkUiImageLoad> load, int version, bool keepShown, IDispatcher? dispatcher)
     {
         // Not thrown (a replaced load is cancelled, which costs an exception per await): Complete reads the outcome from the task.
-        await ((Task)load).ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
+        // Always yielding: called under the gate with a load not yet complete, one completing in between would otherwise
+        // continue (and dispatch) under it.
+        await ((Task)load).ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing | ConfigureAwaitOptions.ForceYielding);
         if (dispatcher is null)
         {
             CompletingWithoutDispatcher = true;
@@ -488,7 +516,7 @@ internal sealed class SkUiImageSlot
     /// <summary>A download report, on the download's thread: kept, and published on the dispatcher unless already on its way.</summary>
     private void OnProgress(SkUiImageSource source, int version, IDispatcher? dispatcher, long received, long? total)
     {
-        SkUiImageDownloadProgressEventArgs report;
+        SkUiImageDownloadProgressEventArgs? report = null; // stays null when it is published on the dispatcher
         lock (_gate)
         {
             if (version != _generation || _disposed)
@@ -498,13 +526,15 @@ internal sealed class SkUiImageSlot
             // While the load is being started (a download that ran inline), the values wait for the next report.
             if (!IsLoading || _progressScheduled)
                 return;
-            if (dispatcher is not null)
-            {
+            if (dispatcher is null)
+                report = TakeProgress(source);
+            else
                 _progressScheduled = true;
-                dispatcher.Dispatch(() => PublishProgress(source, version));
-                return;
-            }
-            report = TakeProgress(source);
+        }
+        if (report is null)
+        {
+            SchedulePublish(source, version, dispatcher!);
+            return;
         }
         CompletingWithoutDispatcher = true;
         try
@@ -514,6 +544,24 @@ internal sealed class SkUiImageSlot
         finally
         {
             CompletingWithoutDispatcher = false;
+        }
+    }
+
+    /// <summary>Publishes the latest report on <paramref name="dispatcher"/> (called outside the gate, as a deferred start).</summary>
+    private void SchedulePublish(SkUiImageSource source, int version, IDispatcher dispatcher)
+    {
+        var dispatched = false;
+        try
+        {
+            dispatched = dispatcher.Dispatch(() => PublishProgress(source, version));
+        }
+        finally
+        {
+            if (!dispatched)
+            {
+                lock (_gate)
+                    _progressScheduled = false; // refused: the next report tries again
+            }
         }
     }
 

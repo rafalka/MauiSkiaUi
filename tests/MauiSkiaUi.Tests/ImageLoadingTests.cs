@@ -194,6 +194,99 @@ public sealed class ImageLoadingTests : IDisposable
     }
 
     [Fact]
+    public async Task AnInlineDispatcherLoadsAMissWithoutDeadlock()
+    {
+        // A dispatcher that runs the action inline (the headless one) starts the load within Load, on the same thread:
+        // nothing waits on itself.
+        using var _ = SkUiTestHelpers.UseTestDispatcher();
+        var opens = 0;
+        var image = new SkUiCoreImage().SetSourceStream(Open(Png(SKColors.Green), () => opens++), Key());
+        var loading = image.LoadingTask;
+
+        Assert.Same(loading, await Task.WhenAny(loading, Task.Delay(TimeSpan.FromSeconds(10))));
+        await loading;
+        Assert.Equal(1, opens);
+        Assert.NotNull(image.CachedImage);
+        Assert.Null(image.LoadError);
+    }
+
+    [Fact]
+    public async Task ADispatcherWaitingForAnotherThreadStartsALoadWithoutDeadlock()
+    {
+        // The app's dispatcher may run the action on another thread and wait for it: the start is dispatched after the
+        // slot's lock is released, and a placeholder (loaded under that lock) starts at once. (On a regression the blocked
+        // threads stay blocked; they are background threads.)
+        var dispatcher = new BlockingDispatcher();
+        using var _ = SkUiTestHelpers.UseTestDispatcher(dispatcher);
+        var bytes = Png(SKColors.Green);
+        var setting = Task.Run(() =>
+        {
+            var image = new SkUiCoreImage().SetLoadingPlaceholder(SkUiImageSource.FromStream(Open(bytes), Key()));
+            image.SetSourceStream(Open(bytes), Key());
+            return image;
+        });
+
+        Assert.Same(setting, await Task.WhenAny(setting, Task.Delay(TimeSpan.FromSeconds(10))));
+        var image = await setting;
+        await image.LoadingTask.WaitAsync(TimeSpan.FromSeconds(10));
+        Assert.NotNull(image.CachedImage);
+        Assert.True(dispatcher.Dispatched > 0);
+    }
+
+    [Fact]
+    public async Task AFallbackSetByALoadingFinishedHandlerLoadsWithADispatcherWaitingForAnotherThread()
+    {
+        // The handler runs under the slot's lock: a load set there starts at once instead of dispatching under the lock.
+        // (On a regression the blocked threads stay blocked; they are background threads.)
+        var dispatcher = new BlockingDispatcher();
+        using var _ = SkUiTestHelpers.UseTestDispatcher(dispatcher);
+        var fallback = Png(SKColors.Green);
+        var succeeded = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var setting = Task.Run(() =>
+        {
+            var image = new SkUiCoreImage();
+            image.LoadingFinished += (_, args) =>
+            {
+                if (args.Status == SkUiImageLoadStatus.Failed)
+                    image.SetSourceStream(Open(fallback), Key());
+                else if (args.Status == SkUiImageLoadStatus.Succeeded)
+                    succeeded.TrySetResult();
+            };
+            image.SetSourceStream(_ => Task.FromException<Stream>(new IOException("offline")), Key());
+            return image;
+        });
+
+        Assert.Same(setting, await Task.WhenAny(setting, Task.Delay(TimeSpan.FromSeconds(10))));
+        var image = await setting;
+        await succeeded.Task.WaitAsync(TimeSpan.FromSeconds(10)); // the fallback loaded
+        Assert.Null(image.LoadError);
+        Assert.NotNull(image.CachedImage);
+    }
+
+    /// <summary>Runs each action on a worker thread and waits for it, as a synchronous cross-thread invoke does.</summary>
+    private sealed class BlockingDispatcher : IDispatcher
+    {
+        private int _dispatched;
+
+        public int Dispatched => Volatile.Read(ref _dispatched);
+
+        public bool IsDispatchRequired => false;
+
+        public bool Dispatch(Action action)
+        {
+            Interlocked.Increment(ref _dispatched);
+            var thread = new Thread(action.Invoke) { IsBackground = true };
+            thread.Start();
+            thread.Join();
+            return true;
+        }
+
+        public bool DispatchDelayed(TimeSpan delay, Action action) => Dispatch(action);
+
+        public IDispatcherTimer CreateTimer() => throw new NotSupportedException();
+    }
+
+    [Fact]
     public void ATransformationKeyThatThrowsFailsTheLoadInsteadOfTheSetter()
     {
         // The memory-cache check before a deferred start builds the key too: an app's transformation failing there is the
