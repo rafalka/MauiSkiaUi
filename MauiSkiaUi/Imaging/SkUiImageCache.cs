@@ -129,7 +129,8 @@ public static class SkUiImageCache
     /// access token or a signature can hit the cache:
     /// <code>SkUiImageCache.CacheKeyFactory = SkUiImageCacheKeys.IgnoreQueryParameters("token", "sig");</code>
     /// A key for a stream source makes it cacheable. Called on the thread that starts the load (usually the UI
-    /// thread) for every load: keep it fast and thread-safe; an exception fails the load (<c>LoadError</c>). Set it at
+    /// thread) for every load, and once more when a view checks the memory cache before a deferred start: keep it fast,
+    /// thread-safe and free of side effects; an exception fails the load (<c>LoadError</c>). Set it at
     /// startup: images already cached keep the keys they were stored under.
     /// </summary>
     public static Func<SkUiImageSource, string?>? CacheKeyFactory

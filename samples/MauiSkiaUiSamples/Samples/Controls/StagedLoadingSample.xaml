@@ -18,7 +18,7 @@
                     x:DataType="local:StagedLoadingModel">
 
     <sk:SkUiGrid RowDefinitions="Auto,*" RowSpacing="8">
-        <sk:SkUiHorizontalStackLayout Spacing="12">
+        <sk:SkUiHorizontalStackLayout Spacing="12" Margin="16,0">
             <sk:SkUiButton Text="Load" Command="{Binding LoadCommand}" />
             <sk:SkUiLabel Text="{Binding Status}" FontSize="13" VerticalOptions="Center" TextColor="{x:Static samples:SampleColors.Caption}" />
         </sk:SkUiHorizontalStackLayout>
