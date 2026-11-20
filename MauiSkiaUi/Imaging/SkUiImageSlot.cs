@@ -8,7 +8,8 @@ namespace MauiSkiaUi;
 /// <see cref="SkUiImageLoader"/>, holds the lease on the cached image, publishes loading / error state, raises the
 /// load events, shows the loading / error placeholders, and plays animated images on the node's UI clock. A cached
 /// source applies synchronously (no empty frame); otherwise the image clears (the loading placeholder shows) while
-/// loading and the result is applied on the dispatcher that started the load. UI thread only; without a dispatcher, a
+/// loading, the load starts on the dispatcher's next turn (so settings changed together start one load), and the result
+/// is applied on the dispatcher that started the load. UI thread only; without a dispatcher, a
 /// load completes on the thread pool, serialized with the slot's other members. The shown image's reference is a
 /// <see cref="SkUiImageLease"/>: views that are collected without being disposed still release it.
 /// </summary>
@@ -221,23 +222,19 @@ internal sealed class SkUiImageSlot
             _received = 0;
             _total = null;
             LoadingProgress = 0;
-            ValueTask<SkUiImageLoad> load;
-            try
-            {
-                load = SkUiImageLoader.LoadAsync(source, options, cancellation.Token, ProgressListener(source, version, dispatcher));
-            }
-            catch (Exception error)
-            {
-                load = ValueTask.FromException<SkUiImageLoad>(error);
-            }
-            if (load.IsCompleted)
+            // With a dispatcher, a miss starts on its next turn: settings changed together (XAML and initializers set the
+            // source, the decode size and the transformations one at a time) start one load instead of one per change,
+            // each cancelling the last. A memory-cache hit and a source that loads synchronously (a glyph) still show now.
+            ValueTask<SkUiImageLoad>? started = null;
+            if (dispatcher is null || source.LoadsSynchronously || !SkUiImageLoader.TryPeek(source, options, out var hit))
+                started = Start(source, options, version, dispatcher, cancellation.Token);
+            else if (hit is not null)
+                started = new ValueTask<SkUiImageLoad>(new SkUiImageLoad(hit, SkUiImageOrigin.MemoryCache));
+            if (started is { IsCompleted: true } load)
             {
                 LoadingStarted?.Invoke(new SkUiImageLoadStartedEventArgs(source));
                 // A memory-cache hit: the result as it is, no task.
-                if (load.IsCompletedSuccessfully)
-                    Complete(load.Result, failure: null, version, keepShown);
-                else
-                    Complete(load.AsTask(), version, keepShown);
+                CompleteNow(load, version, keepShown);
                 return LoadingTask = Task.CompletedTask;
             }
             if (!keepShown || _image is null)
@@ -249,8 +246,65 @@ internal sealed class SkUiImageSlot
             IsLoading = true;
             _changed();
             LoadingStarted?.Invoke(new SkUiImageLoadStartedEventArgs(source));
-            return LoadingTask = CompleteAsync(load.AsTask(), version, keepShown, dispatcher);
+            return LoadingTask = started is { } running
+                ? CompleteAsync(running.AsTask(), version, keepShown, dispatcher)
+                : StartLater(source, options, version, keepShown, dispatcher!, cancellation.Token);
         }
+    }
+
+    /// <summary>Starts loading <paramref name="source"/>; a synchronous failure is the result's.</summary>
+    private ValueTask<SkUiImageLoad> Start(SkUiImageSource source, in SkUiImageOptions options, int version, IDispatcher? dispatcher,
+        CancellationToken token)
+    {
+        try
+        {
+            return SkUiImageLoader.LoadAsync(source, options, token, ProgressListener(source, version, dispatcher));
+        }
+        catch (Exception error)
+        {
+            return ValueTask.FromException<SkUiImageLoad>(error);
+        }
+    }
+
+    /// <summary>
+    /// Starts the load on <paramref name="dispatcher"/>'s next turn unless it was replaced by then (nothing started, so
+    /// nothing to cancel); the task completes once its result is published.
+    /// </summary>
+    private Task StartLater(SkUiImageSource source, SkUiImageOptions options, int version, bool keepShown, IDispatcher dispatcher,
+        CancellationToken token)
+    {
+        var running = new TaskCompletionSource<Task>();
+        if (!dispatcher.Dispatch(Begin))
+            Begin();
+        return running.Task.Unwrap();
+
+        void Begin()
+        {
+            lock (_gate)
+            {
+                if (version != _generation || _disposed)
+                {
+                    running.TrySetResult(Task.CompletedTask); // its cancelled LoadingFinished was raised when it was replaced
+                    return;
+                }
+                var load = Start(source, options, version, dispatcher, token);
+                if (!load.IsCompleted)
+                {
+                    running.TrySetResult(CompleteAsync(load.AsTask(), version, keepShown, dispatcher));
+                    return;
+                }
+                CompleteNow(load, version, keepShown);
+                running.TrySetResult(Task.CompletedTask);
+            }
+        }
+    }
+
+    private void CompleteNow(ValueTask<SkUiImageLoad> load, int version, bool keepShown)
+    {
+        if (load.IsCompletedSuccessfully)
+            Complete(load.Result, failure: null, version, keepShown);
+        else
+            Complete(load.AsTask(), version, keepShown);
     }
 
     /// <summary>The fade ended: the placeholder kept for it goes.</summary>
@@ -350,14 +404,8 @@ internal sealed class SkUiImageSlot
 
     private async Task CompleteAsync(Task<SkUiImageLoad> load, int version, bool keepShown, IDispatcher? dispatcher)
     {
-        try
-        {
-            await load.ConfigureAwait(false);
-        }
-        catch (Exception)
-        {
-            // Read from the task in Complete.
-        }
+        // Not thrown (a replaced load is cancelled, which costs an exception per await): Complete reads the outcome from the task.
+        await ((Task)load).ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
         if (dispatcher is null)
         {
             CompletingWithoutDispatcher = true;

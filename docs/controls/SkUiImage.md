@@ -9,7 +9,7 @@ Asynchronously loaded, Skia-drawn image with MAUI's sources and aspect modes, a 
 Changing `Source` (or a property of the source object) starts a load through the image loader that both layers share:
 
 1. **Memory cache.** If the same source with the same decode size and transformations was decoded before, the view shows it **synchronously**: no empty frame and no decode. Views of one source share one decoded image.
-2. **Shared load.** Views that ask for the same image at the same time share one download and one decode. The work is cancelled only when every one of them has let go (source changed or cleared).
+2. **Shared load.** On a miss, the load starts on the dispatcher's next turn, so settings changed together (XAML and initializers set `Source`, `DownsampleWidth` and `Transformations` one at a time) start one load, not one per change. A source replaced before then starts nothing (its `LoadingFinished` reports `Cancelled`); font glyphs, which draw synchronously, start at once. Views that ask for the same image at the same time share one download and one decode. The work is cancelled only when every one of them has let go (source changed or cleared); a view letting go throws no exception.
 3. **Source.** The bytes come from the disk cache (downloads), the network, the app package, a file or a stream. Font glyphs are drawn through the text engine.
 4. **Decode** happens off the UI thread, a few images at a time. EXIF orientation is applied. Large images are decoded at reduced size (`SkUiImageDecoder.MaxDecodeDimension`, `DownsampleWidth` / `DownsampleHeight`, `DownsampleToViewSize`). Animated GIF / WebP decode to all their frames.
 5. **Transformations** run off the UI thread. The result goes into the memory cache.

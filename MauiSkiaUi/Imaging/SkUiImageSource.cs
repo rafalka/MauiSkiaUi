@@ -27,6 +27,9 @@ public abstract record SkUiImageSource
     /// </summary>
     internal abstract Task<SkUiDecodedImage> LoadAsync(SkUiImageLoadContext context, CancellationToken token);
 
+    /// <summary>Whether <see cref="LoadAsync"/> completes without awaiting (a glyph): views start it at once, not on the next dispatcher turn.</summary>
+    internal virtual bool LoadsSynchronously => false;
+
     /// <summary>
     /// A file: an absolute path, or a name in the app package. A package name resolves like MAUI's <c>FileImageSource</c>:
     /// first the build-processed <c>MauiImage</c> for the display density (Android drawables, iOS / Mac Catalyst
@@ -347,6 +350,8 @@ public sealed record SkUiFontImageSource : SkUiImageSource
 
     internal override string CacheKey =>
         FormattableString.Invariant($"font:{FontFamily}|{FontAttributes}|{DrawnSize}|{(Color ?? Colors.White).ToArgbHex(includeAlpha: true)}|{Glyph}");
+
+    internal override bool LoadsSynchronously => true;
 
     internal override Task<SkUiDecodedImage> LoadAsync(SkUiImageLoadContext context, CancellationToken token)
     {

@@ -151,10 +151,48 @@ internal static class SkUiImageLoader
         return new ValueTask<SkUiImageLoad>(WithOrigin(load));
     }
 
-    private static async Task<SkUiImageLoad> WithOrigin(Task<SkUiCachedImage> load)
+    /// <summary>
+    /// Whether the memory cache could be asked for <paramref name="source"/> without loading it: then <paramref name="hit"/>
+    /// is a lease on the cached image, or <c>null</c> on a miss (or when the options skip the memory cache). <c>false</c>
+    /// when the cache key cannot be made (the app's factory failed): a load reports the error.
+    /// </summary>
+    internal static bool TryPeek(SkUiImageSource source, in SkUiImageOptions options, out SkUiCachedImage? hit)
     {
-        var image = await load.ConfigureAwait(false);
-        return new SkUiImageLoad(image, image.Origin);
+        hit = null;
+        if (options.CacheType is not (SkUiImageCacheType.All or SkUiImageCacheType.Memory))
+            return true;
+        var maxPixels = MaxPixels(options, DisplayScale);
+        string? sourceKey;
+        try
+        {
+            sourceKey = SourceKey(source, options.CacheKey);
+        }
+        catch (Exception)
+        {
+            return false;
+        }
+        // The live transformations: their keys are what the snapshot a load takes would have.
+        if (MemoryKey(source, options, sourceKey, maxPixels, options.Transformations) is { } key)
+            hit = SkUiImageMemoryCache.TryGet(key);
+        return true;
+    }
+
+    // Not an async method: a cancelled load passes through without being thrown (each await of one throws, and replaced
+    // loads are cancelled all the time).
+    private static Task<SkUiImageLoad> WithOrigin(Task<SkUiCachedImage> load)
+    {
+        var result = new TaskCompletionSource<SkUiImageLoad>();
+        load.ContinueWith(static (task, state) =>
+        {
+            var target = (TaskCompletionSource<SkUiImageLoad>)state!;
+            if (task.IsCompletedSuccessfully)
+                target.TrySetResult(new SkUiImageLoad(task.Result, task.Result.Origin));
+            else if (task.IsCanceled)
+                target.TrySetCanceled();
+            else
+                target.TrySetException(task.Exception!.InnerExceptions);
+        }, result, CancellationToken.None, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
+        return result.Task;
     }
 
     /// <summary>The load for <paramref name="source"/>, or <c>null</c> with the lease in <paramref name="hit"/> for a memory-cache hit.</summary>
@@ -163,7 +201,7 @@ internal static class SkUiImageLoader
     {
         hit = null;
         var scale = DisplayScale;
-        var maxPixels = new SKSizeI(Pixels(options.DownsampleWidth, scale), Pixels(options.DownsampleHeight, scale));
+        var maxPixels = MaxPixels(options, scale);
         string? sourceKey;
         try
         {
@@ -173,11 +211,11 @@ internal static class SkUiImageLoader
         {
             return Task.FromException<SkUiCachedImage>(new InvalidOperationException("SkUiImageCache.CacheKeyFactory failed.", error));
         }
-        var fill = options.DownsampleToFill && maxPixels.Width > 0 && maxPixels.Height > 0;
+        var fill = Fills(options, maxPixels);
         // The key and the work use the same settings: copies taken now.
         var transformations = SkUiImageTransformation.Snapshot(options.Transformations);
         var key = options.CacheType is SkUiImageCacheType.All or SkUiImageCacheType.Memory
-            ? KeyFor(sourceKey, options with { Transformations = transformations, DownsampleToFill = fill }, maxPixels, source as SkUiVectorSource) : null;
+            ? MemoryKey(source, options, sourceKey, maxPixels, transformations) : null;
         // A hit needs no load context.
         if (key is not null && SkUiImageMemoryCache.TryGet(key) is { } cached)
         {
@@ -192,6 +230,17 @@ internal static class SkUiImageLoader
         }
         return LoadSharedAsync(source, transformations, context, key, progress, token);
     }
+
+    private static SKSizeI MaxPixels(in SkUiImageOptions options, float scale) =>
+        new(Pixels(options.DownsampleWidth, scale), Pixels(options.DownsampleHeight, scale));
+
+    private static bool Fills(in SkUiImageOptions options, SKSizeI maxPixels) =>
+        options.DownsampleToFill && maxPixels.Width > 0 && maxPixels.Height > 0;
+
+    private static string? MemoryKey(SkUiImageSource source, in SkUiImageOptions options, string? sourceKey, SKSizeI maxPixels,
+        IReadOnlyList<ISkUiImageTransformation>? transformations) =>
+        KeyFor(sourceKey, options with { Transformations = transformations, DownsampleToFill = Fills(options, maxPixels) }, maxPixels,
+            source as SkUiVectorSource);
 
     internal static int Pixels(double dips, float scale) =>
         dips > 0 && double.IsFinite(dips) ? Math.Max(1, (int)Math.Ceiling(dips * scale)) : 0;
@@ -236,7 +285,7 @@ internal static class SkUiImageLoader
         return key.ToString();
     }
 
-    private static async Task<SkUiCachedImage> LoadSharedAsync(SkUiImageSource source, IReadOnlyList<ISkUiImageTransformation>? transformations,
+    private static Task<SkUiCachedImage> LoadSharedAsync(SkUiImageSource source, IReadOnlyList<ISkUiImageTransformation>? transformations,
         SkUiImageLoadContext context, string key, Action<long, long?>? progress, CancellationToken token)
     {
         Pending pending;
@@ -258,18 +307,7 @@ internal static class SkUiImageLoader
             _ = RunAsync(pending, LoadCoreAsync(source, transformations, context, key, pending.Cancellation.Token));
         }
 
-        SkUiCachedImage image;
-        try
-        {
-            image = await pending.Completion.Task.WaitAsync(token).ConfigureAwait(false);
-        }
-        catch
-        {
-            Leave(pending, acquire: false, progress);
-            throw;
-        }
-        Leave(pending, acquire: true, progress);
-        return image;
+        return new Waiter(pending, progress, token).Task;
     }
 
     /// <summary>Publishes the shared load; while waiters remain, the result keeps a reference of its own for them.</summary>
@@ -461,6 +499,55 @@ internal static class SkUiImageLoader
         progress?.Invoke(0, total);
         var stream = await response.Content.ReadAsStreamAsync(token).ConfigureAwait(false);
         return await ReadAllAsync(stream, token, total, progress).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// One caller's wait for a shared load. Leaving it (the caller's token cancelled) completes it as cancelled without
+    /// throwing, so views that replace their loads (settings changed, rows scrolled away) cost no exceptions.
+    /// </summary>
+    private sealed class Waiter : TaskCompletionSource<SkUiCachedImage>
+    {
+        private readonly Pending _pending;
+        private readonly Action<long, long?>? _progress;
+        private readonly CancellationTokenRegistration _registration;
+        private int _done;
+
+        // Continuations run on the pool: a cancellation comes from the view's thread, inside its slot's lock.
+        public Waiter(Pending pending, Action<long, long?>? progress, CancellationToken token) : base(TaskCreationOptions.RunContinuationsAsynchronously)
+        {
+            _pending = pending;
+            _progress = progress;
+            // Registered first: an already cancelled token leaves here, and the completion below then finds it done.
+            _registration = token.UnsafeRegister(static (state, cancelled) => ((Waiter)state!).Cancel(cancelled), this);
+            pending.Completion.Task.ContinueWith(static (task, state) => ((Waiter)state!).Complete(task), this,
+                CancellationToken.None, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
+        }
+
+        private void Cancel(CancellationToken token)
+        {
+            if (Interlocked.Exchange(ref _done, 1) != 0)
+                return;
+            Leave(_pending, acquire: false, _progress);
+            TrySetCanceled(token);
+        }
+
+        private void Complete(Task<SkUiCachedImage> task)
+        {
+            if (Interlocked.Exchange(ref _done, 1) != 0)
+                return;
+            _registration.Dispose();
+            if (task.IsCompletedSuccessfully)
+            {
+                Leave(_pending, acquire: true, _progress);
+                TrySetResult(task.Result);
+                return;
+            }
+            Leave(_pending, acquire: false, _progress);
+            if (task.IsCanceled)
+                TrySetCanceled();
+            else
+                TrySetException(task.Exception!.InnerExceptions);
+        }
     }
 
     private sealed class Pending(string key)

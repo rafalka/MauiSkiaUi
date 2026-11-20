@@ -17,6 +17,8 @@ internal sealed record SkUiFailedImageSource(Exception Error) : SkUiImageSource
 {
     internal override string? CacheKey => null;
 
+    internal override bool LoadsSynchronously => true; // reports its error at once
+
     internal override Task<SkUiDecodedImage> LoadAsync(SkUiImageLoadContext context, CancellationToken token) =>
         Task.FromException<SkUiDecodedImage>(Error);
 }

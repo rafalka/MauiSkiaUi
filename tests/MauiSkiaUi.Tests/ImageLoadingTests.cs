@@ -124,6 +124,113 @@ public sealed class ImageLoadingTests : IDisposable
     }
 
     [Fact]
+    public async Task SettingsChangedTogetherStartOneLoadOnTheDispatchersNextTurn()
+    {
+        // As an initializer or XAML sets them: the source, then the decode size, then a transformation. Each used to start
+        // a load cancelling the last (two cancellations per image, each an exception per await).
+        var dispatcher = new QueueDispatcher();
+        using var _ = SkUiTestHelpers.UseTestDispatcher(dispatcher);
+        var opens = 0;
+        var bytes = Png(SKColors.Green, 80, 80);
+        var image = new SkUiImage { Source = ImageSource.FromStream(() => { opens++; return new MemoryStream(bytes); }), DownsampleWidth = 20 };
+        image.Transformations.Add(new SkUiCircleTransformation());
+        var finished = new List<SkUiImageLoadStatus>();
+        image.LoadingFinished += (_, args) => finished.Add(args.Status);
+        var core = new SkUiCoreImage().SetSourceStream(Open(bytes, () => opens++), Key()).SetDownsample(20, 0)
+            .SetTransformations(new SkUiCircleTransformation());
+        Assert.True(image.IsLoading && core.IsLoading);
+        Assert.Equal(0, opens); // nothing started yet
+
+        dispatcher.RunAll();
+        await Task.WhenAll(image.LoadingTask, core.LoadingTask);
+        dispatcher.RunAll(); // the results publish on the dispatcher
+        Assert.Equal(2, opens); // one load per view, with the last settings
+        Assert.Equal([SkUiImageLoadStatus.Succeeded], finished);
+        Assert.Equal(20, image.CachedImage!.Frames[0].Width); // decoded at 20 DIPs (scale 1 headless), cropped to a circle
+        Assert.Equal(20, core.CachedImage!.Frames[0].Width);
+        Assert.Contains("Circle", core.CachedImage.Key, StringComparison.Ordinal); // the stream without a key is not cached
+    }
+
+    [Fact]
+    public async Task ReplacingALoadBeforeItsTurnStartsNothingAndReportsItCancelled()
+    {
+        var dispatcher = new QueueDispatcher();
+        using var _ = SkUiTestHelpers.UseTestDispatcher(dispatcher);
+        var opens = 0;
+        var image = new SkUiCoreImage();
+        var finished = new List<SkUiImageLoadStatus>();
+        image.LoadingFinished += (_, args) => finished.Add(args.Status);
+        image.SetSourceStream(Open(Png(SKColors.Red), () => opens++), Key());
+        var first = image.LoadingTask;
+        image.Clear();
+        Assert.Equal([SkUiImageLoadStatus.Cancelled], finished);
+
+        dispatcher.RunAll();
+        await first; // completes without a result
+        Assert.Equal(0, opens);
+        Assert.False(image.IsLoading);
+        Assert.Null(image.LoadError);
+        Assert.Null(image.CachedImage);
+    }
+
+    [Fact]
+    public async Task CacheHitsAndGlyphsStillShowAtOnceWithADispatcher()
+    {
+        using var font = SkUiTestHelpers.UseBundledFont();
+        var bytes = Png(SKColors.Blue);
+        var key = Key();
+        var loaded = new SkUiCoreImage().SetSourceStream(Open(bytes), key);
+        await loaded.LoadingTask;
+
+        var dispatcher = new QueueDispatcher();
+        using var _ = SkUiTestHelpers.UseTestDispatcher(dispatcher);
+        var hit = new SkUiCoreImage().SetSourceStream(Open(bytes), key);
+        Assert.True(hit.LoadingTask.IsCompleted);
+        Assert.Same(loaded.CachedImage, hit.CachedImage);
+
+        var glyph = new SkUiImage { Source = new FontImageSource { Glyph = "M", FontFamily = SkUiTestHelpers.BundledFontFamily, Size = 20 } };
+        Assert.True(glyph.LoadingTask.IsCompleted);
+        Assert.NotNull(glyph.CachedImage);
+        Assert.Equal(0, dispatcher.Count);
+    }
+
+    [Fact]
+    public async Task AViewLeavingASharedLoadThrowsNothing()
+    {
+        // Rows scrolled away and replaced loads leave shared loads all the time: a debugger reports every exception thrown.
+        var inTest = new AsyncLocal<bool> { Value = true }; // set first: the loads' continuations flow it
+        var gate = new TaskCompletionSource();
+        var source = SkUiImageSource.FromStream(async token =>
+        {
+            await gate.Task.WaitAsync(token);
+            return new MemoryStream(Png(SKColors.Green));
+        }, Key());
+        var leaving = new SkUiCoreImage().SetSource(source);
+        var staying = new SkUiCoreImage().SetSource(source);
+        var leavingTask = leaving.LoadingTask;
+        var thrown = 0;
+        EventHandler<System.Runtime.ExceptionServices.FirstChanceExceptionEventArgs> count = (_, args) =>
+        {
+            if (inTest.Value && args.Exception is OperationCanceledException)
+                Interlocked.Increment(ref thrown);
+        };
+        AppDomain.CurrentDomain.FirstChanceException += count;
+        try
+        {
+            leaving.Clear();
+            await leavingTask;
+            gate.SetResult();
+            await staying.LoadingTask;
+        }
+        finally
+        {
+            AppDomain.CurrentDomain.FirstChanceException -= count;
+        }
+        Assert.Equal(0, thrown);
+        Assert.NotNull(staying.CachedImage);
+    }
+
+    [Fact]
     public async Task EntriesLiveWhileShownAndAreDisposedAfterEvictionAndRelease()
     {
         var shown = new SkUiCoreImage().SetSourceStream(Open(Png(SKColors.Red)), Key());
@@ -1348,5 +1455,47 @@ public sealed class ImageLoadingTests : IDisposable
             content.Headers.ContentType = new MediaTypeHeaderValue(mediaType);
             return Task.FromResult(new HttpResponseMessage(status) { Content = content });
         }
+    }
+
+    /// <summary>A UI-thread dispatcher as an app's: dispatched work waits for the thread's next turn (<see cref="RunAll"/>).</summary>
+    private sealed class QueueDispatcher : IDispatcher
+    {
+        private readonly Queue<Action> _queue = new();
+
+        public int Count
+        {
+            get
+            {
+                lock (_queue)
+                    return _queue.Count;
+            }
+        }
+
+        public bool IsDispatchRequired => false;
+
+        public bool Dispatch(Action action)
+        {
+            lock (_queue)
+                _queue.Enqueue(action);
+            return true;
+        }
+
+        public void RunAll()
+        {
+            while (true)
+            {
+                Action action;
+                lock (_queue)
+                {
+                    if (!_queue.TryDequeue(out action!))
+                        return;
+                }
+                action();
+            }
+        }
+
+        public bool DispatchDelayed(TimeSpan delay, Action action) => Dispatch(action);
+
+        public IDispatcherTimer CreateTimer() => throw new NotSupportedException();
     }
 }

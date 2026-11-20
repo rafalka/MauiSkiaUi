@@ -107,6 +107,8 @@ internal sealed record SkUiVectorSource : SkUiImageSource
 
     internal override SkUiImageSource BytesSource => Inner ?? this;
 
+    internal override bool LoadsSynchronously => Inner?.LoadsSynchronously ?? false;
+
     /// <summary>Whether <paramref name="other"/> draws the same bytes.</summary>
     public bool SameFile(SkUiVectorSource other) => Equals(Inner, other.Inner) && Text == other.Text;
 
