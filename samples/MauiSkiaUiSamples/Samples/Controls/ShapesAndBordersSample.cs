@@ -48,9 +48,13 @@ public sealed class ShapesAndBordersSample : SamplePage, ISample
             "Shared brushes (resources) can be edited while shown, and never keep a shape alive. Taps hit the rectangular bounds."
         ]);
 
-    // A ticket outline: notches halfway down both sides, scaled into the border (Aspect = Fill).
-    private const string Ticket = "M 0,8 A 8,8 0 0 0 8,0 L 192,0 A 8,8 0 0 0 200,8 L 200,42 A 10,10 0 0 0 200,62 L 200,92 " +
-        "A 8,8 0 0 0 192,100 L 8,100 A 8,8 0 0 0 0,92 L 0,62 A 10,10 0 0 0 0,42 Z";
+    // A ticket outline at the size the ticket is shown (TicketWidth x TicketHeight), notches halfway down both sides: a path
+    // stretched to another size would stretch the notches too, into the content on a wide page.
+    private const string Ticket = "M 0,8 A 8,8 0 0 0 8,0 L 292,0 A 8,8 0 0 0 300,8 L 300,50 A 10,10 0 0 0 300,70 L 300,112 " +
+        "A 8,8 0 0 0 292,120 L 8,120 A 8,8 0 0 0 0,112 L 0,70 A 10,10 0 0 0 0,50 Z";
+
+    private const double TicketWidth = 300;
+    private const double TicketHeight = 120;
 
     public ShapesAndBordersSample() : base(Info) => SampleContent = Build();
 
@@ -139,7 +143,9 @@ public sealed class ShapesAndBordersSample : SamplePage, ISample
             Stroke = new LinearGradientBrush([new GradientStop(SampleColors.Accent, 0), new GradientStop(Color.FromArgb("#6366F1"), 1)], new Point(0, 0), new Point(1, 0)),
             BackgroundColor = Color.FromArgb("#F0FDFA"),
             Padding = new Thickness(20, 12),
-            HeightRequest = 118,
+            WidthRequest = TicketWidth,
+            HeightRequest = TicketHeight,
+            HorizontalOptions = LayoutOptions.Start,
             Content = new SkUiVerticalStackLayout
             {
                 Spacing = 4,
