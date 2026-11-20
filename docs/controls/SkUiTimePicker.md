@@ -53,7 +53,7 @@ var core = new SkUiCoreTimePicker().SetMinimumTime(TimeSpan.FromHours(8)).SetMin
 | `DefaultHighlightedTime` | `null` | What the wheels show without a time (`null`: now) |
 | `AreColumnHeadersVisible`, `IsLooping`, `VisibleRows` | `false`, `true`, 5 | As the date picker's |
 | `TimeSelected` | | MAUI's `TimeChangedEventArgs` |
-| `Title`, `Placeholder`, `TextColor`, font properties, `IsOpen` / `Opened` / `Closed`, popup settings, `UpdateMode`, clearing, the app's popup views, `SelectionChangedCommand` | | As `SkUiPicker`'s; `ClearSelection()` sets `Time` to `null` |
+| `Title`, `Placeholder`, `PlaceholderFontFamily` / `PlaceholderFontAttributes` (the hint's font), `TextColor`, font properties, `IsOpen` / `Opened` / `Closed`, popup settings, `UpdateMode`, clearing, the app's popup views, `SelectionChangedCommand` | | As `SkUiPicker`'s; `ClearSelection()` sets `Time` to `null` |
 
 Shared conventions: [SkUiView.md](SkUiView.md).
 

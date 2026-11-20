@@ -278,6 +278,12 @@ public class SkUiCoreDateTimePicker : SkUiCoreDateTimePickerBase
     /// <summary>Sets <see cref="SkUiCorePickerBase.PlaceholderColor"/> (same as the property setter).</summary>
     public new SkUiCoreDateTimePicker SetPlaceholderColor(Color? value) { base.SetPlaceholderColor(value); return this; }
 
+    /// <summary>Sets <see cref="SkUiCorePickerBase.PlaceholderFontFamily"/> (same as the property setter).</summary>
+    public new SkUiCoreDateTimePicker SetPlaceholderFontFamily(string? value) { base.SetPlaceholderFontFamily(value); return this; }
+
+    /// <summary>Sets <see cref="SkUiCorePickerBase.PlaceholderFontAttributes"/> (same as the property setter).</summary>
+    public new SkUiCoreDateTimePicker SetPlaceholderFontAttributes(FontAttributes? value) { base.SetPlaceholderFontAttributes(value); return this; }
+
     /// <inheritdoc cref="SkUiCorePickerBase.SetFieldStyle" />
     public new SkUiCoreDateTimePicker SetFieldStyle(SkUiPickerFieldStyle value) { base.SetFieldStyle(value); return this; }
 

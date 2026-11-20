@@ -73,6 +73,10 @@ Dates are rounded down to the wheels' grid (a time between two steps to the earl
 <sk:SkUiDatePicker Date="{Binding Birthday}" DefaultHighlightedDate="1990-01-01" Placeholder="Date of birth"
                    BlackoutDates="{Binding Holidays}" AreColumnHeadersVisible="True" UpdateMode="WhenFinished" />
 
+<!-- An optional due date: the hint in a regular font, the date in semibold -->
+<sk:SkUiDatePicker Date="{Binding Due}" Placeholder="No due date" FontFamily="OpenSansSemibold"
+                   PlaceholderFontFamily="OpenSansRegular" IsClearButtonVisible="True" />
+
 <!-- A card's expiry: month and year -->
 <sk:SkUiDatePicker Date="{Binding Expiry}" WheelFormat="MM/yy" Format="MM/yy" />
 ```
@@ -105,7 +109,7 @@ host.SetContent(core);
 | `PopupStyle` | `Default` | `Wheels`, `Calendar`, or the look's (`Default`) |
 | `CalendarStyle` | `null` | A `Style` for the popup's calendar |
 | `DateSelected` | | MAUI's `DateChangedEventArgs` |
-| `Title`, `Placeholder`, `TextColor`, font properties, alignments, `IsOpen` / `Opened` / `Closed`, `PopupPlacement`, popup sizes, `PopupPresenter`, `UpdateMode`, `AcceptText`, `CancelText`, `IsClearButtonVisible`, `IsPopupClearButtonVisible`, `ClearText`, `IsChevronVisible`, `ChevronColor`, `ChevronSize`, `ChevronAreaWidth`, `TextPadding`, `LeadingView`, `PopupHeaderTemplate`, `PopupFooterTemplate`, `SelectionChangedCommand` | | As `SkUiPicker`'s (`SkUiPickerBase`); `ClearSelection()` sets `Date` to `null` |
+| `Title`, `Placeholder`, `PlaceholderFontFamily` / `PlaceholderFontAttributes` (the hint's font), `TextColor`, font properties, alignments, `IsOpen` / `Opened` / `Closed`, `PopupPlacement`, popup sizes, `PopupPresenter`, `UpdateMode`, `AcceptText`, `CancelText`, `IsClearButtonVisible`, `IsPopupClearButtonVisible`, `ClearText`, `IsChevronVisible`, `ChevronColor`, `ChevronSize`, `ChevronAreaWidth`, `TextPadding`, `LeadingView`, `PopupHeaderTemplate`, `PopupFooterTemplate`, `SelectionChangedCommand` | | As `SkUiPicker`'s (`SkUiPickerBase`); `ClearSelection()` sets `Date` to `null` |
 
 Shared conventions (DIPs, bindable properties with fluent `Set*` setters, the gesture arena) as for every control: [SkUiView.md](SkUiView.md).
 

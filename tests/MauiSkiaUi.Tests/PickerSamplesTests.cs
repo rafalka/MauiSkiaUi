@@ -207,6 +207,8 @@ public sealed class PickerSamplesTests : IDisposable
         var dates = Descendants(root).OfType<SkUiDatePicker>().ToList();
         var (day, expiry) = (dates[0], dates[1]);
         var time = Descendants(root).OfType<SkUiTimePicker>().Single();
+        // A nullable enum from compiled XAML: the reminder's hint is italic.
+        Assert.Equal(FontAttributes.Italic, Descendants(root).OfType<SkUiDateTimePicker>().Single().PlaceholderFontAttributes);
         Assert.Equal(model.Day, day.Date);
         Assert.NotEqual(DayOfWeek.Saturday, day.Date!.Value.DayOfWeek);
         Assert.Null(time.Time);

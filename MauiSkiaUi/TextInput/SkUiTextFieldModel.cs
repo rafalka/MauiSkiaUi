@@ -132,6 +132,12 @@ internal sealed class SkUiTextFieldModel : ISkUiTextInputClient, ISkUiTextEditor
     public readonly bool IsMultiline;
     public string? Placeholder;
     public Color? PlaceholderColor;
+
+    /// <summary>The control's <c>PlaceholderFontFamily</c>; <c>null</c>: <see cref="FontFamily"/>.</summary>
+    public string? PlaceholderFontFamily;
+
+    /// <summary>The control's <c>PlaceholderFontAttributes</c>; <c>null</c>: <see cref="FontAttributes"/>.</summary>
+    public FontAttributes? PlaceholderFontAttributes;
     public Color? TextColor;
     public Color? CaretColor;
     public Color? SelectionColor;
@@ -423,7 +429,19 @@ internal sealed class SkUiTextFieldModel : ISkUiTextInputClient, ISkUiTextEditor
         Typeface = SkUiTypefaces.Resolve(fontFamily ?? FontFamily, FontAttributes), LineBreakMode = LineBreakMode.TailTruncation, MaxLines = 1
     };
 
-    private SkUiTextStyle PlaceholderStyle => TextStyle with { LineBreakMode = IsMultiline ? LineBreakMode.WordWrap : LineBreakMode.TailTruncation, MaxLines = IsMultiline ? -1 : 1 };
+    /// <summary>The placeholder's text: in its font family and attributes (else the field's), wrapped when multiline, else one line.</summary>
+    internal SkUiTextStyle PlaceholderStyle
+    {
+        get
+        {
+            var attributes = PlaceholderFontAttributes ?? FontAttributes;
+            return TextStyle with
+            {
+                Typeface = SkUiTypefaces.Resolve(PlaceholderFontFamily ?? FontFamily, attributes), FontAttributes = attributes,
+                LineBreakMode = IsMultiline ? LineBreakMode.WordWrap : LineBreakMode.TailTruncation, MaxLines = IsMultiline ? -1 : 1
+            };
+        }
+    }
 
     /// <summary>Whether the clear button shows: <see cref="ClearButtonVisibility.WhileEditing"/>, focused, with text, editable.</summary>
     internal bool ClearButtonShown => (IsSearch || (ClearButtonVisibility == ClearButtonVisibility.WhileEditing && _owner.IsFocused))
@@ -786,15 +804,32 @@ internal sealed class SkUiTextFieldModel : ISkUiTextInputClient, ISkUiTextEditor
     }
 
     /// <summary>Where the text's box (its first line's top-left) is drawn in the field, scrolled.</summary>
+    /// <remarks>
+    /// An empty multiline field aligns by its hint, so the caret starts at the top of the hint's lines (as Android does); one
+    /// line aligns by the value's line, and the hint by its own (<see cref="PlaceholderHeight"/>).
+    /// </remarks>
     private SKPoint TextOrigin(SKRect box)
     {
+        var height = IsMultiline && Editor.Text.Length == 0 && !string.IsNullOrEmpty(Placeholder) ? PlaceholderHeight(box) : _layout.Height;
+        return new SKPoint(box.Left - _scrollX, AlignedTop(box, height) - _scrollY);
+    }
+
+    /// <summary>The height of the hint's lines in the text box (its font may have other line heights than the value's).</summary>
+    private float PlaceholderHeight(SKRect box) => (float)PlaceholderLayout.Measure(Placeholder ?? string.Empty, PlaceholderStyle, default, box.Width).Height;
+
+    /// <summary>
+    /// The top of text <paramref name="textHeight"/> tall in the text box, by <see cref="VerticalTextAlignment"/>: one line, or
+    /// multiline text shorter than the box; taller multiline text starts at the top (and scrolls).
+    /// </summary>
+    private float AlignedTop(SKRect box, float textHeight)
+    {
         var top = box.Top;
-        if (!IsMultiline || _layout.Height < box.Height)
+        if (!IsMultiline || textHeight < box.Height)
         {
-            var free = box.Height - _layout.Height;
+            var free = box.Height - textHeight;
             top += VerticalTextAlignment == TextAlignment.Center ? free / 2 : VerticalTextAlignment == TextAlignment.End ? free : 0;
         }
-        return new SKPoint(box.Left - _scrollX, top - _scrollY);
+        return top;
     }
 
     /// <summary>Scrolls the text so the caret is inside the text box (single line: horizontally; multiline: vertically).</summary>
@@ -914,8 +949,12 @@ internal sealed class SkUiTextFieldModel : ISkUiTextInputClient, ISkUiTextEditor
             {
                 var color = ToSkColor(PlaceholderColor ?? SkUiColors.Muted);
                 paint.Color = IsEnabled ? color : color.WithAlpha((byte)(color.Alpha * 0.5f));
-                var inset = new Thickness(box.Left, origin.Y, width - box.Right, 0);
-                PlaceholderLayout.Draw(canvas, Placeholder, PlaceholderStyle, inset, width, Math.Max(origin.Y + _layout.Height, height),
+                // Aligned by its own height: its font (PlaceholderFontFamily / PlaceholderFontAttributes) may have taller or
+                // shorter lines than the empty value line a single-line origin is aligned by.
+                var placeholderHeight = PlaceholderHeight(box);
+                var top = AlignedTop(box, placeholderHeight) - _scrollY;
+                var inset = new Thickness(box.Left, top, width - box.Right, 0);
+                PlaceholderLayout.Draw(canvas, Placeholder, PlaceholderStyle, inset, width, Math.Max(top + placeholderHeight, height),
                     HorizontalTextAlignment, TextAlignment.Start, paint);
             }
         }

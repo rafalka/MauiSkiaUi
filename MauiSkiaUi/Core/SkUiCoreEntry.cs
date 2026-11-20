@@ -137,6 +137,12 @@ public class SkUiCoreEntry : SkUiCoreInputView
     /// <inheritdoc cref="SkUiCoreInputView.SetPlaceholderColor" />
     public new SkUiCoreEntry SetPlaceholderColor(Color? value) { base.SetPlaceholderColor(value); return this; }
 
+    /// <inheritdoc cref="SkUiCoreInputView.SetPlaceholderFontFamily" />
+    public new SkUiCoreEntry SetPlaceholderFontFamily(string? value) { base.SetPlaceholderFontFamily(value); return this; }
+
+    /// <inheritdoc cref="SkUiCoreInputView.SetPlaceholderFontAttributes" />
+    public new SkUiCoreEntry SetPlaceholderFontAttributes(FontAttributes? value) { base.SetPlaceholderFontAttributes(value); return this; }
+
     /// <inheritdoc cref="SkUiCoreInputView.SetTextColor" />
     public new SkUiCoreEntry SetTextColor(Color? value) { base.SetTextColor(value); return this; }
 

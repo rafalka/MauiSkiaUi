@@ -82,6 +82,12 @@ public class SkUiCoreSearchBar : SkUiCoreInputView
     /// <inheritdoc cref="SkUiCoreInputView.SetPlaceholderColor" />
     public new SkUiCoreSearchBar SetPlaceholderColor(Color? value) { base.SetPlaceholderColor(value); return this; }
 
+    /// <inheritdoc cref="SkUiCoreInputView.SetPlaceholderFontFamily" />
+    public new SkUiCoreSearchBar SetPlaceholderFontFamily(string? value) { base.SetPlaceholderFontFamily(value); return this; }
+
+    /// <inheritdoc cref="SkUiCoreInputView.SetPlaceholderFontAttributes" />
+    public new SkUiCoreSearchBar SetPlaceholderFontAttributes(FontAttributes? value) { base.SetPlaceholderFontAttributes(value); return this; }
+
     /// <inheritdoc cref="SkUiCoreInputView.SetTextColor" />
     public new SkUiCoreSearchBar SetTextColor(Color? value) { base.SetTextColor(value); return this; }
 

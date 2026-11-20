@@ -27,8 +27,8 @@
                            TextColor="{x:Static samples:SampleColors.Ink}" />
 
         <sk:SkUiLabel Text="REMINDER" FontSize="13" FontAttributes="Bold" TextColor="{x:Static samples:SampleColors.Caption}" />
-        <!-- A day and a time on one popup, in half hours; the field shows the weekday too. -->
-        <sk:SkUiDateTimePicker Title="Reminder" Date="{Binding Reminder}" Placeholder="No reminder" MinimumDate="{Binding FirstDay}"
+        <!-- A day and a time on one popup, in half hours; the field shows the weekday too, and "No reminder" in italics. -->
+        <sk:SkUiDateTimePicker Title="Reminder" Date="{Binding Reminder}" Placeholder="No reminder" PlaceholderFontAttributes="Italic" MinimumDate="{Binding FirstDay}"
                                MaximumDate="{Binding LastDay}" Format="ddd d MMM, HH:mm" MinuteInterval="30"
                                IsPopupClearButtonVisible="True" ClearText="No reminder" TextColor="{x:Static samples:SampleColors.Ink}" />
 

@@ -235,6 +235,23 @@ public abstract class SkUiPickerBase : SkUiView, ISkUiFontElement, ISkUiFieldChr
     /// <summary>The color of the placeholder in the field; <c>null</c> (default): <see cref="TitleColor"/>, else the color scheme's muted color. SkiaUi extension.</summary>
     public Color? PlaceholderColor { get => (Color?)GetValue(PlaceholderColorProperty); set => SetValue(PlaceholderColorProperty, value); }
 
+    /// <summary>Bindable property for <see cref="PlaceholderFontFamily"/>.</summary>
+    public static readonly BindableProperty PlaceholderFontFamilyProperty = BindableProperty.Create(nameof(PlaceholderFontFamily), typeof(string), typeof(SkUiPickerBase), null,
+        propertyChanged: (view, _, value) => ((SkUiPickerBase)view).Apply(model => model.PlaceholderFontFamily = (string?)value, measure: true));
+
+    /// <summary>
+    /// The font family of the placeholder in the field; <c>null</c> (default): <see cref="FontFamily"/>. Lets an empty field use another
+    /// font than its value (a regular hint, a semibold value). SkiaUi extension.
+    /// </summary>
+    public string? PlaceholderFontFamily { get => (string?)GetValue(PlaceholderFontFamilyProperty); set => SetValue(PlaceholderFontFamilyProperty, value); }
+
+    /// <summary>Bindable property for <see cref="PlaceholderFontAttributes"/>.</summary>
+    public static readonly BindableProperty PlaceholderFontAttributesProperty = BindableProperty.Create(nameof(PlaceholderFontAttributes), typeof(FontAttributes?), typeof(SkUiPickerBase), null,
+        propertyChanged: (view, _, value) => ((SkUiPickerBase)view).Apply(model => model.PlaceholderFontAttributes = (FontAttributes?)value, measure: true));
+
+    /// <summary>Bold and italic for the placeholder in the field; <c>null</c> (default): <see cref="FontAttributes"/>. SkiaUi extension.</summary>
+    public FontAttributes? PlaceholderFontAttributes { get => (FontAttributes?)GetValue(PlaceholderFontAttributesProperty); set => SetValue(PlaceholderFontAttributesProperty, value); }
+
     /// <summary>Bindable property for <see cref="PopupWidth"/>.</summary>
     public static readonly BindableProperty PopupWidthProperty = BindableProperty.Create(nameof(PopupWidth), typeof(double), typeof(SkUiPickerBase), -1d,
         validateValue: (_, value) => value is double number && SkUiPickerValidation.IsMaxPopupHeight(number),
@@ -576,6 +593,12 @@ public abstract class SkUiPickerBase : SkUiView, ISkUiFontElement, ISkUiFieldChr
 
     /// <summary>Sets <see cref="PlaceholderColor"/> (same as the property setter).</summary>
     public SkUiPickerBase SetPlaceholderColor(Color? value) { PlaceholderColor = value; return this; }
+
+    /// <summary>Sets <see cref="PlaceholderFontFamily"/> (same as the property setter).</summary>
+    public SkUiPickerBase SetPlaceholderFontFamily(string? value) { PlaceholderFontFamily = value; return this; }
+
+    /// <summary>Sets <see cref="PlaceholderFontAttributes"/> (same as the property setter).</summary>
+    public SkUiPickerBase SetPlaceholderFontAttributes(FontAttributes? value) { PlaceholderFontAttributes = value; return this; }
 
     /// <summary>Sets <see cref="PopupWidth"/> (same as the property setter).</summary>
     public SkUiPickerBase SetPopupWidth(double value) { SkUiPickerValidation.ThrowIfNotOptionalLength(value, nameof(value)); PopupWidth = value; return this; }
