@@ -143,7 +143,6 @@ public sealed class ImageLoadingTests : IDisposable
 
         dispatcher.RunAll();
         await Task.WhenAll(image.LoadingTask, core.LoadingTask);
-        dispatcher.RunAll(); // the results publish on the dispatcher
         Assert.Equal(2, opens); // one load per view, with the last settings
         Assert.Equal([SkUiImageLoadStatus.Succeeded], finished);
         Assert.Equal(20, image.CachedImage!.Frames[0].Width); // decoded at 20 DIPs (scale 1 headless), cropped to a circle
@@ -192,6 +191,57 @@ public sealed class ImageLoadingTests : IDisposable
         Assert.True(glyph.LoadingTask.IsCompleted);
         Assert.NotNull(glyph.CachedImage);
         Assert.Equal(0, dispatcher.Count);
+    }
+
+    [Fact]
+    public void ATransformationKeyThatThrowsFailsTheLoadInsteadOfTheSetter()
+    {
+        // The memory-cache check before a deferred start builds the key too: an app's transformation failing there is the
+        // load's error, as when the load builds it.
+        var dispatcher = new QueueDispatcher();
+        using var _ = SkUiTestHelpers.UseTestDispatcher(dispatcher);
+        var finished = new List<SkUiImageLoadStatus>();
+        var image = new SkUiCoreImage();
+        image.LoadingFinished += (_, args) => finished.Add(args.Status);
+
+        image.SetSourceStream(Open(Png(SKColors.Green)), Key()).SetTransformations(new FailingKeyTransformation());
+
+        Assert.IsType<InvalidOperationException>(image.LoadError);
+        Assert.False(image.IsLoading);
+        Assert.Equal(SkUiImageLoadStatus.Failed, finished[^1]);
+    }
+
+    [Fact]
+    public async Task AHandlerThrowingAtTheDeferredStartFailsTheLoadingTask()
+    {
+        // The deferred start fails at once (the key fails by then) and a LoadingFinished handler throws: LoadingTask
+        // fails with it, as for a load that completes later, instead of never completing.
+        var dispatcher = new QueueDispatcher();
+        using var _ = SkUiTestHelpers.UseTestDispatcher(dispatcher);
+        var transformation = new FailingKeyTransformation { Fails = false };
+        var image = new SkUiCoreImage();
+        image.LoadingFinished += (_, args) =>
+        {
+            if (args.Status == SkUiImageLoadStatus.Failed)
+                throw new ArithmeticException("handler");
+        };
+        image.SetTransformations(transformation).SetSourceStream(Open(Png(SKColors.Green)), Key());
+        Assert.True(image.IsLoading); // a miss: deferred
+        transformation.Fails = true;
+
+        dispatcher.RunAll();
+
+        await Assert.ThrowsAsync<ArithmeticException>(() => image.LoadingTask);
+        Assert.IsType<InvalidOperationException>(image.LoadError);
+    }
+
+    private sealed class FailingKeyTransformation : ISkUiImageTransformation
+    {
+        public bool Fails { get; set; } = true;
+
+        public string Key => Fails ? throw new InvalidOperationException("no key") : nameof(FailingKeyTransformation);
+
+        public SKImage Transform(SKImage source, float pixelsPerDip) => source;
     }
 
     [Fact]

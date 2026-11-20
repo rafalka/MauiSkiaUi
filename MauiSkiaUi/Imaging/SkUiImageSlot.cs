@@ -273,28 +273,35 @@ internal sealed class SkUiImageSlot
     private Task StartLater(SkUiImageSource source, SkUiImageOptions options, int version, bool keepShown, IDispatcher dispatcher,
         CancellationToken token)
     {
-        var running = new TaskCompletionSource<Task>();
+        // Continuations run asynchronously: code awaiting LoadingTask does not run under the lock.
+        var running = new TaskCompletionSource<Task>(TaskCreationOptions.RunContinuationsAsynchronously);
         if (!dispatcher.Dispatch(Begin))
             Begin();
         return running.Task.Unwrap();
 
         void Begin()
         {
+            try
+            {
+                running.TrySetResult(BeginLoad());
+            }
+            catch (Exception error)
+            {
+                running.TrySetException(error); // a LoadingFinished handler threw: LoadingTask fails, as CompleteAsync's does
+            }
+        }
+
+        Task BeginLoad()
+        {
             lock (_gate)
             {
                 if (version != _generation || _disposed)
-                {
-                    running.TrySetResult(Task.CompletedTask); // its cancelled LoadingFinished was raised when it was replaced
-                    return;
-                }
+                    return Task.CompletedTask; // its cancelled LoadingFinished was raised when it was replaced
                 var load = Start(source, options, version, dispatcher, token);
                 if (!load.IsCompleted)
-                {
-                    running.TrySetResult(CompleteAsync(load.AsTask(), version, keepShown, dispatcher));
-                    return;
-                }
+                    return CompleteAsync(load.AsTask(), version, keepShown, dispatcher);
                 CompleteNow(load, version, keepShown);
-                running.TrySetResult(Task.CompletedTask);
+                return Task.CompletedTask;
             }
         }
     }

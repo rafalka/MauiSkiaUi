@@ -154,25 +154,24 @@ internal static class SkUiImageLoader
     /// <summary>
     /// Whether the memory cache could be asked for <paramref name="source"/> without loading it: then <paramref name="hit"/>
     /// is a lease on the cached image, or <c>null</c> on a miss (or when the options skip the memory cache). <c>false</c>
-    /// when the cache key cannot be made (the app's factory failed): a load reports the error.
+    /// when the cache key cannot be made (the app's factory or a transformation's key failed): a load reports the error.
     /// </summary>
     internal static bool TryPeek(SkUiImageSource source, in SkUiImageOptions options, out SkUiCachedImage? hit)
     {
         hit = null;
         if (options.CacheType is not (SkUiImageCacheType.All or SkUiImageCacheType.Memory))
             return true;
-        var maxPixels = MaxPixels(options, DisplayScale);
-        string? sourceKey;
+        string? key;
         try
         {
-            sourceKey = SourceKey(source, options.CacheKey);
+            // The live transformations: their keys are what the snapshot a load takes would have.
+            key = MemoryKey(source, options, SourceKey(source, options.CacheKey), MaxPixels(options, DisplayScale), options.Transformations);
         }
         catch (Exception)
         {
             return false;
         }
-        // The live transformations: their keys are what the snapshot a load takes would have.
-        if (MemoryKey(source, options, sourceKey, maxPixels, options.Transformations) is { } key)
+        if (key is not null)
             hit = SkUiImageMemoryCache.TryGet(key);
         return true;
     }
