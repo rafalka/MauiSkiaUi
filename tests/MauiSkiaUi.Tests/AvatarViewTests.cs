@@ -280,23 +280,24 @@ public sealed class AvatarViewTests : IDisposable
         // A circle: the square inside it; a rounded rectangle: corners on its arcs; an ellipse of cubics (as a MAUI Ellipse
         // stroke shape is drawn, which Skia does not see as an oval): corners on it; content inside the clip: unchanged.
         var content = new SKRect(0, 0, 48, 48);
-        using var circle = new SKPath();
-        circle.AddOval(content);
+        using var circle = Path(builder => builder.AddOval(content));
         var half = (float)(24 * Math.Sqrt(0.5));
         AssertRect(new SKRect(24 - half, 24 - half, 24 + half, 24 + half), SkUiAvatarContent.Inscribed(content, circle));
         Assert.Equal(new SKRect(12, 12, 36, 36), SkUiAvatarContent.Inscribed(new SKRect(12, 12, 36, 36), circle));
-        using var rounded = new SKPath();
-        rounded.AddRoundRect(new SKRoundRect(new SKRect(0, 0, 80, 40), 8));
+        using var roundRect = new SKRoundRect(new SKRect(0, 0, 80, 40), 8);
+        using var rounded = Path(builder => builder.AddRoundRect(roundRect));
         AssertCornersOnOutline(new SKRect(0, 0, 80, 40), rounded);
-        using var ellipse = new SKPath();
         const float Kappa = 0.5522848f; // cubic control distance of a quarter ellipse, in radii
         var (rx, ry, cx, cy) = (30f, 20f, 30f, 20f);
-        ellipse.MoveTo(cx + rx, cy);
-        ellipse.CubicTo(cx + rx, cy + ry * Kappa, cx + rx * Kappa, cy + ry, cx, cy + ry);
-        ellipse.CubicTo(cx - rx * Kappa, cy + ry, cx - rx, cy + ry * Kappa, cx - rx, cy);
-        ellipse.CubicTo(cx - rx, cy - ry * Kappa, cx - rx * Kappa, cy - ry, cx, cy - ry);
-        ellipse.CubicTo(cx + rx * Kappa, cy - ry, cx + rx, cy - ry * Kappa, cx + rx, cy);
-        ellipse.Close();
+        using var ellipse = Path(builder =>
+        {
+            builder.MoveTo(cx + rx, cy);
+            builder.CubicTo(cx + rx, cy + ry * Kappa, cx + rx * Kappa, cy + ry, cx, cy + ry);
+            builder.CubicTo(cx - rx * Kappa, cy + ry, cx - rx, cy + ry * Kappa, cx - rx, cy);
+            builder.CubicTo(cx - rx, cy - ry * Kappa, cx - rx * Kappa, cy - ry, cx, cy - ry);
+            builder.CubicTo(cx + rx * Kappa, cy - ry, cx + rx, cy - ry * Kappa, cx + rx, cy);
+            builder.Close();
+        });
         Assert.False(ellipse.IsOval);
         AssertCornersOnOutline(new SKRect(0, 0, 60, 40), ellipse);
 
@@ -311,6 +312,13 @@ public sealed class AvatarViewTests : IDisposable
         Assert.NotEmpty(inked);
         Assert.True(inked.Min() > 4 && inked.Max() < 43, $"Ink from {inked.Min()} to {inked.Max()}: past the outline");
         Assert.True(inked.Max() - inked.Min() > 26, $"Ink from {inked.Min()} to {inked.Max()}: shrunk more than the outline needs");
+
+        static SKPath Path(Action<SKPathBuilder> build)
+        {
+            using var builder = new SKPathBuilder();
+            build(builder);
+            return builder.Detach();
+        }
 
         static void AssertRect(SKRect expected, SKRect actual) =>
             Assert.True(Math.Abs(expected.Left - actual.Left) < RectTolerance && Math.Abs(expected.Top - actual.Top) < RectTolerance

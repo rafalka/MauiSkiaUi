@@ -226,27 +226,34 @@ internal sealed class SkUiAvatarContent
     }
 
     /// <summary>
-    /// The largest rectangle of <paramref name="content"/>'s shape, about its center, whose corners are inside
-    /// <paramref name="clip"/>: each half diagonal runs from the center until it leaves the clip (a circle's square, a
-    /// rounded rectangle's corners where their arcs cross). Any outline works this way (an ellipse, a stroked shape, a
-    /// look's own corners) with no allocation; content already inside the clip is returned as it is.
+    /// <paramref name="content"/> scaled about its center until its corners are inside <paramref name="clip"/>: each half
+    /// diagonal runs from the center until it leaves the clip (a circle's square, a rounded rectangle's corners where their
+    /// arcs cross). This reads the clip itself, so a circle, rounded rectangle, ellipse, stroked shape or a look's own
+    /// corners all work, with no allocation; it assumes each half diagonal leaves the outline once (convex outlines and
+    /// most others: a notch between two corners is not seen). Content already inside the clip, or whose center is outside
+    /// it, is returned as it is.
     /// </summary>
     internal static SKRect Inscribed(SKRect content, SKPath clip)
     {
         var (centerX, centerY) = (content.MidX, content.MidY);
         if (content.Width <= 0 || content.Height <= 0 || !clip.Contains(centerX, centerY))
             return content;
+        var (halfDiagonalX, halfDiagonalY) = (content.Width / 2, content.Height / 2);
         var scale = 1f;
-        foreach (var (cornerX, cornerY) in (ReadOnlySpan<(float, float)>)[(content.Left, content.Top), (content.Right, content.Top), (content.Left, content.Bottom), (content.Right, content.Bottom)])
+        foreach (var (signX, signY) in (ReadOnlySpan<(float, float)>)[(-1, -1), (1, -1), (-1, 1), (1, 1)])
         {
-            if (clip.Contains(centerX + (cornerX - centerX) * scale, centerY + (cornerY - centerY) * scale))
+            var (towardsX, towardsY) = (signX * halfDiagonalX, signY * halfDiagonalY);
+            if (clip.Contains(centerX + towardsX * scale, centerY + towardsY * scale))
                 continue;
             // Inside at low, outside at high: bisect to a fraction of a DIP along the half diagonal.
             var (low, high) = (0f, scale);
             for (var step = 0; step < InscribedSteps; step++)
             {
                 var middle = (low + high) / 2;
-                if (clip.Contains(centerX + (cornerX - centerX) * middle, centerY + (cornerY - centerY) * middle)) low = middle; else high = middle;
+                if (clip.Contains(centerX + towardsX * middle, centerY + towardsY * middle))
+                    low = middle;
+                else
+                    high = middle;
             }
             scale = low;
         }

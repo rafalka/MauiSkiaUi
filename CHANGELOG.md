@@ -16,7 +16,7 @@ Publishing (the NuGet publish workflow, [docs/Releasing.md](docs/Releasing.md)) 
 ### Fixes
 
 - **NoWrap text that grows or shrinks to fit stuck at its base or minimum size:** a `GrowToFill` / `ShrinkToFit` label with `LineBreakMode.NoWrap` (both layers, plain text and spans) that was once too wide for a trial size judged every wider size too wide as well, so it dropped to its font size (growing) or the minimum scale (shrinking) and stayed there when the label got wider again (the year in the samples' Text that fits page, narrowed with the slider). A trial now checks the line against its own width.
-- **Avatar text sized to the avatar fits inside the outline:** long text in an auto-sized `SkUiAvatarView` / `SkUiCoreAvatar` shrinks to a rectangle inside its outline (circle, rounded rectangle, ellipse or any stroke shape), not to the bounding box. It used to stay inside only because of the bug fixed above, which always dropped it to the minimum (a quarter).
+- **Avatar text sized to the avatar fits inside the outline:** long text in an auto-sized `SkUiAvatarView` / `SkUiCoreAvatar` shrinks to a rectangle inside its outline (a circle, rounded rectangle, ellipse or other convex stroke shape), not to the bounding box. It used to stay inside only because of the bug fixed above, which always dropped it to the minimum (a quarter).
 
 ## 1.15.0
 
