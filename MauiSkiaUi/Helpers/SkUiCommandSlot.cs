@@ -41,13 +41,10 @@ internal sealed class SkUiCommandSlot<TOwner>(TOwner owner, Action<TOwner> chang
         return true;
     }
 
-    /// <summary>
-    /// Sets the parameter; returns whether it changed. Only the same object is unchanged: one that Equals the old parameter can
-    /// be another instance the command needs (issue #114).
-    /// </summary>
+    /// <summary>Sets the parameter; returns whether it changed (<see cref="IsSameParameter"/>).</summary>
     public bool SetParameter(object? value)
     {
-        if (ReferenceEquals(Parameter, value))
+        if (IsSameParameter(Parameter, value))
             return false;
         Parameter = value;
         // Only CanExecute depends on the parameter: rows that re-set it on every bind repaint nothing while CanExecute stays the same.
@@ -74,4 +71,13 @@ internal sealed class SkUiCommandSlot<TOwner>(TOwner owner, Action<TOwner> chang
     }
 
     private void Changed() => changed(owner);
+
+    /// <summary>
+    /// Whether a command parameter setter can skip <paramref name="value"/>: the same object, or an equal value or string, which
+    /// the command cannot tell apart from the old one. Another object that only Equals the old one (a list row replaced by a new
+    /// instance with the same Id) is a change the command needs (issue #114). Value types compare with Equals so a boxed int or
+    /// enum set again on every bind changes nothing.
+    /// </summary>
+    internal static bool IsSameParameter(object? current, object? value) =>
+        ReferenceEquals(current, value) || (current is ValueType or string && Equals(current, value));
 }

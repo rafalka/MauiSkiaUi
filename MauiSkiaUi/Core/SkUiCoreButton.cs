@@ -195,7 +195,7 @@ public class SkUiCoreButton : SkUiCoreLabel, SkUiButtonImageLayout.IText
     /// <summary>Sets the command parameter.</summary>
     public SkUiCoreButton SetCommandParameter(object? value)
     {
-        if (ReferenceEquals(CommandParameter, value)) return this; // an Equals parameter can be another instance (issue #114)
+        if (SkUiCommandSlot<SkUiCoreButton>.IsSameParameter(CommandParameter, value)) return this; // an Equals row can be another instance (issue #114)
         CommandSlot.SetParameter(value);
         OnPropertyChanged(nameof(CommandParameter));
         return this;

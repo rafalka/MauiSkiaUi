@@ -91,6 +91,27 @@ public class EqualCommandParameterTests
     }
 
     [Fact]
+    public void TheSwipeCommandRunsWithTheCurrentParameter()
+    {
+        var log = new List<string>();
+        var box = new SkUiBox
+        {
+            WidthRequest = 300, HeightRequest = 50, HorizontalOptions = LayoutOptions.Start, VerticalOptions = LayoutOptions.Start,
+            SwipeDirections = SwipeDirection.Left, SwipedCommand = Recording(log), SwipedCommandParameter = First,
+        };
+        var root = new SkUiContentView { Content = box };
+        SkUiTestHelpers.Arrange(root, 300, 100);
+        box.SwipedCommandParameter = Second;
+
+        root.Touch(new(1, SkUiTouchAction.Pressed, new Point(250, 25), TimeSpan.Zero));
+        for (var step = 1; step <= 10; step++)
+            root.Touch(new(1, SkUiTouchAction.Moved, new Point(250 - step * 20, 25), TimeSpan.FromMilliseconds(step * 10)));
+        root.Touch(new(1, SkUiTouchAction.Released, new Point(50, 25), TimeSpan.FromMilliseconds(110)));
+
+        Assert.Equal(["second"], log);
+    }
+
+    [Fact]
     public void CheckBoxesAndSwipeItemsRunWithTheCurrentParameter()
     {
         var log = new List<string>();
@@ -158,5 +179,33 @@ public class EqualCommandParameterTests
         Assert.Same(Second, search.SearchCommandParameter);
         Assert.Same(Second, entry.ReturnCommandParameter);
         Assert.Same(Second, tiles.OverflowCommandParameter);
+    }
+
+    [Fact]
+    public void CoreSettersSkipAnEqualValueOrString()
+    {
+        var button = new SkUiCoreButton().SetCommandParameter(5);
+        var expander = new SkUiCoreExpander().SetCommandParameter(new string('x', 3));
+        var changed = new List<string?>();
+        button.PropertyChanged += (_, args) => changed.Add(args.PropertyName);
+        expander.PropertyChanged += (_, args) => changed.Add(args.PropertyName);
+
+        button.SetCommandParameter(5); // another box of an equal int
+        expander.SetCommandParameter(new string('x', 3)); // another instance of an equal string
+
+        Assert.Empty(changed);
+    }
+
+    [Fact]
+    public void ACheckBoxAsksCanExecuteWithTheCurrentParameter()
+    {
+        var log = new List<string>();
+        var box = OnSurface(new SkUiCheckBox { Command = new Command<Row>(row => log.Add(row.Label), row => row?.Label != "locked"), CommandParameter = First });
+        box.CommandParameter = new Row("1", "locked");
+
+        SkUiDiagnostics.SimulateTap(box);
+
+        Assert.False(box.IsChecked);
+        Assert.Empty(log);
     }
 }

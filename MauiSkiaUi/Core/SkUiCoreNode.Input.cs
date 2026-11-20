@@ -132,7 +132,7 @@ public partial class SkUiCoreNode
     /// <summary>Sets <see cref="TappedCommandParameter"/>.</summary>
     public SkUiCoreNode SetTappedCommandParameter(object? value)
     {
-        if (ReferenceEquals(TappedCommandParameter, value)) return this; // an Equals parameter can be another instance (issue #114)
+        if (SkUiCommandSlot<SkUiCoreNode>.IsSameParameter(TappedCommandParameter, value)) return this; // an Equals row can be another instance (issue #114)
         TappedCommandSlot.SetParameter(value);
         OnPropertyChanged(nameof(TappedCommandParameter));
         return this;
