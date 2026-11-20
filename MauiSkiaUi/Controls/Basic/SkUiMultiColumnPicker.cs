@@ -67,7 +67,7 @@ public class SkUiMultiColumnPicker : SkUiPickerBase
     {
         _columns = new SkUiColumnsModel(model, (column, previous, current) =>
         {
-            model.RunSelectionChangedCommand();
+            model.RunSelectionChangedCommand(SelectionChangedCommandParameter);
             SelectionChanged?.Invoke(this, new SkUiColumnSelectionChangedEventArgs(column, previous, current));
         });
         _columns.ColumnsChanged += (_, _) => InheritBindingContext();

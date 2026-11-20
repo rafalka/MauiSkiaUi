@@ -236,7 +236,7 @@ public class SkUiDateTimePicker : SkUiDateTimePickerBase
     {
         Dates.Value = value;
         Dates.ValueChanged();
-        Model.RunSelectionChangedCommand();
+        Model.RunSelectionChangedCommand(SelectionChangedCommandParameter);
         DateSelected?.Invoke(this, new DateChangedEventArgs(previous, value));
     }
 

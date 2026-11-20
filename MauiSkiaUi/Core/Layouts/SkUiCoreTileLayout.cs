@@ -147,7 +147,7 @@ public class SkUiCoreTileLayout : SkUiCorePanel
     /// <summary>Sets <see cref="OverflowCommandParameter"/>.</summary>
     public SkUiCoreTileLayout SetOverflowCommandParameter(object? value)
     {
-        SetProperty(ref _overflowCommandParameter, value, nameof(OverflowCommandParameter));
+        SetParameterProperty(ref _overflowCommandParameter, value, nameof(OverflowCommandParameter));
         return this;
     }
 

@@ -11,7 +11,6 @@ namespace MauiSkiaUi;
 public class SkUiImageButton : SkUiImage, ISkUiBorderElement, SkUiImageButtonDrawing.IImage
 {
     private ICommand? _command;
-    private object? _commandParameter;
     private SkUiChromeState _chrome;
     private bool _syncingCornerRadius;
     private Thickness _padding;
@@ -30,7 +29,7 @@ public class SkUiImageButton : SkUiImage, ISkUiBorderElement, SkUiImageButtonDra
         propertyChanged: (view, _, value) => ((SkUiImageButton)view).OnCommandChanged((ICommand?)value));
     /// <summary>Bindable command argument.</summary>
     public static readonly BindableProperty CommandParameterProperty = BindableProperty.Create(nameof(CommandParameter), typeof(object), typeof(SkUiImageButton), null,
-        propertyChanged: (view, _, value) => ((SkUiImageButton)view).OnCommandParameterChanged(value));
+        propertyChanged: (view, _, _) => ((SkUiImageButton)view).UpdateState());
     /// <summary>Bindable per-corner radii (0: square).</summary>
     public static readonly BindableProperty CornerRadiiProperty = BindableProperty.Create(nameof(CornerRadii), typeof(CornerRadius), typeof(SkUiImageButton), default(CornerRadius),
         validateValue: SkUiValidate.CornerRadii,
@@ -106,7 +105,6 @@ public class SkUiImageButton : SkUiImage, ISkUiBorderElement, SkUiImageButtonDra
     private SkUiWeakListener<SkUiImageButton>? _commandListener;
     /// <summary>Sets command argument (same as the property setter).</summary>
     public SkUiImageButton SetCommandParameter(object? value) { CommandParameter = value; return this; }
-    private void OnCommandParameterChanged(object? value) { _commandParameter = value; UpdateState(); }
     /// <summary>Sets the per-corner radii (same as the property setter).</summary>
     public SkUiImageButton SetCornerRadii(CornerRadius value) { SkUiCornerRadii.Validate(value, nameof(value)); CornerRadii = value; return this; }
     private void OnCornerRadiiChanged(CornerRadius value)
@@ -147,7 +145,8 @@ public class SkUiImageButton : SkUiImage, ISkUiBorderElement, SkUiImageButtonDra
     /// <inheritdoc />
     protected override bool HandlesTap => true;
     /// <inheritdoc />
-    protected override bool CanReceiveTap => _command?.CanExecute(_commandParameter) ?? true;
+    // The parameter is read from the store, not copied in its change callback: MAUI raises no change for a value that Equals the old one (a new row instance with the same Id, issue #114).
+    protected override bool CanReceiveTap => _command?.CanExecute(CommandParameter) ?? true;
     private protected override void RaiseIsPressedChanged() => SetValue(IsPressedPropertyKey, IsPressed);
 
     /// <inheritdoc />
@@ -188,7 +187,7 @@ public class SkUiImageButton : SkUiImage, ISkUiBorderElement, SkUiImageButtonDra
         if (!CanReceiveTap) return;
         RaiseTapped(args);
         Clicked?.Invoke(this, EventArgs.Empty);
-        if (_command?.CanExecute(_commandParameter) == true) _command.Execute(_commandParameter);
+        if (_command is { } command && CommandParameter is var parameter && command.CanExecute(parameter)) command.Execute(parameter);
     }
 
     /// <inheritdoc />

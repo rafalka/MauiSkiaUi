@@ -41,13 +41,16 @@ internal sealed class SkUiCommandSlot<TOwner>(TOwner owner, Action<TOwner> chang
         return true;
     }
 
-    /// <summary>Sets the parameter; returns whether it changed.</summary>
+    /// <summary>
+    /// Sets the parameter; returns whether it changed. Only the same object is unchanged: one that Equals the old parameter can
+    /// be another instance the command needs (issue #114).
+    /// </summary>
     public bool SetParameter(object? value)
     {
-        if (Equals(Parameter, value))
+        if (ReferenceEquals(Parameter, value))
             return false;
         Parameter = value;
-        // Only CanExecute depends on the parameter: rows that re-set it on every bind repaint nothing while it stays the same.
+        // Only CanExecute depends on the parameter: rows that re-set it on every bind repaint nothing while CanExecute stays the same.
         if (Refresh())
             Changed();
         return true;

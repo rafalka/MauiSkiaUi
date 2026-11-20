@@ -410,7 +410,11 @@ public abstract class SkUiCorePickerBase : SkUiCoreNode, ISkUiFontElement, ISkUi
     public SkUiCorePickerBase SetSelectionChangedCommand(ICommand? value) => Update(ref Model.SelectionChangedCommand, value, nameof(SelectionChangedCommand), paint: false);
 
     /// <summary>Sets <see cref="SelectionChangedCommandParameter"/>.</summary>
-    public SkUiCorePickerBase SetSelectionChangedCommandParameter(object? value) => Update(ref Model.SelectionChangedCommandParameter, value, nameof(SelectionChangedCommandParameter), paint: false);
+    public SkUiCorePickerBase SetSelectionChangedCommandParameter(object? value)
+    {
+        SetParameterProperty(ref Model.SelectionChangedCommandParameter, value, nameof(SelectionChangedCommandParameter));
+        return this;
+    }
 
     /// <inheritdoc />
     public override SkUiCoreNode SetMinimumHeight(double value)

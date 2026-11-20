@@ -116,7 +116,7 @@ public class SkUiCoreEntry : SkUiCoreInputView
     /// <summary>Sets <see cref="ReturnCommandParameter"/>.</summary>
     public SkUiCoreEntry SetReturnCommandParameter(object? value)
     {
-        SetProperty(ref _returnCommandParameter, value, nameof(ReturnCommandParameter));
+        SetParameterProperty(ref _returnCommandParameter, value, nameof(ReturnCommandParameter));
         return this;
     }
 

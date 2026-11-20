@@ -50,7 +50,11 @@ public class SkUiCheckBox : SkUiToggleControl
     private protected override void RaiseCheckedChanged(bool isChecked)
     {
         base.RaiseCheckedChanged(isChecked);
-        _command?.Execute();
+        if (_command is not { } slot)
+            return;
+        // Synced from the store first: MAUI raises no change for a parameter that Equals the old one (issue #114).
+        slot.SetParameter(CommandParameter);
+        slot.Execute();
     }
 
     /// <summary>Bindable checkmark/fill color while checked.</summary>

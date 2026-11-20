@@ -10,7 +10,6 @@ namespace MauiSkiaUi;
 public class SkUiButton : SkUiLabel, SkUiButtonImageLayout.IText
 {
     private ICommand? _command;
-    private object? _commandParameter;
     private Color _fillColor = SkUiColors.ButtonBackground;
     private Color? _disabledFillColor;
     private SkUiPressAnimator? _press;
@@ -33,7 +32,7 @@ public class SkUiButton : SkUiLabel, SkUiButtonImageLayout.IText
     /// <summary>Bindable command executed on a valid release.</summary>
     public static readonly BindableProperty CommandProperty = BindableProperty.Create(nameof(Command), typeof(ICommand), typeof(SkUiButton), null, propertyChanged: (view, _, value) => ((SkUiButton)view).OnCommandChanged((ICommand?)value));
     /// <summary>Bindable command argument.</summary>
-    public static readonly BindableProperty CommandParameterProperty = BindableProperty.Create(nameof(CommandParameter), typeof(object), typeof(SkUiButton), null, propertyChanged: (view, _, value) => ((SkUiButton)view).OnCommandParameterChanged(value));
+    public static readonly BindableProperty CommandParameterProperty = BindableProperty.Create(nameof(CommandParameter), typeof(object), typeof(SkUiButton), null, propertyChanged: (view, _, _) => ((SkUiButton)view).UpdateState());
     /// <summary>Bindable button fill.</summary>
     public static readonly BindableProperty FillColorProperty = BindableProperty.Create(nameof(FillColor), typeof(Color), typeof(SkUiButton), null,
         defaultValueCreator: _ => SkUiColors.ButtonBackground,
@@ -157,7 +156,6 @@ public class SkUiButton : SkUiLabel, SkUiButtonImageLayout.IText
     private SkUiWeakListener<SkUiButton>? _commandListener;
     /// <summary>Sets command argument (same as the property setter).</summary>
     public SkUiButton SetCommandParameter(object? value) { CommandParameter = value; return this; }
-    private void OnCommandParameterChanged(object? value) { _commandParameter = value; UpdateState(); }
     /// <summary>Sets all four corner radii (same as the property setter).</summary>
     public new SkUiButton SetCornerRadius(int value) { base.SetCornerRadius(value); return this; }
     /// <summary>Sets the per-corner radii (same as the property setter).</summary>
@@ -245,7 +243,8 @@ public class SkUiButton : SkUiLabel, SkUiButtonImageLayout.IText
     /// <inheritdoc />
     protected override bool HandlesTap => true;
     /// <inheritdoc />
-    protected override bool CanReceiveTap => _command?.CanExecute(_commandParameter) ?? true;
+    // The parameter is read from the store, not copied in its change callback: MAUI raises no change for a value that Equals the old one (a new row instance with the same Id, issue #114).
+    protected override bool CanReceiveTap => _command?.CanExecute(CommandParameter) ?? true;
     private protected override void RaiseIsPressedChanged() => SetValue(IsPressedPropertyKey, IsPressed);
 
     /// <inheritdoc />
@@ -291,7 +290,7 @@ public class SkUiButton : SkUiLabel, SkUiButtonImageLayout.IText
         if (!CanReceiveTap) return;
         RaiseTapped(args);
         Clicked?.Invoke(this, EventArgs.Empty);
-        if (_command?.CanExecute(_commandParameter) == true) _command.Execute(_commandParameter);
+        if (_command is { } command && CommandParameter is var parameter && command.CanExecute(parameter)) command.Execute(parameter);
     }
     /// <summary>
     /// Draws the rounded fill, border and press feedback (<see cref="SkUiLook.DrawButton"/>) registered as

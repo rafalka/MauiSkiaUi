@@ -100,7 +100,7 @@ public class SkUiCoreImageButton : SkUiCoreImage, ISkUiBorderElement, SkUiImageB
     /// <summary>Sets the command parameter.</summary>
     public SkUiCoreImageButton SetCommandParameter(object? value)
     {
-        if (Equals(CommandParameter, value)) return this;
+        if (ReferenceEquals(CommandParameter, value)) return this; // an Equals parameter can be another instance (issue #114)
         CommandSlot.SetParameter(value);
         OnPropertyChanged(nameof(CommandParameter));
         return this;

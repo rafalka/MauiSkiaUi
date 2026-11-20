@@ -15,12 +15,11 @@ internal sealed class SkUiGestureSet(object owner)
     public EventHandler<SkUiSwipedEventArgs>? Swiped;
     public EventHandler<SkUiPanUpdatedEventArgs>? PanUpdated;
     public EventHandler<SkUiPinchUpdatedEventArgs>? PinchUpdated;
+    // The commands are SkUiView's (Core nodes have only the events). Their parameters stay in the view's bindable store and are
+    // read when used, not copied here in a change callback: MAUI raises no change for a value that Equals the old one (issue #114).
     public ICommand? DoubleTappedCommand;
-    public object? DoubleTappedCommandParameter;
     public ICommand? LongPressedCommand;
-    public object? LongPressedCommandParameter;
     public ICommand? SwipedCommand;
-    public object? SwipedCommandParameter;
     public SwipeDirection SwipeDirections = SwipeDirection.Left | SwipeDirection.Right | SwipeDirection.Up | SwipeDirection.Down;
     public SkUiPanAxis PanAxis;
     public List<SkUiGestureRecognizer>? Custom;
@@ -31,6 +30,10 @@ internal sealed class SkUiGestureSet(object owner)
     private SkUiSwipeGestureRecognizer? _swipe;
     private SkUiPanGestureRecognizer? _pan;
     private SkUiPinchGestureRecognizer? _pinch;
+
+    private object? DoubleTappedCommandParameter => (owner as SkUiView)?.DoubleTappedCommandParameter;
+    private object? LongPressedCommandParameter => (owner as SkUiView)?.LongPressedCommandParameter;
+    private object? SwipedCommandParameter => (owner as SkUiView)?.SwipedCommandParameter;
 
     public bool WantsDoubleTap => DoubleTapped is not null || DoubleTappedCommand?.CanExecute(DoubleTappedCommandParameter) == true;
 
@@ -58,15 +61,15 @@ internal sealed class SkUiGestureSet(object owner)
     public void RaiseDoubleTapped(SkUiTappedEventArgs args)
     {
         DoubleTapped?.Invoke(owner, args);
-        if (DoubleTappedCommand?.CanExecute(DoubleTappedCommandParameter) == true)
-            DoubleTappedCommand.Execute(DoubleTappedCommandParameter);
+        if (DoubleTappedCommand is { } command && DoubleTappedCommandParameter is var parameter && command.CanExecute(parameter))
+            command.Execute(parameter);
     }
 
     public void RaiseLongPressed(SkUiLongPressedEventArgs args)
     {
         LongPressed?.Invoke(owner, args);
-        if (LongPressedCommand?.CanExecute(LongPressedCommandParameter) == true)
-            LongPressedCommand.Execute(LongPressedCommandParameter);
+        if (LongPressedCommand is { } command && LongPressedCommandParameter is var parameter && command.CanExecute(parameter))
+            command.Execute(parameter);
     }
 
     private void RaiseSwiped(SkUiSwipedEventArgs args)

@@ -251,8 +251,7 @@ public abstract class SkUiPickerBase : SkUiView, ISkUiFontElement, ISkUiFieldChr
     public ICommand? SelectionChangedCommand { get => (ICommand?)GetValue(SelectionChangedCommandProperty); set => SetValue(SelectionChangedCommandProperty, value); }
 
     /// <summary>Bindable property for <see cref="SelectionChangedCommandParameter"/>.</summary>
-    public static readonly BindableProperty SelectionChangedCommandParameterProperty = BindableProperty.Create(nameof(SelectionChangedCommandParameter), typeof(object), typeof(SkUiPickerBase), null,
-        propertyChanged: (view, _, value) => ((SkUiPickerBase)view).Model.SelectionChangedCommandParameter = (object?)value);
+    public static readonly BindableProperty SelectionChangedCommandParameterProperty = BindableProperty.Create(nameof(SelectionChangedCommandParameter), typeof(object), typeof(SkUiPickerBase), null);
 
     /// <summary>The parameter of <see cref="SelectionChangedCommand"/>. SkiaUi extension.</summary>
     public object? SelectionChangedCommandParameter { get => (object?)GetValue(SelectionChangedCommandParameterProperty); set => SetValue(SelectionChangedCommandParameterProperty, value); }

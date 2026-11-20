@@ -1696,6 +1696,20 @@ public partial class SkUiCoreNode : ISkUiCoreNode, INotifyPropertyChanged, ISkUi
         return true;
     }
 
+    /// <summary>
+    /// <see cref="SetProperty{T}"/> for a command parameter: unchanged only when <paramref name="value"/> is the same object. A
+    /// parameter that <see cref="object.Equals(object)"/> the old one can be another instance the command needs (a list row
+    /// replaced by a new instance with the same Id, issue #114).
+    /// </summary>
+    protected bool SetParameterProperty(ref object? field, object? value, [CallerMemberName] string? propertyName = null)
+    {
+        if (ReferenceEquals(field, value))
+            return false;
+        field = value;
+        OnPropertyChanged(propertyName);
+        return true;
+    }
+
     /// <summary>Raises <see cref="PropertyChanged"/> for <paramref name="propertyName"/>.</summary>
     protected void OnPropertyChanged([CallerMemberName] string? propertyName = null) =>
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));

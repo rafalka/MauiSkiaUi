@@ -39,7 +39,7 @@ public class SkUiCoreCheckBox : SkUiCoreToggleControl
     /// <summary>Sets <see cref="CommandParameter"/>.</summary>
     public SkUiCoreCheckBox SetCommandParameter(object? value)
     {
-        if (Equals(CommandParameter, value)) return this;
+        if (ReferenceEquals(CommandParameter, value)) return this; // an Equals parameter can be another instance (issue #114)
         CommandSlot.SetParameter(value);
         OnPropertyChanged(nameof(CommandParameter));
         return this;
