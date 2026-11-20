@@ -208,20 +208,61 @@ internal sealed class SkUiAvatarContent
         if (_image?.Image is not null)
             _image.Paint(canvas, content, Aspect);
         else if (_displayText.Length > 0)
-            DrawText(canvas, content, textColor ?? ResolveColors().Text);
+            DrawText(canvas, content, clip, textColor ?? ResolveColors().Text);
         canvas.RestoreToCount(save);
     }
 
-    private void DrawText(SKCanvas canvas, SKRect content, Color color)
+    private void DrawText(SKCanvas canvas, SKRect content, SKPath clip, Color color)
     {
         var style = Style(new Size(content.Width, content.Height));
         if (style.FontSize <= 0)
             return;
         var paint = SkUiTextResources.TextPaint;
         paint.Color = SkUiShapePainter.ToSkColor(color);
-        canvas.Translate(content.Left, content.Top);
-        _layout.Draw(canvas, _displayText, style, default, content.Width, content.Height, TextAlignment.Center, TextAlignment.Center, paint);
+        // Text that sizes itself shrinks to the outline, not to its bounding box (a circle would cut the ends off).
+        var slot = MeasuresText ? content : Inscribed(content, clip);
+        canvas.Translate(slot.Left, slot.Top);
+        _layout.Draw(canvas, _displayText, style, default, slot.Width, slot.Height, TextAlignment.Center, TextAlignment.Center, paint);
     }
+
+    /// <summary>
+    /// <paramref name="content"/> scaled about its center until its corners are inside <paramref name="clip"/>: each half
+    /// diagonal runs from the center until it leaves the clip (a circle's square, a rounded rectangle's corners where their
+    /// arcs cross). This reads the clip itself, so a circle, rounded rectangle, ellipse, stroked shape or a look's own
+    /// corners all work, with no allocation; it assumes each half diagonal leaves the outline once (convex outlines and
+    /// most others: a notch between two corners is not seen). Content already inside the clip, or whose center is outside
+    /// it, is returned as it is.
+    /// </summary>
+    internal static SKRect Inscribed(SKRect content, SKPath clip)
+    {
+        var (centerX, centerY) = (content.MidX, content.MidY);
+        if (content.Width <= 0 || content.Height <= 0 || !clip.Contains(centerX, centerY))
+            return content;
+        var (halfDiagonalX, halfDiagonalY) = (content.Width / 2, content.Height / 2);
+        var scale = 1f;
+        foreach (var (signX, signY) in (ReadOnlySpan<(float, float)>)[(-1, -1), (1, -1), (-1, 1), (1, 1)])
+        {
+            var (towardsX, towardsY) = (signX * halfDiagonalX, signY * halfDiagonalY);
+            if (clip.Contains(centerX + towardsX * scale, centerY + towardsY * scale))
+                continue;
+            // Inside at low, outside at high: bisect to a fraction of a DIP along the half diagonal.
+            var (low, high) = (0f, scale);
+            for (var step = 0; step < InscribedSteps; step++)
+            {
+                var middle = (low + high) / 2;
+                if (clip.Contains(centerX + towardsX * middle, centerY + towardsY * middle))
+                    low = middle;
+                else
+                    high = middle;
+            }
+            scale = low;
+        }
+        var (halfWidth, halfHeight) = (content.Width / 2 * scale, content.Height / 2 * scale);
+        return new SKRect(centerX - halfWidth, centerY - halfHeight, centerX + halfWidth, centerY + halfHeight);
+    }
+
+    /// <summary>Bisection steps along a half diagonal in <see cref="Inscribed"/>: 2⁻¹² of it, well under a DIP for any avatar.</summary>
+    private const int InscribedSteps = 12;
 
     /// <summary>The text's style: the set font size, or (negative) the look's size for a <paramref name="content"/> area, shrinking to fit.</summary>
     private SkUiTextStyle Style(Size content)

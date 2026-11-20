@@ -123,9 +123,10 @@ internal sealed class SkUiRichTextLayout : ISkUiTextSpanFonts, ISkUiTextFitLayou
     // As in SkUiTextLayout: nothing wrapped or truncated, so any width ≥ _maxLineWidth gives the same lines.
     private bool _naturalFit;
     private float _maxLineWidth;
-    // As in SkUiTextLayout: the fit's view of the lines.
+    // As in SkUiTextLayout: the fit's view of the lines (see ShowsAll).
     private bool _fits;
     private float _widestParagraph;
+    private float _noWrapWidth;
     private SkUiTextFit? _fit;
 
     /// <summary>Line layouts computed by this instance (diagnostics / tests).</summary>
@@ -236,6 +237,7 @@ internal sealed class SkUiRichTextLayout : ISkUiTextSpanFonts, ISkUiTextFitLayou
         var lines = new List<SkUiShaping.StyledLine>();
         var fits = true;
         var natural = text.Text.Length == 0 || BreakStock(width, lines, out fits);
+        _noWrapWidth = style.LineBreakMode == LineBreakMode.NoWrap ? _widestParagraph : 0; // every paragraph broken is one line
         if (style.IncludeFontPadding)
             ApplyFontPadding(lines);
         // Pictures that drew the old lines hold their own references to the blobs.
@@ -259,9 +261,17 @@ internal sealed class SkUiRichTextLayout : ISkUiTextSpanFonts, ISkUiTextFitLayou
     /// <inheritdoc />
     bool ISkUiTextFitLayout.Fits(object text, in SkUiTextStyle style, double width, double height, out double estimate)
     {
-        EnsureLines((SkUiRichText)text, SkUiTextFit.UnscaledWidth(width, style), SkUiTextFit.Unscaled(style));
-        return SkUiTextFit.Check(_fits, (float)LinesSize().Height, _widestParagraph, style, width, height, out estimate);
+        var unscaledWidth = SkUiTextFit.UnscaledWidth(width, style);
+        EnsureLines((SkUiRichText)text, unscaledWidth, SkUiTextFit.Unscaled(style));
+        return SkUiTextFit.Check(ShowsAll(unscaledWidth), (float)LinesSize().Height, _widestParagraph, style, width, height, out estimate);
     }
+
+    /// <summary>
+    /// Whether the current lines show all the text in a slot <paramref name="width"/> wide, as in
+    /// <see cref="SkUiTextLayout"/>: lines that wrapped nothing are reused at other widths, so the NoWrap width is checked
+    /// against the width asked about, not the one the lines were broken at.
+    /// </summary>
+    private bool ShowsAll(double width) => _fits && !(_noWrapWidth > width + SkUiTextLayout.FitTolerance);
 
     /// <inheritdoc />
     Size ISkUiTextFitLayout.Extent(object text, in SkUiTextStyle style, double width)
@@ -350,7 +360,8 @@ internal sealed class SkUiRichTextLayout : ISkUiTextSpanFonts, ISkUiTextFitLayou
     /// Breaks the text into <paramref name="lines"/> as <see cref="SkUiTextLayout"/> does for a stock mode: paragraphs at
     /// newlines, wrapping, head / middle / tail truncation, and <c>MaxLines</c> (tail truncation wraps and ellipsizes the
     /// last kept line).
-    /// <c>fits</c>: whether the lines show all the text, as <see cref="SkUiTextLayout"/>'s stock breaking tells it.
+    /// <c>fits</c>: whether the lines show all the text, as <see cref="SkUiTextLayout"/>'s stock breaking tells it (NoWrap
+    /// lines' width aside: <see cref="ShowsAll"/>).
     /// </summary>
     /// <returns>Whether the lines are the same at any width at least as wide as the widest.</returns>
     private bool BreakStock(double width, List<SkUiShaping.StyledLine> lines, out bool fits)
@@ -389,7 +400,6 @@ internal sealed class SkUiRichTextLayout : ISkUiTextSpanFonts, ISkUiTextFitLayou
             _widestParagraph = Math.Max(_widestParagraph, paragraph.Width);
             if (double.IsInfinity(width) || mode == LineBreakMode.NoWrap || paragraph.Width <= width + SkUiTextLayout.FitTolerance)
             {
-                fits &= !(paragraph.Width > width + SkUiTextLayout.FitTolerance); // NoWrap: drawn past the width
                 lines.Add(SkUiShaping.BuildStyledLine(paragraph, 0, paragraph.Text.Length, this, emptySpan));
                 last = (paragraph, 0, emptySpan);
                 continue;

@@ -352,6 +352,61 @@ public class LabelShrinkToFitTests
     }
 
     [Fact]
+    public void NoWrapTextFollowsTheWidthBackAfterNarrowing()
+    {
+        // The Text that fits sample: a NoWrap year grown to fill. Narrowed past the largest size, a trial too wide for its
+        // slot left lines that wider trials reused; they must not keep "too wide", which fitted the text at its base size
+        // (growing) or its minimum (shrinking) from there on, however wide the label got again. Grown text is compared with a
+        // fresh label; shrunk text, which a fresh label shrank to the minimum too, with the size that fits.
+        using var _ = SkUiTestHelpers.UseBundledFont();
+        SkUiLabel Fitted(string text, bool grow, bool spans = false)
+        {
+            var label = Label(spans ? "" : text, LineBreakMode.NoWrap);
+            label.ShrinkToFit = !grow;
+            label.GrowToFill = grow;
+            label.MaximumFontScale = 4;
+            if (spans)
+                label.FormattedText = new FormattedString { Spans = { new Span { Text = text[..2] }, new Span { Text = text[2..], FontSize = 20 } } };
+            return label;
+        }
+        SkUiCoreLabel FittedCore(string text, bool grow) =>
+            Core(text).SetShrinkToFit(!grow).SetLineBreakMode(LineBreakMode.NoWrap).SetGrowToFill(grow).SetMaximumFontScale(4);
+
+        var widths = Enumerable.Range(0, 20).Select(step => Advance * (20 - step)).ToList();
+        widths.AddRange(Enumerable.Reverse(widths));
+        foreach (var (name, view, fresh) in new (string, Func<double, Size>, Func<double, Size>)[]
+                 {
+                     ("grown", Laid(Fitted("1969", true)), width => Measure(Fitted("1969", true), width)),
+                     ("grown spans", Laid(Fitted("1969", true, spans: true)), width => Measure(Fitted("1969", true, spans: true), width)),
+                     ("grown core", Laid(FittedCore("1969", true)), width => FittedCore("1969", true).Measure(width, double.PositiveInfinity)),
+                     ("shrunk", Laid(Fitted(Words, false)), Fits),
+                     ("shrunk core", Laid(FittedCore(Words, false)), Fits)
+                 })
+        {
+            // Fitted sizes are less than a step of font size below the largest that fits.
+            var tolerance = 0.5 + (name.StartsWith("shrunk", StringComparison.Ordinal) ? StepScale * LineSpacing : 0);
+            foreach (var width in widths)
+            {
+                var (size, expected) = (view(width), fresh(width));
+                Assert.True(Math.Abs(size.Height - expected.Height) < tolerance, $"{name} at {width}: {size}, expected {expected}");
+            }
+        }
+        return;
+
+        // One line of Words at the largest scale the width allows, at least the minimum (0.5).
+        static Size Fits(double width) => new(0, LineSpacing * Math.Clamp(width / (Advance * Words.Length), SkUiTextFit.DefaultMinimumScale, 1));
+
+        // Measures at a width and arranges there, as a layout does: the fit remembers both slots.
+        static Func<double, Size> Laid(object label) => width =>
+        {
+            var size = label is SkUiCoreLabel core ? core.Measure(width, double.PositiveInfinity) : ((IView)label).Measure(width, double.PositiveInfinity);
+            var slot = new Rect(0, 0, width, size.Height);
+            if (label is SkUiCoreLabel arranged) arranged.Arrange(slot); else ((IView)label).Arrange(slot);
+            return size;
+        };
+    }
+
+    [Fact]
     public void OneLineIsFittedInAFewLayoutsAndDrawnFromTheLastTrial()
     {
         // Growing: trials lay the line out at its font size, where it fits whatever the slot; the computed size is drawn

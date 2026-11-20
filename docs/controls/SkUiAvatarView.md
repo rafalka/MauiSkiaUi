@@ -24,7 +24,7 @@ A person's picture, or their initials while there is none, in a round (or any) b
 | Padding | 1 | 1 until `Padding` is set |
 | Background | Transparent | The look's color for `AvatarColorMode` until `Background` / `BackgroundColor` is set (Transparent included) |
 | Text color | The platform's label color | The look's color for `AvatarColorMode` until `TextColor` is set |
-| Font size | -1: the platform's default label size | -1: sized to the avatar (40 % of the content area's smaller side, `SkUiLook.GetAvatarFontSize`), and text too wide shrinks to fit (down to a quarter). A set size follows `FontAutoScalingEnabled` |
+| Font size | -1: the platform's default label size | -1: sized to the avatar (40 % of the content area's smaller side, `SkUiLook.GetAvatarFontSize`), and text too wide shrinks to fit a rectangle inside the outline (circle, rounded rectangle, ellipse or other convex shape), down to a quarter. A set size follows `FontAutoScalingEnabled` |
 
 Unlike the toolkit's constructor, which sets `Padding`, `Stroke` and the sizes as local values that style setters cannot replace, the avatar sets only the alignment locally. Everything else comes from defaults, so implicit and explicit styles work.
 

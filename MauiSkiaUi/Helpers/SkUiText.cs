@@ -293,9 +293,11 @@ internal sealed class SkUiTextLayout : ISkUiTextFitLayout
     // _maxLineWidth then yields the same lines, so measure-at-constraint and draw-at-arranged-width share one layout.
     private bool _naturalFit;
     private float _maxLineWidth;
-    // The fit (SkUiTextFit): whether the lines show all the text, and the widest paragraph unbroken.
+    // The fit (SkUiTextFit): whether the lines show all the text (NoWrap lines' width aside, see ShowsAll), the widest
+    // paragraph unbroken, and the widest NoWrap line (0 for other modes).
     private bool _fits;
     private float _widestParagraph;
+    private float _noWrapWidth;
     private SkUiTextFit? _fit;
 
     /// <summary>
@@ -472,6 +474,7 @@ internal sealed class SkUiTextLayout : ISkUiTextFitLayout
         LastLayoutSimple = true;
         LastLayoutPlain = true;
         _widestParagraph = 0;
+        _noWrapWidth = 0;
         var lines = new List<SkUiShaping.Line>();
         var natural = true;
         var fits = true;
@@ -498,6 +501,8 @@ internal sealed class SkUiTextLayout : ISkUiTextFitLayout
                 try
                 {
                     natural = BreakStock(text, width, mode.Value, style.MaxLines, DefaultEllipsis, primary, specs, out fits);
+                    if (mode == LineBreakMode.NoWrap)
+                        _noWrapWidth = _widestParagraph; // every paragraph broken is one line
                     var justifyWidth = style.Justify ? (float)width : (float?)null;
                     foreach (var spec in specs)
                         lines.Add(spec.Text is { } synthesized
@@ -537,9 +542,18 @@ internal sealed class SkUiTextLayout : ISkUiTextFitLayout
         // A custom breaker shortens the fitted text its own way: the text fits when it fits by the mode it falls back to.
         var stock = style.LineBreaker is { } breaker ? style with { LineBreaker = null, LineBreakMode = StockMode(breaker) ?? style.LineBreakMode } : style;
         var lines = SkUiTextFit.Unscaled(stock);
-        EnsureLines((string)text, SkUiTextFit.UnscaledWidth(width, stock), lines, Primary(lines));
-        return SkUiTextFit.Check(_fits, (float)LinesSize().Height, _widestParagraph, stock, width, height, out estimate);
+        var unscaledWidth = SkUiTextFit.UnscaledWidth(width, stock);
+        EnsureLines((string)text, unscaledWidth, lines, Primary(lines));
+        return SkUiTextFit.Check(ShowsAll(unscaledWidth), (float)LinesSize().Height, _widestParagraph, stock, width, height, out estimate);
     }
+
+    /// <summary>
+    /// Whether the current lines show all the text in a slot <paramref name="width"/> wide (the fit's view): as broken, and
+    /// no NoWrap line drawn past the slot. The width is checked here, not when breaking: lines that wrapped nothing are
+    /// reused at other widths (<see cref="_naturalFit"/>), where a NoWrap line too wide for the width it was broken at
+    /// may fit.
+    /// </summary>
+    private bool ShowsAll(double width) => _fits && !(_noWrapWidth > width + FitTolerance);
 
     /// <inheritdoc />
     Size ISkUiTextFitLayout.Extent(object text, in SkUiTextStyle style, double width)
@@ -661,7 +675,8 @@ internal sealed class SkUiTextLayout : ISkUiTextFitLayout
     /// <paramref name="maxLines"/> lines (MAUI's <c>MaxLines</c>): wrapped lines past it are dropped; with tail truncation
     /// the text wraps and its last kept line ends with <paramref name="ellipsis"/> when more text follows.
     /// <c>fits</c> tells the fit whether the lines show all the text: nothing truncated or left past
-    /// <paramref name="maxLines"/>, no word broken inside (word wrap) and no unwrapped line wider than <paramref name="width"/>.
+    /// <paramref name="maxLines"/> and no word broken inside (word wrap). NoWrap lines wider than <paramref name="width"/>
+    /// do not show it either; the fit checks that against its own width (<see cref="ShowsAll"/>).
     /// </summary>
     /// <returns>Whether the lines are the same at any width at least as wide as the widest (nothing wrapped or truncated).</returns>
     private bool BreakStock(string text, double width, LineBreakMode mode, int maxLines, string ellipsis, SKFont primary, List<LineSpec> specs, out bool fits)
@@ -686,7 +701,6 @@ internal sealed class SkUiTextLayout : ISkUiTextFitLayout
             _widestParagraph = Math.Max(_widestParagraph, paragraph.Width);
             if (double.IsInfinity(width) || mode == LineBreakMode.NoWrap || paragraph.Width <= width + FitTolerance)
             {
-                fits &= !(paragraph.Width > width + FitTolerance); // NoWrap: drawn past the width
                 specs.Add(new LineSpec(paragraph, 0, source.Length, null));
                 continue;
             }
