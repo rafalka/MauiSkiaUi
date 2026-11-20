@@ -13,6 +13,8 @@ Publishing (the NuGet publish workflow, [docs/Releasing.md](docs/Releasing.md)) 
 
 ## Unreleased
 
+## 1.15.1
+
 ### New features
 
 - **Placeholder font (#116):** `PlaceholderFontFamily` and `PlaceholderFontAttributes` draw the hint of an empty field in another font than its value ("No due date" regular, "19-11-2026" semibold); `null` (default) keeps the field's `FontFamily` / `FontAttributes`. The field is measured with the font it shows.
