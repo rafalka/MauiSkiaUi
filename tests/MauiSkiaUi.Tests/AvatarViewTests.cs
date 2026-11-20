@@ -275,6 +275,30 @@ public sealed class AvatarViewTests : IDisposable
     }
 
     [Fact]
+    public void AutoSizedTextFitsTheRectangleInscribedInTheOutline()
+    {
+        // A circle: in by (1 − √½) of its radius on each side; a rounded rectangle: of its largest corner radius; the
+        // padded content area wins where it is smaller; any other outline leaves the content area.
+        var content = new SKRect(0, 0, 48, 48);
+        var cut = 24 * (1 - Math.Sqrt(0.5));
+        using var circle = new SKPath();
+        circle.AddOval(content);
+        AssertRect(new SKRect((float)cut, (float)cut, (float)(48 - cut), (float)(48 - cut)), SkUiAvatarContent.Inscribed(content, circle));
+        AssertRect(new SKRect(10, 10, 38, 38), SkUiAvatarContent.Inscribed(new SKRect(10, 10, 38, 38), circle));
+        using var rounded = new SKPath();
+        rounded.AddRoundRect(new SKRoundRect(new SKRect(0, 0, 80, 40), 8));
+        var corner = (float)(8 * (1 - Math.Sqrt(0.5)));
+        AssertRect(new SKRect(corner, corner, 80 - corner, 40 - corner), SkUiAvatarContent.Inscribed(new SKRect(0, 0, 80, 40), rounded));
+        using var triangle = new SKPath();
+        triangle.AddPoly([new SKPoint(0, 48), new SKPoint(24, 0), new SKPoint(48, 48)]);
+        Assert.Equal(content, SkUiAvatarContent.Inscribed(content, triangle));
+
+        static void AssertRect(SKRect expected, SKRect actual) =>
+            Assert.True(Math.Abs(expected.Left - actual.Left) < 0.01 && Math.Abs(expected.Top - actual.Top) < 0.01
+                && Math.Abs(expected.Right - actual.Right) < 0.01 && Math.Abs(expected.Bottom - actual.Bottom) < 0.01, $"{actual}, expected {expected}");
+    }
+
+    [Fact]
     public void TheBadgeSitsOnTheOutlineOverTheBorder()
     {
         var avatar = new SkUiAvatarView { Text = "", BackgroundColor = Colors.Black, BadgeColor = Colors.Lime, BadgeBorderColor = Colors.Red };

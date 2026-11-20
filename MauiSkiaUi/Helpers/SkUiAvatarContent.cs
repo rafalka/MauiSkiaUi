@@ -208,20 +208,49 @@ internal sealed class SkUiAvatarContent
         if (_image?.Image is not null)
             _image.Paint(canvas, content, Aspect);
         else if (_displayText.Length > 0)
-            DrawText(canvas, content, textColor ?? ResolveColors().Text);
+            DrawText(canvas, content, clip, textColor ?? ResolveColors().Text);
         canvas.RestoreToCount(save);
     }
 
-    private void DrawText(SKCanvas canvas, SKRect content, Color color)
+    private void DrawText(SKCanvas canvas, SKRect content, SKPath clip, Color color)
     {
         var style = Style(new Size(content.Width, content.Height));
         if (style.FontSize <= 0)
             return;
         var paint = SkUiTextResources.TextPaint;
         paint.Color = SkUiShapePainter.ToSkColor(color);
-        canvas.Translate(content.Left, content.Top);
-        _layout.Draw(canvas, _displayText, style, default, content.Width, content.Height, TextAlignment.Center, TextAlignment.Center, paint);
+        // Text that sizes itself shrinks to the outline, not to its bounding box (a circle would cut the ends off).
+        var slot = MeasuresText ? content : Inscribed(content, clip);
+        canvas.Translate(slot.Left, slot.Top);
+        _layout.Draw(canvas, _displayText, style, default, slot.Width, slot.Height, TextAlignment.Center, TextAlignment.Center, paint);
     }
+
+    /// <summary>
+    /// <paramref name="content"/> within the rectangle inscribed in <paramref name="clip"/> when the clip is an oval or a
+    /// rounded rectangle: its bounds inset by (1 − √½) of the largest corner radius, where a corner's arc crosses its
+    /// diagonal. Other clips leave the content area as it is.
+    /// </summary>
+    internal static SKRect Inscribed(SKRect content, SKPath clip)
+    {
+        var inscribed = clip.Bounds;
+        if (clip.IsOval)
+            inscribed.Inflate(-inscribed.Width / 2 * Cut, -inscribed.Height / 2 * Cut);
+        else if (clip.IsRoundRect)
+        {
+            using var rounded = clip.GetRoundRect();
+            var (horizontal, vertical) = (0f, 0f);
+            foreach (var radius in rounded.Radii)
+                (horizontal, vertical) = (Math.Max(horizontal, radius.X), Math.Max(vertical, radius.Y));
+            inscribed.Inflate(-horizontal * Cut, -vertical * Cut);
+        }
+        else
+            return content;
+        var inside = SKRect.Intersect(content, inscribed);
+        return inside.Width > 0 && inside.Height > 0 ? inside : content;
+    }
+
+    /// <summary>1 − √½: how far in from a rounded corner's bounding corner its arc crosses the diagonal, in radii.</summary>
+    private const float Cut = 0.29289322f;
 
     /// <summary>The text's style: the set font size, or (negative) the look's size for a <paramref name="content"/> area, shrinking to fit.</summary>
     private SkUiTextStyle Style(Size content)
