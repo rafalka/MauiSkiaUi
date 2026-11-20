@@ -12,7 +12,6 @@ namespace MauiSkiaUi;
 public class SkUiSwipeItemView : SkUiContentView, Microsoft.Maui.Controls.ISwipeItem
 {
     private ICommand? _command;
-    private object? _commandParameter;
     private SkUiWeakListener<SkUiSwipeItemView>? _commandListener; // a long-lived command must not keep the view alive
 
     /// <summary>Bindable <see cref="Command"/>.</summary>
@@ -23,7 +22,7 @@ public class SkUiSwipeItemView : SkUiContentView, Microsoft.Maui.Controls.ISwipe
     /// <summary>Bindable <see cref="CommandParameter"/>.</summary>
     public static readonly BindableProperty CommandParameterProperty = BindableProperty.Create(
         nameof(CommandParameter), typeof(object), typeof(SkUiSwipeItemView), null,
-        propertyChanged: (bindable, _, newValue) => ((SkUiSwipeItemView)bindable).OnCommandParameterChanged(newValue));
+        propertyChanged: (bindable, _, _) => ((SkUiSwipeItemView)bindable).OnCanExecuteChanged());
 
     /// <summary>Runs with <see cref="CommandParameter"/> when the item is invoked (when it can execute).</summary>
     public ICommand? Command
@@ -51,8 +50,9 @@ public class SkUiSwipeItemView : SkUiContentView, Microsoft.Maui.Controls.ISwipe
     /// <summary>Invokes the item: runs <see cref="Command"/> (when it can execute), then raises <see cref="Invoked"/>.</summary>
     public void OnInvoked()
     {
-        if (_command?.CanExecute(_commandParameter) == true)
-            _command.Execute(_commandParameter);
+        // The parameter is read from the store, not copied in its change callback: MAUI raises no change for a value that Equals the old one (a new row instance with the same Id, issue #114).
+        if (_command is { } command && CommandParameter is var parameter && command.CanExecute(parameter))
+            command.Execute(parameter);
         Invoked?.Invoke(this, EventArgs.Empty);
     }
 
@@ -60,7 +60,7 @@ public class SkUiSwipeItemView : SkUiContentView, Microsoft.Maui.Controls.ISwipe
     protected override bool HandlesTap => true;
 
     /// <inheritdoc />
-    protected override bool CanReceiveTap => _command?.CanExecute(_commandParameter) ?? true;
+    protected override bool CanReceiveTap => _command?.CanExecute(CommandParameter) ?? true;
 
     /// <inheritdoc />
     protected override void OnTapped(SkUiTappedEventArgs args)
@@ -90,12 +90,6 @@ public class SkUiSwipeItemView : SkUiContentView, Microsoft.Maui.Controls.ISwipe
             if (change.Kind == SkUiChangeKind.CanExecute)
                 view.OnCanExecuteChanged();
         })).Listen(value);
-        OnCanExecuteChanged();
-    }
-
-    private void OnCommandParameterChanged(object? value)
-    {
-        _commandParameter = value;
         OnCanExecuteChanged();
     }
 

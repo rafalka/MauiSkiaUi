@@ -41,13 +41,13 @@ internal sealed class SkUiCommandSlot<TOwner>(TOwner owner, Action<TOwner> chang
         return true;
     }
 
-    /// <summary>Sets the parameter; returns whether it changed.</summary>
+    /// <summary>Sets the parameter; returns whether it changed (<see cref="SkUiCommandParameter.IsSame"/>).</summary>
     public bool SetParameter(object? value)
     {
-        if (Equals(Parameter, value))
+        if (SkUiCommandParameter.IsSame(Parameter, value))
             return false;
         Parameter = value;
-        // Only CanExecute depends on the parameter: rows that re-set it on every bind repaint nothing while it stays the same.
+        // Only CanExecute depends on the parameter: rows that re-set it on every bind repaint nothing while CanExecute stays the same.
         if (Refresh())
             Changed();
         return true;

@@ -189,7 +189,7 @@ public class SkUiTimePicker : SkUiDateTimePickerBase
     {
         Dates.Value = SkUiDateTimeWheels.TimeDate + value;
         Dates.ValueChanged();
-        Model.RunSelectionChangedCommand();
+        Model.RunSelectionChangedCommand(SelectionChangedCommandParameter);
         TimeSelected?.Invoke(this, new TimeChangedEventArgs(previous, value));
     }
 

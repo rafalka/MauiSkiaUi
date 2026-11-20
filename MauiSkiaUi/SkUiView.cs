@@ -34,7 +34,6 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
     private bool _mauiGesturesReported;
     private SkUiAnimationClock? _animationClock;
     private ICommand? _tappedCommand;
-    private object? _tappedCommandParameter;
 
     /// <summary>
     /// The value a constructor body starts the applied state of <paramref name="property"/> from: what a style already
@@ -59,8 +58,7 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
         propertyChanged: (view, _, value) => ((SkUiView)view).OnTappedCommandChanged((ICommand?)value));
     /// <summary>Bindable tap command parameter.</summary>
     public static readonly BindableProperty TappedCommandParameterProperty = BindableProperty.Create(
-        nameof(TappedCommandParameter), typeof(object), typeof(SkUiView), null,
-        propertyChanged: (view, _, value) => ((SkUiView)view).OnTappedCommandParameterChanged(value));
+        nameof(TappedCommandParameter), typeof(object), typeof(SkUiView), null);
     /// <summary>Optional command; passive nodes participate when it can execute.</summary>
     public ICommand? TappedCommand { get => (ICommand?)GetValue(TappedCommandProperty); set => SetValue(TappedCommandProperty, value); }
     /// <summary>Parameter supplied to the tap command.</summary>
@@ -70,7 +68,6 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
     private void OnTappedCommandChanged(ICommand? value) { _tappedCommand = value; }
     /// <summary>Sets the tap parameter (same as the property setter).</summary>
     public SkUiView SetTappedCommandParameter(object? value) { TappedCommandParameter = value; return this; }
-    private void OnTappedCommandParameterChanged(object? value) { _tappedCommandParameter = value; }
     /// <summary>The Core trees this view hosts (a Core host's content, scroll bars): they follow its enabled state.</summary>
     private List<Core.SkUiCoreNode>? _coreRoots;
 
@@ -1756,7 +1753,7 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
 
     private bool WantsSingleTap => HasOwnSingleTap || HasMauiTaps(1);
 
-    private bool HasOwnSingleTap => Tapped is not null || HandlesTap || (RunsTappedCommand && (_tappedCommand?.CanExecute(_tappedCommandParameter) ?? false));
+    private bool HasOwnSingleTap => Tapped is not null || HandlesTap || (RunsTappedCommand && (_tappedCommand?.CanExecute(TappedCommandParameter) ?? false));
 
     /// <summary>Taps of SkiaUi's own events and commands, which every button makes.</summary>
     private bool HasOwnTaps => HasOwnSingleTap || _gestures?.WantsDoubleTap == true;
@@ -1820,20 +1817,17 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
     public static readonly BindableProperty DoubleTappedCommandProperty = BindableProperty.Create(nameof(DoubleTappedCommand), typeof(ICommand), typeof(SkUiView), null,
         propertyChanged: (view, _, value) => ((SkUiView)view).GestureSet.DoubleTappedCommand = (ICommand?)value);
     /// <summary>Bindable double-tap command parameter.</summary>
-    public static readonly BindableProperty DoubleTappedCommandParameterProperty = BindableProperty.Create(nameof(DoubleTappedCommandParameter), typeof(object), typeof(SkUiView), null,
-        propertyChanged: (view, _, value) => ((SkUiView)view).GestureSet.DoubleTappedCommandParameter = value);
+    public static readonly BindableProperty DoubleTappedCommandParameterProperty = BindableProperty.Create(nameof(DoubleTappedCommandParameter), typeof(object), typeof(SkUiView), null);
     /// <summary>Bindable long-press command.</summary>
     public static readonly BindableProperty LongPressedCommandProperty = BindableProperty.Create(nameof(LongPressedCommand), typeof(ICommand), typeof(SkUiView), null,
         propertyChanged: (view, _, value) => ((SkUiView)view).GestureSet.LongPressedCommand = (ICommand?)value);
     /// <summary>Bindable long-press command parameter.</summary>
-    public static readonly BindableProperty LongPressedCommandParameterProperty = BindableProperty.Create(nameof(LongPressedCommandParameter), typeof(object), typeof(SkUiView), null,
-        propertyChanged: (view, _, value) => ((SkUiView)view).GestureSet.LongPressedCommandParameter = value);
+    public static readonly BindableProperty LongPressedCommandParameterProperty = BindableProperty.Create(nameof(LongPressedCommandParameter), typeof(object), typeof(SkUiView), null);
     /// <summary>Bindable swipe command (parameter defaults to the <see cref="SwipeDirection"/>).</summary>
     public static readonly BindableProperty SwipedCommandProperty = BindableProperty.Create(nameof(SwipedCommand), typeof(ICommand), typeof(SkUiView), null,
         propertyChanged: (view, _, value) => ((SkUiView)view).GestureSet.SwipedCommand = (ICommand?)value);
     /// <summary>Bindable swipe command parameter.</summary>
-    public static readonly BindableProperty SwipedCommandParameterProperty = BindableProperty.Create(nameof(SwipedCommandParameter), typeof(object), typeof(SkUiView), null,
-        propertyChanged: (view, _, value) => ((SkUiView)view).GestureSet.SwipedCommandParameter = value);
+    public static readonly BindableProperty SwipedCommandParameterProperty = BindableProperty.Create(nameof(SwipedCommandParameter), typeof(object), typeof(SkUiView), null);
     /// <summary>Bindable swipe directions.</summary>
     public static readonly BindableProperty SwipeDirectionsProperty = BindableProperty.Create(nameof(SwipeDirections), typeof(SwipeDirection), typeof(SkUiView),
         SwipeDirection.Left | SwipeDirection.Right | SwipeDirection.Up | SwipeDirection.Down,
@@ -1894,8 +1888,9 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
     /// </summary>
     protected void ExecuteTappedCommand()
     {
-        if (RunsTappedCommand && _tappedCommand?.CanExecute(_tappedCommandParameter) == true)
-            _tappedCommand.Execute(_tappedCommandParameter);
+        // The parameter is read from the store when the tap runs, not copied in a change callback: MAUI raises no change for a value that Equals the old one (a new row instance with the same Id, issue #114).
+        if (RunsTappedCommand && _tappedCommand is { } command && TappedCommandParameter is var parameter && command.CanExecute(parameter))
+            command.Execute(parameter);
     }
 }
 

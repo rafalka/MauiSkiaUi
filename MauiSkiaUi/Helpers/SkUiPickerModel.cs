@@ -325,10 +325,16 @@ internal sealed class SkUiPickerModel
     /// The choice changed (any kind: an index, items, a column): runs the control's <c>SelectionChangedCommand</c> with its
     /// parameter when it can execute. The controls call it before their change events.
     /// </summary>
-    public void RunSelectionChangedCommand()
+    public void RunSelectionChangedCommand() => RunSelectionChangedCommand(SelectionChangedCommandParameter);
+
+    /// <summary>
+    /// <see cref="RunSelectionChangedCommand()"/> with <paramref name="parameter"/>: SkUi* pickers pass their bindable property's
+    /// current value (MAUI raises no change for a parameter that Equals the old one, issue #114).
+    /// </summary>
+    public void RunSelectionChangedCommand(object? parameter)
     {
-        if (SelectionChangedCommand is { } command && command.CanExecute(SelectionChangedCommandParameter))
-            command.Execute(SelectionChangedCommandParameter);
+        if (SelectionChangedCommand is { } command && command.CanExecute(parameter))
+            command.Execute(parameter);
     }
 
     /// <summary>The field's text while <see cref="UsesValueText"/>; <c>null</c>: nothing is chosen (the title shows).</summary>
