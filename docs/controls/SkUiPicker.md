@@ -361,6 +361,7 @@ host.SetContent(picker);
 | `SelectedIndex` / `SelectedItem` | `-1` / `null` | Two-way; kept in step |
 | `Title` / `TitleColor` | `null` / scheme muted | Shown while nothing is selected (unless `Placeholder` is set); the title of window popups |
 | `Placeholder` / `PlaceholderColor` | `null` | The field's hint while nothing is chosen, when it differs from `Title`; `null`: `Title` / `TitleColor` (SkiaUi) |
+| `PlaceholderFontFamily` / `PlaceholderFontAttributes` | `null` | The hint's font, when it differs from the value's ("No due date" regular, "19-11-2026" semibold); `null`: `FontFamily` / `FontAttributes` (SkiaUi) |
 | `TextColor` | scheme foreground | Also the chevron and the list's rows |
 | `FontFamily`, `FontSize` (16), `FontAttributes`, `FontAutoScalingEnabled`, `CharacterSpacing` | | The field and plain rows |
 | `HorizontalTextAlignment` / `VerticalTextAlignment` | `Start` / `Center` | In the field |

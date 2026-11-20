@@ -340,6 +340,12 @@ public partial class SkUiPicker : SkUiPickerBase
     /// <summary>Sets <see cref="SkUiPickerBase.PlaceholderColor"/> (same as the property setter).</summary>
     public new SkUiPicker SetPlaceholderColor(Color? value) { base.SetPlaceholderColor(value); return this; }
 
+    /// <summary>Sets <see cref="SkUiPickerBase.PlaceholderFontFamily"/> (same as the property setter).</summary>
+    public new SkUiPicker SetPlaceholderFontFamily(string? value) { base.SetPlaceholderFontFamily(value); return this; }
+
+    /// <summary>Sets <see cref="SkUiPickerBase.PlaceholderFontAttributes"/> (same as the property setter).</summary>
+    public new SkUiPicker SetPlaceholderFontAttributes(FontAttributes? value) { base.SetPlaceholderFontAttributes(value); return this; }
+
     /// <inheritdoc cref="SkUiPickerBase.SetFieldStyle" />
     public new SkUiPicker SetFieldStyle(SkUiPickerFieldStyle value) { base.SetFieldStyle(value); return this; }
 

@@ -22,6 +22,7 @@ public sealed class EntryDemoPage : ComponentDemoPage
     private const string NoError = "False";
     private const string WithError = "True";
     private const string ValidateEmail = "Validate as email";
+    private const string FieldFont = "(the field's)";
 
     // Wider than its placeholder, so there is room to type and to try the views beside the text.
     public EntryDemoPage() : base(nameof(SkUiEntry), new SkUiEntry { Placeholder = Placeholder }, new Entry { Placeholder = Placeholder }, minimumWidth: 260)
@@ -36,6 +37,11 @@ public sealed class EntryDemoPage : ComponentDemoPage
         Text(nameof(SkUiEntry.Text), string.Empty, value => { skia.Text = value; native.Text = value; }, () => skia.Text ?? string.Empty, () => native.Text ?? string.Empty);
         Text(nameof(SkUiEntry.Placeholder), Placeholder, value => { skia.Placeholder = value; native.Placeholder = value; }, () => skia.Placeholder ?? string.Empty,
             () => native.Placeholder ?? string.Empty);
+        Choice(nameof(SkUiEntry.PlaceholderFontFamily), [FieldFont, DemoFonts.OpenSansRegular, DemoFonts.OpenSansSemibold, DemoFonts.Lobster], FieldFont,
+            value => skia.PlaceholderFontFamily = value == FieldFont ? null : value, () => skia.PlaceholderFontFamily ?? FieldFont);
+        Choice(nameof(SkUiEntry.PlaceholderFontAttributes), [FieldFont, nameof(FontAttributes.None), nameof(FontAttributes.Bold), nameof(FontAttributes.Italic)], FieldFont,
+            value => skia.PlaceholderFontAttributes = value == FieldFont ? null : Enum.Parse<FontAttributes>(value),
+            () => skia.PlaceholderFontAttributes?.ToString() ?? FieldFont);
         Toggle(nameof(SkUiEntry.IsPassword), false, value => { skia.IsPassword = value; native.IsPassword = value; }, () => skia.IsPassword, () => native.IsPassword);
         Toggle(nameof(SkUiEntry.ShowsPasswordRevealButton), false, value => skia.ShowsPasswordRevealButton = value, () => skia.ShowsPasswordRevealButton);
         Toggle(nameof(SkUiEntry.IsPasswordRevealed), false, value => skia.IsPasswordRevealed = value, () => skia.IsPasswordRevealed);

@@ -26,6 +26,7 @@ public sealed class DatePickerDemoPage : ComponentDemoPage
     private const string Holidays = "The 1st and 15th of each month (BlackoutDates)";
     private const string ToolkitPresenter = "CommunityToolkit Popup";
     private const string AppPresenter = "App's (SkUiPopups.Presenter)";
+    private const string FieldFont = "(the field's)";
 
     private readonly SkUiDatePicker _skia;
     private readonly DatePicker _native;
@@ -66,6 +67,11 @@ public sealed class DatePickerDemoPage : ComponentDemoPage
         Toggle(nameof(SkUiDatePicker.IsClearButtonVisible), false, value => _skia.IsClearButtonVisible = value, () => _skia.IsClearButtonVisible);
         Toggle(nameof(SkUiDatePicker.IsPopupClearButtonVisible), false, value => _skia.IsPopupClearButtonVisible = value, () => _skia.IsPopupClearButtonVisible);
         Text(nameof(SkUiDatePicker.Placeholder), "Pick a date", value => _skia.Placeholder = value, () => _skia.Placeholder ?? "");
+        Choice(nameof(SkUiPickerBase.PlaceholderFontFamily), [FieldFont, DemoFonts.OpenSansRegular, DemoFonts.OpenSansSemibold, DemoFonts.Lobster], FieldFont,
+            value => _skia.PlaceholderFontFamily = value == FieldFont ? null : value, () => _skia.PlaceholderFontFamily ?? FieldFont);
+        Choice(nameof(SkUiPickerBase.PlaceholderFontAttributes), [FieldFont, nameof(FontAttributes.None), nameof(FontAttributes.Bold), nameof(FontAttributes.Italic)], FieldFont,
+            value => _skia.PlaceholderFontAttributes = value == FieldFont ? null : Enum.Parse<FontAttributes>(value),
+            () => _skia.PlaceholderFontAttributes?.ToString() ?? FieldFont);
         ActionButton("No date (Date = null); wheels show 1 Jan 1990 (DefaultHighlightedDate)", () =>
         {
             _skia.DefaultHighlightedDate = new DateTime(1990, 1, 1);

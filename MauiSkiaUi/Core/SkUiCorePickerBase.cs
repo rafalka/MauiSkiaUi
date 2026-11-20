@@ -96,6 +96,12 @@ public abstract class SkUiCorePickerBase : SkUiCoreNode, ISkUiFontElement, ISkUi
     /// <summary>The placeholder's color; <c>null</c> (default): <see cref="TitleColor"/>, else the color scheme's muted color.</summary>
     public Color? PlaceholderColor { get => Model.PlaceholderColor; set => SetPlaceholderColor(value); }
 
+    /// <summary>The placeholder's font family; <c>null</c> (default): <see cref="FontFamily"/> (see <see cref="SkUiPickerBase.PlaceholderFontFamily"/>).</summary>
+    public string? PlaceholderFontFamily { get => Model.PlaceholderFontFamily; set => SetPlaceholderFontFamily(value); }
+
+    /// <summary>The placeholder's bold and italic; <c>null</c> (default): <see cref="FontAttributes"/>.</summary>
+    public FontAttributes? PlaceholderFontAttributes { get => Model.PlaceholderFontAttributes; set => SetPlaceholderFontAttributes(value); }
+
     /// <summary>How the look draws this field's chrome; <see cref="SkUiPickerFieldStyle.Default"/> (default): the look's (see <see cref="SkUiPickerBase.FieldStyle"/>).</summary>
     public SkUiPickerFieldStyle FieldStyle { get => Model.FieldStyle; set => SetFieldStyle(value); }
 
@@ -361,6 +367,12 @@ public abstract class SkUiCorePickerBase : SkUiCoreNode, ISkUiFontElement, ISkUi
 
     /// <summary>Sets <see cref="PlaceholderColor"/>.</summary>
     public SkUiCorePickerBase SetPlaceholderColor(Color? value) => Update(ref Model.PlaceholderColor, value, nameof(PlaceholderColor));
+
+    /// <summary>Sets <see cref="PlaceholderFontFamily"/>.</summary>
+    public SkUiCorePickerBase SetPlaceholderFontFamily(string? value) => Update(ref Model.PlaceholderFontFamily, value, nameof(PlaceholderFontFamily), measure: true);
+
+    /// <summary>Sets <see cref="PlaceholderFontAttributes"/>.</summary>
+    public SkUiCorePickerBase SetPlaceholderFontAttributes(FontAttributes? value) => Update(ref Model.PlaceholderFontAttributes, value, nameof(PlaceholderFontAttributes), measure: true);
 
     /// <summary>Sets <see cref="FieldStyle"/>.</summary>
     public SkUiCorePickerBase SetFieldStyle(SkUiPickerFieldStyle value)

@@ -54,6 +54,14 @@ public abstract class SkUiInputView : SkUiView, ISkUiFontElement, ISkUiFieldChro
     public static readonly BindableProperty PlaceholderColorProperty = BindableProperty.Create(nameof(PlaceholderColor), typeof(Color), typeof(SkUiInputView), null,
         propertyChanged: (view, _, value) => ((SkUiInputView)view).Apply(model => model.PlaceholderColor = (Color?)value));
 
+    /// <summary>Bindable property for <see cref="PlaceholderFontFamily"/>.</summary>
+    public static readonly BindableProperty PlaceholderFontFamilyProperty = BindableProperty.Create(nameof(PlaceholderFontFamily), typeof(string), typeof(SkUiInputView), null,
+        propertyChanged: (view, _, value) => ((SkUiInputView)view).Apply(model => model.PlaceholderFontFamily = (string?)value, measure: true));
+
+    /// <summary>Bindable property for <see cref="PlaceholderFontAttributes"/>.</summary>
+    public static readonly BindableProperty PlaceholderFontAttributesProperty = BindableProperty.Create(nameof(PlaceholderFontAttributes), typeof(FontAttributes?), typeof(SkUiInputView), null,
+        propertyChanged: (view, _, value) => ((SkUiInputView)view).Apply(model => model.PlaceholderFontAttributes = (FontAttributes?)value, measure: true));
+
     /// <summary>Bindable property for <see cref="TextColor"/>.</summary>
     public static readonly BindableProperty TextColorProperty = BindableProperty.Create(nameof(TextColor), typeof(Color), typeof(SkUiInputView), null,
         propertyChanged: (view, _, value) => ((SkUiInputView)view).Apply(model => model.TextColor = (Color?)value));
@@ -225,6 +233,15 @@ public abstract class SkUiInputView : SkUiView, ISkUiFontElement, ISkUiFieldChro
 
     /// <summary>The placeholder's color; <c>null</c> (default): the color scheme's muted color.</summary>
     public Color? PlaceholderColor { get => (Color?)GetValue(PlaceholderColorProperty); set => SetValue(PlaceholderColorProperty, value); }
+
+    /// <summary>
+    /// The placeholder's font family; <c>null</c> (default): <see cref="FontFamily"/>. Lets an empty field use another font than its
+    /// text (a regular hint, a semibold value). SkiaUi extension.
+    /// </summary>
+    public string? PlaceholderFontFamily { get => (string?)GetValue(PlaceholderFontFamilyProperty); set => SetValue(PlaceholderFontFamilyProperty, value); }
+
+    /// <summary>The placeholder's bold and italic; <c>null</c> (default): <see cref="FontAttributes"/>. SkiaUi extension.</summary>
+    public FontAttributes? PlaceholderFontAttributes { get => (FontAttributes?)GetValue(PlaceholderFontAttributesProperty); set => SetValue(PlaceholderFontAttributesProperty, value); }
 
     /// <summary>The text's color; <c>null</c> (default): the color scheme's foreground.</summary>
     public Color? TextColor { get => (Color?)GetValue(TextColorProperty); set => SetValue(TextColorProperty, value); }
@@ -427,6 +444,12 @@ public abstract class SkUiInputView : SkUiView, ISkUiFontElement, ISkUiFieldChro
 
     /// <summary>Sets <see cref="PlaceholderColor"/>.</summary>
     public SkUiInputView SetPlaceholderColor(Color? value) { PlaceholderColor = value; return this; }
+
+    /// <summary>Sets <see cref="PlaceholderFontFamily"/> (same as the property setter).</summary>
+    public SkUiInputView SetPlaceholderFontFamily(string? value) { PlaceholderFontFamily = value; return this; }
+
+    /// <summary>Sets <see cref="PlaceholderFontAttributes"/> (same as the property setter).</summary>
+    public SkUiInputView SetPlaceholderFontAttributes(FontAttributes? value) { PlaceholderFontAttributes = value; return this; }
 
     /// <summary>Sets <see cref="TextColor"/>.</summary>
     public SkUiInputView SetTextColor(Color? value) { TextColor = value; return this; }

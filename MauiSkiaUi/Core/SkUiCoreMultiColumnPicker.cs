@@ -151,6 +151,12 @@ public class SkUiCoreMultiColumnPicker : SkUiCorePickerBase
     /// <summary>Sets <see cref="SkUiCorePickerBase.PlaceholderColor"/> (same as the property setter).</summary>
     public new SkUiCoreMultiColumnPicker SetPlaceholderColor(Color? value) { base.SetPlaceholderColor(value); return this; }
 
+    /// <summary>Sets <see cref="SkUiCorePickerBase.PlaceholderFontFamily"/> (same as the property setter).</summary>
+    public new SkUiCoreMultiColumnPicker SetPlaceholderFontFamily(string? value) { base.SetPlaceholderFontFamily(value); return this; }
+
+    /// <summary>Sets <see cref="SkUiCorePickerBase.PlaceholderFontAttributes"/> (same as the property setter).</summary>
+    public new SkUiCoreMultiColumnPicker SetPlaceholderFontAttributes(FontAttributes? value) { base.SetPlaceholderFontAttributes(value); return this; }
+
     /// <inheritdoc cref="SkUiCorePickerBase.SetFieldStyle" />
     public new SkUiCoreMultiColumnPicker SetFieldStyle(SkUiPickerFieldStyle value) { base.SetFieldStyle(value); return this; }
 

@@ -44,6 +44,12 @@ public class SkUiCoreEditor : SkUiCoreInputView
     /// <inheritdoc cref="SkUiCoreInputView.SetPlaceholderColor" />
     public new SkUiCoreEditor SetPlaceholderColor(Color? value) { base.SetPlaceholderColor(value); return this; }
 
+    /// <inheritdoc cref="SkUiCoreInputView.SetPlaceholderFontFamily" />
+    public new SkUiCoreEditor SetPlaceholderFontFamily(string? value) { base.SetPlaceholderFontFamily(value); return this; }
+
+    /// <inheritdoc cref="SkUiCoreInputView.SetPlaceholderFontAttributes" />
+    public new SkUiCoreEditor SetPlaceholderFontAttributes(FontAttributes? value) { base.SetPlaceholderFontAttributes(value); return this; }
+
     /// <inheritdoc cref="SkUiCoreInputView.SetTextColor" />
     public new SkUiCoreEditor SetTextColor(Color? value) { base.SetTextColor(value); return this; }
 

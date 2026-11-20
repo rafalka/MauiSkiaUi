@@ -43,6 +43,12 @@ public abstract class SkUiCoreInputView : SkUiCoreNode, ISkUiFontElement, ISkUiF
     /// <summary>The placeholder's color; <c>null</c> (default): the color scheme's muted color.</summary>
     public Color? PlaceholderColor { get => Model.PlaceholderColor; set => SetPlaceholderColor(value); }
 
+    /// <summary>The placeholder's font family; <c>null</c> (default): <see cref="FontFamily"/> (see <see cref="SkUiInputView.PlaceholderFontFamily"/>).</summary>
+    public string? PlaceholderFontFamily { get => Model.PlaceholderFontFamily; set => SetPlaceholderFontFamily(value); }
+
+    /// <summary>The placeholder's bold and italic; <c>null</c> (default): <see cref="FontAttributes"/>.</summary>
+    public FontAttributes? PlaceholderFontAttributes { get => Model.PlaceholderFontAttributes; set => SetPlaceholderFontAttributes(value); }
+
     /// <summary>The text's color; <c>null</c> (default): the color scheme's foreground.</summary>
     public Color? TextColor { get => Model.TextColor; set => SetTextColor(value); }
 
@@ -190,6 +196,12 @@ public abstract class SkUiCoreInputView : SkUiCoreNode, ISkUiFontElement, ISkUiF
 
     /// <summary>Sets <see cref="PlaceholderColor"/>.</summary>
     public SkUiCoreInputView SetPlaceholderColor(Color? value) => Update(ref Model.PlaceholderColor, value, nameof(PlaceholderColor));
+
+    /// <summary>Sets <see cref="PlaceholderFontFamily"/>.</summary>
+    public SkUiCoreInputView SetPlaceholderFontFamily(string? value) => Update(ref Model.PlaceholderFontFamily, value, nameof(PlaceholderFontFamily), measure: true);
+
+    /// <summary>Sets <see cref="PlaceholderFontAttributes"/>.</summary>
+    public SkUiCoreInputView SetPlaceholderFontAttributes(FontAttributes? value) => Update(ref Model.PlaceholderFontAttributes, value, nameof(PlaceholderFontAttributes), measure: true);
 
     /// <summary>Sets <see cref="TextColor"/>.</summary>
     public SkUiCoreInputView SetTextColor(Color? value) => Update(ref Model.TextColor, value, nameof(TextColor));

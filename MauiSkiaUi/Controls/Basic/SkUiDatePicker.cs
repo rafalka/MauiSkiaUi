@@ -328,6 +328,12 @@ public class SkUiDatePicker : SkUiDateTimePickerBase
     /// <summary>Sets <see cref="SkUiPickerBase.PlaceholderColor"/> (same as the property setter).</summary>
     public new SkUiDatePicker SetPlaceholderColor(Color? value) { base.SetPlaceholderColor(value); return this; }
 
+    /// <summary>Sets <see cref="SkUiPickerBase.PlaceholderFontFamily"/> (same as the property setter).</summary>
+    public new SkUiDatePicker SetPlaceholderFontFamily(string? value) { base.SetPlaceholderFontFamily(value); return this; }
+
+    /// <summary>Sets <see cref="SkUiPickerBase.PlaceholderFontAttributes"/> (same as the property setter).</summary>
+    public new SkUiDatePicker SetPlaceholderFontAttributes(FontAttributes? value) { base.SetPlaceholderFontAttributes(value); return this; }
+
     /// <inheritdoc cref="SkUiPickerBase.SetFieldStyle" />
     public new SkUiDatePicker SetFieldStyle(SkUiPickerFieldStyle value) { base.SetFieldStyle(value); return this; }
 

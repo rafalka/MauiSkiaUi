@@ -224,6 +224,12 @@ public class SkUiNumericEntry<[DynamicallyAccessedMembers(DynamicallyAccessedMem
     /// <inheritdoc cref="SkUiInputView.SetPlaceholderColor" />
     public new SkUiNumericEntry<T> SetPlaceholderColor(Color? value) { base.SetPlaceholderColor(value); return this; }
 
+    /// <inheritdoc cref="SkUiInputView.SetPlaceholderFontFamily" />
+    public new SkUiNumericEntry<T> SetPlaceholderFontFamily(string? value) { base.SetPlaceholderFontFamily(value); return this; }
+
+    /// <inheritdoc cref="SkUiInputView.SetPlaceholderFontAttributes" />
+    public new SkUiNumericEntry<T> SetPlaceholderFontAttributes(FontAttributes? value) { base.SetPlaceholderFontAttributes(value); return this; }
+
     /// <inheritdoc cref="SkUiInputView.SetTextColor" />
     public new SkUiNumericEntry<T> SetTextColor(Color? value) { base.SetTextColor(value); return this; }
 

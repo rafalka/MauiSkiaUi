@@ -216,6 +216,12 @@ internal sealed class SkUiPickerModel
     public Color? TitleColor;
     public string? Placeholder;
     public Color? PlaceholderColor;
+
+    /// <summary>The control's <c>PlaceholderFontFamily</c>; <c>null</c>: <see cref="FontFamily"/>.</summary>
+    public string? PlaceholderFontFamily;
+
+    /// <summary>The control's <c>PlaceholderFontAttributes</c>; <c>null</c>: <see cref="FontAttributes"/>.</summary>
+    public FontAttributes? PlaceholderFontAttributes;
     public double PopupWidth = -1;
     public double MinPopupWidth = -1;
     public double MaxPopupWidth = -1;
@@ -365,9 +371,6 @@ internal sealed class SkUiPickerModel
     /// <summary>The hint the field shows while nothing is chosen: the placeholder, else the title.</summary>
     private string? PlaceholderText => Placeholder ?? Title;
 
-    /// <summary>The text the field shows: the selection's, else the hint (else nothing).</summary>
-    private string DisplayText => ShownSelection ?? PlaceholderText ?? string.Empty;
-
     /// <summary>The shown text, the font or the items changed: lay the text out again and measure.</summary>
     public void TextChanged()
     {
@@ -395,8 +398,14 @@ internal sealed class SkUiPickerModel
     #region Field
 
     /// <summary>The text style of the field (and of the popup's rows without a template).</summary>
-    internal SkUiTextStyle TextStyle => new(SkUiTypefaces.Resolve(FontFamily, FontAttributes), SkUiFontScaling.ScaleFontSize(EffectiveFontSize, FontAutoScalingEnabled),
-        LineBreakMode.TailTruncation, null, 1, -1, CharacterSpacing, _owner.TextDirection, SkUiTextRendering.Default, FontAttributes);
+    internal SkUiTextStyle TextStyle => FieldTextStyle(FontFamily, FontAttributes);
+
+    /// <summary>The text style of the field's hint: the placeholder's font family and attributes, else the field's.</summary>
+    internal SkUiTextStyle PlaceholderTextStyle => FieldTextStyle(PlaceholderFontFamily ?? FontFamily, PlaceholderFontAttributes ?? FontAttributes);
+
+    private SkUiTextStyle FieldTextStyle(string? fontFamily, FontAttributes fontAttributes) => new(SkUiTypefaces.Resolve(fontFamily, fontAttributes),
+        SkUiFontScaling.ScaleFontSize(EffectiveFontSize, FontAutoScalingEnabled), LineBreakMode.TailTruncation, null, 1, -1, CharacterSpacing,
+        _owner.TextDirection, SkUiTextRendering.Default, fontAttributes);
 
     /// <summary>
     /// The room the chevron takes at the end side while it shows (the picker's choice, else the look's): the picker's
@@ -515,10 +524,12 @@ internal sealed class SkUiPickerModel
             var block = LayoutTokens(available);
             return AtLeastMinimumHeight(new Size(Math.Min(widthConstraint, block.Width + inset.HorizontalThickness), block.Height + inset.VerticalThickness));
         }
-        var text = DisplayText;
+        // The selection's text, else the hint in the placeholder's font (else nothing).
+        var selected = ShownSelection;
+        var text = selected ?? PlaceholderText ?? string.Empty;
         var size = text.Length == 0
             ? new Size(inset.HorizontalThickness, inset.VerticalThickness + SkUiFontScaling.ScaleFontSize(EffectiveFontSize, FontAutoScalingEnabled) * 1.2)
-            : _layout.Measure(text, TextStyle, inset, widthConstraint, heightConstraint);
+            : _layout.Measure(text, selected is null ? PlaceholderTextStyle : TextStyle, inset, widthConstraint, heightConstraint);
         return AtLeastMinimumHeight(size);
     }
 
@@ -559,7 +570,7 @@ internal sealed class SkUiPickerModel
         canvas.ClipRect(new SKRect((float)inset.Left, 0, (float)(width - inset.Right), height));
         var paint = SkUiTextResources.TextPaint;
         paint.Color = color;
-        _layout.Draw(canvas, text, TextStyle, inset, width, height, HorizontalTextAlignment, VerticalTextAlignment, paint);
+        _layout.Draw(canvas, text, selected is null ? PlaceholderTextStyle : TextStyle, inset, width, height, HorizontalTextAlignment, VerticalTextAlignment, paint);
         canvas.Restore();
     }
 

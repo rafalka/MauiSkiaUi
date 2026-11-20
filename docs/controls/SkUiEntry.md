@@ -151,6 +151,7 @@ var tag = new SkUiEntry().SetInputFormatters(
 | --- | --- | --- |
 | `Text` | `null` | Two-way; `TextChanged` with MAUI's `TextChangedEventArgs`. Text longer than `MaxLength` is cut |
 | `Placeholder`, `PlaceholderColor` | `null` | The color scheme's muted color by default |
+| `PlaceholderFontFamily`, `PlaceholderFontAttributes` | `null` | The placeholder's font, when it differs from the text's (a regular hint, a semibold value); `null`: `FontFamily` / `FontAttributes` (SkiaUi) |
 | `TextColor`, `FontFamily`, `FontSize` (16), `FontAttributes`, `FontAutoScalingEnabled`, `CharacterSpacing` | | As labels |
 | `HorizontalTextAlignment`, `VerticalTextAlignment` | Start, Center | Start follows the text's direction |
 | `MaxLength` | `int.MaxValue` | Input is cut there (never inside a surrogate pair) |
