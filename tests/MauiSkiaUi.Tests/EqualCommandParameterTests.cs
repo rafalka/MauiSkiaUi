@@ -6,7 +6,8 @@ namespace MauiSkiaUi.Tests;
 /// <summary>
 /// Issue #114: a command parameter replaced by another instance that <see cref="object.Equals(object)"/> the old one (a list row
 /// view model replaced by a new instance with the same Id) reaches the command. MAUI raises no property change for an Equals
-/// value, so the SkUi* controls read the parameter when the command runs, and Core setters compare by reference.
+/// value, so the SkUi* controls read the parameter when the command runs; Core setters skip only the same object or an equal
+/// plain value or string.
 /// </summary>
 public class EqualCommandParameterTests
 {
@@ -179,6 +180,22 @@ public class EqualCommandParameterTests
         Assert.Same(Second, search.SearchCommandParameter);
         Assert.Same(Second, entry.ReturnCommandParameter);
         Assert.Same(Second, tiles.OverflowCommandParameter);
+    }
+
+    private readonly struct RowValue(int id, string label)
+    {
+        private int Id { get; } = id;
+        public string Label { get; } = label;
+        public override bool Equals(object? obj) => obj is RowValue other && other.Id == Id;
+        public override int GetHashCode() => Id;
+    }
+
+    [Fact]
+    public void CoreSettersKeepAStructThatOnlyEqualsTheOldOne()
+    {
+        var button = new SkUiCoreButton().SetCommandParameter(new RowValue(1, "first"));
+        button.SetCommandParameter(new RowValue(1, "second"));
+        Assert.Equal("second", ((RowValue)button.CommandParameter!).Label);
     }
 
     [Fact]

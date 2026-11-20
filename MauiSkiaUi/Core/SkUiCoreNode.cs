@@ -1698,12 +1698,12 @@ public partial class SkUiCoreNode : ISkUiCoreNode, INotifyPropertyChanged, ISkUi
 
     /// <summary>
     /// <see cref="SetProperty{T}"/> for a command parameter: another object that only <see cref="object.Equals(object)"/> the old
-    /// one is a change (a list row replaced by a new instance with the same Id, issue #114); the same object, or an equal value or
-    /// string, is not.
+    /// one is a change (a list row replaced by a new instance with the same Id, issue #114); the same object, or an equal plain
+    /// value or string, is not (<see cref="SkUiCommandParameter.IsSame"/>).
     /// </summary>
     protected bool SetParameterProperty(ref object? field, object? value, [CallerMemberName] string? propertyName = null)
     {
-        if (SkUiCommandSlot<SkUiCoreNode>.IsSameParameter(field, value))
+        if (SkUiCommandParameter.IsSame(field, value))
             return false;
         field = value;
         OnPropertyChanged(propertyName);
