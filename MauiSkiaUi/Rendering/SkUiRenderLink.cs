@@ -79,6 +79,7 @@ internal sealed class SkUiRenderLink
         ClipEdge = clipEdge;
         ClipShape = clipShape;
         ClipCornerRadius = Math.Max(0, clipCornerRadius);
+        Reveal = null;
         Source = source;
         Horizontal = horizontal;
         Target = target;
@@ -91,7 +92,20 @@ internal sealed class SkUiRenderLink
         _inverseSpan = inputEnd == inputStart ? 0 : 1 / (inputEnd - inputStart);
     }
 
+    /// <summary>
+    /// A channel driven by a scroll-direction <paramref name="reveal"/>: its progress, 0 (shown) to 1 (hidden), maps onto
+    /// <paramref name="shown"/>…<paramref name="hidden"/> instead of an offset.
+    /// </summary>
+    public SkUiRenderLink(SkUiRenderReveal reveal, SkUiRenderLinkTarget target, float shown, float hidden, float[]? curve = null,
+        SkUiRenderLinkClipEdge clipEdge = SkUiRenderLinkClipEdge.Start, SkUiRenderLinkClipShape clipShape = SkUiRenderLinkClipShape.Rectangle,
+        float clipCornerRadius = 0)
+        : this(reveal.Source, reveal.Horizontal, target, 0, 1, shown, hidden, curve, clipEdge, clipShape, clipCornerRadius) =>
+        Reveal = reveal;
+
     public SkUiRenderNode Source { get; }
+
+    /// <summary>The scroll-direction input that drives the channel instead of the offset; <c>null</c> = the offset.</summary>
+    public SkUiRenderReveal? Reveal { get; }
 
     public bool Horizontal { get; }
 
@@ -183,27 +197,52 @@ internal record struct SkUiRenderLinkValues
     }
 
     /// <summary>
-    /// The contribution of <paramref name="links"/> on the render thread, at their sources' current offsets. A channel whose
-    /// source is gone (detached) contributes what the UI side last computed: <paramref name="committed"/> is used whole then.
+    /// The contribution of <paramref name="links"/> on the render thread, at their sources' current offsets (reveals advanced
+    /// to <paramref name="now"/>). A channel whose source is gone (detached) contributes what the UI side last computed:
+    /// <paramref name="committed"/> is used whole then. <paramref name="moving"/> is set when a reveal's timed move runs (the
+    /// frames must keep coming); reveals whose move ended are added to <paramref name="ended"/>.
     /// </summary>
-    public static SkUiRenderLinkValues Evaluate(SkUiRenderLink[] links, in SkUiRenderLinkValues committed)
+    public static SkUiRenderLinkValues Evaluate(SkUiRenderLink[] links, in SkUiRenderLinkValues committed, TimeSpan now,
+        List<SkUiRenderReveal>? ended, ref bool moving)
     {
         var values = Identity;
         foreach (var link in links)
         {
             if (link.Source.Disposed)
                 return committed;
-            values.Add(link.Target, link.Evaluate(link.Input(link.Source.Props)));
+            float input;
+            if (link.Reveal is { } reveal)
+            {
+                input = reveal.Advance(now, out var endedNow);
+                if (endedNow && ended is not null && !ended.Contains(reveal))
+                    ended.Add(reveal);
+                moving |= reveal.IsMoving;
+            }
+            else
+            {
+                input = link.Input(link.Source.Props);
+            }
+            values.Add(link.Target, link.Evaluate(input));
         }
         return values;
     }
 
-    /// <summary>The contribution of <paramref name="links"/> on the UI side, all driven by one scroller at the given offset.</summary>
+    /// <inheritdoc cref="Evaluate(SkUiRenderLink[], in SkUiRenderLinkValues, TimeSpan, List{SkUiRenderReveal}?, ref bool)" />
+    public static SkUiRenderLinkValues Evaluate(SkUiRenderLink[] links, in SkUiRenderLinkValues committed)
+    {
+        var moving = false;
+        return Evaluate(links, committed, TimeSpan.Zero, null, ref moving);
+    }
+
+    /// <summary>
+    /// The contribution of <paramref name="links"/> on the UI side, all driven by one scroller at the given offset (reveals:
+    /// the progress last drawn).
+    /// </summary>
     public static SkUiRenderLinkValues Evaluate(SkUiRenderLink[] links, float offsetX, float offsetY)
     {
         var values = Identity;
         foreach (var link in links)
-            values.Add(link.Target, link.Evaluate(link.Horizontal ? offsetX : offsetY));
+            values.Add(link.Target, link.Evaluate(link.Reveal is { } reveal ? reveal.Progress : link.Horizontal ? offsetX : offsetY));
         return values;
     }
 }

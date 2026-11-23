@@ -29,6 +29,12 @@ internal sealed class SkUiRenderNode
 
     /// <summary>Raster of the content shadow and what it was made from (see <see cref="SkUiCompositor"/>).</summary>
     internal SkUiShadowCache? ShadowCache;
+
+    /// <summary>
+    /// The scroll corrections applied to this node's offset so far (anchoring: rows inserted above move the offset, not the
+    /// list), so a scroll-direction reveal (<see cref="SkUiRenderReveal"/>) can tell them from scrolling.
+    /// </summary>
+    internal SKPoint ScrollCorrection;
 }
 
 /// <summary>
@@ -171,6 +177,9 @@ internal sealed class SkUiCompositor : IDisposable
     private readonly Action<Action> _postToUi;
     private readonly SKPaint _layerPaint = new();
     private readonly SKPaint _shadowPaint = new();
+
+    /// <summary>Reveals whose timed move ended while drawing this frame: reported to the UI side with the frame's reports.</summary>
+    private readonly List<SkUiRenderReveal> _endedReveals = [];
 
     /// <summary>Reused for rounded scroll-linked clips and the shadows that follow them (no native object per frame).</summary>
     private readonly SKRoundRect _clipRoundRect = new();
@@ -428,6 +437,14 @@ internal sealed class SkUiCompositor : IDisposable
             // A content shadow drawn live because it just changed (or over the budget) is rasterized on the next frame,
             // while idle, instead of at the start of the next scroll.
             _continuous = _spinning || _animations.Count > 0 || _rasterizePending;
+            if (_endedReveals.Count > 0)
+            {
+                // Rare (the end of a show, hide, settle or trigger): one closure per ended reveal.
+                reports ??= [];
+                foreach (var reveal in _endedReveals)
+                    reports.Add(reveal.ReportMoveEnded);
+                _endedReveals.Clear();
+            }
             if (reports is not null)
                 PostReports(reports);
             return NeedsFrame;
@@ -679,6 +696,7 @@ internal sealed class SkUiCompositor : IDisposable
     /// </param>
     private void ShiftScroll(SkUiRenderNode node, SKPoint shift, int retainedOffset)
     {
+        node.ScrollCorrection += shift;
         foreach (var animation in _animations)
             if (ReferenceEquals(animation.Target, node) && !animation.IsCancelled && (animation.PropertyMask & ScrollOffsetMask) != 0)
                 animation.ShiftScroll(shift.X, shift.Y);
@@ -791,7 +809,8 @@ internal sealed class SkUiCompositor : IDisposable
         else if (props.Links is { } links)
         {
             // Scroll-linked: translation, scale, opacity and clip from the sources' current (possibly animated) offsets.
-            var values = SkUiRenderLinkValues.Evaluate(links, props.LinkValues);
+            // A reveal's timed move keeps the frames coming (as spinning content does).
+            var values = SkUiRenderLinkValues.Evaluate(links, props.LinkValues, _now, _endedReveals, ref _spinning);
             opacity *= values.Opacity;
             if (opacity <= 0)
                 return;
