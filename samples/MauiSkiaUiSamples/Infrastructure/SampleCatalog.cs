@@ -26,6 +26,7 @@ public static class SampleCatalog
         SampleEntry.For<LeaderboardLoadingSample>(),
         SampleEntry.For<StagedLoadingSample>(),
         SampleEntry.For<ContactsSample>(),
+        SampleEntry.For<TripScrollEffectsSample>(),
         SampleEntry.For<PlanPickerSample>(),
         SampleEntry.For<SignInFormSample>(),
         SampleEntry.For<PickerPopupsSample>(),

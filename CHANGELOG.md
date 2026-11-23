@@ -24,6 +24,7 @@ Publishing (the NuGet publish workflow, [docs/Releasing.md](docs/Releasing.md)) 
 
 ### Other
 
+- **Samples app:** a *Scroll effects* example, a trip's page built from scroll-linked effects: a landscape header in parallax layers that collapses into a toolbar (and grows when pulled), a title moving into the toolbar, a reading-progress line, section chips that stick under the toolbar, a carousel with parallax pictures, itinerary cards sliding in, and a price bar, an extended Book button and a back-to-top button that react to scrolling.
 - **DevFlow extension:** `dev.skiaui` has a `drag` tool that drags on the drawn content as a finger does (from an element or a window point, in real time, so a fast one flings): DevFlow's own scroll and gesture commands do not move drawn scrollers.
 
 ## 1.15.1

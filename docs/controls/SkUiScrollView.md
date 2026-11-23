@@ -275,4 +275,4 @@ Under `SkUiMotion.IsMotionReduced`, fades and clips run; scales, and translation
 
 ## Related
 
-[ScrollingAndCollectionViews.md](../design/ScrollingAndCollectionViews.md) · [SkUiRefreshView](SkUiRefreshView.md) · Gallery: `ScrollViewDemoPage` (`PullEdges`, overscroll in the status line), `ScrollEffectsDemoPage` (the scroll-linked recipes) · Tests: `ScrollViewOverscrollTests`, `ScrollEffectTests`, `ScrollRevealTests`, `ScrollLinkTests`
+[ScrollingAndCollectionViews.md](../design/ScrollingAndCollectionViews.md) · [SkUiRefreshView](SkUiRefreshView.md) · Gallery: `ScrollViewDemoPage` (`PullEdges`, overscroll in the status line), `ScrollEffectsDemoPage` (the scroll-linked recipes) · Samples app: *Scroll effects* (`TripScrollEffectsSample`: a trip's page combining them, with layered parallax, sticky chips, slide-in cards and a back-to-top button) · Tests: `ScrollViewOverscrollTests`, `ScrollEffectTests`, `ScrollRevealTests`, `ScrollLinkTests`
