@@ -4,7 +4,7 @@
 
 **Why now:** .NET 11 (SDK 11.0.100) and MAUI 11.0.0 went GA on 10 November 2026. STS releases now get 24 months, so .NET 10 (LTS) and .NET 11 both reach end of support on 14 November 2028. Most apps will stay on 10 for a while, and early adopters move to 11.
 
-**Scope:** platform support only: build, test, pack and verify on both lines. New MAUI 11 members (below) go on the parity test's known-gap list and into the [backlog](Roadmap.md#maui-parity) for a later release.
+**Scope:** platform support only: build, test, pack and verify on both lines. New MAUI 11 members (below) go on the parity test's known-gap list and into the [backlog](../design/Roadmap.md#maui-parity) for a later release.
 
 **Baseline:** 1.10.0 (MAUI 10.0.120, SDK 10.0.402, SkiaSharp 4.154.0, Xcode 26.6 / 27.1).
 
@@ -126,12 +126,12 @@ Each difference becomes a shim with a short comment. No control-level `#if`.
 ## Step 6: docs
 
 - **`CHANGELOG.md`:** under `## Unreleased`, a new-feature entry for the net11 targets of all four packages, noting Android API 24 and Xcode 27.2 on net11 and that net10 is unchanged.
-- **[Roadmap.md](Roadmap.md):**
+- **[Roadmap.md](../design/Roadmap.md):**
   - Add a 1.11.0 row and section.
   - Move the backlog item here.
   - Replace "SkiaUi stays on MAUI 10.x".
   - Add the MAUI 11 members to the parity backlog.
-- **[Requirements.md](Requirements.md):** per-TFM platform rows, and drop "MAUI 10.x only".
+- **[Requirements.md](../design/Requirements.md):** per-TFM platform rows, and drop "MAUI 10.x only".
 - **`README.md`:**
   - Requirements for each line.
   - Recheck the Native AOT note on net11.
@@ -143,7 +143,7 @@ Each difference becomes a shim with a short comment. No control-level `#if`.
   - List the MAUI 11 members under "Not available yet".
   - Android 24 on net11.
 - **Migration skills in `plugins/skiaui-migration`:** update the MAUI version statements.
-- **Others:** [Testing.md](Testing.md) (running per TFM), [Releasing.md](../Releasing.md) if the pack jobs change, and the bug report template's version placeholder.
+- **Others:** [Testing.md](../design/Testing.md) (running per TFM), [Releasing.md](../Releasing.md) if the pack jobs change, and the bug report template's version placeholder.
 
 ## Device benchmarks (Stress page, 14 November 2026)
 
@@ -151,7 +151,7 @@ Release builds of the demo, each line with its own SDK (net10: SDK 10.0.404, Mon
 
 - **Galaxy S9:** native MAUI overall 6,040 → 4,327 ms on net11; SkUi* about the same overall (426 → 427 ms: generate 224 → 171 ms, but the first frame 151 → 216 ms); Core 267 → 245 ms. Render thread per scrolled frame 6.5 → 3.7 ms on both drawn layers. The diagnostics cost little here: the first run gave nearly the same numbers.
 - **iPhone 8:** SkUi* 165 → 133 ms overall on net11 (generate 109 → 80 ms), Core 92 → 84 ms, native MAUI about the same (2,803 → 2,816 ms). The first run showed SkUi* about 60 % slower on net11 (118 → 188 ms generate, 245 ms overall), in every round; that was the diagnostics.
-- **Cause of the first run's iPhone 8 SkUi\* slowdown:** the demo's `EnableProfiling` default sets a diagnostic endpoint, so `EnableDiagnostics` is true, and that turns on MAUI's visual tree diagnostics in Release. With them on, every `AddLogicalChild` runs `VisualDiagnostics.OnChildAdded`, which looks up the child's index with `parent.GetVisualChildren().IndexOf(child)`: building 1,000 children is O(N²). Timing each step of the build loop on the iPhone 8: `Children.Add` took 131 ms on net11 against 38 ms on net10, nearly all of it in MAUI's `AddLogicalChild`. Everything else was faster on net11 (constructing the buttons 13 vs 35 ms). With the diagnostics off, net11 `AddLogicalChild` takes 16 ms. On net10 (Mono) the switch barely changes anything. crossgen2 had precompiled every SkiaUi method on the path, generic-math instantiations included; the only methods it skipped were 6 generated type-map proxies. Core wasn't affected because `SkUiCoreHost` adds one MAUI child, not 1,000. Fix: the demo sets `Microsoft.Maui.RuntimeFeature.EnableMauiDiagnostics=false` in non-Debug builds with profiling on (the endpoint stays); [Testing.md](Testing.md#device-profiling-dotnet-trace) says why.
+- **Cause of the first run's iPhone 8 SkUi\* slowdown:** the demo's `EnableProfiling` default sets a diagnostic endpoint, so `EnableDiagnostics` is true, and that turns on MAUI's visual tree diagnostics in Release. With them on, every `AddLogicalChild` runs `VisualDiagnostics.OnChildAdded`, which looks up the child's index with `parent.GetVisualChildren().IndexOf(child)`: building 1,000 children is O(N²). Timing each step of the build loop on the iPhone 8: `Children.Add` took 131 ms on net11 against 38 ms on net10, nearly all of it in MAUI's `AddLogicalChild`. Everything else was faster on net11 (constructing the buttons 13 vs 35 ms). With the diagnostics off, net11 `AddLogicalChild` takes 16 ms. On net10 (Mono) the switch barely changes anything. crossgen2 had precompiled every SkiaUi method on the path, generic-math instantiations included; the only methods it skipped were 6 generated type-map proxies. Core wasn't affected because `SkUiCoreHost` adds one MAUI child, not 1,000. Fix: the demo sets `Microsoft.Maui.RuntimeFeature.EnableMauiDiagnostics=false` in non-Debug builds with profiling on (the endpoint stays); [Testing.md](../design/Testing.md#device-profiling-dotnet-trace) says why.
 - iOS 16 devices launch through Xcode 26.6 (`mlaunch --sdkroot`); Xcode 27.2 can't mount their developer image (HE0032).
 
 ## After .NET 11: net10 floor to MAUI 10.0.130 (done)

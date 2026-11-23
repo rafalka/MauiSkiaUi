@@ -141,7 +141,7 @@ Publishing (the NuGet publish workflow, [docs/Releasing.md](docs/Releasing.md)) 
 
 ### New features
 
-- **.NET 11 and MAUI 11:** SkiaUi.Maui, SkiaUi.Maui.CommunityToolkit, SkiaUi.Maui.Markdown and SkiaUi.Maui.Markdown.Math target `net11.0-*` with MAUI 11.0.10 (Community Toolkit 17.0.0) next to `net10.0-*` with MAUI 10, so .NET 10 apps keep restoring the net10 assets and never see MAUI 11. The net11 assets need Android 7.0 (API 24) and build with .NET SDK 11.0.100 and Xcode 27.2; the other minimum OS versions are unchanged. Details and the behaviour differences between the lines: [ImplementationPlan-1.11.md](docs/design/ImplementationPlan-1.11.md).
+- **.NET 11 and MAUI 11:** SkiaUi.Maui, SkiaUi.Maui.CommunityToolkit, SkiaUi.Maui.Markdown and SkiaUi.Maui.Markdown.Math target `net11.0-*` with MAUI 11.0.10 (Community Toolkit 17.0.0) next to `net10.0-*` with MAUI 10, so .NET 10 apps keep restoring the net10 assets and never see MAUI 11. The net11 assets need Android 7.0 (API 24) and build with .NET SDK 11.0.100 and Xcode 27.2; the other minimum OS versions are unchanged. Details and the behaviour differences between the lines: [ImplementationPlan-1.11.md](docs/archive/ImplementationPlan-1.11.md).
 
 ### Breaking changes
 

@@ -7,20 +7,20 @@
 
 **Scope:** two items not on the 1.x backlog until now. They come from a real app (a recurring-schedule editor, #98) and from requests for pickers of other types. Both open up internals that already exist (`SkUiColumnsPopup`, `SkUiPickerModel`'s content factory) rather than adding new engines.
 
-**Baseline:** 1.11.0 (net10 with MAUI 10.0.130 and net11 with MAUI 11.0.10, SDK 11.0.100, SkiaSharp 4.154.0). What has shipped is in the [changelog](../../CHANGELOG.md); the rest of the backlog stays in the [roadmap](Roadmap.md#backlog-1x).
+**Baseline:** 1.11.0 (net10 with MAUI 10.0.130 and net11 with MAUI 11.0.10, SDK 11.0.100, SkiaSharp 4.154.0). What has shipped is in the [changelog](../../CHANGELOG.md); the rest of the backlog stays in the [roadmap](../design/Roadmap.md#backlog-1x).
 
-**Rules** (as in 1.10, from [Requirements.md](Requirements.md#principles)):
+**Rules** (as in 1.10, from [Requirements.md](../design/Requirements.md#principles)):
 
 - 1.x keeps the 1.0 API: everything here is additive. Widening `private protected` to `protected` and `internal` to `public` is additive. The API comparison against 1.11.0 (Step 4 of the 1.11 plan) must report additions only.
 - Both layers where a control has both. The exceptions are in the [decisions](#decisions) ([D1](#decisions)).
-- What apps build on must be public API. The samples' custom pickers use no `InternalsVisibleTo` ([D5](#decisions)), as the integration packages do ([Popups.md](Popups.md#integration-packages)).
+- What apps build on must be public API. The samples' custom pickers use no `InternalsVisibleTo` ([D5](#decisions)), as the integration packages do ([Popups.md](../design/Popups.md#integration-packages)).
 - A feature a view does not use costs nothing per frame (`scripts/bench.sh --baseline v1.11.0`). The built-in pickers' popups must not get slower to open after the refactors (picker scenarios, plus a new popup-open scenario if none covers it).
 
 ## Decisions
 
 Proposed. Agree them before Step W1.
 
-- **D1 Inline wheels are SkUi\* only in 1.12.** The wheels are built on `SkUiCarouselView`, which has no Core twin, and a Core tree cannot host a SkUi\* view (`SkUiCoreHost` only goes the other way). `SkUiCorePickerWheels` waits for a Core carousel ([backlog: CarouselView](Roadmap.md#maui-parity)). The popups of Core pickers are SkUi\* surfaces already, so custom Core pickers (phase P) are not affected.
+- **D1 Inline wheels are SkUi\* only in 1.12.** The wheels are built on `SkUiCarouselView`, which has no Core twin, and a Core tree cannot host a SkUi\* view (`SkUiCoreHost` only goes the other way). `SkUiCorePickerWheels` waits for a Core carousel ([backlog: CarouselView](../design/Roadmap.md#maui-parity)). The popups of Core pickers are SkUi\* surfaces already, so custom Core pickers (phase P) are not affected.
 - **D2 An inline wheel commits once it settles.** Each column's `SelectedIndex` / `SelectedItem` is written when the wheel stops (snapped, no finger down) and `CommitDelay` (default 100 ms) has passed. Rows passed on the way are not written. The popup keeps its present behavior: it chooses at once (`UpdateMode="Immediately"`) or keeps a draft until OK.
 - **D3 Haptics through a small platform helper of our own,** not MAUI Essentials' `HapticFeedback`, which needs the `VIBRATE` permission on Android. Android uses `View.PerformHapticFeedback` (`SegmentFrequentTick` on API 34+, else `ClockTick`; no permission needed), iOS and Mac Catalyst use `UISelectionFeedbackGenerator`, and Windows does nothing. It is switched by `SkUiGestureSettings.IsWheelHapticFeedbackEnabled` (app-wide, default `false`) and by `IsHapticFeedbackEnabled` per wheel control (default: the app-wide setting). The popup's wheels follow the same setting. It is internal in 1.12 and can be made public if apps ask.
 - **D4 No `SkUiPopups.ShowColumnsAsync` in 1.12.** #98 offers it as an alternative. A field-less popup of wheels is a page that opens `IsOpen` on a hidden picker, or a custom picker (phase P). Add it later if an app still needs it.
@@ -41,7 +41,7 @@ Checked against the code on `devel` (16 November 2026).
 - **The pickers already have a content seam.** `SkUiPickerModel.ContentFactory` (`Func<SkUiPickerPopupContext, ISkUiPickerPopupContent>`) is how the multi-column picker, the date and time pickers and the several-choices list put their content into the shared popup session. The session does placement, sizing, the presenter, closing on scroll / resize / disable, focus and `IsOpen`. Everything a custom picker needs is behind this seam, and all of it is internal: the factory, `SkUiPickerPopupContext`, `SkUiPickerPopupChrome`, `SkUiPopupExtras`, `ISkUiPickerPopupContent` and the request constructors.
 - **Pickers can't be subclassed from outside today.** `SkUiPickerBase` and `SkUiCorePickerBase` have `private protected` constructors. Their hooks (`ClearChoice`, `ChooseItem`, `RemoveChoice`, `OnModelCreated`, `PopupItemsSource`) are `private protected`. The public extension points (`ShowPopupAsync`, `SelectItemsAsync`) only change the UI for the value types SkiaUi ships.
 - **The field's text has a free-form mode:** `SkUiPickerModel.UsesValueText` / `ValueText`, used by the wheels and the date pickers. A custom picker's field text goes through it.
-- **Nested scrolling:** the gesture arena already lets a drawn scroller keep a touch from a native parent (Android `RequestDisallowInterceptTouchEvent`, the iOS gate recognizer, Windows DirectManipulation hand-off; [EventMechanism.md](EventMechanism.md)). By default a drawn scroller hands over at its edge. An inline wheel must not hand over (#98: vertical drags on the wheel never scroll the sheet).
+- **Nested scrolling:** the gesture arena already lets a drawn scroller keep a touch from a native parent (Android `RequestDisallowInterceptTouchEvent`, the iOS gate recognizer, Windows DirectManipulation hand-off; [EventMechanism.md](../design/EventMechanism.md)). By default a drawn scroller hands over at its edge. An inline wheel must not hand over (#98: vertical drags on the wheel never scroll the sheet).
 - **No haptics in the library today** (no platform code to reuse).
 
 ## Phase W: inline wheels (#98)
@@ -86,7 +86,7 @@ Checked against the code on `devel` (16 November 2026).
 - **W6 The popup uses the public control.** Size: S. **Done** with W1 and W2: the popup (`SkUiColumnsPopup`) and `SkUiPickerWheels` both host `SkUiWheelsView`, the option this step allowed. The popup keeps its draft / immediate choice in the request; the inline view keeps its settle timer. The multi-column, date and time and bottom-pane wheel tests pass unchanged.
   - `SkUiColumnsPopup` hosts a `SkUiPickerWheels` (or the shared `SkUiWheelsView` underneath it, whichever keeps the draft / immediate logic simpler) so there is one implementation, as #98 asks.
   - The multi-column picker, the date and time pickers and the bottom pane's single-list wheel stay green.
-- **W7 Docs, demo, changelog.** Size: S. **Done**: the control page, controls index and multi-column link, the gallery page with both layouts, and the changelog came with W2–W5. W7 added the wheels to [Accessibility.md](Accessibility.md#picker-wheels), `KeepsDrags` to [EventMechanism.md](EventMechanism.md#native-coordination), FR-29 in [Requirements.md](Requirements.md), the roadmap status, and the inline mapping in the migration skill (`skiaui-migrate` controls reference). A Syncfusion line in Migration.md was dropped: the doc lists no third-party pickers.
+- **W7 Docs, demo, changelog.** Size: S. **Done**: the control page, controls index and multi-column link, the gallery page with both layouts, and the changelog came with W2–W5. W7 added the wheels to [Accessibility.md](../design/Accessibility.md#picker-wheels), `KeepsDrags` to [EventMechanism.md](../design/EventMechanism.md#native-coordination), FR-29 in [Requirements.md](../design/Requirements.md), the roadmap status, and the inline mapping in the migration skill (`skiaui-migrate` controls reference). A Syncfusion line in Migration.md was dropped: the doc lists no third-party pickers.
   - Control page `docs/controls/SkUiPickerWheels.md` and the controls index.
   - The multi-column picker's page links to it ("Inline wheels").
   - A gallery page with the issue's two examples: "every [n] [unit]" with a live readout, and the 3-column "distribute [n] [unit] before [start / due date]" in a sheet.
@@ -147,13 +147,13 @@ Checked against the code on `devel` (16 November 2026).
     - a Core variant of one of them.
   - Plus one `ShowPopupAsync` override that answers `SkUiValuePopupRequest<Color>` with the app's own UI (the presenter path).
   - The samples project has no `InternalsVisibleTo`, so this proves D5. Gallery pages in the demo too.
-- **P5 Docs.** Size: S. **Done**: the [CustomPickers.md](../controls/CustomPickers.md) guide, linked from the controls index, [SkUiPicker.md](../controls/SkUiPicker.md), [Architecture.md](Architecture.md#popups), [Popups.md](Popups.md#pickers-of-your-own), the roadmap, FR-29 and the migration skill; the changelog entries came with P1–P3.
+- **P5 Docs.** Size: S. **Done**: the [CustomPickers.md](../controls/CustomPickers.md) guide, linked from the controls index, [SkUiPicker.md](../controls/SkUiPicker.md), [Architecture.md](../design/Architecture.md#popups), [Popups.md](../design/Popups.md#pickers-of-your-own), the roadmap, FR-29 and the migration skill; the changelog entries came with P1–P3.
   - A new guide `docs/controls/CustomPickers.md` ("Pickers of your own"):
     - when to override `ShowPopupAsync` / `SelectItemsAsync` (new UI, existing types);
     - when to derive `SkUiValuePicker<T>` (a new value type);
     - when to derive `SkUiPickerBase` (several values, your own field text rules).
   - It includes the contract, draft vs immediate, presenters, screen readers, and a full color-picker walk-through.
-  - Link it from [SkUiPicker.md](../controls/SkUiPicker.md#popups-on-your-popup-system), [Popups.md](Popups.md), the controls index and [Architecture.md](Architecture.md#popups).
+  - Link it from [SkUiPicker.md](../controls/SkUiPicker.md#popups-on-your-popup-system), [Popups.md](../design/Popups.md), the controls index and [Architecture.md](../design/Architecture.md#popups).
   - Changelog under `### New features`.
   - The migration skills: a MAUI app's own picker controls (custom `Picker` handlers) can be pointed at the guide (a note in `skiaui-migrate`, no checker rule).
 

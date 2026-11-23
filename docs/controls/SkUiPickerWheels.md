@@ -2,7 +2,7 @@
 
 The wheels of [SkUiMultiColumnPicker](SkUiMultiColumnPicker.md)'s popup as a view of their own: **always open in the page**, with no field to tap. One snapping wheel per column, the chosen row on a band in the middle, the outer rows fading and turning away. Use it under a live readout ("Distribute **2 weeks** before **due date**"), inside a sheet's card, or anywhere a native app would show an inline wheel picker.
 
-**MAUI counterpart:** none (MAUI shows wheels only inside the platform's date and time pickers). Core twin: none yet. The wheels are built on `SkUiCarouselView`, which has no Core twin ([1.12 plan, D1](../design/ImplementationPlan-1.12.md#decisions)). The popup of [SkUiMultiColumnPicker](SkUiMultiColumnPicker.md), the date and time pickers, and the iOS bottom pane all use the same wheels.
+**MAUI counterpart:** none (MAUI shows wheels only inside the platform's date and time pickers). Core twin: none yet. The wheels are built on `SkUiCarouselView`, which has no Core twin ([1.12 plan, D1](../archive/ImplementationPlan-1.12.md#decisions)). The popup of [SkUiMultiColumnPicker](SkUiMultiColumnPicker.md), the date and time pickers, and the iOS bottom pane all use the same wheels.
 
 ## How it works
 

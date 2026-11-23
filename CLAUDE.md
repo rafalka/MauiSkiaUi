@@ -25,7 +25,7 @@ scripts/device_tests.sh                      # memory-leak scenarios on a device
 scripts/page_tour.sh                         # Windows: open every demo/samples page (SKUI_TOUR=1), report exceptions
 ```
 
-Toolchain is pinned: .NET SDK 11.0.100 ([global.json](global.json)) builds both lines, net10 (MAUI 10.0.130) and net11 (MAUI 11.0.10), with Xcode 27.2; `-p:SkUiNet=10` or `11` builds one line; SDK 10 builds net10 only, by itself. [net10/](net10/README.md) holds a `global.json` for SDK 10 and `SkiaUi.Net10.slnx` (generated from `SkiaUi.slnx` by `scripts/net10_solution.py`) to work on the .NET 10 line. MAUI, Community Toolkit and SkiaSharp (4.154.0) versions are per-TFM pins in [Directory.Build.props](Directory.Build.props) (also the product `Version`); plan: [ImplementationPlan-1.11.md](docs/design/ImplementationPlan-1.11.md). The library is `IsAotCompatible`: trim/AOT analyzer warnings fail its build, and the build is expected to have 0 warnings.
+Toolchain is pinned: .NET SDK 11.0.100 ([global.json](global.json)) builds both lines, net10 (MAUI 10.0.130) and net11 (MAUI 11.0.10), with Xcode 27.2; `-p:SkUiNet=10` or `11` builds one line; SDK 10 builds net10 only, by itself. [net10/](net10/README.md) holds a `global.json` for SDK 10 and `SkiaUi.Net10.slnx` (generated from `SkiaUi.slnx` by `scripts/net10_solution.py`) to work on the .NET 10 line. MAUI, Community Toolkit and SkiaSharp (4.154.0) versions are per-TFM pins in [Directory.Build.props](Directory.Build.props) (also the product `Version`); plan: [ImplementationPlan-1.11.md](docs/archive/ImplementationPlan-1.11.md). The library is `IsAotCompatible`: trim/AOT analyzer warnings fail its build, and the build is expected to have 0 warnings.
 
 ## Token hygiene
 

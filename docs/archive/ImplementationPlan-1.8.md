@@ -6,7 +6,7 @@
 
 **Baseline:** .NET MAUI 10.0.120 (or the latest 10.0.x when 1.8 ships), SkiaSharp 4.154.0, Markdig 1.6.0, CSharpMath.Rendering 0.5.1, branch `1.8-implementation` from `devel` after 1.7.0. What was planned for 1.8 before (performance, tiles, Core containers, password reveal) moved to [1.9](ImplementationPlan-1.9.md). What has shipped is in the [changelog](../../CHANGELOG.md).
 
-**Rules** (from [Requirements.md](Requirements.md#principles)):
+**Rules** (from [Requirements.md](../design/Requirements.md#principles)):
 
 - 1.x keeps the 1.0 API: changes to `SkiaUi.Maui` are additive.
 - Both layers: every member lands on the SkUi\* control and its Core twin (`Set*`), with one shared engine.
@@ -16,7 +16,7 @@
 
 ## Status
 
-Built on `1.8-implementation`: phases P, B, I, U, M, X1, X2 and Z. Not built: X3 (step 12), which nothing has asked for. V2 is not planned for now and is in the [backlog](Roadmap.md#lists-and-scrolling). Images among text still cut the paragraph; X1 could place them in the line later.
+Built on `1.8-implementation`: phases P, B, I, U, M, X1, X2 and Z. Not built: X3 (step 12), which nothing has asked for. V2 is not planned for now and is in the [backlog](../design/Roadmap.md#lists-and-scrolling). Images among text still cut the paragraph; X1 could place them in the line later.
 
 G1 and V1 so far: the Markdown scenario with formulas passes under Native AOT on Mac Catalyst, and fully trimmed on the Galaxy S9, with no trim or AOT warnings from SkiaUi. Numbers: [Performance.md](../Performance.md#markdown). Assemblies before trimming: Markdig 0.5 MB, CSharpMath 1.8 MB with its fonts.
 
@@ -48,10 +48,10 @@ Found in this repository:
 | `SkUiCoreSpan` has font, colors, background, decorations, line height and `Tapped`; `SkUiCoreLabel` has `SetSpans`; `SkUiCoreTable`, `SkUiCoreBorder`, `SkUiCoreScrollView`, `SkUiCoreWrapLayout`, `SkUiCoreCheckBox`, `SkUiCoreImage` exist | Most of the view is a mapping from the syntax tree to nodes that exist |
 | Own nodes override the public `MeasureContent` and `OnPaintContent` | A math node needs nothing new |
 | `SkUiImageSource.FromString` opens absolute paths and `file:` URIs as files | **Never pass a URL from a document to it:** [I1](#phase-i--images) resolves URLs itself |
-| The icon reader fails on gradients, `use`, `image`, filters and more ([SkUiImage.md](../controls/SkUiImage.md)) | Such an SVG shows its alt text until [Full SVG](ImplementationPlan-FullSvg.md) exists |
+| The icon reader fails on gradients, `use`, `image`, filters and more ([SkUiImage.md](../controls/SkUiImage.md)) | Such an SVG shows its alt text until [Full SVG](../design/ImplementationPlan-FullSvg.md) exists |
 | The compositor culls when drawing, but dirty nodes are recorded whether they show or not | A long document records everything on its first frame: measured in [V1](#phase-v--long-documents) |
 | No Core virtual stack exists ([SkUiVirtualVerticalStackLayout.md](../controls/SkUiVirtualVerticalStackLayout.md)) | Virtualizing would need the twin first or be SkUi-only: V2 |
-| Core controls copy scheme colors when created ([roadmap](Roadmap.md#architecture-and-performance)) | A theme change rebuilds the tree: U4 |
+| Core controls copy scheme colors when created ([roadmap](../design/Roadmap.md#architecture-and-performance)) | A theme change rebuilds the tree: U4 |
 | Rich text has no inline objects; `sub` / `sup` have no baseline shift; links are not accessibility elements | [Phase X](#phase-x--engine-additions-in-skiauimaui) |
 | No default monospace family exists | B5 picks one per platform |
 
@@ -152,17 +152,17 @@ Additive, useful beyond Markdown, and each can be dropped without affecting the 
 
 - **X1 Inline objects in text.** A span with a fixed width, height and baseline that wraps with the line, on both layers, with a public way to place a node there. Touches `SkUiShaping` and `SkUiRichTextLayout`: bidi, truncation and hit testing must all handle it. `scripts/bench.sh`: text without one costs nothing. Unlocks inline math and images among text. Size: M–L.
 - **X2 Baseline shift on spans.** A real superscript and subscript; also fixes `sub` / `sup` in `SkUiHtml`. Size: S–M.
-- **X3 Links as accessibility elements.** Already in the [backlog](Roadmap.md#accessibility). Matters here because a document can be mostly links. Size: M.
+- **X3 Links as accessibility elements.** Already in the [backlog](../design/Roadmap.md#accessibility). Matters here because a document can be mostly links. Size: M.
 
 ## Phase V — Long documents
 
 - **V1 Measure.** Bench scenarios for a 100 KB document: first frame, scrolling, and an append (`scripts/bench.sh`, set through `TrySetOption` so baselines still build), plus the same document on the S9 and the iPhone 8. Results in [Performance.md](../Performance.md). Size: S, device time.
-- **V2 Not planned for now; in the [backlog](Roadmap.md#lists-and-scrolling).** To take up when a real app shows long documents or later measurements ask for it. Top-level blocks as rows of a virtual stack, recorded when near the viewport. Needs the Core twin of `SkUiVirtualVerticalStackLayout`, or is SkUi-only at first. The 1.9 plan's [R2](ImplementationPlan-1.9.md#phase-r--performance-backed-by-measurements) (no re-recording of ancestors on a measure change) would help appends and image loads, but comes after this release, so V1 measures without it and is run again after it. Size: M–L.
+- **V2 Not planned for now; in the [backlog](../design/Roadmap.md#lists-and-scrolling).** To take up when a real app shows long documents or later measurements ask for it. Top-level blocks as rows of a virtual stack, recorded when near the viewport. Needs the Core twin of `SkUiVirtualVerticalStackLayout`, or is SkUi-only at first. The 1.9 plan's [R2](ImplementationPlan-1.9.md#phase-r--performance-backed-by-measurements) (no re-recording of ancestors on a measure change) would help appends and image loads, but comes after this release, so V1 measures without it and is run again after it. Size: M–L.
 
 ## Phase Z — Image zoom
 
 - **Z1 `SkUiZoomView` and `SkUiCoreZoomView`** in `SkiaUi.Maui`: pinch, pan, double tap and wheel on the existing recognizers, with composite-time scale and offset so nothing re-records. Useful for any image, so not tied to Markdown. Size: M.
-- **Z2 The popup.** `AllowImageZoom` opens one through the app's [`ISkUiPopupPresenter`](Popups.md); SkiaUi ships no popup windows. Without a presenter, `ImageTapped` remains. Size: S.
+- **Z2 The popup.** `AllowImageZoom` opens one through the app's [`ISkUiPopupPresenter`](../design/Popups.md); SkiaUi ships no popup windows. Without a presenter, `ImageTapped` remains. Size: S.
 
 ## Not included
 
@@ -173,7 +173,7 @@ Text selection (labels have none; a separate engine feature); a bundled syntax h
 - [docs/controls/SkUiMarkdownView.md](../controls/README.md) and a row in the controls index; what the limits are and how to check a link's scheme before opening it. The package's `README.md`.
 - A gallery page in `MauiSkiaUiDemo/ComponentPages` with every feature, and in-app links; an example in the samples app.
 - Headless tests in `tests/MauiSkiaUi.Tests`: `UseBundledFont` for text, PNG bytes for images, no network.
-- [CHANGELOG.md](../../CHANGELOG.md) per release; [Roadmap.md](Roadmap.md) status; [Requirements.md](Requirements.md) gets a new requirement number.
+- [CHANGELOG.md](../../CHANGELOG.md) per release; [Roadmap.md](../design/Roadmap.md) status; [Requirements.md](../design/Requirements.md) gets a new requirement number.
 
 ## Order
 
@@ -192,14 +192,14 @@ Text selection (labels have none; a separate engine feature); a bundled syntax h
 | 11 | Z1, Z2 | M, S | Independent of everything above |
 | 12 | X3 | M | When a real app asks for it |
 
-1.8 is steps 1–11. If it has to ship early, steps 1–8 stand alone (the whole scope except math, inline objects and zoom) and the rest moves to a later release. Step 12 is in 1.8 only if a real app asks for it. V2 is not a step of 1.8: it is in the [backlog](Roadmap.md#lists-and-scrolling).
+1.8 is steps 1–11. If it has to ship early, steps 1–8 stand alone (the whole scope except math, inline objects and zoom) and the rest moves to a later release. Step 12 is in 1.8 only if a real app asks for it. V2 is not a step of 1.8: it is in the [backlog](../design/Roadmap.md#lists-and-scrolling).
 
 ## Decisions
 
 Proposed unless marked **agreed**.
 
 - **D1 A separate package.** `SkiaUi.Maui` has no parser dependency and an app without Markdown should not get one. It follows the one-version rule ([Releasing.md](../Releasing.md)).
-- **D2 Built on Core nodes.** A document creates hundreds of nodes and Core trees build about three times faster, and the SkUi view is a host around the same engine, so both layers stay at parity by construction. Core's first frame is not faster on devices today ([roadmap](Roadmap.md#architecture-and-performance)), so V1 measures rather than assumes the gain.
+- **D2 Built on Core nodes.** A document creates hundreds of nodes and Core trees build about three times faster, and the SkUi view is a host around the same engine, so both layers stay at parity by construction. Core's first frame is not faster on devices today ([roadmap](../design/Roadmap.md#architecture-and-performance)), so V1 measures rather than assumes the gain.
 - **D3 One style record, not dozens of bindable properties.** A document's look is set once and reused, a record is simple to share across views, and a rebuild has one trigger. A property for each heading level's color, size and font would be most of the API and little of the value.
 - **D4 One link event.** `mailto:` is a link with a target; no second event for email. Nothing opens by itself, as on HTML labels.
 - **D5 Raw HTML shows as text.** `DisableHtml` in the pipeline. Rendering it through `SkUiHtml` does not work for tags split across inlines, and untrusted documents should not gain markup. Can be revisited if a real app needs it.

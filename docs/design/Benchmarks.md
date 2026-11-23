@@ -158,7 +158,7 @@ The headless runner reaches the internal frame pipeline (`SkUiFrameRenderer`) by
 
 ### 1.14 wave 1 (17 November 2026)
 
-[ImplementationPlan-1.14.md](ImplementationPlan-1.14.md) A1, A2, A5, A6 against `v1.13.0`: headless, all scenarios, `-r 2`, macOS (Apple silicon), net10. 9 faster, 3 slower, 442 within noise.
+[ImplementationPlan-1.14.md](../archive/ImplementationPlan-1.14.md) A1, A2, A5, A6 against `v1.13.0`: headless, all scenarios, `-r 2`, macOS (Apple silicon), net10. 9 faster, 3 slower, 442 within noise.
 
 | Scenario | Metric | 1.13.0 | Wave 1 | Δ % | Note |
 | --- | --- | ---: | ---: | ---: | --- |
@@ -175,7 +175,7 @@ The label and button scenarios allocate the same: their allocations are the tree
 
 ### 1.14 waves 1 and 2 (17 November 2026)
 
-[ImplementationPlan-1.14.md](ImplementationPlan-1.14.md) A1 to A7 against `v1.13.0`: headless, all scenarios, `-r 2`, macOS (Apple silicon), net10. 15 faster, 6 slower, 441 within noise.
+[ImplementationPlan-1.14.md](../archive/ImplementationPlan-1.14.md) A1 to A7 against `v1.13.0`: headless, all scenarios, `-r 2`, macOS (Apple silicon), net10. 15 faster, 6 slower, 441 within noise.
 
 | Scenario | Metric | 1.13.0 | 1.14 | Δ % | Note |
 | --- | --- | ---: | ---: | ---: | --- |
@@ -198,7 +198,7 @@ What headless scenarios do not show: per-event and per-frame gains measured by t
 
 ### 1.14 overlay bookkeeping on Android (17 November 2026)
 
-[ImplementationPlan-1.14.md](ImplementationPlan-1.14.md) B3, on the Galaxy S9 (Android 10, net10 Release, `-n 6`). On devices `allocKB` is what every thread allocated during the 1.5 s motion window (about 91 frames).
+[ImplementationPlan-1.14.md](../archive/ImplementationPlan-1.14.md) B3, on the Galaxy S9 (Android 10, net10 Release, `-n 6`). On devices `allocKB` is what every thread allocated during the 1.5 s motion window (about 91 frames).
 
 | Scenario | fps | avg / max render ms | allocKB before | allocKB after |
 | --- | ---: | ---: | ---: | ---: |
@@ -210,7 +210,7 @@ The cost was in Live placement only: 6.9 KB per frame more than the drawn refere
 
 ### 1.14 text-shadow spike (18 November 2026)
 
-[ImplementationPlan-1.14.md](ImplementationPlan-1.14.md) B2 step 1. `text-shadow-scroll-*`: the Effects stress page's text-shadow row (400 cards, a shadow on each bold title: black, offset 1, 2, radius 3, 35 %), scrolled at the page's speed (the list in 6 s, about 67 cards per second), sampled for 4 s. A temporary switch in the library picked the path: `cpu` today's CPU raster per card (3 per frame at most), `gpu` the same raster on a GPU surface of the frame's context, `gpu16` that with 16 per frame, `glyph` the title's glyphs drawn again in its recording, blurred by a mask filter, in the shadow's color and at its offset (the label unclipped, so the halo is not cut at its frame). `-n 6`; the S9 on net10 Release (Android 10), the iPhone 8 on net11 Release (iOS 16, launched through Xcode 26.6's `mlaunch`; SDK 10 has no workloads on this machine).
+[ImplementationPlan-1.14.md](../archive/ImplementationPlan-1.14.md) B2 step 1. `text-shadow-scroll-*`: the Effects stress page's text-shadow row (400 cards, a shadow on each bold title: black, offset 1, 2, radius 3, 35 %), scrolled at the page's speed (the list in 6 s, about 67 cards per second), sampled for 4 s. A temporary switch in the library picked the path: `cpu` today's CPU raster per card (3 per frame at most), `gpu` the same raster on a GPU surface of the frame's context, `gpu16` that with 16 per frame, `glyph` the title's glyphs drawn again in its recording, blurred by a mask filter, in the shadow's color and at its offset (the label unclipped, so the halo is not cut at its frame). `-n 6`; the S9 on net10 Release (Android 10), the iPhone 8 on net11 Release (iOS 16, launched through Xcode 26.6's `mlaunch`; SDK 10 has no workloads on this machine).
 
 | Variant | S9 fps | S9 avg / max render ms | S9 allocKB | iPhone 8 fps | iPhone 8 avg / max render ms | iPhone 8 allocKB |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
@@ -224,7 +224,7 @@ Both paths pass the plan's 55 fps bar on the S9. The glyph path costs about 1 ms
 
 ### 1.14 runtime-async trial (17 November 2026)
 
-[ImplementationPlan-1.14.md](ImplementationPlan-1.14.md) A7 step 3: `<Features>runtime-async=on</Features>` on the headless `net11.0` target against the same commit without it (`--net 11`, `-n 10 -r 3`; the flag took effect: async methods carry `MethodImplAttributes.Async` and no state machine). The net11 suite passed with it.
+[ImplementationPlan-1.14.md](../archive/ImplementationPlan-1.14.md) A7 step 3: `<Features>runtime-async=on</Features>` on the headless `net11.0` target against the same commit without it (`--net 11`, `-n 10 -r 3`; the flag took effect: async methods carry `MethodImplAttributes.Async` and no state machine). The net11 suite passed with it.
 
 | Measure | Without | With | Δ |
 | --- | ---: | ---: | ---: |
@@ -236,11 +236,11 @@ Not kept ([D9](ImplementationPlan-PerformanceAndControls.md#decisions): allocati
 
 ### 1.15 calendar scenarios (19 November 2026)
 
-[ImplementationPlan-1.15.md](ImplementationPlan-1.15.md) A2: `scripts/bench.sh --baseline v1.14.0 -n 10 -S skui-calendars,core-calendars` (headless, a year of month calendars with a day style marking every day; update = each to its next month). Every phase within noise of 1.14.0; first-frame allocations 3 to 4 % lower (443 KB SkUi, 341 KB Core). Twelve calendars record in about 0.5 ms and re-record in 0.7 ms, so a calendar's first frame is cheap; what mattered was the swipe frame, which allocated 0.8 to 127 KB per frame and now allocates nothing in the calendar's drawing (`CalendarAllocationTests`; 104 bytes per frame through the pipeline, the re-recorded picture). The device scenario `calendar-slide` (a page slide every 400 ms with markers on every day) is for step A1.
+[ImplementationPlan-1.15.md](../archive/ImplementationPlan-1.15.md) A2: `scripts/bench.sh --baseline v1.14.0 -n 10 -S skui-calendars,core-calendars` (headless, a year of month calendars with a day style marking every day; update = each to its next month). Every phase within noise of 1.14.0; first-frame allocations 3 to 4 % lower (443 KB SkUi, 341 KB Core). Twelve calendars record in about 0.5 ms and re-record in 0.7 ms, so a calendar's first frame is cheap; what mattered was the swipe frame, which allocated 0.8 to 127 KB per frame and now allocates nothing in the calendar's drawing (`CalendarAllocationTests`; 104 bytes per frame through the pipeline, the re-recorded picture). The device scenario `calendar-slide` (a page slide every 400 ms with markers on every day) is for step A1.
 
 ### 1.15 calendar slide on devices (19 November 2026)
 
-[ImplementationPlan-1.15.md](ImplementationPlan-1.15.md) A1: `calendar-slide` and `carousel-swipe` against v1.14.0, `-n 6`, the S9 on net10, the iPhone 8 on net11 (`mlaunch`). The first S9 run, before the slot fix, showed the slide at 36 fps (UI thread 11.2 / 31.1 ms) and a probe in the bench's copy of the library put 88 KB of each draw's 89 KB in the markers; the fixed runs and their table are in [Performance.md](../Performance.md#calendar-on-devices). A run with the S9's lock screen up measures nothing (every frame wait times out): unlock it, and keep it awake through the builds.
+[ImplementationPlan-1.15.md](../archive/ImplementationPlan-1.15.md) A1: `calendar-slide` and `carousel-swipe` against v1.14.0, `-n 6`, the S9 on net10, the iPhone 8 on net11 (`mlaunch`). The first S9 run, before the slot fix, showed the slide at 36 fps (UI thread 11.2 / 31.1 ms) and a probe in the bench's copy of the library put 88 KB of each draw's 89 KB in the markers; the fixed runs and their table are in [Performance.md](../Performance.md#calendar-on-devices). A run with the S9's lock screen up measures nothing (every frame wait times out): unlock it, and keep it awake through the builds.
 
 ## Guidance for agents and reviewers
 

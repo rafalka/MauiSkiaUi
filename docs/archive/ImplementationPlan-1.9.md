@@ -2,11 +2,11 @@
 
 **Goal:** the Core layer stops re-recording ancestors on a measure change and shaped borders stop costing seconds on the first frame; galleries of equal tiles lay out by themselves; the Core twins of the state container and the expander close the Core layer's container gaps; drawn password fields can show their text.
 
-**Scope:** moved from the 1.6 plan, whose [viewport insets](ImplementationPlan-1.6.md) ship alone; 1.7 brought [vector icons](Roadmap.md#170-vector-icons-shipped) and 1.8 [Markdown](ImplementationPlan-1.8.md). Started on `1.9-implementation` (9 November 2026): R1, R2, R3, T1–T3, S1–S3 and E1–E3 done, with two fixes taken in from the issue tracker (#85, #86; below) (E1's device checks in the verification backlog).
+**Scope:** moved from the 1.6 plan, whose [viewport insets](ImplementationPlan-1.6.md) ship alone; 1.7 brought [vector icons](../design/Roadmap.md#170-vector-icons-shipped) and 1.8 [Markdown](ImplementationPlan-1.8.md). Started on `1.9-implementation` (9 November 2026): R1, R2, R3, T1–T3, S1–S3 and E1–E3 done, with two fixes taken in from the issue tracker (#85, #86; below) (E1's device checks in the verification backlog).
 
-**Baseline:** .NET MAUI 10.0.120 (or the latest 10.0.x when 1.9 ships), SkiaSharp 4.154.0, branch `1.9-implementation` from `devel` after 1.8.0. .NET 11 / MAUI 11 waits until it is released ([roadmap](Roadmap.md#net-11--maui-11-support)). What has shipped is in the [changelog](../../CHANGELOG.md); the rest of the 1.x backlog stays in the [roadmap](Roadmap.md#backlog-1x).
+**Baseline:** .NET MAUI 10.0.120 (or the latest 10.0.x when 1.9 ships), SkiaSharp 4.154.0, branch `1.9-implementation` from `devel` after 1.8.0. .NET 11 / MAUI 11 waits until it is released ([roadmap](../design/Roadmap.md#net-11--maui-11-support)). What has shipped is in the [changelog](../../CHANGELOG.md); the rest of the 1.x backlog stays in the [roadmap](../design/Roadmap.md#backlog-1x).
 
-**Rules** (as in 1.4, from [Requirements.md](Requirements.md#principles)):
+**Rules** (as in 1.4, from [Requirements.md](../design/Requirements.md#principles)):
 
 - 1.x keeps the 1.0 API: everything here is additive, unless a [decision](#decisions) says otherwise and the change is agreed first.
 - Both layers: each member lands on the SkUi\* control and its Core twin (`Set*`), with one shared engine.
@@ -23,9 +23,9 @@
   - Needed by S2: the Core expander relays out every frame of its animation.
 - **R3 Shaped borders' first frame.** Size: S–M. **Done:** the time was the content clip's path operation (about 1.5 ms per card on a desktop CPU; the outline about 30 µs). `SkUiStrokedOutlines` shares it, and the shadow silhouette's, between borders whose outlines have the same points (keyed by the points, so cards with their own shape objects share; it owns the shared paths, each border commits a copy, so the compositor's ownership is unchanged). Bench `skui-shaped-cards` / `core-shaped-cards` (with `-plain-` baselines): first-frame recording 588 → 25 ms (SkUi\*) and 570 → 8 ms (Core) headless; on the devices (R1), first frame 1,886 → 635 ms (S9, SkUi\*), 1,454 → 232 ms (S9, Core), 999 → 167 ms (iPhone 8, SkUi\*). A content clip equal to the inset outline was not needed. Leak scenario `ShapedBordersReshaped`.
   - 400 ticket-shaped cards take 1–2 s to their first frame (iPhone 8 and S9) because each card computes its outline and its content clip (a path operation) when it is first laid out. Borders of one shape and size share them (a small cache keyed by the shape's geometry, size and stroke), and a content clip that equals the inset outline skips the path operation.
-  - Ownership: shared outlines are disposed by the cache, not by the compositor ([RenderingPipeline.md](RenderingPipeline.md)); leak scenario for borders that change shape.
+  - Ownership: shared outlines are disposed by the cache, not by the compositor ([RenderingPipeline.md](../design/RenderingPipeline.md)); leak scenario for borders that change shape.
   - Measured with R1's effects page; headless: a bench scenario of 400 shaped cards (first frame).
-- Not in 1.9: text shadows cast on the GPU, the raster cache, recording Core subtrees off the UI thread ([roadmap](Roadmap.md#architecture-and-performance)).
+- Not in 1.9: text shadows cast on the GPU, the raster cache, recording Core subtrees off the UI thread ([roadmap](../design/Roadmap.md#architecture-and-performance)).
 
 ## Phase T — Tile layout
 
@@ -51,12 +51,12 @@
 
 ## Phase E — Password reveal
 
-- **E1 Show / hide in drawn password fields** ([D3](#decisions)). Size: M. **Done** (headless: `PasswordRevealTests`; on devices, the device tests' `PasswordRevealCheck` passed on the Galaxy S9 and the iPhone 8 and the S9 was checked by hand on 9 November 2026; what is still open is in the [verification backlog](Roadmap.md#verification-backlog)). The model's `Masks` (a password, not revealed) drives the drawing and the semantics, `IsPassword` the platform's options and the edit actions; the button sits between the clear button and the trailing view, and a tap on it does not focus the field.
+- **E1 Show / hide in drawn password fields** ([D3](#decisions)). Size: M. **Done** (headless: `PasswordRevealTests`; on devices, the device tests' `PasswordRevealCheck` passed on the Galaxy S9 and the iPhone 8 and the S9 was checked by hand on 9 November 2026; what is still open is in the [verification backlog](../design/Roadmap.md#verification-backlog)). The model's `Masks` (a password, not revealed) drives the drawing and the semantics, `IsPassword` the platform's options and the edit actions; the button sits between the clear button and the trailing view, and a tap on it does not focus the field.
   - On `SkUiEntry` and `SkUiCoreEntry`: `IsPasswordRevealed` (two-way) and `ShowsPasswordRevealButton` (`bool`, default `false`). The button is a trailing icon drawn by the look (new virtual members for its glyphs and size), a toggle for screen readers ("Show password" / "Hide password" in `SkUiStrings`).
   - The field stays a password field for the platform while revealed: Android keeps the password input type (only the drawing stops masking), iOS keeps `secureTextEntry`, Windows' proxy box keeps its mask; so the keyboard, autofill and password managers behave as before, and copy stays disabled. Screen readers read the text only while revealed.
   - Hidden again when the field loses focus (`HidesPasswordOnUnfocus`, default `true`).
-  - Tests: drawing masked and revealed, the caret and selection staying put, the button's hit and semantics; device checks (autofill and password managers on a revealed field) in the [verification backlog](Roadmap.md#verification-backlog).
-- **E2 Docs.** **Done.** [SkUiEntry.md](../controls/SkUiEntry.md), [TextInput.md](TextInput.md); the demo's sign-in form.
+  - Tests: drawing masked and revealed, the caret and selection staying put, the button's hit and semantics; device checks (autofill and password managers on a revealed field) in the [verification backlog](../design/Roadmap.md#verification-backlog).
+- **E2 Docs.** **Done.** [SkUiEntry.md](../controls/SkUiEntry.md), [TextInput.md](../design/TextInput.md); the demo's sign-in form.
 - **E3 Reveal mode and explore by touch.** Size: S. **Done.** `PasswordRevealMode` (`Toggle`, `WhilePressed`: the text shows only while the button is held; screen readers still toggle); a press, long press or right click on the reveal button is the button's (no word selection, menu or focus). VoiceOver's explore by touch on iOS and Mac Catalyst picks the front-most, innermost drawn element (`_accessibilityHitTest:withEvent:` on the overlay container and the elements), so the reveal and clear buttons inside a field are found by touch. The demo's property editors became two-way (the reveal button toggles the `IsPasswordRevealed` editor). Tests: `PasswordRevealTests`, `ComponentDemoTests`.
 
 ## Taken in from the issue tracker
@@ -66,7 +66,7 @@
 
 ## Docs, migration and demo
 
-Done with each step: the control pages named in the steps; [Migration.md](../Migration.md) and the migration skills (`plugins/skiaui-migration`) where a MAUI pattern now maps; the demo's component gallery; [Roadmap.md](Roadmap.md) (items leave the backlog as they ship); [Requirements.md](Requirements.md) (status); [CHANGELOG.md](../../CHANGELOG.md) (an entry under `## Unreleased` per feature).
+Done with each step: the control pages named in the steps; [Migration.md](../Migration.md) and the migration skills (`plugins/skiaui-migration`) where a MAUI pattern now maps; the demo's component gallery; [Roadmap.md](../design/Roadmap.md) (items leave the backlog as they ship); [Requirements.md](../design/Requirements.md) (status); [CHANGELOG.md](../../CHANGELOG.md) (an entry under `## Unreleased` per feature).
 
 ## Order
 
@@ -93,4 +93,4 @@ T, S1 and E are independent of phase R and of each other.
 - Headless suite and memory-leak scenarios pass (new: Core states switched, Core expander toggled, shaped borders reshaped); 0 build warnings with the trim and AOT analyzers.
 - `scripts/bench.sh --baseline v1.8.0` shows no regression in the existing scenarios; the new R2 and R3 scenarios show the expected drop.
 - [Performance.md](../Performance.md) measured again on both devices.
-- Device checks of E1 (keyboards, autofill, password managers) recorded in [Testing.md](Testing.md) or left in the verification backlog.
+- Device checks of E1 (keyboards, autofill, password managers) recorded in [Testing.md](../design/Testing.md) or left in the verification backlog.
