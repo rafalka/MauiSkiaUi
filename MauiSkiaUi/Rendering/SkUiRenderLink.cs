@@ -94,12 +94,14 @@ internal sealed class SkUiRenderLink
 
     /// <summary>
     /// A channel driven by a scroll-direction <paramref name="reveal"/>: its progress, 0 (shown) to 1 (hidden), maps onto
-    /// <paramref name="shown"/>…<paramref name="hidden"/> instead of an offset.
+    /// <paramref name="shown"/>…<paramref name="hidden"/> instead of an offset; with <paramref name="step"/>, it jumps from one
+    /// to the other halfway (reduced motion).
     /// </summary>
     public SkUiRenderLink(SkUiRenderReveal reveal, SkUiRenderLinkTarget target, float shown, float hidden, float[]? curve = null,
         SkUiRenderLinkClipEdge clipEdge = SkUiRenderLinkClipEdge.Start, SkUiRenderLinkClipShape clipShape = SkUiRenderLinkClipShape.Rectangle,
-        float clipCornerRadius = 0)
-        : this(reveal.Source, reveal.Horizontal, target, 0, 1, shown, hidden, curve, clipEdge, clipShape, clipCornerRadius) =>
+        float clipCornerRadius = 0, bool step = false)
+        : this(reveal.Source, reveal.Horizontal, target, step ? 0.5f : 0, step ? 0.5f : 1, shown, hidden, step ? null : curve, clipEdge, clipShape,
+            clipCornerRadius) =>
         Reveal = reveal;
 
     public SkUiRenderNode Source { get; }

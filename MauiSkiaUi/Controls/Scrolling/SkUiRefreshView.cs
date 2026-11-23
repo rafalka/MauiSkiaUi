@@ -41,8 +41,12 @@ namespace MauiSkiaUi;
 /// </para>
 /// </remarks>
 [ContentProperty(nameof(Content))]
-public class SkUiRefreshView : SkUiView, ISkUiRefreshOwner
+public class SkUiRefreshView : SkUiView, ISkUiRefreshOwner, ISkUiScrollEffectSource
 {
+    /// <summary>Scroll effects follow the scroller it pulls (its content's first vertical scroller).</summary>
+    ISkUiScrollHost? ISkUiScrollEffectSource.ScrollEffectHost => PulledScroller;
+
+
     /// <summary>Bindable property for <see cref="CascadeInputTransparent"/>.</summary>
     public static readonly BindableProperty CascadeInputTransparentProperty = CascadeInputTransparentShared;
 

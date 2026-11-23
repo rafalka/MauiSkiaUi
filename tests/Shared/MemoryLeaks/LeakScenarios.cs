@@ -47,6 +47,7 @@ public static class LeakScenarios
         new("SwipeViewsSwiped", Layouts, "SkUiSwipeView rows in a SkUiCollectionView over a long-lived collection, sharing long-lived swipe items (a long-lived command): rows swiped open and closed, items tapped (a drawn item view, a swipe item that removes its row), opened by code, closed by flinging the list, an execute-mode swipe, a row recycled while open; closed mid-swipe.", () => new SwipeRun()),
         new("AlternateSwitched", Layouts, "SkUiAlternateContentView cards (explicit content and templates with a long-lived command, shared long-lived animations): switched directly and animated, retargeted while switching, an alternate replaced while hidden; closed mid-switch.", () => new AlternateRun()),
         new("ScrollFling", Scrolling, "Vertical list with a nested carousel: drags, flings, an animated scroll; closed mid-fling.", () => new ScrollRun()),
+        new("ScrollEffectsAttached", Scrolling, "A list with scroll-linked effects on both layers: a collapsing header outside it (x:Reference style), a parallax picture, a fading title, a sticky header and footer and a floating button hidden by scroll-direction reveals (one shared), Core nodes following a SkUi* list; dragged, flung both ways, a reveal shown and hidden; closed mid-fling.", () => new ScrollEffectsRun()),
         new("VirtualListScrolled", Scrolling, "SkUiVirtualScrollView bound to a long-lived collection (items of different heights, recycled template views): dragged, flung, scrolled to an index, items inserted and removed and the item template replaced while shown; closed mid-fling.", () => new VirtualListRun()),
         new("CollectionViewUsed", Scrolling, "SkUiCollectionView bound to a long-lived collection, with long-lived selection, item-tap and refresh commands, a sticky header and an empty view: items tapped to select and deselect, flung, scrolled to an item, pulled to refresh, the selected item removed, the collection emptied and refilled; closed mid-fling.", () => new CollectionViewRun()),
         new("CollectionViewReordered", Scrolling, "SkUiCollectionView over a long-lived collection with CanReorderItems, as a list and as a grid of two columns: items held and dragged to new places (rows and cells moving aside, the lifted copy scaled and shadowed), the selected item moved, an item held near the list's end so it scrolls, a drag cancelled by a change of the collection, an item moved by a screen-reader action; closed with an item lifted.", () => new CollectionViewReorderRun()),
@@ -1975,6 +1976,60 @@ public static class LeakScenarios
 
         public override string? CheckInteraction() =>
             _problem ?? (_invoked >= 3 && _swipes >= 3 ? null : $"Items invoked {_invoked} times, {_swipes} swipes ended.");
+    }
+
+    private sealed class ScrollEffectsRun : LeakScenarioRun
+    {
+        private SkUiCollectionView? _list;
+        private SkUiScrollReveal? _reveal;
+
+        public override View Build(LeakScenarioContext context)
+        {
+            var items = Enumerable.Range(0, 60).Select(index => $"Row {index}").ToList();
+            _reveal = new SkUiScrollReveal { Response = SkUiScrollRevealResponse.Triggered };
+            var header = new SkUiBox { Color = LeakColors.SurfaceAlt, HeightRequest = 120 };
+            header.AddScrollEffect(new SkUiScrollEffect(SkUiScrollEffectProperty.ClipHeight, 0, 64, 120, 56) { Reveal = new SkUiScrollReveal() });
+            var footer = new SkUiBox { Color = LeakColors.Surface, HeightRequest = 48 };
+            footer.AddScrollEffect(SkUiScrollEffect.HideOnScroll(_reveal, 48));
+            _list = new SkUiCollectionView
+            {
+                ItemsSource = items, IsStickyHeader = true, IsStickyFooter = true, Header = header, Footer = footer,
+                ItemTemplate = new DataTemplate(() =>
+                {
+                    var row = new SkUiLabel { HeightRequest = 44, TextColor = LeakColors.Ink };
+                    row.SetBinding(SkUiLabel.TextProperty, ".");
+                    return row;
+                })
+            };
+            var hero = new SkUiBox { Color = LeakColors.Accent, HeightRequest = 160, VerticalOptions = LayoutOptions.Start };
+            hero.AddScrollEffects(SkUiScrollEffect.CollapseTo(160, 60).SetSource(_list), SkUiScrollEffect.Parallax(0.5).SetSource(_list));
+            var title = new SkUiLabel { Text = "Title", VerticalOptions = LayoutOptions.Start, TextColor = LeakColors.Ink };
+            title.AddScrollEffect(SkUiScrollEffect.FadeIn(40, 100).SetSource(_list));
+            var button = new SkUiButton { Text = "+", WidthRequest = 56, HeightRequest = 56, HorizontalOptions = LayoutOptions.End, VerticalOptions = LayoutOptions.End, Margin = new Thickness(16) };
+            button.AddScrollEffects(SkUiScrollEffect.HideOnScroll(_reveal, 88), new SkUiScrollEffect { Property = SkUiScrollEffectProperty.Opacity, From = 1, To = 0, Reveal = _reveal });
+            var core = new SkUiCoreBox().SetColor(LeakColors.Accent).SetWidth(40).SetHeight(40);
+            core.AddScrollEffect(new SkUiScrollEffect(SkUiScrollEffectProperty.Opacity, 0, 200, 1, 0.2) { Source = _list });
+            var coreHost = new SkUiCoreHost { HorizontalOptions = LayoutOptions.Start, VerticalOptions = LayoutOptions.End }.SetContent(core);
+            var grid = new SkUiGrid();
+            _list.ViewportInsets = new Thickness(0, 160, 0, 0);
+            grid.Children.Add(_list);
+            grid.Children.Add(hero);
+            grid.Children.Add(title);
+            grid.Children.Add(button);
+            grid.Children.Add(coreHost);
+            return Root(grid);
+        }
+
+        public override async Task InteractAsync(LeakScenarioContext context)
+        {
+            await context.DragAsync(_list!, 0, -200, durationMs: 400);
+            await context.DragAsync(_list!, 0, 120, durationMs: 300);
+            _reveal!.Hide();
+            await context.WaitAsync(250);
+            _reveal.Show();
+            await context.WaitAsync(250);
+            await context.DragAsync(_list!, 0, -300, durationMs: 80); // fling: closed while it runs
+        }
     }
 
     private sealed class ScrollRun : LeakScenarioRun

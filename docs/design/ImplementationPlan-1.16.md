@@ -2,7 +2,7 @@
 
 **Goal:** a view follows a scroller on the render thread, with no re-recording and no UI-thread work per frame: a header that collapses as the list scrolls, a parallax image, a toolbar that fades in, a header that stretches when the list is pulled past its top, and views that hide when the list scrolls down and come back when it scrolls up anywhere (a sticky header or footer, a floating button, an extended button that shrinks to its icon). The app says which offset or which direction drives which property over which range; SkiaUi does the rest on both layers.
 
-**Status:** proposed 23 November 2026; amended the same day with scroll-direction effects ([D10](#decisions)), clip edges and shapes ([D6](#decisions)), a corrected reduce-motion rule ([D7](#decisions)) and the [recipes](#recipes) for the use cases they serve. Implementation started on `1.16-implementation` (23 November 2026), which took the decisions as agreed: A1 done (the scroll bar thumb on the channel list); A2 done (translation, scale, opacity, clips with their edges and corners, outline shadows cast by the clip and content shadows drawn live from the clipped content, the immediate painter the same); A3 done (a pull past an edge counts as the distance shown, bounced or stretched, the same on both threads); A4 done (pointers and screen readers follow the linked opacity and clip at the UI side's offset, read when they ask, so hit-testing needs no state; refreshing the semantics tree and re-committing a linked node on each scroll report is B2's, where the effect subscribes to its scroller); A5 done (`SkUiRenderReveal`, with the refinements noted under [D10](#decisions)); phase B is next.
+**Status:** proposed 23 November 2026; amended the same day with scroll-direction effects ([D10](#decisions)), clip edges and shapes ([D6](#decisions)), a corrected reduce-motion rule ([D7](#decisions)) and the [recipes](#recipes) for the use cases they serve. Implementation started on `1.16-implementation` (23 November 2026), which took the decisions as agreed: A1 done (the scroll bar thumb on the channel list); A2 done (translation, scale, opacity, clips with their edges and corners, outline shadows cast by the clip and content shadows drawn live from the clipped content, the immediate painter the same); A3 done (a pull past an edge counts as the distance shown, bounced or stretched, the same on both threads); A4 done (pointers and screen readers follow the linked opacity and clip at the UI side's offset, read when they ask, so hit-testing needs no state; refreshing the semantics tree and re-committing a linked node on each scroll report is B2's, where the effect subscribes to its scroller); A5 done (`SkUiRenderReveal`, with the refinements noted under [D10](#decisions)); B1 to B4 done (see [what phase B settled](#what-phase-b-settled)); B5 (snapping, cut line) and the docs, demo and bench steps are next.
 
 **Scope:** F2 of the [review plan](ImplementationPlan-PerformanceAndControls.md#f2-scroll-linked-effects), which this plan replaces where the two differ, plus the backlog's render-thread effects linked to overscroll ([Lists and scrolling](Roadmap.md#lists-and-scrolling)). The review's controls planned for 1.16 (F1, F5, F6) move to 1.17 ([D1](#decisions)).
 
@@ -181,6 +181,17 @@ The same works offset-driven (gone after the first 200 DIPs: `InputStart="0" Inp
 ```
 
 The border's shadow follows the capsule as it shrinks ([D6](#decisions)); taps outside the clipped capsule go to what is under it. In right to left, `End` is the left side and the icon's translation mirrors.
+
+### What phase B settled
+
+Where the built API differs from the tables and recipes above (they stay as first written; this list wins):
+
+- **Sources:** `SkUiScrollView`, `SkUiCoreScrollView`, `SkUiCollectionView` (its list's scroller) and `SkUiRefreshView` (the scroller it pulls). The virtual stacks scroll inside a scroll view, which is the source; `SkUiZoomView` is not one.
+- **Factories:** `Parallax(rate, range = 100,000)` (a view outside the scroller moving up at `rate` times the scroll speed), `FadeIn(start, end)`, `CollapseTo(expanded, collapsed)` (one `ClipHeight` effect over the first `expanded − collapsed` DIPs; pair it with `Parallax` for a moving picture), `HideOnScroll(reveal, translationY)`. The SkUi\* layer also has `AddScrollEffects(params ReadOnlySpan<…>)`, and both layers `RemoveScrollEffect`.
+- **Right to left:** clip edges follow the flow direction (`Start` keeps the leading side); `TranslationX` effects do not mirror, as MAUI's `TranslationX` does not. In recipe 4, an app in right to left gives the icon a negative `To`.
+- **`IsShown`** is whether the reveal is nearer shown than hidden (progress below 0.5).
+- **A shared reveal without a `Source`** resolves from the first view it drives; a reveal used by views outside the list (a floating button) needs its `Source`, which XAML can set by `x:Reference` from a resource.
+- **Invalid values throw** (`ArgumentOutOfRangeException`) from the CLR setters too, as the effect is a plain class (D3).
 
 ## Phase A: the engine (internal)
 

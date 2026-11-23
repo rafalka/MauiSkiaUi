@@ -944,6 +944,7 @@ public partial class SkUiCoreNode : ISkUiCoreNode, INotifyPropertyChanged, ISkUi
         props.ClipToBounds = _clipToBounds;
         props.Pinned = IsPinned;
         OnGetRenderProps(ref props);
+        _scrollEffects?.Apply(ref props);
         if (_effects is { } effects)
         {
             props.ClipPath = effects.GetClipPath(_clip, props.Width, props.Height);
@@ -1089,6 +1090,7 @@ public partial class SkUiCoreNode : ISkUiCoreNode, INotifyPropertyChanged, ISkUi
     /// </summary>
     internal virtual void ReleaseDrawingResources()
     {
+        _scrollEffects?.Release();
         _effects?.Forget();
         _skeletonState?.Bones.Forget();
     }
