@@ -69,10 +69,18 @@ internal record struct SkUiRenderProps
     public bool Pinned;
 
     /// <summary>
-    /// Makes <see cref="TranslationX"/> / <see cref="TranslationY"/> follow an ancestor's children offset on the render thread
-    /// (scroll-linked placement); <c>null</c> = none. Immutable once committed.
+    /// Scroll-linked channels (<see cref="SkUiRenderLink"/>): translation, scale and opacity that follow a scroller's children
+    /// offset on the render thread, on top of the node's own values; <c>null</c> = none. Immutable once committed (an
+    /// unchanged set is the same array, so commits reuse it).
     /// </summary>
-    public SkUiRenderLink? Link;
+    public SkUiRenderLink[]? Links;
+
+    /// <summary>
+    /// What <see cref="Links"/> add at the UI side's offsets (written with them): <see cref="Matrix"/> and the UI side's
+    /// readers (hit-testing, the immediate painter, semantics) include it; the compositor computes its own at the render
+    /// thread's offsets and ignores this, except for a channel whose source is gone. Read only while <see cref="Links"/> is set.
+    /// </summary>
+    public SkUiRenderLinkValues LinkValues;
 
     /// <summary>Optional rectangular clip for children (local coordinates, before children offset); empty = none.</summary>
     public SKRect ChildrenClipRect;
@@ -165,20 +173,33 @@ internal record struct SkUiRenderProps
     /// </summary>
     public readonly bool IsSkippedWhenDrawn => IsSkipped || PressOpacity <= 0;
 
-    /// <summary>Parent-space matrix: layout offset, then render transform about the anchor.</summary>
-    public readonly SKMatrix Matrix => GetMatrix(TranslationX, TranslationY);
+    /// <summary>
+    /// Parent-space matrix: layout offset, then render transform about the anchor, with what <see cref="Links"/> add at the UI
+    /// side's offsets (<see cref="LinkValues"/>).
+    /// </summary>
+    public readonly SKMatrix Matrix => Links is null ? GetMatrix(TranslationX, TranslationY, ScaleX, ScaleY) : GetMatrix(LinkValues);
 
-    /// <summary><see cref="Matrix"/> with another translation (a <see cref="Link"/> evaluated on the render thread).</summary>
-    public readonly SKMatrix GetMatrix(float translationX, float translationY)
+    /// <summary>The translation along X including <see cref="LinkValues"/>, as <see cref="Matrix"/> places the node.</summary>
+    public readonly float EffectiveTranslationX => Links is null ? TranslationX : TranslationX + LinkValues.TranslationX;
+
+    /// <inheritdoc cref="EffectiveTranslationX" />
+    public readonly float EffectiveTranslationY => Links is null ? TranslationY : TranslationY + LinkValues.TranslationY;
+
+    /// <summary><see cref="Matrix"/> with scroll-linked contributions (<see cref="Links"/> evaluated at some offsets).</summary>
+    public readonly SKMatrix GetMatrix(in SkUiRenderLinkValues links) =>
+        GetMatrix(TranslationX + links.TranslationX, TranslationY + links.TranslationY, ScaleX * links.ScaleX, ScaleY * links.ScaleY);
+
+    /// <summary><see cref="Matrix"/> with another translation and scale.</summary>
+    public readonly SKMatrix GetMatrix(float translationX, float translationY, float scaleX, float scaleY)
     {
         // Exact comparisons: identity values are the common case and skip the matrix products.
-        if (translationX == 0 && translationY == 0 && Rotation == 0 && ScaleX == 1 && ScaleY == 1 && RotationX == 0 && RotationY == 0)
+        if (translationX == 0 && translationY == 0 && Rotation == 0 && scaleX == 1 && scaleY == 1 && RotationX == 0 && RotationY == 0)
             return SKMatrix.CreateTranslation(X, Y);
         var anchorX = Width * AnchorX;
         var anchorY = Height * AnchorY;
         var matrix = SKMatrix.CreateTranslation(X + translationX + anchorX, Y + translationY + anchorY)
             .PreConcat(SKMatrix.CreateRotationDegrees(Rotation))
-            .PreConcat(SKMatrix.CreateScale(ScaleX, ScaleY));
+            .PreConcat(SKMatrix.CreateScale(scaleX, scaleY));
         if (RotationX != 0 || RotationY != 0)
             matrix = matrix.PreConcat(Perspective(RotationX, RotationY, Math.Max(CameraDistance, Math.Max(Width, Height))));
         return matrix.PreConcat(SKMatrix.CreateTranslation(-anchorX, -anchorY));
@@ -295,24 +316,6 @@ internal enum SkUiRenderProperty
 internal static class SkUiRenderPropertyCount
 {
     public const int Value = 10;
-}
-
-/// <summary>
-/// Scroll-linked placement (<see cref="SkUiRenderProps.Link"/>): per axis, the node's translation is
-/// <c>clamp(Factor · offset + Base, Min, Max)</c>, with <c>offset</c> the children offset of <see cref="Source"/>, an ancestor
-/// render node. The compositor evaluates it every frame, so a node placed by a scroll offset (a scroll bar thumb, a pinned
-/// header, parallax) follows render-thread flings without UI-thread work; the UI side writes the same value into the
-/// node's translation for hit-testing and immediate painting.
-/// </summary>
-internal sealed record SkUiRenderLink(
-    SkUiRenderNode Source,
-    float FactorX, float BaseX, float MinX, float MaxX,
-    float FactorY, float BaseY, float MinY, float MaxY)
-{
-    /// <summary>The translation for an ancestor children offset.</summary>
-    public SKPoint Evaluate(float offsetX, float offsetY) => new(
-        Math.Clamp(FactorX * offsetX + BaseX, MinX, Math.Max(MinX, MaxX)),
-        Math.Clamp(FactorY * offsetY + BaseY, MinY, Math.Max(MinY, MaxY)));
 }
 
 /// <summary>

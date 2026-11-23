@@ -213,7 +213,7 @@ public class ScrollViewParityTests
         Assert.True(later > first);
         // The render thread draws the thumb where the UI side places it for the reported offset.
         var props = Props(Scroller(scroll).ScrollBars.Vertical!.ThumbNode);
-        Assert.InRange(later, 2 + props.TranslationY - 1, 2 + props.TranslationY + 1);
+        Assert.InRange(later, 2 + props.EffectiveTranslationY - 1, 2 + props.EffectiveTranslationY + 1);
         Assert.Equal(recorded, surface.RecordedPictures);
     }
 
@@ -261,7 +261,7 @@ public class ScrollViewParityTests
         Assert.Equal(8, ThumbFrame(horizontal!).X);
         // RTL horizontal scrollers start at the right end: so does the thumb.
         Assert.Equal(300, rtl.ScrollX);
-        Assert.Equal(90 - 24, Props(horizontal!.ThumbNode).TranslationX, 3);
+        Assert.Equal(90 - 24, Props(horizontal!.ThumbNode).EffectiveTranslationX, 3);
     }
 
     [Fact]
@@ -354,8 +354,8 @@ public class ScrollViewParityTests
         Assert.NotEqual(0, bitmap.GetPixel(96, 10).Alpha);
         core.ScrollTo(0, 300);
         skui.ScrollTo(0, 300);
-        Assert.Equal(Props(Scroller(skui).ScrollBars.Vertical!.ThumbNode).TranslationY, Props(Scroller(core).ScrollBars.Vertical!.ThumbNode).TranslationY);
-        Assert.Equal(72, Props(Scroller(core).ScrollBars.Vertical!.ThumbNode).TranslationY, 3);
+        Assert.Equal(Props(Scroller(skui).ScrollBars.Vertical!.ThumbNode).EffectiveTranslationY, Props(Scroller(core).ScrollBars.Vertical!.ThumbNode).EffectiveTranslationY);
+        Assert.Equal(72, Props(Scroller(core).ScrollBars.Vertical!.ThumbNode).EffectiveTranslationY, 3);
     }
 
     [Fact]
@@ -456,7 +456,7 @@ public class ScrollViewParityTests
         Assert.Null(Scroller(scroll).ScrollBars.Vertical is { IsVisible: true } ? scroll : null);
 
         scroll.ScrollTo(0, 150);
-        Assert.Equal(37.5, Props(bar.ThumbNode).TranslationY, 3);
+        Assert.Equal(37.5, Props(bar.ThumbNode).EffectiveTranslationY, 3);
         bitmap = surface.Frame(10);
         Assert.Equal(SKColors.Red, bitmap.GetPixel(108, 50));
         Assert.NotEqual(SKColors.Red, bitmap.GetPixel(108, 10));

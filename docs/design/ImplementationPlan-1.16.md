@@ -2,7 +2,7 @@
 
 **Goal:** a view follows a scroller on the render thread, with no re-recording and no UI-thread work per frame: a header that collapses as the list scrolls, a parallax image, a toolbar that fades in, a header that stretches when the list is pulled past its top, and views that hide when the list scrolls down and come back when it scrolls up anywhere (a sticky header or footer, a floating button, an extended button that shrinks to its icon). The app says which offset or which direction drives which property over which range; SkiaUi does the rest on both layers.
 
-**Status:** proposed 23 November 2026; amended the same day with scroll-direction effects ([D10](#decisions)), clip edges and shapes ([D6](#decisions)), a corrected reduce-motion rule ([D7](#decisions)) and the [recipes](#recipes) for the use cases they serve. The decisions below are to be agreed before step A1.
+**Status:** proposed 23 November 2026; amended the same day with scroll-direction effects ([D10](#decisions)), clip edges and shapes ([D6](#decisions)), a corrected reduce-motion rule ([D7](#decisions)) and the [recipes](#recipes) for the use cases they serve. Implementation started on `1.16-implementation` (23 November 2026), which took the decisions as agreed: A1 done (the scroll bar thumb on the channel list); A2 draws translation, scale and opacity, its clips are next.
 
 **Scope:** F2 of the [review plan](ImplementationPlan-PerformanceAndControls.md#f2-scroll-linked-effects), which this plan replaces where the two differ, plus the backlog's render-thread effects linked to overscroll ([Lists and scrolling](Roadmap.md#lists-and-scrolling)). The review's controls planned for 1.16 (F1, F5, F6) move to 1.17 ([D1](#decisions)).
 
@@ -16,7 +16,7 @@
 
 ## Decisions
 
-Proposed. Agree them before step A1.
+Agreed when implementation started (23 November 2026).
 
 - **D1 1.16 is scroll-linked effects alone.** The review's D10 had 1.16 as F1, F5, F6 and 1.17 as F2, F3. F2 comes first now: it is one engine change with a small public surface, and the sheet (F3) builds on it. New order: 1.16 F2; 1.17 F1, F5, F6; 1.18 F3; 1.19 F4 phase 1; then F7 to F10 as apps ask.
 - **D2 One list of links per node, replacing the single translation link.** `SkUiRenderProps.Link` (`SkUiRenderLink`: translation only, one per node) becomes `Links`, an immutable array of channels, each `clamp(curve(offset))` onto one property. The scroll bar thumb, the only user today, moves to it unchanged. The carousel's `ItemEffect` stays apart: it computes a whole placement from an effect object and sorts by depth, which a list of curves cannot express.

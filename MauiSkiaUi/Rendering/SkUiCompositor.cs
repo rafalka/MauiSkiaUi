@@ -783,9 +783,18 @@ internal sealed class SkUiCompositor : IDisposable
                 return;
             matrix = placed.Matrix;
         }
+        else if (props.Links is { } links)
+        {
+            // Scroll-linked: translation, scale and opacity from the sources' current (possibly animated) offsets.
+            var values = SkUiRenderLinkValues.Evaluate(links, props.LinkValues);
+            opacity *= values.Opacity;
+            if (opacity <= 0)
+                return;
+            matrix = props.GetMatrix(values);
+        }
         else
         {
-            matrix = props.Link is { } link ? Follow(props, link) : props.Matrix;
+            matrix = props.Matrix;
         }
         var save = canvas.Save();
         if (isRoot)
@@ -818,19 +827,6 @@ internal sealed class SkUiCompositor : IDisposable
             DrawBody(canvas, node, ownSave: false); // inside this node's save
         }
         canvas.RestoreToCount(save);
-    }
-
-    /// <summary>
-    /// The matrix of a scroll-linked node: its translation from the source's current (possibly render-thread animated)
-    /// children offset. A disposed source (detached) leaves the committed translation.
-    /// </summary>
-    private static SKMatrix Follow(in SkUiRenderProps props, SkUiRenderLink link)
-    {
-        if (link.Source.Disposed)
-            return props.Matrix;
-        ref readonly var source = ref link.Source.Props;
-        var translation = link.Evaluate(source.ChildrenOffsetX, source.ChildrenOffsetY);
-        return props.GetMatrix(translation.X, translation.Y);
     }
 
     /// <summary>
