@@ -144,6 +144,7 @@ await scroller.ScrollToAsync(finalLabel, ScrollToPosition.Center, animated: true
 | `ClipEdge` | `Start` | Clips: the part that stays (`Start` top or leading, `End` bottom or trailing, `Center`) |
 | `ClipShape`, `ClipCornerRadius` | `Rectangle` | Clips: `Rectangle`, `RoundRectangle`, `Capsule` (a pill at every size) |
 | `Reveal` | `null` | A [scroll-direction input](#views-that-hide-by-scroll-direction) instead of the offset |
+| `SnapsToEnds` | `false` | A drag, fling or wheel scroll never comes to rest strictly inside the input range: it settles on the nearer end (a header ends fully open or collapsed), with or without the scroller's snap points; programmatic scrolls are left alone. Offset effects only |
 | `ReducedMotion` | `Default` | See [reduced motion](#reduced-motion) |
 | `IsEnabled` | `true` | Off: the property shows the view's own value |
 
@@ -160,6 +161,8 @@ The header sits over the list; the list's `ViewportInsets` leave its expanded he
     <sk:SkUiView.ScrollEffects>
       <!-- 240 → 56 over the first 184 DIPs, and on at the same slope into a pull (424 at -184), so a growing picture is not cut -->
       <sk:SkUiScrollEffect Source="{x:Reference List}" Property="ClipHeight" InputStart="-184" InputEnd="184" From="424" To="56" />
+      <!-- never left half open: a separate clip over 0…184 that settles on its ends (it never clips below the one above) -->
+      <sk:SkUiScrollEffect Source="{x:Reference List}" Property="ClipHeight" InputStart="0" InputEnd="184" From="240" To="56" SnapsToEnds="True" />
     </sk:SkUiView.ScrollEffects>
     <sk:SkUiImage Source="hero.jpg" Aspect="AspectFill" AnchorY="0">
       <sk:SkUiView.ScrollEffects>

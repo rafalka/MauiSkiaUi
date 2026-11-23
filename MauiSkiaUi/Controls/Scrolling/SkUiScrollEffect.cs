@@ -115,6 +115,7 @@ public sealed class SkUiScrollEffect : INotifyPropertyChanged
     private static readonly PropertyChangedEventArgs ClipCornerRadiusChangedArgs = new(nameof(ClipCornerRadius));
     private static readonly PropertyChangedEventArgs ReducedMotionChangedArgs = new(nameof(ReducedMotion));
     private static readonly PropertyChangedEventArgs IsEnabledChangedArgs = new(nameof(IsEnabled));
+    private static readonly PropertyChangedEventArgs SnapsToEndsChangedArgs = new(nameof(SnapsToEnds));
 
     /// <summary>A <see cref="SkUiScrollEffectProperty.TranslationY"/> effect with no range yet: set its properties.</summary>
     public SkUiScrollEffect() { }
@@ -270,6 +271,18 @@ public sealed class SkUiScrollEffect : INotifyPropertyChanged
         set => Set(ref field, value, IsEnabledChangedArgs);
     } = true;
 
+    /// <summary>
+    /// A drag, fling or wheel scroll never comes to rest strictly between <see cref="InputStart"/> and <see cref="InputEnd"/>:
+    /// it settles on the nearer end, so a collapsing header ends fully open or fully collapsed (default off). Works with or
+    /// without the scroller's snap points; a programmatic scroll is left where it goes. Offset effects only (a reveal settles
+    /// by itself: <see cref="SkUiScrollReveal.SettlesWhenIdle"/>).
+    /// </summary>
+    public bool SnapsToEnds
+    {
+        get;
+        set => Set(ref field, value, SnapsToEndsChangedArgs);
+    }
+
     /// <summary>The easing sampled for the render thread; <c>null</c> = linear.</summary>
     internal float[]? Curve { get; private set; }
 
@@ -305,6 +318,9 @@ public sealed class SkUiScrollEffect : INotifyPropertyChanged
 
     /// <summary>Sets <see cref="ReducedMotion"/>.</summary>
     public SkUiScrollEffect SetReducedMotion(SkUiScrollEffectReducedMotion value) { ReducedMotion = value; return this; }
+
+    /// <summary>Sets <see cref="SnapsToEnds"/>.</summary>
+    public SkUiScrollEffect SetSnapsToEnds(bool value) { SnapsToEnds = value; return this; }
 
     /// <summary>Sets <see cref="IsEnabled"/>.</summary>
     public SkUiScrollEffect SetIsEnabled(bool value) { IsEnabled = value; return this; }

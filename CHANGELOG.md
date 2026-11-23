@@ -19,6 +19,7 @@ Publishing (the NuGet publish workflow, [docs/Releasing.md](docs/Releasing.md)) 
   - `SkUiView.ScrollEffects` (XAML) and `AddScrollEffect(s)` / `RemoveScrollEffect` on both layers (`SkUiCoreNode`); the scroller is a `SkUiScrollView`, `SkUiCoreScrollView`, `SkUiCollectionView` or `SkUiRefreshView` by `Source` (`x:Reference`), or the nearest scrolling ancestor (a collection view's sticky header and footer find their list).
   - An offset range (overscroll included, bounce or stretch) maps onto `From` / `To` through an optional easing; clips keep the start, end or center with square, rounded or capsule corners, and the view's shadow follows the clip. Taps and screen readers see only what shows.
   - `SkUiScrollReveal` hides views while the list scrolls down and brings them back on any scroll up: tracked (follows the scroll, settles at rest) or triggered (a timed show or hide past a threshold), always shown at the start, `Show()` / `Hide()`, `IsShown`; one reveal can drive several views (a sticky header and footer, a floating button, an extended button shrinking to its icon).
+  - `SnapsToEnds` keeps a drag, fling or wheel scroll from stopping inside an effect's range: a collapsing header ends fully open or collapsed, with or without the list's snap points.
   - Reduced motion keeps fades and clips and stops parallax and scaling (per effect: `ReducedMotion`). Factories: `Parallax`, `FadeIn`, `CollapseTo`, `HideOnScroll`. Docs: [SkUiScrollView](docs/controls/SkUiScrollView.md#scroll-linked-effects); demo: the gallery's Scroll effects page.
 
 ### Other

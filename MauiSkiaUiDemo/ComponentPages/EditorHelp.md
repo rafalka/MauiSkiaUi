@@ -582,6 +582,11 @@ All of it runs on the render thread: nothing is recorded again while the list sc
 Sets `SkUiMotion.ReduceMotion` for the app while the page is open. Fades and clips still run; parallax and scaling hold
 their start, and a triggered reveal's show and hide jump halfway while fades still run.
 
+## ScrollEffectsDemoPage.SnapsToEnds
+
+The collapsing header and the Core bar never stop half collapsed: a drag, fling or wheel scroll that would come to rest
+inside their range settles fully open or fully collapsed (`SkUiScrollEffect.SnapsToEnds`).
+
 ## OverlayScrollingDemoPage.Check native placement
 
 Compares every native view with where the drawn tree places it, also with the soft keyboard up, and reports the views

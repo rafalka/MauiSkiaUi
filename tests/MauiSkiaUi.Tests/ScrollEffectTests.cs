@@ -298,6 +298,111 @@ public class ScrollEffectTests
         Assert.Equal(0, bitmap.GetPixel(10, 30).Alpha);
     }
 
+    #region Snapping to the ends
+
+    /// <summary>A list with a header effect that settles on its ends over the first 144 DIPs.</summary>
+    private static (SkUiScrollView List, SkUiScrollController Scroller, SkUiScrollEffect Effect, SkUiTestSurface Surface) SnappingPage()
+    {
+        var (list, box, root) = Page();
+        var effect = new SkUiScrollEffect(SkUiScrollEffectProperty.ClipHeight, 0, 144, 200, 56) { Source = list, SnapsToEnds = true };
+        box.AddScrollEffect(effect);
+        var surface = new SkUiTestSurface(root, 140, 100);
+        surface.Frame(0);
+        return (list, ((ISkUiScrollHost)list).Scroller, effect, surface);
+    }
+
+    /// <summary>Draws frames until the scroller's motion ends (or 3 s).</summary>
+    private static void Settle(SkUiTestSurface surface, double startMs)
+    {
+        for (var ms = startMs + 16; ms < startMs + 3000; ms += 16)
+            surface.Frame(ms);
+    }
+
+    [Theory]
+    [InlineData(60, 0)]
+    [InlineData(100, 144)]
+    [InlineData(144, 144)]
+    [InlineData(300, 300)]
+    public void AtRestInsideTheRangeTheScrollerSettlesOnTheNearerEnd(double offset, double settled)
+    {
+        var (_, scroller, _, surface) = SnappingPage();
+        using var _ = surface;
+        scroller.SetOffset(0, offset);
+        scroller.Snap(Point.Zero); // what a drag's release does
+        Settle(surface, 10);
+        Assert.Equal(settled, scroller.Y, 0.5);
+    }
+
+    [Fact]
+    public void AFlingThatWouldStopInsideTheRangeEndsOnAnEndAndOnePassingThroughIsAFling()
+    {
+        var (_, scroller, _, surface) = SnappingPage();
+        using var _ = surface;
+        // From 0, a velocity whose fling would stop near 100: settles on 144 (nearer) instead.
+        Assert.True(scroller.StartFling(new Point(0, 100 / SkUiRenderFling.TotalTravelPerVelocity)));
+        Settle(surface, 10);
+        Assert.Equal(144, scroller.Y, 0.5);
+        // A fast fling goes on past the range as a fling.
+        scroller.SetOffset(0, 0);
+        Assert.True(scroller.StartFling(new Point(0, 3000)));
+        Settle(surface, 4000);
+        Assert.True(scroller.Y > 300, scroller.Y.ToString());
+    }
+
+    [Fact]
+    public void ADragReleasedInsideTheRangeSettles()
+    {
+        var (list, scroller, _, surface) = SnappingPage();
+        using var _ = surface;
+        var root = surface.Root;
+        // Slowly up by 50 (no fling): released at 50, nearer the start.
+        root.Touch(new(9, SkUiTouchAction.Pressed, new Point(90, 80), TimeSpan.FromSeconds(1)));
+        for (var step = 1; step <= 10; step++)
+            root.Touch(new(9, SkUiTouchAction.Moved, new Point(90, 80 - 5 * step), TimeSpan.FromSeconds(1) + TimeSpan.FromMilliseconds(step * 100)));
+        root.Touch(new(9, SkUiTouchAction.Released, new Point(90, 30), TimeSpan.FromSeconds(2.5)));
+        Settle(surface, 10);
+        Assert.Equal(0, scroller.Y, 0.5);
+        GC.KeepAlive(list);
+    }
+
+    [Fact]
+    public void RemovingTheEffectOrTurningSnappingOffDropsTheRange()
+    {
+        var (_, scroller, effect, surface) = SnappingPage();
+        using var _ = surface;
+        Assert.True(scroller.HasEndSnapRanges);
+        effect.SnapsToEnds = false;
+        surface.Frame(10);
+        Assert.False(scroller.HasEndSnapRanges);
+        effect.SnapsToEnds = true;
+        surface.Frame(20);
+        Assert.True(scroller.HasEndSnapRanges);
+        ((SkUiView)effect.Owner!).RemoveScrollEffect(effect);
+        surface.Frame(30);
+        Assert.False(scroller.HasEndSnapRanges);
+        Assert.Equal(0, Listeners(scroller)); // the last effect gone: the view no longer listens
+    }
+
+    [Fact]
+    public void WithSnapPointsATargetInsideTheRangeMovesToAnEnd()
+    {
+        var (list, scroller, _, surface) = SnappingPage();
+        using var _ = surface;
+        // Every 40 DIPs a snap point (the content's children); 80 is one, inside 0…144: the nearer end, 144, wins.
+        var stack = new SkUiVerticalStackLayout();
+        for (var index = 0; index < 100; index++)
+            stack.Children.Add(new SkUiBox { HeightRequest = 40 });
+        list.Content = stack;
+        list.SnapPointsType = SnapPointsType.Mandatory;
+        surface.Frame(10);
+        scroller.SetOffset(0, 82);
+        scroller.Snap(Point.Zero);
+        Settle(surface, 20);
+        Assert.Equal(144, scroller.Y, 0.5);
+    }
+
+    #endregion
+
     #region Reduced motion
 
     [Fact]

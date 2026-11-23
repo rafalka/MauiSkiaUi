@@ -26,6 +26,7 @@ public sealed class ScrollEffectsDemoPage : ComponentDemoPage
     private string _recipe = Collapsing;
     private SkUiCollectionView? _list;
     private bool _reduceMotion;
+    private bool _snapsToEnds = true;
 
     public ScrollEffectsDemoPage() : base("Scroll effects", new SkUiContentView(), widthRange: (240, 640, 360), heightRange: (320, 800, 560))
     {
@@ -45,6 +46,7 @@ public sealed class ScrollEffectsDemoPage : ComponentDemoPage
             SkUiMotion.ReduceMotion = value ? true : null;
             Show(_recipe); // read when the effects next commit
         }, () => _reduceMotion);
+        Toggle(nameof(SkUiScrollEffect.SnapsToEnds), true, value => { _snapsToEnds = value; Show(_recipe); }, () => _snapsToEnds);
         ActionButton("Show", _reveal.Show);
         ActionButton("Hide", _reveal.Hide);
         Show(Collapsing);
@@ -119,6 +121,8 @@ public sealed class ScrollEffectsDemoPage : ComponentDemoPage
         header.Children.Add(title);
         // 200 → 56 over the first 144 DIPs; the same slope on into a pull (400 at -200), so the growing picture is not cut.
         header.AddScrollEffect(new SkUiScrollEffect(SkUiScrollEffectProperty.ClipHeight, -200, 144, 400, 56) { Source = list });
+        // Never left half open (the collapsing header and the Core bar).
+        header.AddScrollEffect(new SkUiScrollEffect(SkUiScrollEffectProperty.ClipHeight, 0, 144, 200, 56) { Source = list, SnapsToEnds = _snapsToEnds });
         return Stack(list, header);
     }
 
@@ -206,7 +210,7 @@ public sealed class ScrollEffectsDemoPage : ComponentDemoPage
         var list = NewList(new Thickness(0, 96, 0, 0));
         _reveal.Source = list;
         var bar = new SkUiCoreBox().SetColor(Hero).SetHeight(96);
-        bar.AddScrollEffect(SkUiScrollEffect.CollapseTo(96, 40).SetSource(list));
+        bar.AddScrollEffect(SkUiScrollEffect.CollapseTo(96, 40).SetSource(list).SetSnapsToEnds(_snapsToEnds));
         var chip = new SkUiCoreLabel().SetText("Core").SetTextColor(Colors.White).SetFontSize(14);
         chip.SetMargin(new Thickness(16, 12)).SetHorizontalAlignment(LayoutAlignment.Start)
             .SetVerticalAlignment(LayoutAlignment.Start);

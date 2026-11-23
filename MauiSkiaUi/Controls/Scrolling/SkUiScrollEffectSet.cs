@@ -56,7 +56,12 @@ internal sealed class SkUiScrollEffectSet
     public void Apply(ref SkUiRenderProps props)
     {
         if (Effects.Count == 0)
+        {
+            // The last effect went: let go of the scrollers (and their snap ranges) and the reveals.
+            if (_links is not null || _listened.Count > 0 || _reveals.Count > 0)
+                Release();
             return;
+        }
         var rightToLeft = _isRightToLeft();
         var reduced = SkUiMotion.IsMotionReduced;
         var changed = _dirty || rightToLeft != _rightToLeft || reduced != _reduced || _hosts.Length != Effects.Count;
@@ -165,6 +170,9 @@ internal sealed class SkUiScrollEffectSet
             links.Add(Link(effect, host));
             hosts.Add(host);
         }
+        // Ranges that settle on their ends (SnapsToEnds), per scroller in use.
+        foreach (var host in used)
+            host.Scroller.SetEndSnapRanges(this, EndSnapRanges(host));
         // Listen to the scrollers in use, and only those.
         foreach (var host in _listened)
             if (!used.Contains(host))
@@ -260,8 +268,16 @@ internal sealed class SkUiScrollEffectSet
         host.Scroller.MovingChanged += _onMovingChanged;
     }
 
+    private IEnumerable<(bool Horizontal, double Start, double End)> EndSnapRanges(ISkUiScrollHost host)
+    {
+        for (var index = 0; index < Effects.Count; index++)
+            if (Effects[index] is { IsEnabled: true, SnapsToEnds: true, Reveal: null } effect && ReferenceEquals(_hosts[index], host))
+                yield return (effect.Orientation == ScrollOrientation.Horizontal, effect.InputStart, effect.InputEnd);
+    }
+
     private void Unlisten(ISkUiScrollHost host)
     {
+        host.Scroller.SetEndSnapRanges(this, []);
         host.Scroller.Scrolled -= _onScrolled;
         host.Scroller.MovingChanged -= _onMovingChanged;
     }
