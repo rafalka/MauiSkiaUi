@@ -13,7 +13,15 @@ public enum SkUiScrollRevealResponse
     /// After <see cref="SkUiScrollReveal.Threshold"/> DIPs in one direction, the views move fully in or out over
     /// <see cref="SkUiScrollReveal.Duration"/>, whatever the scroll does after that (a floating button, a bottom bar).
     /// </summary>
-    Triggered
+    Triggered,
+
+    /// <summary>
+    /// The scroll does not move the views: only <see cref="SkUiScrollReveal.Show"/> and <see cref="SkUiScrollReveal.Hide"/> do,
+    /// animated over <see cref="SkUiScrollReveal.Duration"/>, for rules of the app's own (hide while the list scrolls and show
+    /// when it stops, from <c>IsScrolling</c>; hide while a field has focus). <see cref="SkUiScrollReveal.ShowsNearStart"/> does
+    /// not apply.
+    /// </summary>
+    Manual
 }
 
 /// <summary>
@@ -219,7 +227,12 @@ public sealed class SkUiScrollReveal : INotifyPropertyChanged
     }
 
     private SkUiRenderRevealSettings RenderSettings() => new(
-        Response == SkUiScrollRevealResponse.Triggered ? SkUiRenderRevealResponse.Triggered : SkUiRenderRevealResponse.Tracked,
+        Response switch
+        {
+            SkUiScrollRevealResponse.Triggered => SkUiRenderRevealResponse.Triggered,
+            SkUiScrollRevealResponse.Manual => SkUiRenderRevealResponse.Manual,
+            _ => SkUiRenderRevealResponse.Tracked
+        },
         (float)Distance, (float)Threshold, (float)Duration.TotalSeconds, ShowsNearStart);
 
     private static double NonNegative(double value) =>

@@ -23,6 +23,13 @@ public sealed class ScrollEffectsDemoPage : ComponentDemoPage
 
     private readonly SkUiContentView _root;
     private readonly SkUiScrollReveal _reveal = new();
+
+    /// <summary>The floating button's reveal: it does not follow the scroll; the page shows and hides it from <c>IsScrolling</c>.</summary>
+    private readonly SkUiScrollReveal _fabReveal = new() { Response = SkUiScrollRevealResponse.Manual };
+
+    /// <summary>The reveal the shown recipe uses; <c>null</c> when it uses none (the Show / Hide editors say so).</summary>
+    private SkUiScrollReveal? _activeReveal;
+    private int _showVersion;
     private string _recipe = Collapsing;
     private SkUiCollectionView? _list;
     private bool _reduceMotion;
@@ -35,6 +42,7 @@ public sealed class ScrollEffectsDemoPage : ComponentDemoPage
         _root.ClipToBounds = true;
         DocumentTypes(typeof(SkUiScrollEffect), typeof(SkUiScrollReveal));
         _reveal.PropertyChanged += (_, _) => Status();
+        _fabReveal.PropertyChanged += (_, _) => Status();
         Choice("Recipe", [Collapsing, Direction, Fab, Extended, Toolbar, CoreNodes], Collapsing, Show, () => _recipe);
         Choice(nameof(SkUiScrollReveal.Response), Enum.GetValues<SkUiScrollRevealResponse>(), SkUiScrollRevealResponse.Tracked,
             value => _reveal.Response = value, () => _reveal.Response);
@@ -47,8 +55,8 @@ public sealed class ScrollEffectsDemoPage : ComponentDemoPage
             Show(_recipe); // read when the effects next commit
         }, () => _reduceMotion);
         Toggle(nameof(SkUiScrollEffect.SnapsToEnds), true, value => { _snapsToEnds = value; Show(_recipe); }, () => _snapsToEnds);
-        ActionButton("Show", _reveal.Show);
-        ActionButton("Hide", _reveal.Hide);
+        ActionButton("Reveal: show", () => DriveReveal(show: true));
+        ActionButton("Reveal: hide", () => DriveReveal(show: false));
         Show(Collapsing);
     }
 
@@ -64,6 +72,14 @@ public sealed class ScrollEffectsDemoPage : ComponentDemoPage
         _recipe = recipe;
         // A reveal follows one list: the old page's effects let it go when they leave the tree.
         _reveal.Source = null;
+        _fabReveal.Source = null;
+        _showVersion++;
+        _activeReveal = recipe switch
+        {
+            Direction or Extended or CoreNodes => _reveal,
+            Fab => _fabReveal,
+            _ => null
+        };
         _root.Content = recipe switch
         {
             Direction => HeaderAndFooter(),
@@ -80,7 +96,23 @@ public sealed class ScrollEffectsDemoPage : ComponentDemoPage
     {
         if (_list is null)
             return;
-        Feedback($"Offset {_list.ScrollY:F0}; reveal {(_reveal.IsShown ? "shown" : "hidden")}");
+        Feedback(_activeReveal is { } reveal
+            ? $"Offset {_list.ScrollY:F0}; {reveal.Response} reveal {(reveal.IsShown ? "shown" : "hidden")}"
+            : $"Offset {_list.ScrollY:F0}; this recipe uses no reveal");
+    }
+
+    /// <summary>The Show / Hide editors: <see cref="SkUiScrollReveal.Show"/> or <see cref="SkUiScrollReveal.Hide"/> on the recipe's reveal.</summary>
+    private void DriveReveal(bool show)
+    {
+        if (_activeReveal is not { } reveal)
+        {
+            Feedback("This recipe uses no reveal: Show and Hide drive the header and footer, floating button, extended button and Core recipes.");
+            return;
+        }
+        if (show)
+            reveal.Show();
+        else
+            reveal.Hide();
     }
 
     private SkUiCollectionView NewList(Thickness insets = default)
@@ -148,19 +180,37 @@ public sealed class ScrollEffectsDemoPage : ComponentDemoPage
         return list;
     }
 
-    /// <summary>Recipe 3: a floating button sliding out and fading while the list scrolls down, back on any scroll up.</summary>
+    /// <summary>
+    /// Recipe 3: a floating button that slides out and fades while the list scrolls (a drag or a fling, either way) and comes
+    /// back once it has been still for 300 ms. Its reveal is <see cref="SkUiScrollRevealResponse.Manual"/>: the scroll does not
+    /// move it; the page hides and shows it from the list's <c>IsScrolling</c>, and the effects move it on the render thread.
+    /// </summary>
     private SkUiGrid FloatingButton()
     {
         var list = NewList();
-        _reveal.Source = list;
+        _fabReveal.Source = list;
+        list.PropertyChanged += (_, args) =>
+        {
+            if (args.PropertyName != nameof(SkUiCollectionView.IsScrolling) || !ReferenceEquals(list, _list))
+                return;
+            var version = ++_showVersion;
+            if (list.IsScrolling)
+                _fabReveal.Hide();
+            else
+                Dispatcher.DispatchDelayed(TimeSpan.FromMilliseconds(300), () =>
+                {
+                    if (version == _showVersion)
+                        _fabReveal.Show();
+                });
+        };
         var button = new SkUiButton
         {
             Text = "+", FontSize = 26, WidthRequest = 56, HeightRequest = 56, CornerRadius = 28, Margin = new Thickness(16),
             HorizontalOptions = LayoutOptions.End, VerticalOptions = LayoutOptions.End
         };
         button.AddScrollEffects(
-            SkUiScrollEffect.HideOnScroll(_reveal, 88),
-            new SkUiScrollEffect { Property = SkUiScrollEffectProperty.Opacity, From = 1, To = 0, Reveal = _reveal });
+            SkUiScrollEffect.HideOnScroll(_fabReveal, 88),
+            new SkUiScrollEffect { Property = SkUiScrollEffectProperty.Opacity, From = 1, To = 0, Reveal = _fabReveal });
         return Stack(list, button);
     }
 

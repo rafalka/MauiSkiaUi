@@ -228,8 +228,8 @@ internal sealed class SkUiScrollEffectSet
             var render = reveal.Bind(host);
             if (motion == SkUiScrollEffectReducedMotion.HoldFrom)
                 to = from;
-            // Reduced motion: a triggered show or hide jumps for what moves (translation, scale) and still fades.
-            var step = motion == SkUiScrollEffectReducedMotion.Default && reveal.Response == SkUiScrollRevealResponse.Triggered;
+            // Reduced motion: a timed show or hide (triggered, manual) jumps for what moves (translation, scale) and still fades.
+            var step = motion == SkUiScrollEffectReducedMotion.Default && reveal.Response != SkUiScrollRevealResponse.Tracked;
             return new SkUiRenderLink(render, target, from, to, effect.Curve, edge, shape, radius, step);
         }
         if (motion != SkUiScrollEffectReducedMotion.Run)
@@ -252,7 +252,7 @@ internal sealed class SkUiScrollEffectSet
         if (!moves && !scales)
             return SkUiScrollEffectReducedMotion.Run; // fades and clips
         if (effect.Reveal is { } reveal)
-            return reveal.Response == SkUiScrollRevealResponse.Triggered || scales
+            return reveal.Response != SkUiScrollRevealResponse.Tracked || scales
                 ? SkUiScrollEffectReducedMotion.Default // a jump halfway
                 : SkUiScrollEffectReducedMotion.Run;     // follows the finger, as the content does
         if (scales)

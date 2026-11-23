@@ -200,6 +200,23 @@ public class ScrollRevealTests
     }
 
     [Fact]
+    public void AManualRevealIgnoresTheScrollAndMovesOnlyWhenAsked()
+    {
+        var rig = new Rig(new SkUiRenderRevealSettings(SkUiRenderRevealResponse.Manual, 50, 24, 0.2f, ShowsNearStart: true), offset: 0);
+        Assert.Equal(0, rig.ScrollBy(200), Tolerance);  // scrolling down does not hide it
+        Assert.Equal(0, rig.Scroll(300), Tolerance);    // nor does a jump
+        rig.Reveal.Request(SkUiRenderRevealRequest.Hide);
+        Assert.Equal(0.5f, rig.Advance(100), Tolerance);
+        Assert.Equal(1, rig.Advance(100), Tolerance);
+        Assert.True(rig.Ended);
+        Assert.Equal(1, rig.ScrollBy(-200), Tolerance); // scrolling up does not show it
+        rig.Scroll(-rig.Node.Props.ChildrenOffsetY);     // back at the start: no start band either
+        Assert.Equal(1, rig.Advance(16), Tolerance);
+        rig.Reveal.Request(SkUiRenderRevealRequest.Show);
+        Assert.Equal(0, rig.Advance(300), Tolerance);
+    }
+
+    [Fact]
     public void ChannelsOnARevealMapItsProgressOntoShownAndHidden()
     {
         var rig = new Rig(Tracked());

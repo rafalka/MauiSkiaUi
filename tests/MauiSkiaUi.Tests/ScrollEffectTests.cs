@@ -456,5 +456,29 @@ public class ScrollEffectTests
         Assert.Equal(0.25f, values.Opacity, 0.02f);
     }
 
+    [Fact]
+    public void AManualRevealFollowsShowAndHideNotTheScroll()
+    {
+        var (list, box, root) = Page();
+        var reveal = new SkUiScrollReveal { Response = SkUiScrollRevealResponse.Manual, Source = list, Duration = TimeSpan.FromMilliseconds(200) };
+        box.AddScrollEffect(SkUiScrollEffect.HideOnScroll(reveal, 50));
+        using var surface = new SkUiTestSurface(root, 140, 100);
+        list.ScrollTo(0, 400);
+        surface.Frame(0);
+        list.ScrollTo(0, 800);
+        surface.Frame(16);
+        Assert.True(reveal.IsShown);
+        Assert.Equal(0, Props(box).LinkValues.TranslationY, Tolerance);
+        reveal.Hide();
+        surface.Frame(20);
+        surface.Frame(300);
+        Assert.False(reveal.IsShown);
+        Assert.Equal(50, Props(box).LinkValues.TranslationY, Tolerance);
+        reveal.Show();
+        surface.Frame(310);
+        surface.Frame(600);
+        Assert.True(reveal.IsShown);
+    }
+
     #endregion
 }

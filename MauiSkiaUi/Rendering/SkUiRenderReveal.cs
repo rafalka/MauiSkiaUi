@@ -12,7 +12,10 @@ internal enum SkUiRenderRevealResponse : byte
     /// After <see cref="SkUiRenderRevealSettings.Threshold"/> DIPs in one direction, the progress moves fully in or out over
     /// <see cref="SkUiRenderRevealSettings.Duration"/>, whatever the scroll does after that.
     /// </summary>
-    Triggered
+    Triggered,
+
+    /// <summary>The scroll does not move it: only <see cref="SkUiRenderRevealRequest.Show"/> and <see cref="SkUiRenderRevealRequest.Hide"/> do.</summary>
+    Manual
 }
 
 /// <summary>A request from the UI side to a <see cref="SkUiRenderReveal"/>.</summary>
@@ -149,7 +152,11 @@ internal sealed class SkUiRenderReveal(SkUiRenderNode source, bool horizontal)
         var viewport = Horizontal
             ? props.ChildrenClipRect.IsEmpty ? props.Width : props.ChildrenClipRect.Width
             : props.ChildrenClipRect.IsEmpty ? props.Height : props.ChildrenClipRect.Height;
-        if (viewport > 0 && Math.Abs(delta) > JumpViewports * viewport)
+        if (settings.Response == SkUiRenderRevealResponse.Manual)
+        {
+            // Only the app's requests move it.
+        }
+        else if (viewport > 0 && Math.Abs(delta) > JumpViewports * viewport)
         {
             // A jump (a scroll to somewhere far without animation): back to shown.
             ended |= EndMove();
@@ -204,7 +211,7 @@ internal sealed class SkUiRenderReveal(SkUiRenderNode source, bool horizontal)
                 ended |= EndMove();
         }
 
-        if (settings.ShowsNearStart && settings.Distance > 0)
+        if (settings.ShowsNearStart && settings.Distance > 0 && settings.Response != SkUiRenderRevealResponse.Manual)
         {
             var cap = input / settings.Distance;
             if (_progress > cap)
