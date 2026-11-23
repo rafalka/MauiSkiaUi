@@ -185,6 +185,18 @@ internal record struct SkUiRenderProps
     /// <inheritdoc cref="EffectiveTranslationX" />
     public readonly float EffectiveTranslationY => Links is null ? TranslationY : TranslationY + LinkValues.TranslationY;
 
+    /// <summary>The opacity drawn including what <see cref="Links"/> add at the UI side's offsets (<see cref="LinkValues"/>).</summary>
+    public readonly float EffectiveOpacity => Links is null ? DrawnOpacity : DrawnOpacity * LinkValues.Opacity;
+
+    /// <summary>The scroll-linked clip at the UI side's offsets (<see cref="LinkValues"/>); <c>false</c> when none.</summary>
+    public readonly bool TryGetLinkClip(out SkUiRenderLinkClip clip)
+    {
+        if (Links is { } links)
+            return SkUiRenderLinkClip.TryGet(links, LinkValues, Width, Height, out clip);
+        clip = default;
+        return false;
+    }
+
     /// <summary><see cref="Matrix"/> with scroll-linked contributions (<see cref="Links"/> evaluated at some offsets).</summary>
     public readonly SKMatrix GetMatrix(in SkUiRenderLinkValues links) =>
         GetMatrix(TranslationX + links.TranslationX, TranslationY + links.TranslationY, ScaleX * links.ScaleX, ScaleY * links.ScaleY);

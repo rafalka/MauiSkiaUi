@@ -40,12 +40,13 @@ public class ScrollLinkTests
     }
 
     /// <summary>A 100 × 100 scroller over 4,000 DIPs of content, and a red 20 × 20 box at the top of a column beside it, linked to it.</summary>
-    private static (SkUiScrollView Scroll, LinkedBox Box, SkUiGrid Root) Page(Func<SkUiRenderNode, SkUiRenderLink[]> build)
+    private static (SkUiScrollView Scroll, LinkedBox Box, SkUiGrid Root) Page(Func<SkUiRenderNode, SkUiRenderLink[]> build,
+        double width = 20, double height = 20, double column = 40)
     {
         var scroll = new SkUiScrollView { Content = new SkUiBox { Color = Colors.White, HeightRequest = 4000 } };
         var box = new LinkedBox(scroll, build);
-        box.SetColor(Colors.Red).SetWidth(20).SetHeight(20).SetHorizontalAlignment(LayoutAlignment.Start).SetVerticalAlignment(LayoutAlignment.Start);
-        var root = new SkUiGrid { ColumnDefinitions = [new ColumnDefinition(40), new ColumnDefinition(100)] };
+        box.SetColor(Colors.Red).SetWidth(width).SetHeight(height).SetHorizontalAlignment(LayoutAlignment.Start).SetVerticalAlignment(LayoutAlignment.Start);
+        var root = new SkUiGrid { ColumnDefinitions = [new ColumnDefinition(column), new ColumnDefinition(100)] };
         // The box's host comes first: it is drawn before the scroller that drives it.
         root.Children.Add(new SkUiCoreHost().SetContent(box));
         Grid.SetColumn(scroll, 1);
@@ -177,4 +178,146 @@ public class ScrollLinkTests
         Assert.Equal(0, bitmap.GetPixel(28, 28).Green);
         Assert.Equal(2, Props(box).Matrix.ScaleX, Tolerance);
     }
+
+    #region Clips
+
+    private static bool IsRed(SKColor color) => color.Alpha > 200 && color.Red > 200 && color.Green < 60;
+
+    private static SkUiRenderLink Clip(SkUiRenderNode source, SkUiRenderLinkTarget target, float from, float to,
+        SkUiRenderLinkClipEdge edge = SkUiRenderLinkClipEdge.Start, SkUiRenderLinkClipShape shape = SkUiRenderLinkClipShape.Rectangle, float radius = 0) =>
+        new(source, false, target, 0, 100, from, to, clipEdge: edge, clipShape: shape, clipCornerRadius: radius);
+
+    [Theory]
+    [InlineData(0, 0f)] // Start
+    [InlineData(1, 60f)] // End
+    [InlineData(2, 30f)] // Center
+    public void AClipKeepsTheEdgeItNames(int edge, float left)
+    {
+        SkUiRenderLink[] links = [Clip(Node(), SkUiRenderLinkTarget.ClipWidth, 100, 40, (SkUiRenderLinkClipEdge)edge)];
+        var values = SkUiRenderLinkValues.Evaluate(links, 0, 100);
+        Assert.True(SkUiRenderLinkClip.TryGet(links, values, 100, 50, out var clip));
+        Assert.Equal(new SKRect(left, 0, left + 40, 50), clip.Rect);
+        Assert.Equal(0, clip.Radius);
+    }
+
+    [Fact]
+    public void ClipsOnBothAxesTakeTheSmallerAndTheFirstShape()
+    {
+        var source = Node();
+        SkUiRenderLink[] links =
+        [
+            Clip(source, SkUiRenderLinkTarget.ClipHeight, 50, 30, SkUiRenderLinkClipEdge.End),
+            Clip(source, SkUiRenderLinkTarget.ClipHeight, 50, 20, SkUiRenderLinkClipEdge.Start),
+            Clip(source, SkUiRenderLinkTarget.ClipWidth, 100, 56, SkUiRenderLinkClipEdge.End, SkUiRenderLinkClipShape.Capsule),
+            Clip(source, SkUiRenderLinkTarget.ClipWidth, 100, 80, shape: SkUiRenderLinkClipShape.RoundRectangle, radius: 4)
+        ];
+        var values = SkUiRenderLinkValues.Evaluate(links, 0, 100);
+        Assert.True(SkUiRenderLinkClip.TryGet(links, values, 100, 50, out var clip));
+        // Height 20 kept at the bottom (the first height channel's edge), width 56 at the right, capsule corners.
+        Assert.Equal(new SKRect(44, 30, 100, 50), clip.Rect);
+        Assert.Equal(10, clip.Radius, Tolerance);
+    }
+
+    [Fact]
+    public void ARoundedClipNeverRoundsPastHalfItsShorterSide()
+    {
+        SkUiRenderLink[] links = [Clip(Node(), SkUiRenderLinkTarget.ClipHeight, 50, 10, shape: SkUiRenderLinkClipShape.RoundRectangle, radius: 12)];
+        Assert.True(SkUiRenderLinkClip.TryGet(links, SkUiRenderLinkValues.Evaluate(links, 0, 100), 100, 50, out var clip));
+        Assert.Equal(5, clip.Radius, Tolerance);
+        Assert.True(SkUiRenderLinkClip.TryGet(links, SkUiRenderLinkValues.Evaluate(links, 0, 0), 100, 50, out clip));
+        Assert.Equal(12, clip.Radius, Tolerance);
+    }
+
+    [Fact]
+    public void NoClipChannelMeansNoClipAndAClipToZeroIsEmpty()
+    {
+        SkUiRenderLink[] none = [new(Node(), false, SkUiRenderLinkTarget.TranslationY, 0, 100, 0, 10)];
+        Assert.False(SkUiRenderLinkClip.TryGet(none, SkUiRenderLinkValues.Evaluate(none, 0, 100), 100, 50, out _));
+        SkUiRenderLink[] away = [Clip(Node(), SkUiRenderLinkTarget.ClipHeight, 50, 0)];
+        Assert.True(SkUiRenderLinkClip.TryGet(away, SkUiRenderLinkValues.Evaluate(away, 0, 100), 100, 50, out var clip));
+        Assert.True(clip.IsEmpty);
+    }
+
+    [Theory]
+    [InlineData(0, 2, 12)] // Start
+    [InlineData(1, 17, 8)] // End
+    public void TheCompositorDrawsTheClippedPartOnly(int edge, int shown, int hidden)
+    {
+        // 20 DIPs tall, clipped to 5 over the first 100 DIPs of scroll.
+        var (scroll, _, root) = Page(source => [Clip(source, SkUiRenderLinkTarget.ClipHeight, 20, 5, (SkUiRenderLinkClipEdge)edge)]);
+        using var surface = new SkUiTestSurface(root, 140, 100);
+        Assert.True(IsRed(surface.Frame(0).GetPixel(10, hidden)));
+        var recorded = surface.RecordedPictures;
+        scroll.ScrollTo(0, 100);
+        var bitmap = surface.Frame(10);
+        Assert.True(IsRed(bitmap.GetPixel(10, shown)));
+        Assert.Equal(0, bitmap.GetPixel(10, hidden).Alpha);
+        // A clip is composite-time: nothing is recorded again.
+        Assert.Equal(recorded, surface.RecordedPictures);
+    }
+
+    [Fact]
+    public void ACapsuleClipRoundsItsEnds()
+    {
+        // 80 × 20, clipped across to 40 at its right end, capsule corners (radius 10).
+        var (scroll, _, root) = Page(source => [Clip(source, SkUiRenderLinkTarget.ClipWidth, 80, 40, SkUiRenderLinkClipEdge.End, SkUiRenderLinkClipShape.Capsule)],
+            width: 80, column: 90);
+        using var surface = new SkUiTestSurface(root, 190, 100);
+        surface.Frame(0);
+        scroll.ScrollTo(0, 100);
+        var bitmap = surface.Frame(10);
+        Assert.Equal(0, bitmap.GetPixel(20, 10).Alpha);    // left of the clip
+        Assert.True(IsRed(bitmap.GetPixel(60, 10)));       // its middle
+        Assert.True(bitmap.GetPixel(41, 1).Alpha < 60);    // a rounded corner
+        Assert.True(IsRed(bitmap.GetPixel(50, 1)));        // past the corner, the straight edge
+    }
+
+    [Fact]
+    public void AnOutlineShadowFollowsTheClip()
+    {
+        var (scroll, box, root) = Page(source => [Clip(source, SkUiRenderLinkTarget.ClipHeight, 40, 20)], width: 40, height: 40);
+        box.SetShadow(new SkUiCoreShadow(Colors.Black, new Point(0, 10), 0));
+        using var surface = new SkUiTestSurface(root, 140, 100);
+        var bitmap = surface.Frame(0);
+        Assert.Equal(255, bitmap.GetPixel(20, 45).Alpha); // the whole box's shadow, below it
+        scroll.ScrollTo(0, 100);
+        bitmap = surface.Frame(10);
+        Assert.True(IsRed(bitmap.GetPixel(20, 10)));
+        Assert.Equal(SKColors.Black, bitmap.GetPixel(20, 25)); // the clipped box's shadow, 10 below its 20
+        Assert.Equal(0, bitmap.GetPixel(20, 45).Alpha);       // not the whole box's
+    }
+
+    [Fact]
+    public void TheImmediatePainterDrawsLinkedClipsAndOpacityAsTheCompositorDoes()
+    {
+        var (scroll, box, root) = Page(source =>
+        [
+            Clip(source, SkUiRenderLinkTarget.ClipWidth, 60, 30, SkUiRenderLinkClipEdge.End, SkUiRenderLinkClipShape.Capsule),
+            new SkUiRenderLink(source, false, SkUiRenderLinkTarget.Opacity, 0, 100, 1, 0.5f),
+            new SkUiRenderLink(source, false, SkUiRenderLinkTarget.TranslationY, 0, 100, 0, 15)
+        ], width: 60, column: 70);
+        box.SetShadow(new SkUiCoreShadow(Colors.Black, new Point(0, 6), 2));
+        using var surface = new SkUiTestSurface(root, 170, 100);
+        surface.Frame(0);
+        scroll.ScrollTo(0, 60);
+        var composited = surface.Frame(10);
+        using var painted = new SKBitmap(170, 100);
+        using (var canvas = new SKCanvas(painted))
+        {
+            canvas.Clear(SKColors.Transparent);
+            SkUiImmediatePainter.Paint(root, canvas, applyOffset: false);
+        }
+        var different = 0;
+        for (var x = 0; x < 70; x++)
+            for (var y = 0; y < 60; y++)
+            {
+                var a = composited.GetPixel(x, y);
+                var b = painted.GetPixel(x, y);
+                if (Math.Abs(a.Alpha - b.Alpha) > 2 || Math.Abs(a.Red - b.Red) > 2)
+                    different++;
+            }
+        Assert.Equal(0, different);
+    }
+
+    #endregion
 }

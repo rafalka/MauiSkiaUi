@@ -1,3 +1,5 @@
+using SkiaSharp;
+
 namespace MauiSkiaUi.Rendering;
 
 /// <summary>The property a <see cref="SkUiRenderLink"/> drives.</summary>
@@ -10,7 +12,36 @@ internal enum SkUiRenderLinkTarget : byte
 
     /// <summary>Both scales.</summary>
     Scale,
-    Opacity
+    Opacity,
+
+    /// <summary>Clips the node to this many DIPs across (<see cref="SkUiRenderLink.ClipEdge"/> says which part stays).</summary>
+    ClipWidth,
+
+    /// <summary>Clips the node to this many DIPs down.</summary>
+    ClipHeight
+}
+
+/// <summary>Which part of a node a <see cref="SkUiRenderLinkTarget.ClipWidth"/> / <see cref="SkUiRenderLinkTarget.ClipHeight"/> keeps, physically (the UI side resolves leading and trailing).</summary>
+internal enum SkUiRenderLinkClipEdge : byte
+{
+    /// <summary>The left or top part.</summary>
+    Start,
+
+    /// <summary>The right or bottom part.</summary>
+    End,
+    Center
+}
+
+/// <summary>The corners of a scroll-linked clip.</summary>
+internal enum SkUiRenderLinkClipShape : byte
+{
+    Rectangle,
+
+    /// <summary>Corners of <see cref="SkUiRenderLink.ClipCornerRadius"/> (at most half the clip's shorter side).</summary>
+    RoundRectangle,
+
+    /// <summary>Corners of half the clip's shorter side at every size: a pill stays a pill.</summary>
+    Capsule
 }
 
 /// <summary>
@@ -38,9 +69,16 @@ internal sealed class SkUiRenderLink
     /// The easing sampled at equal steps from 0 to 1 (at least two points, first 0 and last 1 for a curve that starts and
     /// ends in place); <c>null</c> = linear. Shared between channels with the same easing, never changed.
     /// </param>
+    /// <param name="clipEdge">For a clip: which part of the node stays.</param>
+    /// <param name="clipShape">For a clip: its corners.</param>
+    /// <param name="clipCornerRadius">For a <see cref="SkUiRenderLinkClipShape.RoundRectangle"/> clip: the corner radius.</param>
     public SkUiRenderLink(SkUiRenderNode source, bool horizontal, SkUiRenderLinkTarget target, float inputStart, float inputEnd,
-        float from, float to, float[]? curve = null)
+        float from, float to, float[]? curve = null, SkUiRenderLinkClipEdge clipEdge = SkUiRenderLinkClipEdge.Start,
+        SkUiRenderLinkClipShape clipShape = SkUiRenderLinkClipShape.Rectangle, float clipCornerRadius = 0)
     {
+        ClipEdge = clipEdge;
+        ClipShape = clipShape;
+        ClipCornerRadius = Math.Max(0, clipCornerRadius);
         Source = source;
         Horizontal = horizontal;
         Target = target;
@@ -68,6 +106,15 @@ internal sealed class SkUiRenderLink
     public float To { get; }
 
     public float[]? Curve { get; }
+
+    public SkUiRenderLinkClipEdge ClipEdge { get; }
+
+    public SkUiRenderLinkClipShape ClipShape { get; }
+
+    public float ClipCornerRadius { get; }
+
+    /// <summary>Whether the channel clips the node.</summary>
+    public bool IsClip => Target is SkUiRenderLinkTarget.ClipWidth or SkUiRenderLinkTarget.ClipHeight;
 
     /// <summary>The channel's input from its source's children offset.</summary>
     public float Input(in SkUiRenderProps source) => Horizontal ? source.ChildrenOffsetX : source.ChildrenOffsetY;
@@ -97,7 +144,8 @@ internal sealed class SkUiRenderLink
 
 /// <summary>
 /// What a node's <see cref="SkUiRenderProps.Links"/> add to its own values at one set of offsets: translations add, scales and
-/// opacity multiply (the node's own values and render-thread animations of them stay as they are, and combine with these).
+/// opacity multiply, clips take the smaller (the node's own values and render-thread animations of them stay as they are,
+/// and combine with these).
 /// The compositor computes it each frame at the render thread's offsets; the UI side keeps it in
 /// <see cref="SkUiRenderProps.LinkValues"/> at its own offsets.
 /// </summary>
@@ -105,8 +153,17 @@ internal record struct SkUiRenderLinkValues
 {
     public float TranslationX, TranslationY, ScaleX, ScaleY, Opacity;
 
+    /// <summary>The clip's size in DIPs on each axis; <see cref="float.PositiveInfinity"/> = not clipped on it.</summary>
+    public float ClipWidth, ClipHeight;
+
     /// <summary>No contribution.</summary>
-    public static SkUiRenderLinkValues Identity => new() { ScaleX = 1, ScaleY = 1, Opacity = 1 };
+    public static SkUiRenderLinkValues Identity => new()
+    {
+        ScaleX = 1, ScaleY = 1, Opacity = 1, ClipWidth = float.PositiveInfinity, ClipHeight = float.PositiveInfinity
+    };
+
+    /// <summary>Whether a channel clips (on either axis).</summary>
+    public readonly bool IsClipped => !float.IsPositiveInfinity(ClipWidth) || !float.IsPositiveInfinity(ClipHeight);
 
     /// <summary>Combines one channel's output.</summary>
     public void Add(SkUiRenderLinkTarget target, float value)
@@ -119,6 +176,8 @@ internal record struct SkUiRenderLinkValues
             case SkUiRenderLinkTarget.ScaleY: ScaleY *= value; break;
             case SkUiRenderLinkTarget.Scale: ScaleX *= value; ScaleY *= value; break;
             case SkUiRenderLinkTarget.Opacity: Opacity *= value; break;
+            case SkUiRenderLinkTarget.ClipWidth: ClipWidth = Math.Min(ClipWidth, Math.Max(0, value)); break;
+            case SkUiRenderLinkTarget.ClipHeight: ClipHeight = Math.Min(ClipHeight, Math.Max(0, value)); break;
             default: throw new ArgumentOutOfRangeException(nameof(target));
         }
     }
@@ -146,5 +205,76 @@ internal record struct SkUiRenderLinkValues
         foreach (var link in links)
             values.Add(link.Target, link.Evaluate(link.Horizontal ? offsetX : offsetY));
         return values;
+    }
+}
+
+/// <summary>
+/// A scroll-linked clip in a node's local coordinates (<see cref="SkUiRenderLinkTarget.ClipWidth"/> /
+/// <see cref="SkUiRenderLinkTarget.ClipHeight"/>): it clips the node's content, children, overlay and shadow, never its layout.
+/// </summary>
+/// <param name="Rect">The part of the node that shows; empty when clipped away.</param>
+/// <param name="Radius">The corner radius (0: square corners).</param>
+internal readonly record struct SkUiRenderLinkClip(SKRect Rect, float Radius)
+{
+    /// <summary>
+    /// The clip of <paramref name="links"/> at <paramref name="values"/> for a node <paramref name="width"/> ×
+    /// <paramref name="height"/>; <c>false</c> when no channel clips. Each axis keeps the edge of the first channel that clips
+    /// it; the corners come from the first clip channel with a shape other than a rectangle.
+    /// </summary>
+    public static bool TryGet(SkUiRenderLink[] links, in SkUiRenderLinkValues values, float width, float height, out SkUiRenderLinkClip clip)
+    {
+        clip = default;
+        if (!values.IsClipped)
+            return false;
+        SkUiRenderLinkClipEdge? edgeX = null, edgeY = null;
+        SkUiRenderLink? shaped = null;
+        foreach (var link in links)
+        {
+            if (link.Target == SkUiRenderLinkTarget.ClipWidth)
+                edgeX ??= link.ClipEdge;
+            else if (link.Target == SkUiRenderLinkTarget.ClipHeight)
+                edgeY ??= link.ClipEdge;
+            else
+                continue;
+            if (shaped is null && link.ClipShape != SkUiRenderLinkClipShape.Rectangle)
+                shaped = link;
+        }
+        var w = Math.Min(width, values.ClipWidth);
+        var h = Math.Min(height, values.ClipHeight);
+        if (w <= 0 || h <= 0)
+            return true; // clipped away: an empty rectangle
+        var x = Place(edgeX ?? SkUiRenderLinkClipEdge.Start, width, w);
+        var y = Place(edgeY ?? SkUiRenderLinkClipEdge.Start, height, h);
+        var half = Math.Min(w, h) / 2;
+        var radius = shaped?.ClipShape switch
+        {
+            SkUiRenderLinkClipShape.Capsule => half,
+            SkUiRenderLinkClipShape.RoundRectangle => Math.Min(half, shaped.ClipCornerRadius),
+            _ => 0
+        };
+        clip = new SkUiRenderLinkClip(new SKRect(x, y, x + w, y + h), radius);
+        return true;
+    }
+
+    private static float Place(SkUiRenderLinkClipEdge edge, float length, float kept) => edge switch
+    {
+        SkUiRenderLinkClipEdge.End => length - kept,
+        SkUiRenderLinkClipEdge.Center => (length - kept) / 2,
+        _ => 0
+    };
+
+    /// <summary>Whether nothing shows.</summary>
+    public bool IsEmpty => Rect.IsEmpty;
+
+    /// <summary>Clips <paramref name="canvas"/> to it; <paramref name="roundRect"/> is reused for rounded corners (no allocation per frame).</summary>
+    public void Apply(SKCanvas canvas, SKRoundRect roundRect)
+    {
+        if (Radius <= 0)
+        {
+            canvas.ClipRect(Rect);
+            return;
+        }
+        roundRect.SetRect(Rect, Radius, Radius);
+        canvas.ClipRoundRect(roundRect, antialias: true);
     }
 }

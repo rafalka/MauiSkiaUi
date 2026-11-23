@@ -167,6 +167,21 @@ internal static class SkUiShadowPainter
         paint.Reset();
     }
 
+    /// <summary>The shadow of an opaque round rectangle (a scroll-linked clip of an outline shadow's node), at the offset.</summary>
+    public static void DrawRoundRect(SKCanvas canvas, SkUiRenderShadow shadow, SKRoundRect roundRect, SKPaint paint)
+    {
+        var style = shadow.Style;
+        paint.Reset();
+        paint.IsAntialias = true;
+        style.Apply(paint);
+        paint.MaskFilter = style.Blur;
+        var save = canvas.Save();
+        canvas.Translate(style.OffsetX, style.OffsetY);
+        canvas.DrawRoundRect(roundRect, paint);
+        canvas.RestoreToCount(save);
+        paint.Reset();
+    }
+
     /// <summary>
     /// The shadow of what <paramref name="drawBody"/> draws: its alpha blurred and filled with the shadow's color or
     /// gradient, at the offset unless <paramref name="applyOffset"/> is <c>false</c> (a cached raster is offset when drawn).

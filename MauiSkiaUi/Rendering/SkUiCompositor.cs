@@ -171,6 +171,9 @@ internal sealed class SkUiCompositor : IDisposable
     private readonly Action<Action> _postToUi;
     private readonly SKPaint _layerPaint = new();
     private readonly SKPaint _shadowPaint = new();
+
+    /// <summary>Reused for rounded scroll-linked clips and the shadows that follow them (no native object per frame).</summary>
+    private readonly SKRoundRect _clipRoundRect = new();
     private readonly SKPaint _drawablePaint = new();
     private readonly List<SkUiRenderNode> _removed = [];
     private readonly List<SkUiRenderAnimation> _animations = [];
@@ -773,6 +776,8 @@ internal sealed class SkUiCompositor : IDisposable
             return;
         SKMatrix matrix;
         var opacity = props.DrawnOpacity;
+        var clipped = false;
+        var clip = default(SkUiRenderLinkClip);
         if (props.ItemEffect is { Source.Disposed: false } effect)
         {
             // A carousel item: placed (and faded) by its effect at the scroller's current offset.
@@ -785,10 +790,13 @@ internal sealed class SkUiCompositor : IDisposable
         }
         else if (props.Links is { } links)
         {
-            // Scroll-linked: translation, scale and opacity from the sources' current (possibly animated) offsets.
+            // Scroll-linked: translation, scale, opacity and clip from the sources' current (possibly animated) offsets.
             var values = SkUiRenderLinkValues.Evaluate(links, props.LinkValues);
             opacity *= values.Opacity;
             if (opacity <= 0)
+                return;
+            clipped = SkUiRenderLinkClip.TryGet(links, values, props.Width, props.Height, out clip);
+            if (clipped && clip.IsEmpty)
                 return;
             matrix = props.GetMatrix(values);
         }
@@ -811,9 +819,18 @@ internal sealed class SkUiCompositor : IDisposable
             canvas.SaveLayer(props.LayerBounds, _layerPaint);
         }
         if (props.Shadow is { } shadow)
-            DrawShadow(canvas, node, shadow);
+        {
+            if (clipped)
+                DrawClippedShadow(canvas, node, shadow, clip);
+            else
+                DrawShadow(canvas, node, shadow);
+        }
         else if (node.ShadowCache is not null)
+        {
             DisposeShadowCache(node);
+        }
+        if (clipped)
+            clip.Apply(canvas, _clipRoundRect); // inside this node's save, around its body
         if (props.DrawableSpace)
         {
             // The drawables below position themselves in this node's coordinates, wherever it is drawn.
@@ -899,6 +916,36 @@ internal sealed class SkUiCompositor : IDisposable
         }
         LiveShadows++;
         SkUiShadowPainter.DrawFromContent(canvas, shadow, _shadowPaint, (this, node), static (c, state) => state.Item1.DrawBody(c, state.Item2, ownSave: true));
+    }
+
+    /// <summary>
+    /// The shadow of a node with a scroll-linked clip, which follows the clip as it changes: an outline shadow is cast by the
+    /// clip's rounded rectangle (within the outline's bounds), a content shadow by the clipped content, drawn live (a cached
+    /// raster would be of another clip).
+    /// </summary>
+    private void DrawClippedShadow(SKCanvas canvas, SkUiRenderNode node, SkUiRenderShadow shadow, in SkUiRenderLinkClip clip)
+    {
+        if (node.ShadowCache is not null)
+            DisposeShadowCache(node);
+        if (shadow.Outline is { } outline)
+        {
+            var rect = clip.Rect;
+            if (!rect.IntersectsWith(outline.Bounds))
+                return;
+            rect.Intersect(outline.Bounds);
+            var radius = Math.Min(clip.Radius, Math.Min(rect.Width, rect.Height) / 2);
+            _clipRoundRect.SetRect(rect, radius, radius);
+            SkUiShadowPainter.DrawRoundRect(canvas, shadow, _clipRoundRect, _shadowPaint);
+            return;
+        }
+        LiveShadows++;
+        SkUiShadowPainter.DrawFromContent(canvas, shadow, _shadowPaint, (this, node, clip), static (c, state) =>
+        {
+            var save = c.Save();
+            state.clip.Apply(c, state.Item1._clipRoundRect);
+            state.Item1.DrawBody(c, state.node, ownSave: true);
+            c.RestoreToCount(save);
+        });
     }
 
     private static void DisposeShadowCache(SkUiRenderNode node)
@@ -1118,6 +1165,7 @@ internal sealed class SkUiCompositor : IDisposable
             _root = null;
             _layerPaint.Dispose();
             _shadowPaint.Dispose();
+            _clipRoundRect.Dispose();
             _drawablePaint.Dispose();
         }
     }
