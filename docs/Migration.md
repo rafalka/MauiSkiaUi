@@ -38,7 +38,7 @@ Checked against .NET MAUI 10.0.130 (`MauiApiParityTests` compares every drawn co
 | BoxView | SkUi* + Core | Done, gradient `Background` |
 | Ellipse, Line, Rectangle, RoundRectangle, Path, Polygon, Polyline | SkUi* + Core | Done: brushes, stroke model, `Aspect`, geometries and path markup |
 | Border | SkUi* + Core | Done: `StrokeShape`, brush stroke, dashes, stroke inset and shape clip; gradient `Background` |
-| ScrollView | SkUi* + Core | Done: scroll bars (draggable on desktop, `SkUiCoreScrollBar`), overscroll (bounce, stretch), scroll to element, both wheel axes, plus snap points |
+| ScrollView | SkUi* + Core | Done: scroll bars (draggable on desktop, `SkUiCoreScrollBar`), overscroll (bounce, stretch), scroll to element, both wheel axes, plus snap points and render-thread scroll-linked effects (1.16: a `Scrolled` handler that sets `TranslationY`, `Opacity` or `Scale` from the offset, or hides a bar by scroll direction, ports to [`ScrollEffects`](controls/SkUiScrollView.md#scroll-linked-effects)) |
 | Grid, VerticalStackLayout, HorizontalStackLayout, AbsoluteLayout, ContentView | SkUi* + Core | Done |
 | FlexLayout | `SkUiFlexLayout` (SkUi* only) | Done |
 | Toolkit Expander | `SkUiExpander`; Core: `SkUiCoreExpander` | Done, plus `ContentTemplate` (SkUi\*), lazy content, animation |

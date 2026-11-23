@@ -99,6 +99,8 @@ public static class ComponentDemos
             Scenario: "main features vs MAUI"),
         new(typeof(SkUiScrollView), typeof(EdgeToEdgeScrollingDemoPage), ComponentDemo.SkUiOnlyCounterpart, ComponentCategory.ScrollingAndCollections,
             () => new EdgeToEdgeScrollingDemoPage(), Key: "EdgeToEdgeScrolling", Scenario: "edge to edge, under drawn bars"),
+        new(typeof(SkUiScrollView), typeof(ScrollEffectsDemoPage), ComponentDemo.SkUiOnlyCounterpart, ComponentCategory.ScrollingAndCollections,
+            () => new ScrollEffectsDemoPage(), Key: "ScrollEffects", Scenario: "scroll-linked effects: collapsing, parallax, hide on scroll"),
         new(typeof(SkUiMauiContentView), typeof(OverlayScrollingDemoPage), ComponentDemo.SkUiOnlyCounterpart, ComponentCategory.ScrollingAndCollections,
             () => new OverlayScrollingDemoPage(), Key: "OverlaysInScrollView", Scenario: "native overlays in a ScrollView"),
         new(typeof(SkUiCollectionView), typeof(CollectionViewDemoPage), nameof(CollectionView), ComponentCategory.ScrollingAndCollections,

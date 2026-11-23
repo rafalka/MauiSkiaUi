@@ -562,6 +562,26 @@ The collection view's header stays pinned under the top bar, drawn inside the in
 
 Scrolls to the row with `ScrollToPosition.Start`: it lands right below the top bar, not under it.
 
+## ScrollEffectsDemoPage.Recipe
+
+Which scroll-linked recipe the preview shows:
+
+- **Collapsing header:** a picture over the list clipped from 200 to 56 DIPs as it scrolls, moving up at half speed, and
+  growing when the list is pulled past its top.
+- **Header and footer by direction:** the collection view's sticky header shrinks while the list scrolls down and opens on
+  any scroll up; the sticky footer slides out. One shared reveal drives both.
+- **Floating button:** slides out and fades while the list scrolls down, comes back on scroll up.
+- **Extended button:** a capsule that shrinks to its icon at its trailing end; the label fades, the shadow follows.
+- **Fading toolbar:** the toolbar's title fades in once the list's big title has scrolled under it.
+- **Core nodes:** Core nodes following the same list, by offset and by direction.
+
+All of it runs on the render thread: nothing is recorded again while the list scrolls.
+
+## ScrollEffectsDemoPage.Reduce motion
+
+Sets `SkUiMotion.ReduceMotion` for the app while the page is open. Fades and clips still run; parallax and scaling hold
+their start, and a triggered reveal's show and hide jump halfway while fades still run.
+
 ## OverlayScrollingDemoPage.Check native placement
 
 Compares every native view with where the drawn tree places it, also with the soft keyboard up, and reports the views

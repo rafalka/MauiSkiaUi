@@ -197,6 +197,10 @@ An interactive list (a selection mode, an `ItemTapped` handler or command, or `A
 | `ISkUiItemsView` | | The members every list has, with the same names as on `SkUiVirtualScrollView` and `SkUiVirtualVerticalStackLayout` (a test checks they reach the layout inside); code that only configures or follows a list can take any of them |
 | `SkUiStrings.SelectedStateText`, `SkUiStrings.LoadMoreText`, `SkUiStrings.MoveUpText` / `MoveDownText` / `MoveLeftText` / `MoveRightText` | "Selected", "Load more", "Move up"… | What screen readers read for a selected item; the default load-more button's text (it follows a change); the screen-reader moves of reorderable items. Translated with SkiaUi's other texts: [Localization.md](../design/Localization.md) |
 
+## Scroll-linked effects
+
+Views over the list and its own header and footer can follow its scroller with [scroll effects](SkUiScrollView.md#scroll-linked-effects): the collection view is a source (`Source="{x:Reference List}"`), and the nearest scrolling ancestor of its sticky header and footer, so a sticky header that shrinks by scroll direction or a sticky footer that slides out needs no `Source`. Rows scroll behind the sticky parts, so a clipped or hidden part uncovers rows, not a gap; its band stays covered for the scroll bar, `ScrollTo` and snap points.
+
 ## Events
 
 | Event | Arguments | When |
