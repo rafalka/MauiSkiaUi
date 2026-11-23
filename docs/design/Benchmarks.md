@@ -128,6 +128,7 @@ The catalog lives in [benchmarks/Scenarios/Scenarios.cs](../../benchmarks/Scenar
 | `text-shadow-scroll` / `-none` | Device only: the Effects stress page's text-shadow row, 400 cards (avatar, title, subtitle) with a shadow on each title (black, offset 1, 2, radius 3, 35 %) or none (the reference), scrolled at the page's speed (the list in 6 s), sampled for 4 s. GPU surfaces draw text shadows from the glyphs (1.14 B2); compare the motion stats with the reference |
 | `collection-fling`, `virtual-stack-fling`, `carousel-swipe`, `swipe-rows`, `refresh-spinning`, `shimmer-list-scroll` | Device only, 3 s motions (1.14 B4): a collection view over 10,000 cards flung at the fastest velocity; a virtual stack layout over 10,000 cards scrolled; a carousel of 30 cards moved one card every 400 ms; 20 swipe rows opened and closed in turn every 200 ms; a refresh view refreshing over 40 cards; 120 shimmering rows scrolled. Results: [Performance.md](../Performance.md#list-controls-on-devices) |
 | `virtual-fling` | `SkUiVirtualScrollView` over 10,000 buttons of three heights (recycled template views): the first frame realizes only the rows near the viewport; on a device, render-thread `AnimateScrollTo` towards the end while rows are realized, measured and anchored |
+| `skui-scroll-effects`, `core-scroll-effects`, their `-none` references, `skui-scroll-reveal` | (1.16) A 1,000-row list (collection view; Core: a Core scroll view of labels) under a 200 DIP header collapsing to 56 by scroll effects, or the same page without them; sticky header, footer and floating button hidden by one reveal. Update = a scroll step of 150 DIPs; motion (devices) = an animated scroll. Effects are made by reflection, so older baselines run the page without them |
 | `spinners` `[device]` | 120 activity indicators (render-thread content spin) |
 | `toggle-transitions` `[device]` | 48 switches + 48 check boxes re-toggled every 120 ms: state-change transitions always running (UI clock, one re-record per control per frame) |
 | `toggle-transitions-busy` `[device]` | The same while the UI thread is blocked 25 ms every 100 ms (where UI-thread transitions lose frames) |
@@ -241,6 +242,20 @@ Not kept ([D9](ImplementationPlan-PerformanceAndControls.md#decisions): allocati
 ### 1.15 calendar slide on devices (19 November 2026)
 
 [ImplementationPlan-1.15.md](../archive/ImplementationPlan-1.15.md) A1: `calendar-slide` and `carousel-swipe` against v1.14.0, `-n 6`, the S9 on net10, the iPhone 8 on net11 (`mlaunch`). The first S9 run, before the slot fix, showed the slide at 36 fps (UI thread 11.2 / 31.1 ms) and a probe in the bench's copy of the library put 88 KB of each draw's 89 KB in the markers; the fixed runs and their table are in [Performance.md](../Performance.md#calendar-on-devices). A run with the S9's lock screen up measures nothing (every frame wait times out): unlock it, and keep it awake through the builds.
+
+### 1.16 scroll-linked effects (23 November 2026)
+
+[ImplementationPlan-1.16.md](ImplementationPlan-1.16.md): `skui-scroll-effects` and `core-scroll-effects` (a 1,000-row list under a 200 DIP header collapsing to 56: clip, parallax, title, fading caption) against their `-none` references (the same page without effects), and `skui-scroll-reveal` (sticky header, sticky footer and floating button hidden by one triggered reveal). Update = a scroll step of 150 DIPs; motion (devices) = an animated scroll. `scripts/bench.sh -n 10 --quiet-gc`, headless, macOS (Apple silicon), net10:
+
+| Scenario | update (ms) | updatePictures | composite (ms) | generate (ms) | allocKB |
+| --- | --- | --- | --- | --- | --- |
+| `skui-scroll-effects` | 0.3 | 8 | 0.1 | 0.6 | 1,164 |
+| `skui-scroll-effects-none` | 0.4 | 8 | 0.1 | 0.1 | 1,124 |
+| `core-scroll-effects` | 0.4 | 0 | 0.3 | 1.7 | 3,180 |
+| `core-scroll-effects-none` | 0.5 | 0 | 0.3 | 1.2 | 3,142 |
+| `skui-scroll-reveal` | 0.5 | 8 | 0.1 | 0.8 | 1,272 |
+
+A scroll step costs the same with effects as without, and records nothing for them (the 8 pictures are the rows it realizes). `generate` includes making the effects by reflection (so a baseline without them builds); the effects, links and reflection add about 40 KB per page. Against `v1.15.1` (`--baseline v1.15.1 -n 6 --quiet-gc`, the five scenarios plus `virtual-fling` and `collection-snap-fling`) only `generate` of the pages with effects is slower (the baseline has none to make); every other phase is within noise. The render time per frame during a fling (the plan's 5 % target) is a device measurement, on the verification backlog until the S9 and iPhone 8 run.
 
 ## Guidance for agents and reviewers
 
