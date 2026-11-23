@@ -116,8 +116,8 @@ internal sealed class SkUiRenderLink
     /// <summary>Whether the channel clips the node.</summary>
     public bool IsClip => Target is SkUiRenderLinkTarget.ClipWidth or SkUiRenderLinkTarget.ClipHeight;
 
-    /// <summary>The channel's input from its source's children offset.</summary>
-    public float Input(in SkUiRenderProps source) => Horizontal ? source.ChildrenOffsetX : source.ChildrenOffsetY;
+    /// <summary>The channel's input from its source's props: the scroll offset with the overscroll shown (<see cref="SkUiRenderProps.ScrollLinkInputX"/>).</summary>
+    public float Input(in SkUiRenderProps source) => Horizontal ? source.ScrollLinkInputX : source.ScrollLinkInputY;
 
     /// <summary>The output for an input offset.</summary>
     public float Evaluate(float input)

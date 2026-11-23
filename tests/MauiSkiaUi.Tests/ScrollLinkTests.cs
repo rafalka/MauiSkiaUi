@@ -25,8 +25,8 @@ public class ScrollLinkTests
             base.OnGetRenderProps(ref props);
             var links = _links ??= build(((ISkUiRenderable)scroll).RenderState.Node);
             props.Links = links;
-            var scroller = ((ISkUiScrollHost)scroll).Scroller;
-            props.LinkValues = SkUiRenderLinkValues.Evaluate(links, (float)scroller.ChildrenOffset.X, (float)scroller.ChildrenOffset.Y);
+            var input = ((ISkUiScrollHost)scroll).Scroller.LinkInput;
+            props.LinkValues = SkUiRenderLinkValues.Evaluate(links, input.X, input.Y);
         }
     }
 
@@ -317,6 +317,66 @@ public class ScrollLinkTests
                     different++;
             }
         Assert.Equal(0, different);
+    }
+
+    #endregion
+
+    #region Overscroll as input
+
+    [Fact]
+    public void AStretchCountsAsTheDistanceItShowsPastThePulledEdge()
+    {
+        // A 100 DIP viewport stretched by an 80 DIP overscroll: 1 + 0.3 · 80 / 100.
+        var scale = 1 + SkUiOverscroll.StretchFactor * 80 / 100f;
+        var atStart = SkUiRenderProps.Default with
+        {
+            Width = 100, Height = 100, ChildrenOffsetY = 0, ChildrenScaleY = scale, ChildrenClipRect = new SKRect(0, 0, 100, 100)
+        };
+        Assert.Equal(-80, atStart.ScrollLinkInputY, 0.01f);
+        Assert.Equal(0, atStart.ScrollLinkInputX, Tolerance);
+        var atEnd = atStart with { ChildrenOffsetY = 900, ChildrenScaleOrigin = new SKPoint(0, 100) };
+        Assert.Equal(980, atEnd.ScrollLinkInputY, 0.01f);
+        // A bounce is already in the offset.
+        var bounced = SkUiRenderProps.Default with { Width = 100, Height = 100, ChildrenOffsetY = -80 };
+        Assert.Equal(-80, bounced.ScrollLinkInputY, Tolerance);
+    }
+
+    [Theory]
+    [InlineData(SkUiOverscrollMode.Bounce)]
+    [InlineData(SkUiOverscrollMode.Stretch)]
+    public void APullPastTheTopIsTheSameInputOnBothThreadsInEitherMode(SkUiOverscrollMode mode)
+    {
+        var scroll = new SkUiScrollView { Content = new SkUiBox { Color = Colors.White, HeightRequest = 4000 }, Overscroll = mode };
+        using var surface = new SkUiTestSurface(scroll, 100, 100);
+        surface.Frame(0);
+        // Pulled down 120 DIPs from the top, held.
+        scroll.Touch(new(1, SkUiTouchAction.Pressed, new Point(50, 10), TimeSpan.Zero));
+        for (var step = 1; step <= 4; step++)
+            scroll.Touch(new(1, SkUiTouchAction.Moved, new Point(50, 10 + 30 * step), TimeSpan.FromMilliseconds(step * 100)));
+        surface.Frame(500);
+        var scroller = ((ISkUiScrollHost)scroll).Scroller;
+        var shown = (float)scroller.OverscrollY;
+        Assert.True(shown < -10, $"overscroll {shown}");
+        Assert.Equal(shown, scroller.LinkInput.Y, Tolerance);
+        var render = ((ISkUiRenderable)scroll).RenderState.Node.Props;
+        Assert.Equal(shown, render.ScrollLinkInputY, 0.05f);
+        // A header that grows when pulled: the same output from the render thread's input and the UI side's.
+        var link = new SkUiRenderLink(Node(), false, SkUiRenderLinkTarget.Scale, -200, 0, 1.5f, 1);
+        Assert.Equal(link.Evaluate(scroller.LinkInput.Y), link.Evaluate(link.Input(render)), 0.001f);
+        Assert.True(link.Evaluate(link.Input(render)) > 1);
+    }
+
+    [Fact]
+    public void APullThatIsNotShownDoesNotCount()
+    {
+        var scroll = new SkUiScrollView { Content = new SkUiBox { Color = Colors.White, HeightRequest = 4000 }, Overscroll = SkUiOverscrollMode.None };
+        using var surface = new SkUiTestSurface(scroll, 100, 100);
+        surface.Frame(0);
+        scroll.Touch(new(1, SkUiTouchAction.Pressed, new Point(50, 10), TimeSpan.Zero));
+        scroll.Touch(new(1, SkUiTouchAction.Moved, new Point(50, 90), TimeSpan.FromMilliseconds(100)));
+        surface.Frame(200);
+        Assert.Equal(0, ((ISkUiScrollHost)scroll).Scroller.LinkInput.Y, Tolerance);
+        Assert.Equal(0, ((ISkUiRenderable)scroll).RenderState.Node.Props.ScrollLinkInputY, Tolerance);
     }
 
     #endregion

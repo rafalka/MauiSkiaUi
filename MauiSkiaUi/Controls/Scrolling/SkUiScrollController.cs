@@ -1138,6 +1138,15 @@ internal sealed class SkUiScrollController(ISkUiRenderable owner, Action<SkUiRen
         ? new SKPoint((float)(X + OverscrollX), (float)(Y + OverscrollY))
         : new SKPoint((float)X, (float)Y);
 
+    /// <summary>
+    /// The offset scroll links follow (UI side): the scroll offset with the overscroll shown, bounced or stretched (negative
+    /// past the start, beyond the range past the end), as the compositor reads it (<see cref="SkUiRenderProps.ScrollLinkInputX"/>).
+    /// A pull that is not shown (pull to refresh without overscroll) does not count.
+    /// </summary>
+    public SKPoint LinkInput => EffectiveOverscroll == SkUiOverscrollMode.None
+        ? new SKPoint((float)X, (float)Y)
+        : new SKPoint((float)(X + OverscrollX), (float)(Y + OverscrollY));
+
     /// <summary>Fills the owner's scroll render properties: the children offset, clip and (stretch overscroll) scale.</summary>
     public void FillRenderProps(ref SkUiRenderProps props)
     {

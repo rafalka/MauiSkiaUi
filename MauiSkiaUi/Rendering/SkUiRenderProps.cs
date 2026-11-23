@@ -185,6 +185,29 @@ internal record struct SkUiRenderProps
     /// <inheritdoc cref="EffectiveTranslationX" />
     public readonly float EffectiveTranslationY => Links is null ? TranslationY : TranslationY + LinkValues.TranslationY;
 
+    /// <summary>
+    /// A scroller's offset with the overscroll it shows, along X, as scroll links read it (negative past the start, beyond
+    /// the range past the end): a bounce is already in <see cref="ChildrenOffsetX"/>; a stretch is turned back from
+    /// <see cref="ChildrenScaleX"/> into the distance it shows (<see cref="SkUiOverscroll.Apply"/>'s inverse), past the edge
+    /// <see cref="ChildrenScaleOrigin"/> is on. The UI side's counterpart is <see cref="SkUiScrollController.LinkInput"/>.
+    /// </summary>
+    public readonly float ScrollLinkInputX => ChildrenOffsetX + StretchOverscroll(ChildrenScaleX, ChildrenScaleOrigin.X,
+        ChildrenClipRect.IsEmpty ? 0 : ChildrenClipRect.Left, ChildrenClipRect.IsEmpty ? Width : ChildrenClipRect.Width);
+
+    /// <inheritdoc cref="ScrollLinkInputX" />
+    public readonly float ScrollLinkInputY => ChildrenOffsetY + StretchOverscroll(ChildrenScaleY, ChildrenScaleOrigin.Y,
+        ChildrenClipRect.IsEmpty ? 0 : ChildrenClipRect.Top, ChildrenClipRect.IsEmpty ? Height : ChildrenClipRect.Height);
+
+    /// <summary>The signed overscroll a stretch of <paramref name="scale"/> shows on a viewport <paramref name="length"/> long.</summary>
+    private static float StretchOverscroll(float scale, float origin, float start, float length)
+    {
+        // Exact comparison: 1 is the no-stretch sentinel SkUiOverscroll.Apply writes.
+        if (scale == 1 || length <= 0)
+            return 0;
+        var distance = (scale - 1) * length / SkUiOverscroll.StretchFactor;
+        return origin > start + length / 2 ? distance : -distance;
+    }
+
     /// <summary>The opacity drawn including what <see cref="Links"/> add at the UI side's offsets (<see cref="LinkValues"/>).</summary>
     public readonly float EffectiveOpacity => Links is null ? DrawnOpacity : DrawnOpacity * LinkValues.Opacity;
 

@@ -539,7 +539,8 @@ public sealed class SkUiCoreScrollBar : SkUiCoreNode
             }
             props.Links = links;
             // The same placement on the UI side, for hit-testing and immediate painting.
-            props.LinkValues = SkUiRenderLinkValues.Evaluate(links, (float)bar._scroller.ChildrenOffset.X, (float)bar._scroller.ChildrenOffset.Y);
+            var input = bar._scroller.LinkInput;
+            props.LinkValues = SkUiRenderLinkValues.Evaluate(links, input.X, input.Y);
         }
     }
 }
