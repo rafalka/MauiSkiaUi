@@ -480,5 +480,27 @@ public class ScrollEffectTests
         Assert.True(reveal.IsShown);
     }
 
+    [Fact]
+    public void AWhileScrollingRevealHidesDuringAFlingAndComesBackWhenItEnds()
+    {
+        var (list, box, root) = Page();
+        var reveal = new SkUiScrollReveal { Response = SkUiScrollRevealResponse.WhileScrolling, Source = list, Distance = 60, Duration = TimeSpan.FromMilliseconds(200) };
+        box.AddScrollEffect(SkUiScrollEffect.HideOnScroll(reveal, 50));
+        using var surface = new SkUiTestSurface(root, 140, 100);
+        list.ScrollTo(0, 400);
+        surface.Frame(0);
+        Assert.True(((ISkUiScrollHost)list).Scroller.StartFling(new Point(0, 2000)));
+        surface.Frame(10);
+        surface.Frame(60);
+        Assert.False(reveal.IsShown); // hidden while it flings
+        var hidden = Props(box).LinkValues.TranslationY;
+        Assert.True(hidden > 25, hidden.ToString());
+        // The fling ends, the list rests, the button comes back.
+        for (var ms = 76; ms < 4000; ms += 16)
+            surface.Frame(ms);
+        Assert.True(reveal.IsShown);
+        Assert.Equal(0, Props(box).LinkValues.TranslationY, Tolerance);
+    }
+
     #endregion
 }

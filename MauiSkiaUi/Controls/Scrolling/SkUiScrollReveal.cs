@@ -21,7 +21,15 @@ public enum SkUiScrollRevealResponse
     /// when it stops, from <c>IsScrolling</c>; hide while a field has focus). <see cref="SkUiScrollReveal.ShowsNearStart"/> does
     /// not apply.
     /// </summary>
-    Manual
+    Manual,
+
+    /// <summary>
+    /// The views hide while the list scrolls, either way, in step with it: <see cref="SkUiScrollReveal.Distance"/> DIPs of
+    /// scrolling hide them fully. When the scroller comes to rest (a drag released, a fling ended), they come back, animated
+    /// over <see cref="SkUiScrollReveal.Duration"/> (a floating button out of the way while you scroll).
+    /// <see cref="SkUiScrollReveal.ShowsNearStart"/> does not apply.
+    /// </summary>
+    WhileScrolling
 }
 
 /// <summary>
@@ -188,7 +196,9 @@ public sealed class SkUiScrollReveal : INotifyPropertyChanged
     /// <summary>Its scroller came to rest.</summary>
     internal void OnRest()
     {
-        if (Response == SkUiScrollRevealResponse.Tracked && SettlesWhenIdle)
+        if (Response == SkUiScrollRevealResponse.WhileScrolling)
+            Request(SkUiRenderRevealRequest.Show);
+        else if (Response == SkUiScrollRevealResponse.Tracked && SettlesWhenIdle)
             Request(SkUiRenderRevealRequest.Settle);
     }
 
@@ -231,6 +241,7 @@ public sealed class SkUiScrollReveal : INotifyPropertyChanged
         {
             SkUiScrollRevealResponse.Triggered => SkUiRenderRevealResponse.Triggered,
             SkUiScrollRevealResponse.Manual => SkUiRenderRevealResponse.Manual,
+            SkUiScrollRevealResponse.WhileScrolling => SkUiRenderRevealResponse.WhileScrolling,
             _ => SkUiRenderRevealResponse.Tracked
         },
         (float)Distance, (float)Threshold, (float)Duration.TotalSeconds, ShowsNearStart);

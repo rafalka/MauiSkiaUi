@@ -217,6 +217,21 @@ public class ScrollRevealTests
     }
 
     [Fact]
+    public void WhileScrollingAnyScrollHidesItByTheDistanceScrolled()
+    {
+        var rig = new Rig(new SkUiRenderRevealSettings(SkUiRenderRevealResponse.WhileScrolling, 80, 24, 0.2f, ShowsNearStart: true), offset: 0);
+        Assert.Equal(0.5f, rig.ScrollBy(40), Tolerance);  // down 40 of 80, from the very top (no start band)
+        Assert.Equal(1, rig.ScrollBy(-40), Tolerance);    // up hides too
+        rig.Reveal.Request(SkUiRenderRevealRequest.Show); // what coming to rest asks for
+        Assert.Equal(0.5f, rig.Advance(100), Tolerance);
+        Assert.Equal(0.625f, rig.Scroll(10), Tolerance);   // a scroll takes over from the show on its way
+        Assert.False(rig.Reveal.IsMoving);
+        rig.Reveal.Request(SkUiRenderRevealRequest.Show);
+        Assert.Equal(0, rig.Advance(300), Tolerance);
+        Assert.Equal(0, rig.Scroll(500), Tolerance);       // a jump is no scroll
+    }
+
+    [Fact]
     public void ChannelsOnARevealMapItsProgressOntoShownAndHidden()
     {
         var rig = new Rig(Tracked());

@@ -24,12 +24,11 @@ public sealed class ScrollEffectsDemoPage : ComponentDemoPage
     private readonly SkUiContentView _root;
     private readonly SkUiScrollReveal _reveal = new();
 
-    /// <summary>The floating button's reveal: it does not follow the scroll; the page shows and hides it from <c>IsScrolling</c>.</summary>
-    private readonly SkUiScrollReveal _fabReveal = new() { Response = SkUiScrollRevealResponse.Manual };
+    /// <summary>The floating button's reveal: hidden in step with any scroll, back (animated) when the list comes to rest.</summary>
+    private readonly SkUiScrollReveal _fabReveal = new() { Response = SkUiScrollRevealResponse.WhileScrolling, Distance = 88 };
 
     /// <summary>The reveal the shown recipe uses; <c>null</c> when it uses none (the Show / Hide editors say so).</summary>
     private SkUiScrollReveal? _activeReveal;
-    private int _showVersion;
     private string _recipe = Collapsing;
     private SkUiCollectionView? _list;
     private bool _reduceMotion;
@@ -73,7 +72,6 @@ public sealed class ScrollEffectsDemoPage : ComponentDemoPage
         // A reveal follows one list: the old page's effects let it go when they leave the tree.
         _reveal.Source = null;
         _fabReveal.Source = null;
-        _showVersion++;
         _activeReveal = recipe switch
         {
             Direction or Extended or CoreNodes => _reveal,
@@ -181,28 +179,14 @@ public sealed class ScrollEffectsDemoPage : ComponentDemoPage
     }
 
     /// <summary>
-    /// Recipe 3: a floating button that slides out and fades while the list scrolls (a drag or a fling, either way) and comes
-    /// back once it has been still for 300 ms. Its reveal is <see cref="SkUiScrollRevealResponse.Manual"/>: the scroll does not
-    /// move it; the page hides and shows it from the list's <c>IsScrolling</c>, and the effects move it on the render thread.
+    /// Recipe 3: a floating button that slides out and fades while the list scrolls, either way, in step with it (88 DIPs of
+    /// scrolling hide it fully), and comes back, animated, when the list comes to rest: a
+    /// <see cref="SkUiScrollRevealResponse.WhileScrolling"/> reveal, on the render thread.
     /// </summary>
     private SkUiGrid FloatingButton()
     {
         var list = NewList();
         _fabReveal.Source = list;
-        list.PropertyChanged += (_, args) =>
-        {
-            if (args.PropertyName != nameof(SkUiCollectionView.IsScrolling) || !ReferenceEquals(list, _list))
-                return;
-            var version = ++_showVersion;
-            if (list.IsScrolling)
-                _fabReveal.Hide();
-            else
-                Dispatcher.DispatchDelayed(TimeSpan.FromMilliseconds(300), () =>
-                {
-                    if (version == _showVersion)
-                        _fabReveal.Show();
-                });
-        };
         var button = new SkUiButton
         {
             Text = "+", FontSize = 26, WidthRequest = 56, HeightRequest = 56, CornerRadius = 28, Margin = new Thickness(16),

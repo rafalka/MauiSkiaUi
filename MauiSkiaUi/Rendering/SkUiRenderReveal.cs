@@ -15,7 +15,13 @@ internal enum SkUiRenderRevealResponse : byte
     Triggered,
 
     /// <summary>The scroll does not move it: only <see cref="SkUiRenderRevealRequest.Show"/> and <see cref="SkUiRenderRevealRequest.Hide"/> do.</summary>
-    Manual
+    Manual,
+
+    /// <summary>
+    /// Scrolling either way hides it by the distance scrolled (<see cref="SkUiRenderRevealSettings.Distance"/> DIPs to fully
+    /// hidden); the UI side asks for a <see cref="SkUiRenderRevealRequest.Show"/> when the scroller comes to rest.
+    /// </summary>
+    WhileScrolling
 }
 
 /// <summary>A request from the UI side to a <see cref="SkUiRenderReveal"/>.</summary>
@@ -152,13 +158,14 @@ internal sealed class SkUiRenderReveal(SkUiRenderNode source, bool horizontal)
         var viewport = Horizontal
             ? props.ChildrenClipRect.IsEmpty ? props.Width : props.ChildrenClipRect.Width
             : props.ChildrenClipRect.IsEmpty ? props.Height : props.ChildrenClipRect.Height;
-        if (settings.Response == SkUiRenderRevealResponse.Manual)
+        var jump = viewport > 0 && Math.Abs(delta) > JumpViewports * viewport;
+        if (settings.Response == SkUiRenderRevealResponse.Manual || (jump && settings.Response == SkUiRenderRevealResponse.WhileScrolling))
         {
-            // Only the app's requests move it.
+            // Only the app's requests move it; while scrolling, a jump (a scroll somewhere far without animation) is no scroll.
         }
-        else if (viewport > 0 && Math.Abs(delta) > JumpViewports * viewport)
+        else if (jump)
         {
-            // A jump (a scroll to somewhere far without animation): back to shown.
+            // A jump: back to shown.
             ended |= EndMove();
             _progress = 0;
             _run = 0;
@@ -171,6 +178,12 @@ internal sealed class SkUiRenderReveal(SkUiRenderNode source, bool horizontal)
                 ended |= EndMove();
                 if (settings.Distance > 0)
                     _progress = Math.Clamp(_progress + delta / settings.Distance, 0, 1);
+            }
+            else if (settings.Response == SkUiRenderRevealResponse.WhileScrolling)
+            {
+                // Any scroll hides it, in step with the distance scrolled, and takes over from a show on its way.
+                ended |= EndMove();
+                _progress = settings.Distance > 0 ? Math.Clamp(_progress + Math.Abs(delta) / settings.Distance, 0, 1) : 1;
             }
             else
             {
@@ -211,7 +224,7 @@ internal sealed class SkUiRenderReveal(SkUiRenderNode source, bool horizontal)
                 ended |= EndMove();
         }
 
-        if (settings.ShowsNearStart && settings.Distance > 0 && settings.Response != SkUiRenderRevealResponse.Manual)
+        if (settings.ShowsNearStart && settings.Distance > 0 && settings.Response is SkUiRenderRevealResponse.Tracked or SkUiRenderRevealResponse.Triggered)
         {
             var cap = input / settings.Distance;
             if (_progress > cap)

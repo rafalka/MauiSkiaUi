@@ -570,8 +570,8 @@ Which scroll-linked recipe the preview shows:
   growing when the list is pulled past its top.
 - **Header and footer by direction:** the collection view's sticky header shrinks while the list scrolls down and opens on
   any scroll up; the sticky footer slides out. One shared reveal drives both.
-- **Floating button:** slides out and fades while the list scrolls (dragged or flung), and comes back once it has been still
-  for 300 ms: a `Manual` reveal the page hides and shows from the list's `IsScrolling`.
+- **Floating button:** slides out and fades while the list scrolls, either way, in step with it (88 DIPs of scrolling hide
+  it), and comes back, animated, when the list comes to rest: a `WhileScrolling` reveal.
 - **Extended button:** a capsule that shrinks to its icon at its trailing end; the label fades, the shadow follows.
 - **Fading toolbar:** the toolbar's title fades in once the list's big title has scrolled under it.
 - **Core nodes:** Core nodes following the same list, by offset and by direction.
@@ -588,7 +588,7 @@ the others say they have none.
 
 Calls `Hide()` on the reveal the recipe uses: the views it drives animate out (near the top of the list, a direction reveal
 with `ShowsNearStart` stays shown). `Response`, `Distance` and `ShowsNearStart` above set the direction reveal; the floating
-button's reveal is `Manual`.
+button's reveal is `WhileScrolling`.
 
 ## ScrollEffectsDemoPage.Reduce motion
 

@@ -193,7 +193,7 @@ A toolbar title that fades in once the list's big title has scrolled under it: `
 | Member | Default | Notes |
 | --- | --- | --- |
 | `Source`, `Orientation` | `null`, `Vertical` | As on the effect; `null` resolves from the first view it drives |
-| `Response` | `Tracked` | `Tracked`: follows the scroll, `Distance` DIPs from shown to hidden. `Triggered`: after `Threshold` DIPs in one direction, moves fully in or out over `Duration`. `Manual`: the scroll does not move it, only `Show()` / `Hide()` do (rules of the app's own; `ShowsNearStart` does not apply) |
+| `Response` | `Tracked` | `Tracked`: follows the scroll, `Distance` DIPs from shown to hidden. `Triggered`: after `Threshold` DIPs in one direction, moves fully in or out over `Duration`. `WhileScrolling`: scrolling either way hides it in step with the scroll (`Distance` DIPs to fully hidden), and it comes back, animated over `Duration`, when the scroller comes to rest. `Manual`: the scroll does not move it, only `Show()` / `Hide()` do (rules of the app's own, such as hiding a bar while a field has focus). `ShowsNearStart` applies to `Tracked` and `Triggered` only |
 | `Distance`, `Threshold`, `Duration` | `56`, `24`, 200 ms | |
 | `SettlesWhenIdle` | `true` | Tracked: at rest halfway, finishes showing or hiding |
 | `ShowsNearStart` | `true` | Fully shown at the start of the list: within `Distance` of it, never more hidden than the offset allows, so a header never leaves a gap above the first row |
@@ -247,25 +247,19 @@ A floating button over the list (outside it, so the shared reveal names its `Sou
 </sk:SkUiButton>
 ```
 
-A floating button that hides **while the list scrolls** (dragged or flung) and comes back once it stops: a `Manual` reveal, shown and hidden from the list's `IsScrolling`. The effects still move it on the render thread; the rule is the app's.
+A floating button that hides **while the list scrolls**, either way, in step with it, and comes back when the list comes to rest (a drag released, a fling ended):
 
-```csharp
-var reveal = new SkUiScrollReveal { Source = list, Response = SkUiScrollRevealResponse.Manual };
-fab.AddScrollEffects(
-    SkUiScrollEffect.HideOnScroll(reveal, 88),
-    new SkUiScrollEffect { Property = SkUiScrollEffectProperty.Opacity, From = 1, To = 0, Reveal = reveal });
-var version = 0;
-list.PropertyChanged += (_, e) =>
-{
-    if (e.PropertyName != nameof(SkUiCollectionView.IsScrolling))
-        return;
-    var current = ++version;
-    if (list.IsScrolling)
-        reveal.Hide();
-    else // back after 300 ms of stillness, so a drag followed by a fling does not flash it
-        list.Dispatcher.DispatchDelayed(TimeSpan.FromMilliseconds(300), () => { if (current == version) reveal.Show(); });
-};
+```xml
+<sk:SkUiButton Text="+" WidthRequest="56" HeightRequest="56" CornerRadius="28" Margin="16" HorizontalOptions="End" VerticalOptions="End">
+  <sk:SkUiView.ScrollEffects>
+    <sk:SkUiScrollEffect Property="TranslationY" From="0" To="88" Reveal="{StaticResource WhileScrollingReveal}" />
+    <sk:SkUiScrollEffect Property="Opacity" From="1" To="0" Reveal="{StaticResource WhileScrollingReveal}" />
+  </sk:SkUiView.ScrollEffects>
+</sk:SkUiButton>
+<!-- in the resources: <sk:SkUiScrollReveal x:Key="WhileScrollingReveal" Source="{x:Reference List}" Response="WhileScrolling" Distance="88" /> -->
 ```
+
+For a rule of the app's own, a `Manual` reveal moves only on `Show()` and `Hide()`, and its effects still run on the render thread.
 
 An extended button that shrinks to its icon: the capsule keeps its trailing end (`ClipWidth`, `ClipEdge="End"`, `ClipShape="Capsule"`, 160 → 56), the icon follows the leading edge (`TranslationX` 0 → 104; negative in right to left, as `TranslationX` does not mirror) and the label fades, all on one shared reveal. The button's shadow shrinks with the capsule.
 
