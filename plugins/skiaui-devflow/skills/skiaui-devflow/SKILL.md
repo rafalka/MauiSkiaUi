@@ -52,7 +52,7 @@ The extension is one source file, [assets/SkiaUiDevFlowExtension.cs](assets/Skia
 | `tap` | `automationId`, `text`, `type` (all optional filters, combined), `index` (nth match, default 0), `force` | Taps the match's center; returns `tapped`, `hit`, `coveredBy` and the tap result below. 404 when nothing matches, 422 when the element is clipped or detached |
 | `tapAt` | `x`, `y` (window DIPs), `force` | The same at a point (for elements without an id or text) |
 | `hit` | `x`, `y` (window DIPs) | The deepest drawn element at the point |
-| `drag` | Start at a match's center (`automationId`, `text`, `type`, `index`) or `x`, `y`; `dx`, `dy` (DIPs), `durationMs` (300), `steps` (12), `release` (true) | Drags as a finger does, in real time (a short fast one flings): scrolls drawn lists, which DevFlow's `ui scroll` / `ui gesture` cannot |
+| `drag` | Start at a match's center (`automationId`, `text`, `type`, `index`) or `x`, `y`; `dx`, `dy` (DIPs), `durationMs` (300), `steps` (12) | Drags as a finger does, in real time (a short fast one flings): scrolls drawn lists, which DevFlow's `ui scroll` / `ui gesture` cannot |
 
 ## Reading a tap's result
 

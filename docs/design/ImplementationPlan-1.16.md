@@ -103,7 +103,7 @@ The use cases the API is checked against. Each becomes a section of the docs and
             <skui:SkUiScrollEffect Source="{x:Reference List}" Property="ClipHeight" InputStart="0" InputEnd="184" From="240" To="56" />
             <skui:SkUiScrollEffect Source="{x:Reference List}" Property="TranslationY" InputStart="0" InputEnd="184" From="0" To="-92" />
             <!-- stretch when pulled past the top -->
-            <skui:SkUiScrollEffect Source="{x:Reference List}" Property="Scale" InputStart="-200" InputEnd="0" From="1.5" To="1" />
+            <skui:SkUiScrollEffect Source="{x:Reference List}" Property="Scale" InputStart="0" InputEnd="-200" From="1" To="1.5" />
         </skui:SkUiView.ScrollEffects>
     </skui:SkUiImage>
 </Grid>

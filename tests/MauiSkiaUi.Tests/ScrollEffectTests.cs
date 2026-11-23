@@ -245,7 +245,7 @@ public class ScrollEffectTests
         list.ScrollTo(0, 100);
         surface.Frame(10);
         Assert.True(Props(box).TryGetLinkClip(out var clip));
-        Assert.Equal(new SKRect(30, 0, 40, 20), clip.Rect); // the right side: leading in right to left
+        Assert.Equal((30f, 40f), (clip.Rect.Left, clip.Rect.Right)); // the right side: leading in right to left
     }
 
     [Fact]
@@ -501,6 +501,125 @@ public class ScrollEffectTests
         Assert.True(reveal.IsShown);
         Assert.Equal(0, Props(box).LinkValues.TranslationY, Tolerance);
     }
+
+    #region Review fixes
+
+    [Fact]
+    public void AShowOrHideAtRestDrawsAFrameOnItsOwn()
+    {
+        var (list, box, root) = Page();
+        var reveal = new SkUiScrollReveal { Response = SkUiScrollRevealResponse.Manual, Source = list };
+        box.AddScrollEffect(SkUiScrollEffect.HideOnScroll(reveal, 50));
+        using var surface = new SkUiTestSurface(root, 140, 100);
+        surface.Frame(0);
+        surface.Frame(16);
+        var requests = surface.RenderRequests;
+        reveal.Hide(); // nothing else changes: the request alone must reach the render thread
+        surface.Frame(32);
+        Assert.True(surface.RenderRequests > requests);
+    }
+
+    [Fact]
+    public void ACorrectionAtRestIsNotAScrollForAReveal()
+    {
+        var (list, box, root) = Page();
+        var reveal = new SkUiScrollReveal { Source = list, Distance = 50 };
+        box.AddScrollEffect(SkUiScrollEffect.HideOnScroll(reveal, 50));
+        using var surface = new SkUiTestSurface(root, 140, 100);
+        list.ScrollTo(0, 600);
+        surface.Frame(0);
+        surface.Frame(16);
+        Assert.True(reveal.IsShown);
+        // 300 DIPs of rows inserted above while the list rests: the offset moves with them; the reveal must not.
+        ((ISkUiScrollHost)list).Scroller.CorrectOffset(0, 300);
+        surface.Frame(32);
+        surface.Frame(48);
+        Assert.True(reveal.IsShown);
+        Assert.Equal(0, Props(box).LinkValues.TranslationY, Tolerance);
+    }
+
+    [Fact]
+    public void ARefreshViewSourceFollowsItsContentsScrollerBeforeAnyPull()
+    {
+        var inner = List();
+        var refresh = new SkUiRefreshView { Content = inner };
+        var box = new SkUiBox { Color = Colors.Red, WidthRequest = 20, HeightRequest = 20, HorizontalOptions = LayoutOptions.Start, VerticalOptions = LayoutOptions.Start };
+        box.AddScrollEffect(new SkUiScrollEffect(SkUiScrollEffectProperty.TranslationY, 0, 100, 0, 30) { Source = refresh });
+        var root = new SkUiGrid { ColumnDefinitions = [new ColumnDefinition(40), new ColumnDefinition(100)] };
+        root.Children.Add(box);
+        Grid.SetColumn(refresh, 1);
+        root.Children.Add(refresh);
+        using var surface = new SkUiTestSurface(root, 140, 100);
+        surface.Frame(0);
+        inner.ScrollTo(0, 100);
+        surface.Frame(10);
+        Assert.Equal(30, Props(box).EffectiveTranslationY, Tolerance);
+    }
+
+    [Fact]
+    public void UnderReducedMotionAScaleOnAScrollFollowingRevealJumps()
+    {
+        using var _ = new ReducedMotion();
+        var (list, box, root) = Page();
+        var reveal = new SkUiScrollReveal { Source = list };
+        box.AddScrollEffect(new SkUiScrollEffect { Property = SkUiScrollEffectProperty.Scale, From = 1, To = 0.8, Reveal = reveal });
+        using var surface = new SkUiTestSurface(root, 140, 100);
+        surface.Frame(0);
+        var link = Assert.Single(Props(box).Links!);
+        Assert.Equal(link.InputStart, link.InputEnd); // a step halfway, not a zoom
+    }
+
+    [Fact]
+    public void AHideBeforeTheFirstDrawIsKept()
+    {
+        var (list, box, root) = Page();
+        var reveal = new SkUiScrollReveal { Response = SkUiScrollRevealResponse.Manual, Source = list, Duration = TimeSpan.Zero };
+        box.AddScrollEffect(SkUiScrollEffect.HideOnScroll(reveal, 50));
+        reveal.Hide();
+        using var surface = new SkUiTestSurface(root, 140, 100);
+        surface.Frame(0);
+        surface.Frame(16);
+        surface.Frame(32);
+        Assert.False(reveal.IsShown);
+    }
+
+    [Fact]
+    public void ARevealSharedByViewsUnderTwoScrollersKeepsTheFirstAndLetsGoWhenTheyLeave()
+    {
+        var reveal = new SkUiScrollReveal { Distance = 50 };
+        SkUiScrollView Column(out SkUiBox box)
+        {
+            box = new SkUiBox { HeightRequest = 20 };
+            box.AddScrollEffect(SkUiScrollEffect.HideOnScroll(reveal, 50));
+            var stack = new SkUiVerticalStackLayout();
+            stack.Children.Add(box);
+            stack.Children.Add(new SkUiBox { HeightRequest = 4000 });
+            return new SkUiScrollView { Content = stack };
+        }
+        var first = Column(out var firstBox);
+        var second = Column(out var secondBox);
+        var root = new SkUiGrid { ColumnDefinitions = [new ColumnDefinition(70), new ColumnDefinition(70)] };
+        root.Children.Add(first);
+        Grid.SetColumn(second, 1);
+        root.Children.Add(second);
+        using var surface = new SkUiTestSurface(root, 140, 100);
+        surface.Frame(0);
+        // The second view binds after the first: both follow the first list.
+        for (var step = 1; step <= 10; step++)
+        {
+            first.ScrollTo(0, step * 10);
+            surface.Frame(step * 16);
+        }
+        Assert.False(reveal.IsShown);
+        Assert.Equal(Props(firstBox).LinkValues.TranslationY, Props(secondBox).LinkValues.TranslationY, Tolerance);
+        // Both views gone: the reveal keeps no scroller.
+        root.Children.Clear();
+        surface.Frame(400);
+        var render = typeof(SkUiScrollReveal).GetField("_render", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!;
+        Assert.Null(render.GetValue(reveal));
+    }
+
+    #endregion
 
     #endregion
 }

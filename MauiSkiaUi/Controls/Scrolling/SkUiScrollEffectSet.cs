@@ -106,6 +106,9 @@ internal sealed class SkUiScrollEffectSet
             }
             values.Add(link.Target, link.Evaluate(input));
         }
+        // The reveals' requests: a Show / Hide asked while nothing else changed still commits (and so draws) a frame.
+        foreach (var reveal in _reveals)
+            values.RevealRequests += reveal.RequestStamp;
         props.Links = links;
         props.LinkValues = values;
     }
@@ -225,11 +228,12 @@ internal sealed class SkUiScrollEffectSet
         var motion = _reduced ? ReducedMotion(effect) : SkUiScrollEffectReducedMotion.Run;
         if (effect.Reveal is { } reveal)
         {
-            var render = reveal.Bind(host);
+            var render = reveal.Bind(host, this);
             if (motion == SkUiScrollEffectReducedMotion.HoldFrom)
                 to = from;
             // Reduced motion: a timed show or hide (triggered, manual) jumps for what moves (translation, scale) and still fades.
-            var step = motion == SkUiScrollEffectReducedMotion.Default && !FollowsTheScroll(reveal);
+            var scales = effect.Property is SkUiScrollEffectProperty.Scale or SkUiScrollEffectProperty.ScaleX or SkUiScrollEffectProperty.ScaleY;
+            var step = motion == SkUiScrollEffectReducedMotion.Default && (!FollowsTheScroll(reveal) || scales);
             return new SkUiRenderLink(render, target, from, to, effect.Curve, edge, shape, radius, step);
         }
         if (motion != SkUiScrollEffectReducedMotion.Run)

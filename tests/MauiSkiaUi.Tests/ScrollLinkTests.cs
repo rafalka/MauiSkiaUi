@@ -196,8 +196,34 @@ public class ScrollLinkTests
         SkUiRenderLink[] links = [Clip(Node(), SkUiRenderLinkTarget.ClipWidth, 100, 40, (SkUiRenderLinkClipEdge)edge)];
         var values = SkUiRenderLinkValues.Evaluate(links, 0, 100);
         Assert.True(SkUiRenderLinkClip.TryGet(links, values, 100, 50, out var clip));
-        Assert.Equal(new SKRect(left, 0, left + 40, 50), clip.Rect);
+        Assert.Equal(left, clip.Rect.Left, Tolerance);
+        Assert.Equal(left + 40, clip.Rect.Right, Tolerance);
+        // No channel clips the other axis: what the node draws above or below it stays.
+        Assert.True(clip.Rect.Top < -1000 && clip.Rect.Bottom > 1000);
         Assert.Equal(0, clip.Radius);
+    }
+
+    [Fact]
+    public void AClipLargerThanTheNodeDoesNotCutItsOverflow()
+    {
+        SkUiRenderLink[] links = [Clip(Node(), SkUiRenderLinkTarget.ClipHeight, 400, 400)];
+        Assert.True(SkUiRenderLinkClip.TryGet(links, SkUiRenderLinkValues.Evaluate(links, 0, 0), 100, 200, out var clip));
+        Assert.Equal(400, clip.Rect.Height, Tolerance); // a header growing while pulled is not cut at its 200
+    }
+
+    [Fact]
+    public void AnOutlineShadowKeepsItsShapeWhereTheClipDoesNotCutIt()
+    {
+        using var outline = new SKPath();
+        outline.AddRoundRect(new SKRect(0, 0, 100, 50), 16, 16);
+        SkUiRenderLink[] links = [Clip(Node(), SkUiRenderLinkTarget.ClipHeight, 50, 20)];
+        Assert.True(SkUiRenderLinkClip.TryGet(links, SkUiRenderLinkValues.Evaluate(links, 0, 0), 100, 50, out var whole));
+        Assert.False(whole.TryGetOutlineShadow(outline, out _, out _, out var hidden)); // at rest: the outline's own shadow
+        Assert.False(hidden);
+        Assert.True(SkUiRenderLinkClip.TryGet(links, SkUiRenderLinkValues.Evaluate(links, 0, 100), 100, 50, out var cut));
+        Assert.True(cut.TryGetOutlineShadow(outline, out var rect, out var radius, out _));
+        Assert.Equal(20, rect.Height, Tolerance);
+        Assert.Equal(10, radius, Tolerance); // the card's 16, capped at half the 20 left
     }
 
     [Fact]

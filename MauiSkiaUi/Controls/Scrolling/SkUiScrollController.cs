@@ -462,6 +462,8 @@ internal sealed class SkUiScrollController(ISkUiRenderable owner, Action<SkUiRen
         {
             // Not sent yet: it starts from the corrected offset the UI commits with it.
             _motion?.ShiftScrollTargets((float)dx, (float)dy);
+            // The offset commits as set; the render node still hears it was a correction, not a scroll.
+            owner.RenderState.PendingScrollCorrection += new SKPoint((float)dx, (float)dy);
         }
         invalidate(SkUiRenderDirty.Props);
         offsetChanged();

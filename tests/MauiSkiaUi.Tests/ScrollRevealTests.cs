@@ -232,6 +232,16 @@ public class ScrollRevealTests
     }
 
     [Fact]
+    public void CrossingHalfwayIsReported()
+    {
+        var rig = new Rig(Tracked());
+        rig.Scroll(20);            // 0.4
+        Assert.False(rig.Ended);
+        rig.Scroll(10);            // 0.6: the UI side's IsShown flips
+        Assert.True(rig.Ended);
+    }
+
+    [Fact]
     public void ChannelsOnARevealMapItsProgressOntoShownAndHidden()
     {
         var rig = new Rig(Tracked());
@@ -299,12 +309,12 @@ public class ScrollRevealTests
         Assert.InRange(progress, 0.1f, 0.99f);
         surface.Frame(500);
         Assert.Equal(1, box.Reveal.Progress, Tolerance);
-        Assert.Equal(1, ended);
+        Assert.True(ended >= 1);
         // Once the scroll bar has faded too, nothing asks for frames: a reveal at rest does not.
         surface.Frame(5000);
         surface.Frame(5100);
         Assert.False(surface.NeedsFrame);
-        Assert.Equal(1, ended);
+        Assert.InRange(ended, 1, 2); // the end of the move (and its crossing halfway, reported for IsShown)
         // Gone below the surface; the UI side places it where it is drawn, and nothing was recorded again.
         Assert.Equal(0, surface.Bitmap.GetPixel(10, 90).Alpha);
         var props = SkUiRenderProps.Default;

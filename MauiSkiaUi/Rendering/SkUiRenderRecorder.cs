@@ -92,6 +92,13 @@ internal sealed class SkUiRenderRecorder : IDisposable
             state.PendingScrollShift = SKPoint.Empty;
         }
 
+        if (state.PendingScrollCorrection != SKPoint.Empty)
+        {
+            update ??= batch.NewUpdate(state.Node);
+            update.ScrollCorrection = state.PendingScrollCorrection;
+            state.PendingScrollCorrection = SKPoint.Empty;
+        }
+
         if ((dirty & SkUiRenderDirty.Children) != 0)
         {
             var start = _scratch.Count;
@@ -238,13 +245,15 @@ internal static class SkUiImmediatePainter
                 var shadowPaint = _shadowPaint ??= new SKPaint();
                 if (clipped && shadow.Outline is { } outline)
                 {
-                    var rect = clip.Rect;
-                    if (rect.IntersectsWith(outline.Bounds))
+                    // Cast by the clip's round rectangle where it cuts the outline; whole otherwise (as the compositor does).
+                    if (clip.TryGetOutlineShadow(outline, out var rect, out var radius, out var hidden))
                     {
-                        rect.Intersect(outline.Bounds);
-                        var radius = Math.Min(clip.Radius, Math.Min(rect.Width, rect.Height) / 2);
                         roundRect!.SetRect(rect, radius, radius);
                         SkUiShadowPainter.DrawRoundRect(canvas, shadow, roundRect, shadowPaint);
+                    }
+                    else if (!hidden)
+                    {
+                        SkUiShadowPainter.DrawOutline(canvas, shadow, shadowPaint);
                     }
                 }
                 else if (shadow.Outline is not null)

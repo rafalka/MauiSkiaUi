@@ -79,6 +79,12 @@ internal sealed class SkUiRenderUpdate(SkUiRenderNode node)
     public SKPoint ScrollShift;
 
     /// <summary>
+    /// A scroll correction the UI made while no render-thread motion ran: the offset in <see cref="Props"/> already includes
+    /// it; it is only added up into <see cref="SkUiRenderNode.ScrollCorrection"/> (scroll-direction reveals leave it out).
+    /// </summary>
+    public SKPoint ScrollCorrection;
+
+    /// <summary>
     /// Forgets everything for reuse (<see cref="SkUiRenderBatch.NewUpdate"/>). Disposes nothing: once applied, what the
     /// update carried belongs to the compositor's tree.
     /// </summary>
@@ -93,6 +99,7 @@ internal sealed class SkUiRenderUpdate(SkUiRenderNode node)
         After = null;
         Children = null;
         ScrollShift = default;
+        ScrollCorrection = default;
     }
 }
 
@@ -564,6 +571,8 @@ internal sealed class SkUiCompositor : IDisposable
             }
             if (update.ScrollShift != SKPoint.Empty)
                 ShiftScroll(node, update.ScrollShift, retainedOffset);
+            if (update.ScrollCorrection != SKPoint.Empty)
+                node.ScrollCorrection += update.ScrollCorrection;
             if (update.HasContent)
             {
                 if (!ReferenceEquals(node.Before, update.Before)) node.Before?.Dispose();
@@ -944,19 +953,26 @@ internal sealed class SkUiCompositor : IDisposable
     /// </summary>
     private void DrawClippedShadow(SKCanvas canvas, SkUiRenderNode node, SkUiRenderShadow shadow, in SkUiRenderLinkClip clip)
     {
-        if (node.ShadowCache is not null)
-            DisposeShadowCache(node);
         if (shadow.Outline is { } outline)
         {
-            var rect = clip.Rect;
-            if (!rect.IntersectsWith(outline.Bounds))
-                return;
-            rect.Intersect(outline.Bounds);
-            var radius = Math.Min(clip.Radius, Math.Min(rect.Width, rect.Height) / 2);
-            _clipRoundRect.SetRect(rect, radius, radius);
-            SkUiShadowPainter.DrawRoundRect(canvas, shadow, _clipRoundRect, _shadowPaint);
+            if (clip.TryGetOutlineShadow(outline, out var rect, out var radius, out var hidden))
+            {
+                _clipRoundRect.SetRect(rect, radius, radius);
+                SkUiShadowPainter.DrawRoundRect(canvas, shadow, _clipRoundRect, _shadowPaint);
+            }
+            else if (!hidden)
+            {
+                DrawShadow(canvas, node, shadow); // the clip leaves the outline whole: its own shape
+            }
             return;
         }
+        if (clip.Rect.Contains(node.Props.VisualBounds))
+        {
+            DrawShadow(canvas, node, shadow); // the clip cuts nothing it draws: the cached shadow serves
+            return;
+        }
+        if (node.ShadowCache is not null)
+            DisposeShadowCache(node);
         LiveShadows++;
         SkUiShadowPainter.DrawFromContent(canvas, shadow, _shadowPaint, (this, node, clip), static (c, state) =>
         {

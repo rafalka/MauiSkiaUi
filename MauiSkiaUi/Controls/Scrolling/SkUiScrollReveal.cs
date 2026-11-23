@@ -50,6 +50,12 @@ public sealed class SkUiScrollReveal : INotifyPropertyChanged
     private SkUiRenderReveal? _render;
     private ISkUiScrollHost? _host;
 
+    /// <summary>The view whose scroller the render state follows: while it is attached, other views share that one.</summary>
+    private SkUiScrollEffectSet? _boundSet;
+
+    /// <summary>A request made before the reveal was first drawn: applied when it is.</summary>
+    private SkUiRenderRevealRequest? _pending;
+
     /// <summary>Raised when <see cref="IsShown"/> flips or a setting changes.</summary>
     public event PropertyChangedEventHandler? PropertyChanged;
 
@@ -160,9 +166,19 @@ public sealed class SkUiScrollReveal : INotifyPropertyChanged
     /// <summary>The progress last drawn, 0 (shown) to 1 (hidden).</summary>
     internal float Progress => _render?.Progress ?? 0;
 
-    /// <summary>The render-thread state for <paramref name="host"/> (made again when the scroller's render node changes).</summary>
-    internal SkUiRenderReveal Bind(ISkUiScrollHost host)
+    /// <summary>Counts <see cref="Show"/>, <see cref="Hide"/> and settle requests: the views' commits carry it, so a request
+    /// reaches the render thread with a frame even when nothing else changed.</summary>
+    internal int RequestStamp { get; private set; }
+
+    /// <summary>
+    /// The render-thread state for <paramref name="host"/>, the scroller <paramref name="set"/>'s view found (made again when
+    /// that scroller's render node changes). The first view to bind keeps it while it is attached: a view under another
+    /// scroller shares that state instead of replacing it.
+    /// </summary>
+    internal SkUiRenderReveal Bind(ISkUiScrollHost host, SkUiScrollEffectSet set)
     {
+        if (_render is { } bound && _boundSet is { } first && !ReferenceEquals(first, set) && _sets.Contains(first))
+            return bound;
         var node = host.RenderState.Node;
         var horizontal = Orientation == ScrollOrientation.Horizontal;
         if (_render is not { } render || !ReferenceEquals(render.Source, node) || render.Horizontal != horizontal)
@@ -171,8 +187,12 @@ public sealed class SkUiScrollReveal : INotifyPropertyChanged
                 old.MoveEnded -= OnMoveEnded;
             render = _render = new SkUiRenderReveal(node, horizontal) { Settings = RenderSettings() };
             render.MoveEnded += OnMoveEnded;
+            if (_pending is { } pending)
+                render.Request(pending);
+            _pending = null;
         }
         _host = host;
+        _boundSet = set;
         UpdateRange();
         return render;
     }
@@ -184,7 +204,18 @@ public sealed class SkUiScrollReveal : INotifyPropertyChanged
             _sets.Add(set);
     }
 
-    internal void Detach(SkUiScrollEffectSet set) => _sets.Remove(set);
+    internal void Detach(SkUiScrollEffectSet set)
+    {
+        _sets.Remove(set);
+        if (_sets.Count > 0)
+            return;
+        // No view follows it any more: let go of the scroller (its page can be collected) and start again when drawn again.
+        if (_render is { } render)
+            render.MoveEnded -= OnMoveEnded;
+        _render = null;
+        _host = null;
+        _boundSet = null;
+    }
 
     /// <summary>Its scroller reported a scroll: the range may have changed, and the progress drawn.</summary>
     internal void OnScrolled()
@@ -204,8 +235,13 @@ public sealed class SkUiScrollReveal : INotifyPropertyChanged
 
     private void Request(SkUiRenderRevealRequest request)
     {
+        RequestStamp++;
         if (_render is not { } render)
-            return; // not drawn yet: shown, as a reveal starts
+        {
+            // Not drawn yet: acted on when it is (a view that starts hidden).
+            _pending = request;
+            return;
+        }
         render.Request(request);
         // A frame acts on it.
         foreach (var set in _sets)

@@ -108,7 +108,7 @@ public sealed class TripScrollEffectsSample : SamplePage, ISample
     private SkUiGrid Header()
     {
         var scenery = new SkUiGrid { AnchorY = 0, IsClippedToBounds = false };
-        scenery.AddScrollEffect(new SkUiScrollEffect(SkUiScrollEffectProperty.Scale, -200, 0, 1.35, 1) { Source = _scroll });
+        scenery.AddScrollEffect(new SkUiScrollEffect(SkUiScrollEffectProperty.Scale, 0, -200, 1, 1.35) { Source = _scroll });
         scenery.Children.Add(Layer(new SkUiBox { Background = new LinearGradientBrush([new(Night, 0), new(Dusk, 0.85f), new(Gold, 1)], new Point(0, 0), new Point(0, 1)) }, rate: 0.25));
         var sun = new SkUiEllipse { Fill = Gold, WidthRequest = 72, HeightRequest = 72, HorizontalOptions = LayoutOptions.End, VerticalOptions = LayoutOptions.Start, Margin = new Thickness(0, 110, 56, 0) };
         sun.AddScrollEffect(new SkUiScrollEffect(SkUiScrollEffectProperty.Opacity, 0, 160, 1, 0) { Source = _scroll });

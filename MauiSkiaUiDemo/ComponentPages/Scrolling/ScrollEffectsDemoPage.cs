@@ -143,7 +143,7 @@ public sealed class ScrollEffectsDemoPage : ComponentDemoPage
         var picture = new SkUiBox { Color = Hero, HeightRequest = 200, VerticalOptions = LayoutOptions.Start, AnchorY = 0 };
         picture.AddScrollEffects(
             new SkUiScrollEffect(SkUiScrollEffectProperty.TranslationY, 0, 144, 0, -72) { Source = list },
-            new SkUiScrollEffect(SkUiScrollEffectProperty.Scale, -200, 0, 1.4, 1) { Source = list });
+            new SkUiScrollEffect(SkUiScrollEffectProperty.Scale, 0, -200, 1, 1.4) { Source = list });
         var title = new SkUiLabel { Text = "Collapsing header", TextColor = Colors.White, FontSize = 20, Margin = new Thickness(16, 0, 0, 14), VerticalOptions = LayoutOptions.End };
         title.AddScrollEffect(new SkUiScrollEffect(SkUiScrollEffectProperty.TranslationY, 0, 144, 0, -144) { Source = list });
         var header = new SkUiGrid { HeightRequest = 200, VerticalOptions = LayoutOptions.Start, InputTransparent = true, ClipToBounds = false };

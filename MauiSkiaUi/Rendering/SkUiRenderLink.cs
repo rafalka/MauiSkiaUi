@@ -172,6 +172,12 @@ internal record struct SkUiRenderLinkValues
     /// <summary>The clip's size in DIPs on each axis; <see cref="float.PositiveInfinity"/> = not clipped on it.</summary>
     public float ClipWidth, ClipHeight;
 
+    /// <summary>
+    /// UI side: the reveals' request counts (<see cref="SkUiScrollReveal.RequestStamp"/>), so a request changes the committed
+    /// props and a frame carries it to the render thread. Not drawn.
+    /// </summary>
+    public int RevealRequests;
+
     /// <summary>No contribution.</summary>
     public static SkUiRenderLinkValues Identity => new()
     {
@@ -280,12 +286,18 @@ internal readonly record struct SkUiRenderLinkClip(SKRect Rect, float Radius)
             if (shaped is null && link.ClipShape != SkUiRenderLinkClipShape.Rectangle)
                 shaped = link;
         }
-        var w = Math.Min(width, values.ClipWidth);
-        var h = Math.Min(height, values.ClipHeight);
+        // An axis no channel clips is not clipped (what the node draws outside its bounds stays), unless the clip has rounded
+        // corners, which need its edges there: the node's own. On a clipped axis the clip may be larger than the node (a
+        // header growing while pulled is not cut at its layout size).
+        var square = shaped is null;
+        var clipsX = edgeX is not null;
+        var clipsY = edgeY is not null;
+        var w = clipsX ? values.ClipWidth : square ? width + 2 * Unbounded : width;
+        var h = clipsY ? values.ClipHeight : square ? height + 2 * Unbounded : height;
         if (w <= 0 || h <= 0)
             return true; // clipped away: an empty rectangle
-        var x = Place(edgeX ?? SkUiRenderLinkClipEdge.Start, width, w);
-        var y = Place(edgeY ?? SkUiRenderLinkClipEdge.Start, height, h);
+        var x = clipsX ? Place(edgeX!.Value, width, w) : square ? -Unbounded : 0;
+        var y = clipsY ? Place(edgeY!.Value, height, h) : square ? -Unbounded : 0;
         var half = Math.Min(w, h) / 2;
         var radius = shaped?.ClipShape switch
         {
@@ -294,6 +306,28 @@ internal readonly record struct SkUiRenderLinkClip(SKRect Rect, float Radius)
             _ => 0
         };
         clip = new SkUiRenderLinkClip(new SKRect(x, y, x + w, y + h), radius);
+        return true;
+    }
+
+    /// <summary>How far past the node an axis that no channel clips reaches (DIPs): in effect, not clipped.</summary>
+    private const float Unbounded = 1_000_000;
+
+    /// <summary>
+    /// The round rectangle a shadow cast by <paramref name="outline"/> takes under this clip; <c>false</c> when the clip
+    /// leaves the outline whole (draw the shadow as it is) or hides it.
+    /// </summary>
+    public bool TryGetOutlineShadow(SKPath outline, out SKRect rect, out float radius, out bool hidden)
+    {
+        var bounds = outline.Bounds;
+        rect = Rect;
+        radius = 0;
+        hidden = !rect.IntersectsWith(bounds);
+        if (hidden || rect.Contains(bounds))
+            return false;
+        rect.Intersect(bounds);
+        // At least the outline's own corners (a rounded card keeps them where the clip does not cut).
+        var own = outline.IsRoundRect ? outline.GetRoundRect().Radii[0].X : outline.IsOval ? Math.Min(bounds.Width, bounds.Height) / 2 : 0;
+        radius = Math.Min(Math.Max(Radius, own), Math.Min(rect.Width, rect.Height) / 2);
         return true;
     }
 

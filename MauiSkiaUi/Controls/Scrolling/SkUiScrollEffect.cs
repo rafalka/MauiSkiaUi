@@ -57,7 +57,8 @@ public enum SkUiScrollEffectReducedMotion
 {
     /// <summary>
     /// Fades and clips run; scales, and translations that do not move exactly with the content (parallax), hold
-    /// <see cref="SkUiScrollEffect.From"/>; a triggered reveal's show and hide jump for translation and scale.
+    /// <see cref="SkUiScrollEffect.From"/>; a timed reveal's show and hide jump for translation and scale. Write
+    /// <see cref="SkUiScrollEffect.From"/> as the page at rest: a pull effect runs its range backwards (start 0, end −200).
     /// </summary>
     Default,
 

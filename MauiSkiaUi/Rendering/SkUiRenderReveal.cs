@@ -112,8 +112,8 @@ internal sealed class SkUiRenderReveal(SkUiRenderNode source, bool horizontal)
     public bool IsMoving => !float.IsNaN(_target);
 
     /// <summary>
-    /// Raised on the UI thread when a timed move ended (the compositor posts it with the frame's reports), so the UI side
-    /// re-reads <see cref="Progress"/> without a scroll report.
+    /// Raised on the UI thread when a timed move ended or the progress crossed halfway (the compositor posts it with the
+    /// frame's reports), so the UI side re-reads <see cref="Progress"/> without a scroll report.
     /// </summary>
     public event Action<SkUiRenderReveal>? MoveEnded;
 
@@ -145,7 +145,7 @@ internal sealed class SkUiRenderReveal(SkUiRenderNode source, bool horizontal)
             _lastInput = input;
             _lastCorrection = correction;
             _lastTime = now;
-            _seenSerial = Volatile.Read(ref _requestSerial);
+            // Requests made before the first frame (a view that starts hidden) are still acted on: none is marked seen here.
         }
         var seconds = (float)Math.Max(0, (now - _lastTime).TotalSeconds);
         _lastTime = now;
@@ -235,6 +235,8 @@ internal sealed class SkUiRenderReveal(SkUiRenderNode source, bool horizontal)
                     ended |= EndMove();
             }
         }
+        // Crossing halfway is reported too, so the UI side's IsShown follows when no scroll report comes after it.
+        ended |= (_published < 0.5f) != (_progress < 0.5f);
         Volatile.Write(ref _published, _progress);
         return _progress;
     }

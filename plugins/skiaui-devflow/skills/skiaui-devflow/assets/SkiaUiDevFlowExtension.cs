@@ -59,7 +59,7 @@ internal static class SkiaUiDevFlowExtension
         extension.MapTool("hit", "Deepest drawn element at a window point. Parameters: x, y (DIPs).",
             "GET", "/hit", request => OnUi(() => Hit(Parameters(request))));
         extension.MapTool("drag", "Drag on the drawn content as a finger does: press at a drawn element's center (automationId, text, type, index) or a window "
-                + "point (x, y), move by dx, dy (DIPs) over durationMs (default 300) in steps (default 12), then release (release: false keeps it down). "
+                + "point (x, y), move by dx, dy (DIPs) over durationMs (default 300) in steps (default 12), then release. "
                 + "A short fast drag flings a scroller. Reports the element pressed.",
             "POST", "/drag", request => Drag(Parameters(request)));
     }
@@ -99,7 +99,6 @@ internal static class SkiaUiDevFlowExtension
         var dy = Number(parameters, "dy", 0);
         var duration = Math.Max(0, Number(parameters, "durationMs", 300));
         var steps = Math.Max(1, (int)Number(parameters, "steps", 12));
-        var release = !parameters.TryGetValue("release", out var releaseText) || !bool.TryParse(releaseText, out var releaseValue) || releaseValue;
         // The press: on the UI thread, at the element's center or the point, in the surface root's coordinates.
         var start = await MainThread.InvokeOnMainThreadAsync(() =>
         {
@@ -133,20 +132,31 @@ internal static class SkiaUiDevFlowExtension
         // The moves in real time, so velocity trackers see the drag's speed (a fling at the end of a fast one).
         var stepDelay = TimeSpan.FromMilliseconds(duration / steps);
         var at = press.At;
-        for (var step = 1; step <= steps; step++)
+        var released = false;
+        try
         {
-            await Task.Delay(stepDelay);
-            at = new Point(press.At.X + dx * step / steps, press.At.Y + dy * step / steps);
-            var time = TimeSpan.FromMilliseconds(Environment.TickCount64);
-            var point = at;
-            await MainThread.InvokeOnMainThreadAsync(() => press.Root.Touch(new SkUiTouchEvent(id, SkUiTouchAction.Moved, point, time)));
+            for (var step = 1; step <= steps; step++)
+            {
+                await Task.Delay(stepDelay);
+                at = new Point(press.At.X + dx * step / steps, press.At.Y + dy * step / steps);
+                var time = TimeSpan.FromMilliseconds(Environment.TickCount64);
+                var point = at;
+                await MainThread.InvokeOnMainThreadAsync(() => press.Root.Touch(new SkUiTouchEvent(id, SkUiTouchAction.Moved, point, time)));
+            }
+            var end = TimeSpan.FromMilliseconds(Environment.TickCount64);
+            await MainThread.InvokeOnMainThreadAsync(() => press.Root.Touch(new SkUiTouchEvent(id, SkUiTouchAction.Released, at, end)));
+            released = true;
         }
-        if (release)
+        finally
         {
-            var time = TimeSpan.FromMilliseconds(Environment.TickCount64);
-            await MainThread.InvokeOnMainThreadAsync(() => press.Root.Touch(new SkUiTouchEvent(id, SkUiTouchAction.Released, at, time)));
+            // A failure on the way never leaves the pointer down (the next gesture would see two fingers).
+            if (!released)
+            {
+                var last = at;
+                await MainThread.InvokeOnMainThreadAsync(() => press.Root.Touch(new SkUiTouchEvent(id, SkUiTouchAction.Cancelled, last, TimeSpan.FromMilliseconds(Environment.TickCount64))));
+            }
         }
-        return HttpResponse.Json(new { pressed = press.Pressed, handled, released = release, dx, dy, durationMs = duration, steps });
+        return HttpResponse.Json(new { pressed = press.Pressed, handled, dx, dy, durationMs = duration, steps });
     }
 
     private static double Number(Dictionary<string, string> parameters, string name, double fallback) =>

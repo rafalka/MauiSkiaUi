@@ -44,7 +44,7 @@ namespace MauiSkiaUi;
 public class SkUiRefreshView : SkUiView, ISkUiRefreshOwner, ISkUiScrollEffectSource
 {
     /// <summary>Scroll effects follow the scroller it pulls (its content's first vertical scroller).</summary>
-    ISkUiScrollHost? ISkUiScrollEffectSource.ScrollEffectHost => PulledScroller;
+    ISkUiScrollHost? ISkUiScrollEffectSource.ScrollEffectHost => PulledScroller ?? FirstContentScrollHost();
 
 
     /// <summary>Bindable property for <see cref="CascadeInputTransparent"/>.</summary>

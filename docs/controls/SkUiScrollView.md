@@ -169,7 +169,7 @@ The header sits over the list; the list's `ViewportInsets` leave its expanded he
         <!-- moves up at half speed inside the shrinking header -->
         <sk:SkUiScrollEffect Source="{x:Reference List}" Property="TranslationY" InputStart="0" InputEnd="184" From="0" To="-92" />
         <!-- grows when the list is pulled past its top -->
-        <sk:SkUiScrollEffect Source="{x:Reference List}" Property="Scale" InputStart="-200" InputEnd="0" From="1.5" To="1" />
+        <sk:SkUiScrollEffect Source="{x:Reference List}" Property="Scale" InputStart="0" InputEnd="-200" From="1" To="1.5" />
       </sk:SkUiView.ScrollEffects>
     </sk:SkUiImage>
     <sk:SkUiLabel Text="Title" VerticalOptions="End" Margin="16,0,16,14">
@@ -265,7 +265,7 @@ An extended button that shrinks to its icon: the capsule keeps its trailing end 
 
 ### Reduced motion
 
-Under `SkUiMotion.IsMotionReduced`, fades and clips run; scales, and translations that do not move exactly with the content (parallax), hold `From`; a triggered reveal's show and hide jump halfway for translation and scale while its fades still run. `ReducedMotion="Run"` or `"HoldFrom"` overrides this for one effect.
+Under `SkUiMotion.IsMotionReduced`, fades and clips run; scales, and translations that do not move exactly with the content (parallax), hold `From`; a triggered reveal's show and hide jump halfway for translation and scale while its fades still run. `ReducedMotion="Run"` or `"HoldFrom"` overrides this for one effect. Write `From` as the page at rest: an effect that follows a pull runs its range backwards (`InputStart="0" InputEnd="-200" From="1" To="1.5"`), so reduced motion holds the resting value, not the pulled one; `InputStart` may be larger than `InputEnd`.
 
 ## Key properties / APIs
 

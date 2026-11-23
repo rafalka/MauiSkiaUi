@@ -325,7 +325,7 @@ internal sealed class SkUiSemanticsTree
             }
             var clipsChildren = props.ClipToBounds || linkClipped;
             var toRoot = parentToRoot.PreConcat(props.Matrix);
-            var ownRect = toRoot.MapRect(linkClipped ? linkClip.Rect : props.Bounds);
+            var ownRect = toRoot.MapRect(linkClipped ? Intersect(linkClip.Rect, props.Bounds) : props.Bounds);
             var visible = Intersect(ownRect, clip);
             // Outside the visible area (scrolled away in a long list) and clipping its children to itself: nothing of the
             // subtree shows, so it is not walked (the tree is rebuilt when it scrolls in). Inside an absorbing element the
