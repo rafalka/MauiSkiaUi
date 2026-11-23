@@ -192,6 +192,7 @@ Where the built API differs from the tables and recipes above (they stay as firs
 - **`IsShown`** is whether the reveal is nearer shown than hidden (progress below 0.5).
 - **A shared reveal without a `Source`** resolves from the first view it drives; a reveal used by views outside the list (a floating button) needs its `Source`, which XAML can set by `x:Reference` from a resource.
 - **Invalid values throw** (`ArgumentOutOfRangeException`) from the CLR setters too, as the effect is a plain class (D3).
+- **Recipe 1 as written above is wrong:** a clip and a translation on the same view move together, so the part kept slides off the top. The clip goes on the header container, which stays put and clips its children, and the translation on the picture inside it (found on the Mac Catalyst check, 23 November 2026; the docs and the gallery page use that form).
 
 ## Phase A: the engine (internal)
 

@@ -30,6 +30,8 @@ public sealed class ScrollEffectsDemoPage : ComponentDemoPage
     public ScrollEffectsDemoPage() : base("Scroll effects", new SkUiContentView(), widthRange: (240, 640, 360), heightRange: (320, 800, 560))
     {
         _root = (SkUiContentView)SkiaControl;
+        // A view hidden past the preview's edge leaves it, as one past a page's edge leaves the window.
+        _root.ClipToBounds = true;
         DocumentTypes(typeof(SkUiScrollEffect), typeof(SkUiScrollReveal));
         _reveal.PropertyChanged += (_, _) => Status();
         Choice("Recipe", [Collapsing, Direction, Fab, Extended, Toolbar, CoreNodes], Collapsing, Show, () => _recipe);
@@ -98,20 +100,25 @@ public sealed class ScrollEffectsDemoPage : ComponentDemoPage
         return _list;
     }
 
-    /// <summary>Recipe 1: a 200 DIP picture over the list, clipped to 56 as it scrolls, moving at half speed, growing when pulled.</summary>
+    /// <summary>
+    /// Recipe 1: a 200 DIP header over the list, clipped to 56 as it scrolls (the clip is on the header, which stays put; it
+    /// clips what is inside it), its picture moving up at half speed inside, its title moving with the content to the bottom
+    /// of the collapsed bar, and the picture growing when the list is pulled past its top.
+    /// </summary>
     private SkUiGrid CollapsingHeader()
     {
         var list = NewList(new Thickness(0, 200, 0, 0));
         var picture = new SkUiBox { Color = Hero, HeightRequest = 200, VerticalOptions = LayoutOptions.Start, AnchorY = 0 };
         picture.AddScrollEffects(
-            SkUiScrollEffect.CollapseTo(200, 56).SetSource(list),
             new SkUiScrollEffect(SkUiScrollEffectProperty.TranslationY, 0, 144, 0, -72) { Source = list },
             new SkUiScrollEffect(SkUiScrollEffectProperty.Scale, -200, 0, 1.4, 1) { Source = list });
-        var title = new SkUiLabel { Text = "Collapsing header", TextColor = Colors.White, FontSize = 20, Margin = new Thickness(16, 0, 0, 12), VerticalOptions = LayoutOptions.End };
-        var header = new SkUiGrid { HeightRequest = 200, VerticalOptions = LayoutOptions.Start, InputTransparent = true };
+        var title = new SkUiLabel { Text = "Collapsing header", TextColor = Colors.White, FontSize = 20, Margin = new Thickness(16, 0, 0, 14), VerticalOptions = LayoutOptions.End };
+        title.AddScrollEffect(new SkUiScrollEffect(SkUiScrollEffectProperty.TranslationY, 0, 144, 0, -144) { Source = list });
+        var header = new SkUiGrid { HeightRequest = 200, VerticalOptions = LayoutOptions.Start, InputTransparent = true, ClipToBounds = false };
         header.Children.Add(picture);
         header.Children.Add(title);
-        title.AddScrollEffect(new SkUiScrollEffect(SkUiScrollEffectProperty.TranslationY, 0, 144, 0, -144) { Source = list });
+        // 200 → 56 over the first 144 DIPs; the same slope on into a pull (400 at -200), so the growing picture is not cut.
+        header.AddScrollEffect(new SkUiScrollEffect(SkUiScrollEffectProperty.ClipHeight, -200, 144, 400, 56) { Source = list });
         return Stack(list, header);
     }
 

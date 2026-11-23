@@ -42,6 +42,7 @@ maui devflow extensions call dev.skiaui tap '{"automationId":"AddObservation"}' 
 maui devflow extensions call dev.skiaui tap '{"type":"SkUiCoreLabel","text":"Cell 1"}'
 maui devflow extensions call dev.skiaui tapAt '{"x":201,"y":709}'               # tap the drawn content at a window point
 maui devflow extensions call dev.skiaui hit '{"x":201,"y":709}'                 # deepest drawn element at a window point
+maui devflow extensions call dev.skiaui drag '{"type":"SkUiCollectionView","dy":-200,"durationMs":800}'  # scroll a drawn list as a finger does
 ```
 
 | Tool | Parameters | Returns |
@@ -50,6 +51,7 @@ maui devflow extensions call dev.skiaui hit '{"x":201,"y":709}'                 
 | `tap` | `automationId`, `text` (exact `Text`), `type` (class name): filters, combined; `index` (the nth match, default 0); `force` | The matched element (`tapped`), the element actually hit (`hit`; it differs when something covers the center) and the tap result |
 | `tapAt` | `x`, `y` (window DIPs); `force` | `hit` and the tap result |
 | `hit` | `x`, `y` (window DIPs) | The deepest drawn element at the point |
+| `drag` | Start: `automationId` / `text` / `type` / `index` (the match's center) or `x`, `y` (window DIPs); `dx`, `dy` (DIPs); `durationMs` (default 300); `steps` (default 12); `release` (default `true`) | The element pressed, whether the surface handled the press, and the drag. Moves are sent in real time, so a short fast drag flings; DevFlow's own `ui scroll` and `ui gesture` do not move drawn scrollers |
 
 - **Coordinates:** window DIPs, the same as native elements in DevFlow's `ui tree`.
 - **Scope:** every tool looks only at the page on screen (the top modal page, else the Shell's or navigation page's current page). Pages lower in the navigation stack, or in other Shell sections, keep their surfaces but are ignored.

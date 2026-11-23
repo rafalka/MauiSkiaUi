@@ -275,6 +275,29 @@ public class ScrollEffectTests
 
     #endregion
 
+    [Fact]
+    public void AClipOnAHeaderStaysInPlaceWhileWhatIsInsideItMoves()
+    {
+        // The collapsing header recipe: the clip on the container, the parallax on its child.
+        var list = List();
+        var picture = new SkUiBox { Color = Colors.Red, HeightRequest = 100 };
+        picture.AddScrollEffect(new SkUiScrollEffect(SkUiScrollEffectProperty.TranslationY, 0, 80, 0, -40) { Source = list });
+        var header = new SkUiGrid { HeightRequest = 100, VerticalOptions = LayoutOptions.Start, WidthRequest = 20, HorizontalOptions = LayoutOptions.Start };
+        header.Children.Add(picture);
+        header.AddScrollEffect(new SkUiScrollEffect(SkUiScrollEffectProperty.ClipHeight, 0, 80, 100, 20) { Source = list });
+        var root = new SkUiGrid { ColumnDefinitions = [new ColumnDefinition(40), new ColumnDefinition(100)] };
+        root.Children.Add(header);
+        Grid.SetColumn(list, 1);
+        root.Children.Add(list);
+        using var surface = new SkUiTestSurface(root, 140, 120);
+        surface.Frame(0);
+        list.ScrollTo(0, 80);
+        var bitmap = surface.Frame(10);
+        // The window stays at the top (0…20) and shows the picture, moved up by 40 inside it.
+        Assert.True(bitmap.GetPixel(10, 10) is { Red: > 200, Green: < 60, Alpha: > 200 });
+        Assert.Equal(0, bitmap.GetPixel(10, 30).Alpha);
+    }
+
     #region Reduced motion
 
     [Fact]

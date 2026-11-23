@@ -151,22 +151,35 @@ Effects combine with each other and with the view's own values: translations add
 
 ### Collapsing header
 
-The header sits over the list; the list's `ViewportInsets` leave its expanded height, so the rows start below it and scroll under it as it collapses.
+The header sits over the list; the list's `ViewportInsets` leave its expanded height, so the rows start below it and scroll under it as it collapses. Put the clip on the header, which stays in place, and move what is inside it: a clip clips the view's children, while a clip and a translation on the same view move together (the part kept slides away with it).
 
 ```xml
 <sk:SkUiGrid>
   <sk:SkUiCollectionView x:Name="List" ViewportInsets="0,240,0,0" ItemsSource="{Binding Items}" />
-  <sk:SkUiImage Source="hero.jpg" HeightRequest="240" VerticalOptions="Start" Aspect="AspectFill" AnchorY="0">
+  <sk:SkUiGrid HeightRequest="240" VerticalOptions="Start" InputTransparent="True" IsClippedToBounds="False">
     <sk:SkUiView.ScrollEffects>
-      <!-- 240 → 56 over the first 184 DIPs, the picture moving up at half speed -->
-      <sk:SkUiScrollEffect Source="{x:Reference List}" Property="ClipHeight" InputStart="0" InputEnd="184" From="240" To="56" />
-      <sk:SkUiScrollEffect Source="{x:Reference List}" Property="TranslationY" InputStart="0" InputEnd="184" From="0" To="-92" />
-      <!-- grows when the list is pulled past its top -->
-      <sk:SkUiScrollEffect Source="{x:Reference List}" Property="Scale" InputStart="-200" InputEnd="0" From="1.5" To="1" />
+      <!-- 240 → 56 over the first 184 DIPs, and on at the same slope into a pull (424 at -184), so a growing picture is not cut -->
+      <sk:SkUiScrollEffect Source="{x:Reference List}" Property="ClipHeight" InputStart="-184" InputEnd="184" From="424" To="56" />
     </sk:SkUiView.ScrollEffects>
-  </sk:SkUiImage>
+    <sk:SkUiImage Source="hero.jpg" Aspect="AspectFill" AnchorY="0">
+      <sk:SkUiView.ScrollEffects>
+        <!-- moves up at half speed inside the shrinking header -->
+        <sk:SkUiScrollEffect Source="{x:Reference List}" Property="TranslationY" InputStart="0" InputEnd="184" From="0" To="-92" />
+        <!-- grows when the list is pulled past its top -->
+        <sk:SkUiScrollEffect Source="{x:Reference List}" Property="Scale" InputStart="-200" InputEnd="0" From="1.5" To="1" />
+      </sk:SkUiView.ScrollEffects>
+    </sk:SkUiImage>
+    <sk:SkUiLabel Text="Title" VerticalOptions="End" Margin="16,0,16,14">
+      <sk:SkUiView.ScrollEffects>
+        <!-- moves with the content, to the bottom of the collapsed bar -->
+        <sk:SkUiScrollEffect Source="{x:Reference List}" Property="TranslationY" InputStart="0" InputEnd="184" From="0" To="-184" />
+      </sk:SkUiView.ScrollEffects>
+    </sk:SkUiLabel>
+  </sk:SkUiGrid>
 </sk:SkUiGrid>
 ```
+
+`SkUiScrollEffect.CollapseTo(240, 56)` is the clip alone (holding 240 during a pull).
 
 A toolbar title that fades in once the list's big title has scrolled under it: `<sk:SkUiScrollEffect Source="{x:Reference List}" Property="Opacity" InputStart="20" InputEnd="60" From="0" To="1" />`.
 

@@ -21,6 +21,10 @@ Publishing (the NuGet publish workflow, [docs/Releasing.md](docs/Releasing.md)) 
   - `SkUiScrollReveal` hides views while the list scrolls down and brings them back on any scroll up: tracked (follows the scroll, settles at rest) or triggered (a timed show or hide past a threshold), always shown at the start, `Show()` / `Hide()`, `IsShown`; one reveal can drive several views (a sticky header and footer, a floating button, an extended button shrinking to its icon).
   - Reduced motion keeps fades and clips and stops parallax and scaling (per effect: `ReducedMotion`). Factories: `Parallax`, `FadeIn`, `CollapseTo`, `HideOnScroll`. Docs: [SkUiScrollView](docs/controls/SkUiScrollView.md#scroll-linked-effects); demo: the gallery's Scroll effects page.
 
+### Other
+
+- **DevFlow extension:** `dev.skiaui` has a `drag` tool that drags on the drawn content as a finger does (from an element or a window point, in real time, so a fast one flings): DevFlow's own scroll and gesture commands do not move drawn scrollers.
+
 ## 1.15.1
 
 ### New features

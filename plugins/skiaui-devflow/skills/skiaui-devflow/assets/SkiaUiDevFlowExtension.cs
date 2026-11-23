@@ -11,6 +11,7 @@ using System.Globalization;
 using System.Linq;
 using System.Reflection;
 using System.Text.Json;
+using System.Threading;
 using System.Threading.Tasks;
 using MauiSkiaUi;
 using MauiSkiaUi.Core;
@@ -32,6 +33,7 @@ namespace SkiaUiDevFlow;
 /// maui devflow extensions call dev.skiaui tap '{"text":"Label 2","type":"SkUiCoreLabel"}'
 /// maui devflow extensions call dev.skiaui tapAt '{"x":120,"y":300}'
 /// maui devflow extensions call dev.skiaui hit '{"x":120,"y":300}'
+/// maui devflow extensions call dev.skiaui drag '{"automationId":"List","dy":-200,"durationMs":600}'
 /// </code>
 /// A tap is released only when a drawn tap recognizer takes it (a button, a toggle, a tap gesture, a text field); otherwise
 /// it is cancelled, so a missed tap has no side effects, and the response says what happened (<c>taken</c>, <c>winner</c>,
@@ -40,6 +42,9 @@ namespace SkiaUiDevFlow;
 internal static class SkiaUiDevFlowExtension
 {
     private const string ExtensionId = "dev.skiaui";
+
+    /// <summary>Pointer ids of drags, apart from the platform's and SkUiDiagnostics' synthetic taps.</summary>
+    private static long _dragId = 1L << 40;
 
     public static void Register(AgentOptions options)
     {
@@ -53,6 +58,10 @@ internal static class SkiaUiDevFlowExtension
             "POST", "/tapAt", request => OnUi(() => TapAt(Parameters(request))));
         extension.MapTool("hit", "Deepest drawn element at a window point. Parameters: x, y (DIPs).",
             "GET", "/hit", request => OnUi(() => Hit(Parameters(request))));
+        extension.MapTool("drag", "Drag on the drawn content as a finger does: press at a drawn element's center (automationId, text, type, index) or a window "
+                + "point (x, y), move by dx, dy (DIPs) over durationMs (default 300) in steps (default 12), then release (release: false keeps it down). "
+                + "A short fast drag flings a scroller. Reports the element pressed.",
+            "POST", "/drag", request => Drag(Parameters(request)));
     }
 
     private static HttpResponse Tap(Dictionary<string, string> parameters)
@@ -83,6 +92,65 @@ internal static class SkiaUiDevFlowExtension
         var result = SkUiDiagnostics.SimulateTapAt(root, new Point(point.X - rootBounds.X, point.Y - rootBounds.Y), releaseOnlyIfTap: !Force(parameters));
         return TapResponse(target: null, result);
     }
+
+    private static async Task<HttpResponse> Drag(Dictionary<string, string> parameters)
+    {
+        var dx = Number(parameters, "dx", 0);
+        var dy = Number(parameters, "dy", 0);
+        var duration = Math.Max(0, Number(parameters, "durationMs", 300));
+        var steps = Math.Max(1, (int)Number(parameters, "steps", 12));
+        var release = !parameters.TryGetValue("release", out var releaseText) || !bool.TryParse(releaseText, out var releaseValue) || releaseValue;
+        // The press: on the UI thread, at the element's center or the point, in the surface root's coordinates.
+        var start = await MainThread.InvokeOnMainThreadAsync(() =>
+        {
+            Point point;
+            if (parameters.ContainsKey("x") || parameters.ContainsKey("y"))
+            {
+                if (!TryPoint(parameters, out point))
+                    return default((SkUiView Root, Point At, object Pressed)?);
+            }
+            else
+            {
+                var matches = DrawnElements().Where(element => Matches(element, parameters)).ToList();
+                var index = parameters.TryGetValue("index", out var value) && int.TryParse(value, out var parsed) ? parsed : 0;
+                if (index < 0 || index >= matches.Count || SkUiDiagnostics.GetWindowBounds(matches[index]) is not { } bounds)
+                    return null;
+                point = bounds.Center;
+            }
+            if (VisiblePage() is not { } page
+                || SkUiDiagnostics.HitTestWindow(page, point) is not { } hit
+                || SkUiDiagnostics.GetSurfaceRoot(hit) is not { } root
+                || SkUiDiagnostics.GetWindowBounds(root) is not { } rootBounds)
+                return null;
+            // Described here: window bounds read the platform views, on the UI thread only.
+            return (root, new Point(point.X - rootBounds.X, point.Y - rootBounds.Y), Describe(hit));
+        });
+        if (start is not { } press)
+            return HttpResponse.NotFound("No drawn element at the start of the drag.");
+        var id = Interlocked.Increment(ref _dragId);
+        var clock = TimeSpan.FromMilliseconds(Environment.TickCount64);
+        var handled = await MainThread.InvokeOnMainThreadAsync(() => press.Root.Touch(new SkUiTouchEvent(id, SkUiTouchAction.Pressed, press.At, clock)));
+        // The moves in real time, so velocity trackers see the drag's speed (a fling at the end of a fast one).
+        var stepDelay = TimeSpan.FromMilliseconds(duration / steps);
+        var at = press.At;
+        for (var step = 1; step <= steps; step++)
+        {
+            await Task.Delay(stepDelay);
+            at = new Point(press.At.X + dx * step / steps, press.At.Y + dy * step / steps);
+            var time = TimeSpan.FromMilliseconds(Environment.TickCount64);
+            var point = at;
+            await MainThread.InvokeOnMainThreadAsync(() => press.Root.Touch(new SkUiTouchEvent(id, SkUiTouchAction.Moved, point, time)));
+        }
+        if (release)
+        {
+            var time = TimeSpan.FromMilliseconds(Environment.TickCount64);
+            await MainThread.InvokeOnMainThreadAsync(() => press.Root.Touch(new SkUiTouchEvent(id, SkUiTouchAction.Released, at, time)));
+        }
+        return HttpResponse.Json(new { pressed = press.Pressed, handled, released = release, dx, dy, durationMs = duration, steps });
+    }
+
+    private static double Number(Dictionary<string, string> parameters, string name, double fallback) =>
+        parameters.TryGetValue(name, out var text) && double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out var value) ? value : fallback;
 
     private static HttpResponse TapResponse(IVisualTreeElement? target, SkUiSimulatedTap result) =>
         HttpResponse.Json(new
