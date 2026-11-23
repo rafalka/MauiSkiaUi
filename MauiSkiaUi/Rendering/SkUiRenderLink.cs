@@ -313,12 +313,12 @@ internal readonly record struct SkUiRenderLinkClip(SKRect Rect, float Radius)
     private const float Unbounded = 1_000_000;
 
     /// <summary>
-    /// The round rectangle a shadow cast by <paramref name="outline"/> takes under this clip; <c>false</c> when the clip
-    /// leaves the outline whole (draw the shadow as it is) or hides it.
+    /// The round rectangle a shadow cast by an outline (its <paramref name="bounds"/> and corner radius,
+    /// <see cref="SkUiRenderShadow.OutlineCornerRadius"/>) takes under this clip; <c>false</c> when the clip leaves the
+    /// outline whole (draw the shadow as it is) or hides it. Allocates nothing.
     /// </summary>
-    public bool TryGetOutlineShadow(SKPath outline, out SKRect rect, out float radius, out bool hidden)
+    public bool TryGetOutlineShadow(SKRect bounds, float outlineRadius, out SKRect rect, out float radius, out bool hidden)
     {
-        var bounds = outline.Bounds;
         rect = Rect;
         radius = 0;
         hidden = !rect.IntersectsWith(bounds);
@@ -326,8 +326,7 @@ internal readonly record struct SkUiRenderLinkClip(SKRect Rect, float Radius)
             return false;
         rect.Intersect(bounds);
         // At least the outline's own corners (a rounded card keeps them where the clip does not cut).
-        var own = outline.IsRoundRect ? outline.GetRoundRect().Radii[0].X : outline.IsOval ? Math.Min(bounds.Width, bounds.Height) / 2 : 0;
-        radius = Math.Min(Math.Max(Radius, own), Math.Min(rect.Width, rect.Height) / 2);
+        radius = Math.Min(Math.Max(Radius, outlineRadius), Math.Min(rect.Width, rect.Height) / 2);
         return true;
     }
 

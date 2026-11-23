@@ -190,6 +190,10 @@ public sealed class SkUiScrollReveal : INotifyPropertyChanged
             if (_pending is { } pending)
                 render.Request(pending);
             _pending = null;
+            // Other views holding the replaced state build again and share this one.
+            foreach (var other in _sets)
+                if (!ReferenceEquals(other, set))
+                    other.OnEffectsChanged();
         }
         _host = host;
         _boundSet = set;
@@ -206,15 +210,20 @@ public sealed class SkUiScrollReveal : INotifyPropertyChanged
 
     internal void Detach(SkUiScrollEffectSet set)
     {
-        _sets.Remove(set);
-        if (_sets.Count > 0)
+        if (!_sets.Remove(set))
             return;
-        // No view follows it any more: let go of the scroller (its page can be collected) and start again when drawn again.
+        // The view whose scroller the state follows left, or no view is left: let go of that scroller (its page can be
+        // collected); the views left (if any) build again and bind afresh.
+        if (_sets.Count > 0 && !ReferenceEquals(set, _boundSet))
+            return;
         if (_render is { } render)
             render.MoveEnded -= OnMoveEnded;
         _render = null;
         _host = null;
         _boundSet = null;
+        UpdateIsShown(); // a reveal starts shown again
+        foreach (var other in _sets.ToArray())
+            other.OnEffectsChanged();
     }
 
     /// <summary>Its scroller reported a scroll: the range may have changed, and the progress drawn.</summary>

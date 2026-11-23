@@ -111,6 +111,35 @@ internal sealed class SkUiRenderShadow(SkUiShadowStyle style, SKPath? outline, S
     /// <summary>The silhouette of an opaque fill (clipped by the node's clip); <c>null</c>: the shadow of the drawn content.</summary>
     public SKPath? Outline { get; } = outline;
 
+    private float _outlineCornerRadius = float.NaN;
+
+    /// <summary>
+    /// The corner radius of <see cref="Outline"/> (a round rectangle's; half the shorter side of an oval; 0 otherwise), worked
+    /// out once (a scroll-linked clip asks for it every frame). Either thread may compute it first: the value is the same.
+    /// </summary>
+    public float OutlineCornerRadius
+    {
+        get
+        {
+            if (float.IsNaN(_outlineCornerRadius))
+                _outlineCornerRadius = CornerRadiusOf(Outline);
+            return _outlineCornerRadius;
+        }
+    }
+
+    /// <summary>The corner radius of <paramref name="path"/>: a round rectangle's, half an oval's shorter side, else 0.</summary>
+    internal static float CornerRadiusOf(SKPath? path)
+    {
+        if (path is null)
+            return 0;
+        if (path.IsOval)
+            return Math.Min(path.Bounds.Width, path.Bounds.Height) / 2;
+        if (!path.IsRoundRect)
+            return 0;
+        using var roundRect = path.GetRoundRect();
+        return roundRect.Radii[0].X;
+    }
+
     /// <summary>Where the node draws (its visual bounds); the content shadow is taken from this area.</summary>
     public SKRect Source { get; } = source;
 

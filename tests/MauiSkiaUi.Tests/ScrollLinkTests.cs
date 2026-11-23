@@ -218,10 +218,12 @@ public class ScrollLinkTests
         outline.AddRoundRect(new SKRect(0, 0, 100, 50), 16, 16);
         SkUiRenderLink[] links = [Clip(Node(), SkUiRenderLinkTarget.ClipHeight, 50, 20)];
         Assert.True(SkUiRenderLinkClip.TryGet(links, SkUiRenderLinkValues.Evaluate(links, 0, 0), 100, 50, out var whole));
-        Assert.False(whole.TryGetOutlineShadow(outline, out _, out _, out var hidden)); // at rest: the outline's own shadow
+        var own = SkUiRenderShadow.CornerRadiusOf(outline);
+        Assert.Equal(16, own, Tolerance);
+        Assert.False(whole.TryGetOutlineShadow(outline.Bounds, own, out _, out _, out var hidden)); // at rest: the outline's own shadow
         Assert.False(hidden);
         Assert.True(SkUiRenderLinkClip.TryGet(links, SkUiRenderLinkValues.Evaluate(links, 0, 100), 100, 50, out var cut));
-        Assert.True(cut.TryGetOutlineShadow(outline, out var rect, out var radius, out _));
+        Assert.True(cut.TryGetOutlineShadow(outline.Bounds, own, out var rect, out var radius, out _));
         Assert.Equal(20, rect.Height, Tolerance);
         Assert.Equal(10, radius, Tolerance); // the card's 16, capped at half the 20 left
     }

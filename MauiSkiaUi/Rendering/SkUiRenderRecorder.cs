@@ -246,7 +246,7 @@ internal static class SkUiImmediatePainter
                 if (clipped && shadow.Outline is { } outline)
                 {
                     // Cast by the clip's round rectangle where it cuts the outline; whole otherwise (as the compositor does).
-                    if (clip.TryGetOutlineShadow(outline, out var rect, out var radius, out var hidden))
+                    if (clip.TryGetOutlineShadow(outline.Bounds, shadow.OutlineCornerRadius, out var rect, out var radius, out var hidden))
                     {
                         roundRect!.SetRect(rect, radius, radius);
                         SkUiShadowPainter.DrawRoundRect(canvas, shadow, roundRect, shadowPaint);

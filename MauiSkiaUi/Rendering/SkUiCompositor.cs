@@ -955,7 +955,9 @@ internal sealed class SkUiCompositor : IDisposable
     {
         if (shadow.Outline is { } outline)
         {
-            if (clip.TryGetOutlineShadow(outline, out var rect, out var radius, out var hidden))
+            if (node.ShadowCache is not null)
+                DisposeShadowCache(node); // a content shadow's raster from before: not this shadow
+            if (clip.TryGetOutlineShadow(outline.Bounds, shadow.OutlineCornerRadius, out var rect, out var radius, out var hidden))
             {
                 _clipRoundRect.SetRect(rect, radius, radius);
                 SkUiShadowPainter.DrawRoundRect(canvas, shadow, _clipRoundRect, _shadowPaint);

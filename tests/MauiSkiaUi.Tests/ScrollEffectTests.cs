@@ -530,8 +530,9 @@ public class ScrollEffectTests
         surface.Frame(0);
         surface.Frame(16);
         Assert.True(reveal.IsShown);
-        // 300 DIPs of rows inserted above while the list rests: the offset moves with them; the reveal must not.
-        ((ISkUiScrollHost)list).Scroller.CorrectOffset(0, 300);
+        // 120 DIPs of rows inserted above while the list rests (under two viewports, so it is not taken for a jump either):
+        // the offset moves with them; the reveal must not.
+        ((ISkUiScrollHost)list).Scroller.CorrectOffset(0, 120);
         surface.Frame(32);
         surface.Frame(48);
         Assert.True(reveal.IsShown);
@@ -617,6 +618,47 @@ public class ScrollEffectTests
         surface.Frame(400);
         var render = typeof(SkUiScrollReveal).GetField("_render", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!;
         Assert.Null(render.GetValue(reveal));
+    }
+
+    [Fact]
+    public void WhenTheFirstViewOfASharedRevealLeavesTheOthersFollowTheirOwnScroller()
+    {
+        var reveal = new SkUiScrollReveal { Distance = 50 };
+        SkUiScrollView Column(out SkUiBox box)
+        {
+            box = new SkUiBox { HeightRequest = 20 };
+            box.AddScrollEffect(SkUiScrollEffect.HideOnScroll(reveal, 50));
+            var stack = new SkUiVerticalStackLayout();
+            stack.Children.Add(box);
+            stack.Children.Add(new SkUiBox { HeightRequest = 4000 });
+            return new SkUiScrollView { Content = stack };
+        }
+        var first = Column(out _);
+        var second = Column(out var secondBox);
+        var root = new SkUiGrid { ColumnDefinitions = [new ColumnDefinition(70), new ColumnDefinition(70)] };
+        root.Children.Add(first);
+        Grid.SetColumn(second, 1);
+        root.Children.Add(second);
+        using var surface = new SkUiTestSurface(root, 140, 100);
+        surface.Frame(0);
+        // Hidden through the first list, which then leaves: shown again, and the second view binds to its own list.
+        for (var step = 1; step <= 10; step++)
+        {
+            first.ScrollTo(0, step * 10);
+            surface.Frame(step * 16);
+        }
+        Assert.False(reveal.IsShown);
+        root.Children.Remove(first);
+        surface.Frame(300);
+        surface.Frame(316);
+        Assert.True(reveal.IsShown);
+        for (var step = 1; step <= 10; step++)
+        {
+            second.ScrollTo(0, step * 10);
+            surface.Frame(316 + step * 16);
+        }
+        Assert.False(reveal.IsShown);
+        Assert.Equal(50, Props(secondBox).LinkValues.TranslationY, Tolerance);
     }
 
     #endregion

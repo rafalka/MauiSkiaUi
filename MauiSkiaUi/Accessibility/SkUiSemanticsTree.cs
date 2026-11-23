@@ -390,7 +390,11 @@ internal sealed class SkUiSemanticsTree
 
             // Children: in the children space (scroll offset, overscroll scale), clipped as drawn; pinned children (scroll
             // bars, pinned headers) in local coordinates, outside the children clip.
-            var ownClip = clipsChildren ? Intersect(clip, ownRect) : clip;
+            // The children are clipped as drawn: by the node's bounds when it clips to them, and by its scroll-linked clip,
+            // which can reach past the bounds (an axis it does not clip, a header growing while pulled).
+            var ownClip = props.ClipToBounds ? Intersect(clip, toRoot.MapRect(props.Bounds)) : clip;
+            if (linkClipped)
+                ownClip = Intersect(ownClip, toRoot.MapRect(linkClip.Rect));
             if (props.ClipPath is { } clipPath)
                 ownClip = Intersect(ownClip, toRoot.MapRect(clipPath.Bounds));
             var childrenClip = props.ChildrenClipRect.IsEmpty ? ownClip : Intersect(ownClip, toRoot.MapRect(props.ChildrenClipRect));
