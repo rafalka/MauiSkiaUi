@@ -808,6 +808,9 @@ internal sealed class SkUiPointerRouter(ISkUiInputNode root)
         var props = GetProps(node);
         if (!isRoot && !props.Bounds.Contains(local.X, local.Y) && !node.HitsOutsideBounds(new Point(local.X, local.Y)))
             return null;
+        // Faded out or clipped by a scroll link: neither it nor its children are there for pointers.
+        if (!isRoot && !props.LinksAllowHit(local))
+            return null;
         var hitTestsSelf = node.HitTestsSelf;
         if (!node.IsInputEnabled && hitTestsSelf)
             return node;

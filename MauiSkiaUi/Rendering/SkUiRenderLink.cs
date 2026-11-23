@@ -266,6 +266,21 @@ internal readonly record struct SkUiRenderLinkClip(SKRect Rect, float Radius)
     /// <summary>Whether nothing shows.</summary>
     public bool IsEmpty => Rect.IsEmpty;
 
+    /// <summary>Whether <paramref name="point"/> (local) is inside it, its rounded corners included.</summary>
+    public bool Contains(SKPoint point)
+    {
+        if (!Rect.Contains(point.X, point.Y))
+            return false;
+        if (Radius <= 0)
+            return true;
+        // In a corner square, inside the quarter circle only.
+        var cx = Math.Clamp(point.X, Rect.Left + Radius, Rect.Right - Radius);
+        var cy = Math.Clamp(point.Y, Rect.Top + Radius, Rect.Bottom - Radius);
+        var dx = point.X - cx;
+        var dy = point.Y - cy;
+        return dx * dx + dy * dy <= Radius * Radius;
+    }
+
     /// <summary>Clips <paramref name="canvas"/> to it; <paramref name="roundRect"/> is reused for rounded corners (no allocation per frame).</summary>
     public void Apply(SKCanvas canvas, SKRoundRect roundRect)
     {

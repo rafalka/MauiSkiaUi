@@ -211,6 +211,19 @@ internal record struct SkUiRenderProps
     /// <summary>The opacity drawn including what <see cref="Links"/> add at the UI side's offsets (<see cref="LinkValues"/>).</summary>
     public readonly float EffectiveOpacity => Links is null ? DrawnOpacity : DrawnOpacity * LinkValues.Opacity;
 
+    /// <summary>
+    /// Whether pointers can reach the node at <paramref name="local"/> as <see cref="Links"/> show it at the UI side's offsets:
+    /// not where it is faded out or outside its clip (which also hides its children there).
+    /// </summary>
+    public readonly bool LinksAllowHit(SKPoint local)
+    {
+        if (Links is null)
+            return true;
+        if (LinkValues.Opacity <= 0)
+            return false;
+        return !TryGetLinkClip(out var clip) || clip.Contains(local);
+    }
+
     /// <summary>The scroll-linked clip at the UI side's offsets (<see cref="LinkValues"/>); <c>false</c> when none.</summary>
     public readonly bool TryGetLinkClip(out SkUiRenderLinkClip clip)
     {

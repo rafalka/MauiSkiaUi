@@ -380,4 +380,74 @@ public class ScrollLinkTests
     }
 
     #endregion
+
+    #region Hit-testing and semantics
+
+    private static bool Taps(SkUiView root, LinkedBox box, Point point)
+    {
+        var tapped = false;
+        void OnTapped(object? sender, SkUiTappedEventArgs e) => tapped = true;
+        box.Tapped += OnTapped;
+        root.Touch(new(7, SkUiTouchAction.Pressed, point, TimeSpan.FromSeconds(10)));
+        root.Touch(new(7, SkUiTouchAction.Released, point, TimeSpan.FromSeconds(10.05)));
+        box.Tapped -= OnTapped;
+        return tapped;
+    }
+
+    [Fact]
+    public void APointerReachesOnlyThePartAClipShows()
+    {
+        var (scroll, box, root) = Page(source => [Clip(source, SkUiRenderLinkTarget.ClipHeight, 40, 20)], width: 40, height: 40);
+        using var surface = new SkUiTestSurface(root, 140, 100);
+        surface.Frame(0);
+        Assert.True(Taps(root, box, new Point(20, 30)));
+        scroll.ScrollTo(0, 100);
+        surface.Frame(10);
+        Assert.True(Taps(root, box, new Point(20, 10)));
+        Assert.False(Taps(root, box, new Point(20, 30)));
+    }
+
+    [Fact]
+    public void APointerMissesARoundedClipsCornersAndAFadedOutNode()
+    {
+        var (scroll, box, root) = Page(source =>
+        [
+            Clip(source, SkUiRenderLinkTarget.ClipWidth, 80, 40, SkUiRenderLinkClipEdge.End, SkUiRenderLinkClipShape.Capsule),
+            new SkUiRenderLink(source, false, SkUiRenderLinkTarget.Opacity, 100, 200, 1, 0)
+        ], width: 80, column: 90);
+        using var surface = new SkUiTestSurface(root, 190, 100);
+        surface.Frame(0);
+        scroll.ScrollTo(0, 100);
+        surface.Frame(10);
+        Assert.True(Taps(root, box, new Point(60, 10)));
+        Assert.False(Taps(root, box, new Point(41, 1)));  // the capsule's corner
+        Assert.False(Taps(root, box, new Point(20, 10))); // clipped away
+        scroll.ScrollTo(0, 200);
+        surface.Frame(20);
+        Assert.False(Taps(root, box, new Point(60, 10))); // faded out
+    }
+
+    [Fact]
+    public void ScreenReadersSeeThePartAClipShowsAndNothingFadedOrClippedAway()
+    {
+        var (scroll, box, root) = Page(source =>
+        [
+            Clip(source, SkUiRenderLinkTarget.ClipHeight, 40, 0),
+            new SkUiRenderLink(source, false, SkUiRenderLinkTarget.Opacity, 0, 50, 1, 0)
+        ], width: 40, height: 40);
+        box.SetSemanticDescription("Header");
+        using var surface = new SkUiTestSurface(root, 140, 100);
+        surface.Frame(0);
+        var header = Assert.Single(SkUiSemanticsTree.Build(root).Flatten(), node => node.Label == "Header");
+        Assert.Equal(40, header.Bounds.Height, 0.01);
+        scroll.ScrollTo(0, 25); // clipped to 30, half faded
+        surface.Frame(10);
+        header = Assert.Single(SkUiSemanticsTree.Build(root).Flatten(), node => node.Label == "Header");
+        Assert.Equal(30, header.Bounds.Height, 0.01);
+        scroll.ScrollTo(0, 50); // faded out
+        surface.Frame(20);
+        Assert.DoesNotContain(SkUiSemanticsTree.Build(root).Flatten(), node => node.Label == "Header");
+    }
+
+    #endregion
 }

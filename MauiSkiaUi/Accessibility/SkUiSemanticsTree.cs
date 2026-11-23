@@ -311,13 +311,26 @@ internal sealed class SkUiSemanticsTree
         {
             if (props.IsSkipped)
                 return;
+            // Faded out or clipped away by a scroll link: hidden, with its subtree; partly clipped: the part that shows,
+            // which also clips its children.
+            var linkClipped = false;
+            var linkClip = default(SkUiRenderLinkClip);
+            if (props.Links is not null)
+            {
+                if (props.LinkValues.Opacity <= 0)
+                    return;
+                linkClipped = props.TryGetLinkClip(out linkClip);
+                if (linkClipped && linkClip.IsEmpty)
+                    return;
+            }
+            var clipsChildren = props.ClipToBounds || linkClipped;
             var toRoot = parentToRoot.PreConcat(props.Matrix);
-            var ownRect = toRoot.MapRect(props.Bounds);
+            var ownRect = toRoot.MapRect(linkClipped ? linkClip.Rect : props.Bounds);
             var visible = Intersect(ownRect, clip);
             // Outside the visible area (scrolled away in a long list) and clipping its children to itself: nothing of the
             // subtree shows, so it is not walked (the tree is rebuilt when it scrolls in). Inside an absorbing element the
             // text is still collected, as the group reads all its text.
-            if (visible.IsEmpty && props.ClipToBounds && absorber is null)
+            if (visible.IsEmpty && clipsChildren && absorber is null)
                 return;
             var element = parent;
             var childAbsorber = absorber;
@@ -377,7 +390,7 @@ internal sealed class SkUiSemanticsTree
 
             // Children: in the children space (scroll offset, overscroll scale), clipped as drawn; pinned children (scroll
             // bars, pinned headers) in local coordinates, outside the children clip.
-            var ownClip = props.ClipToBounds ? Intersect(clip, ownRect) : clip;
+            var ownClip = clipsChildren ? Intersect(clip, ownRect) : clip;
             if (props.ClipPath is { } clipPath)
                 ownClip = Intersect(ownClip, toRoot.MapRect(clipPath.Bounds));
             var childrenClip = props.ChildrenClipRect.IsEmpty ? ownClip : Intersect(ownClip, toRoot.MapRect(props.ChildrenClipRect));
