@@ -347,8 +347,11 @@ public sealed class SkUiScrollEffect : INotifyPropertyChanged
     /// A view moved by <paramref name="translationY"/> DIPs (positive: down, out at the bottom; negative: up) as
     /// <paramref name="reveal"/> hides it: a floating button, a bottom bar, a top bar.
     /// </summary>
-    public static SkUiScrollEffect HideOnScroll(SkUiScrollReveal reveal, double translationY) =>
-        new SkUiScrollEffect { Property = SkUiScrollEffectProperty.TranslationY, From = 0, To = translationY }.SetReveal(reveal);
+    public static SkUiScrollEffect HideOnScroll(SkUiScrollReveal reveal, double translationY)
+    {
+        ArgumentNullException.ThrowIfNull(reveal);
+        return new SkUiScrollEffect { Property = SkUiScrollEffectProperty.TranslationY, From = 0, To = translationY }.SetReveal(reveal);
+    }
 
     /// <summary>Whether it is a clip.</summary>
     internal bool IsClip => Property is SkUiScrollEffectProperty.ClipHeight or SkUiScrollEffectProperty.ClipWidth;

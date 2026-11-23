@@ -663,5 +663,37 @@ public class ScrollEffectTests
 
     #endregion
 
+    [Fact]
+    public void AGentleFlingFromAnEndIsConsumedByTheEndSnap()
+    {
+        var (_, scroller, _, surface) = SnappingPage();
+        using var _ = surface;
+        // At 0, a fling that would stop near 50 (inside 0…144): the nearer end is where it already is; no free fling.
+        Assert.True(scroller.StartFling(new Point(0, 50 / SkUiRenderFling.TotalTravelPerVelocity)));
+        Settle(surface, 10);
+        Assert.Equal(0, scroller.Y, 0.5);
+    }
+
+    [Fact]
+    public void AWheelPauseIsARestForReveals()
+    {
+        var (list, box, root) = Page();
+        var reveal = new SkUiScrollReveal { Response = SkUiScrollRevealResponse.WhileScrolling, Source = list, Distance = 40, Duration = TimeSpan.FromMilliseconds(100) };
+        box.AddScrollEffect(SkUiScrollEffect.HideOnScroll(reveal, 50));
+        using var surface = new SkUiTestSurface(root, 140, 100);
+        list.ScrollTo(0, 400);
+        surface.Frame(0);
+        var scroller = ((ISkUiScrollHost)list).Scroller;
+        scroller.Wheel(0, -60);
+        surface.Frame(16);
+        surface.Frame(32);
+        Assert.False(reveal.IsShown);
+        scroller.OnWheelRest(); // what the wheel's idle delay calls (headless tests have no dispatcher)
+        for (var ms = 48; ms < 400; ms += 16)
+            surface.Frame(ms);
+        Assert.True(reveal.IsShown);
+        Assert.Throws<ArgumentNullException>(() => SkUiScrollEffect.HideOnScroll(null!, 10));
+    }
+
     #endregion
 }

@@ -412,6 +412,8 @@ internal sealed class SkUiScrollController(ISkUiRenderable owner, Action<SkUiRen
         if (!moving)
             FadeBars();
         MovingChanged?.Invoke(moving);
+        if (!moving)
+            CameToRest?.Invoke();
     }
 
     /// <summary>Recognizer that turns drags into scrolling (created on first use).</summary>
@@ -572,7 +574,7 @@ internal sealed class SkUiScrollController(ISkUiRenderable owner, Action<SkUiRen
         StopMotion();
         ClearOverscroll();
         SetOffset(useX ? X + dx : X, useY ? Y + dy : Y);
-        if (SnapPointsType != SnapPointsType.None || HasEndSnapRanges)
+        if (SnapPointsType != SnapPointsType.None || HasEndSnapRanges || CameToRest is not null)
             SnapAfterWheel();
         // An axis this scroller moved is used up, also when its edge cut the step short: the rest is not handed to the
         // outer scrollers, so a list reaching its end does not jerk the page with the same step (as browsers do); the
@@ -585,6 +587,19 @@ internal sealed class SkUiScrollController(ISkUiRenderable owner, Action<SkUiRen
 
     private int _wheelVersion;
 
+    /// <summary>
+    /// Raised when the scroller comes to rest: a drag or render-thread motion ended (<see cref="MovingChanged"/> false), or
+    /// wheel / trackpad scrolling paused (<see cref="WheelSnapDelay"/>), which never sets <see cref="IsMoving"/>.
+    /// </summary>
+    internal event Action? CameToRest;
+
+    /// <summary>Wheel or trackpad scrolling paused: snap, and tell what follows the rest (scroll-direction reveals).</summary>
+    internal void OnWheelRest()
+    {
+        Snap(Point.Zero);
+        CameToRest?.Invoke();
+    }
+
     /// <summary>Settles on the nearest snap point once the wheel or trackpad stops (needs a UI dispatcher).</summary>
     private void SnapAfterWheel()
     {
@@ -592,7 +607,7 @@ internal sealed class SkUiScrollController(ISkUiRenderable owner, Action<SkUiRen
         Microsoft.Maui.Dispatching.Dispatcher.GetForCurrentThread()?.DispatchDelayed(WheelSnapDelay, () =>
         {
             if (version == _wheelVersion && !_moving)
-                Snap(Point.Zero);
+                OnWheelRest();
         });
     }
 
@@ -798,8 +813,12 @@ internal sealed class SkUiScrollController(ISkUiRenderable owner, Action<SkUiRen
         if (SnapPointsType != SnapPointsType.None)
             return Snap(new Point(vx, vy));
         // A fling that would stop inside a range that settles on its ends (a collapsing header half open) snaps instead.
-        if (HasEndSnapRanges && StopsInsideEndSnapRange(vx, vy) && Snap(new Point(vx, vy)))
+        if (HasEndSnapRanges && StopsInsideEndSnapRange(vx, vy))
+        {
+            // Consumed even when already on the nearer end (Snap only sets the offset then): a free fling would stop inside.
+            Snap(new Point(vx, vy));
             return true;
+        }
         StopMotion();
         var mode = EffectiveOverscroll;
         var bounce = mode != SkUiOverscrollMode.None;

@@ -24,7 +24,7 @@ internal sealed class SkUiScrollEffectSet
     private readonly List<ISkUiScrollHost> _listened = [];
     private readonly List<SkUiScrollReveal> _reveals = [];
     private readonly Action _onScrolled;
-    private readonly Action<bool> _onMovingChanged;
+    private readonly Action _onRest;
 
     // What the links were built from.
     private bool _dirty = true;
@@ -42,7 +42,7 @@ internal sealed class SkUiScrollEffectSet
         _invalidate = invalidate;
         _isRightToLeft = isRightToLeft;
         _onScrolled = OnScrolled;
-        _onMovingChanged = OnMovingChanged;
+        _onRest = OnRest;
         Effects = new EffectCollection(this);
     }
 
@@ -273,7 +273,7 @@ internal sealed class SkUiScrollEffectSet
     private void Listen(ISkUiScrollHost host)
     {
         host.Scroller.Scrolled += _onScrolled;
-        host.Scroller.MovingChanged += _onMovingChanged;
+        host.Scroller.CameToRest += _onRest;
     }
 
     private IEnumerable<(bool Horizontal, double Start, double End)> EndSnapRanges(ISkUiScrollHost host)
@@ -287,7 +287,7 @@ internal sealed class SkUiScrollEffectSet
     {
         host.Scroller.SetEndSnapRanges(this, []);
         host.Scroller.Scrolled -= _onScrolled;
-        host.Scroller.MovingChanged -= _onMovingChanged;
+        host.Scroller.CameToRest -= _onRest;
     }
 
     private void OnScrolled()
@@ -299,10 +299,9 @@ internal sealed class SkUiScrollEffectSet
         SkUiSemantics.Invalidate(_owner);
     }
 
-    private void OnMovingChanged(bool moving)
+    /// <summary>The scroller came to rest (a drag or fling ended, or the wheel paused).</summary>
+    private void OnRest()
     {
-        if (moving)
-            return;
         foreach (var reveal in _reveals)
             reveal.OnRest();
     }
