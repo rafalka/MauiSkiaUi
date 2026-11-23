@@ -257,6 +257,24 @@ Not kept ([D9](ImplementationPlan-PerformanceAndControls.md#decisions): allocati
 
 A scroll step costs the same with effects as without, and records nothing for them (the 8 pictures are the rows it realizes). `generate` includes making the effects by reflection (so a baseline without them builds); the effects, links and reflection add about 40 KB per page. Against `v1.15.1` (`--baseline v1.15.1 -n 6 --quiet-gc`, the five scenarios plus `virtual-fling` and `collection-snap-fling`) only `generate` of the pages with effects is slower (the baseline has none to make); every other phase is within noise. The render time per frame during a fling (the plan's 5 % target) is a device measurement, on the verification backlog until the S9 and iPhone 8 run.
 
+### 1.16 on the Galaxy S9 (23 November 2026)
+
+[ImplementationPlan-1.16.md](ImplementationPlan-1.16.md): the cost of the branch when no scroll effect is used, and the lag of the event-based alternative. Galaxy S9 (Android 10), net10, Release.
+
+**No effects, against `v1.15.1`** (`scripts/bench.sh -t android --baseline v1.15.1 -n 6`): `scroll-fling`, `collection-fling`, `virtual-stack-fling`, `virtual-fling`, `carousel-swipe`, `swipe-rows`, `shimmer-list-scroll`, `skui-labels`, `core-labels`, `skui-buttons` and the `-none` scroll effect page: motion frame rates, render times and first frames within noise. The first run showed `heapKB` 5 MB higher in every motion scenario: a single step of exactly 5,000 KB at one iteration, then flat. A second run (`-r 2`, alternating, `scroll-fling`, `collection-fling`, `carousel-swipe`, `skui-scroll-effects-none`) showed the same step in the baseline too: the Android runtime growing its heap by a block, not memory the branch keeps. With it on both sides, the heap is within noise (+0.2 to +1.2 %); 0 of 39 metrics slower. In `skui-scroll-effects`, the page with effects, against the same page on 1.15.1 (which has none): frame rate and render time within noise, 10 % more allocation (the effects and their links).
+
+**Event-based lag** (the demo's Scroll lag page, `-e SKUI_DEMO_ROUTE scroll-lag -e SKUI_SCROLL_LAG run`, two runs): a header over a 10,000-row list moving up at half the scroll speed, from the list's `Scrolled` event (setting `TranslationY`) or from a scroll effect. A probe drawn with the header records on the render thread, in each frame, where the header is drawn against where the offset drawn in that frame puts it. "Busy" adds 8 ms of UI-thread work per 16 ms.
+
+| Motion | Event: mean lag | Event: 95th percentile | Event: largest | Effect |
+| --- | --- | --- | --- | --- |
+| Fling | 2.1–2.3 frames (13–15 DIPs) | 4.2–5.0 frames (40–55 DIPs) | 8–15 frames (77–112 DIPs) | 0 |
+| Fling, busy | 2.3–2.6 frames (12–14 DIPs) | 4.4–5.2 frames (27–45 DIPs) | 6–8 frames (48–68 DIPs) | 0 |
+| Animated scroll | 3.1–3.4 frames (68–71 DIPs) | 5.5–7.0 frames (125–136 DIPs) | 6–8 frames (143 DIPs) | 0 |
+| Animated scroll, busy | 2.7–3.6 frames (57–88 DIPs) | 5.3–8.1 frames (126–164 DIPs) | 9 frames (137–201 DIPs) | 0 |
+| Drag (offsets set on the UI thread) | 0 | 0 | 0 | 0 |
+
+The DIPs are for a view moving at half the scroll speed; one that moves with the content (a collapsing header's edge against the first row) is off by twice as much. During drags the event path is exact: the offset and the handler's change commit together. During render-thread motions (flings, animated scrolls, snaps, springs) the offset reaches the UI thread after the frame that drew it, and the change it causes is drawn two to three frames later on the S9, up to fifteen. Mac Catalyst (Apple silicon, 120 Hz, Debug) showed one frame (up to three when busy).
+
 ## Guidance for agents and reviewers
 
 - Before and after any change that touches layout, text, recording, compositing, surfaces or animations:
