@@ -1,4 +1,5 @@
 using System.Collections;
+using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using System.Windows.Input;
@@ -290,6 +291,31 @@ public partial class SkUiCarouselView : SkUiView, ISkUiScrollStepper
 
     /// <summary>The item at <paramref name="index"/>, or <c>null</c> outside the items.</summary>
     private object? ItemAt(int index) => _source is { } source && index >= 0 && index < source.Count ? source[index] : null;
+
+    private static readonly BindablePropertyKey VisibleViewsPropertyKey = BindableProperty.CreateReadOnly(nameof(VisibleViews),
+        typeof(ObservableCollection<View>), typeof(SkUiCarouselView), null,
+        defaultValueCreator: static view => ((SkUiCarouselView)view).CreateVisibleViews());
+
+    /// <summary>Bindable property for <see cref="VisibleViews"/> (read-only).</summary>
+    public static readonly BindableProperty VisibleViewsProperty = VisibleViewsPropertyKey.BindableProperty;
+
+    private ObservableCollection<View>? _visibleViews;
+
+    /// <summary>
+    /// The item views in view, in the order of the strip (MAUI's <c>CarouselView.VisibleViews</c>): the template root views
+    /// whose bounds reach into the viewport, peeking neighbors included, without the views created on either side ahead of
+    /// time. With an <see cref="ItemEffect"/>, the views it draws (not transparent, placed and scaled into the viewport). Each
+    /// copy of an item a looping carousel shows is listed. Kept current as the carousel scrolls (render-thread flings
+    /// included), changed only when the set does; nothing is tracked until it is first read.
+    /// </summary>
+    public ObservableCollection<View> VisibleViews => (ObservableCollection<View>)GetValue(VisibleViewsProperty);
+
+    private ObservableCollection<View> CreateVisibleViews()
+    {
+        _visibleViews = [];
+        Panel.UpdateVisibleViews();
+        return _visibleViews;
+    }
 
     /// <summary>The view the item template created for the item at <paramref name="index"/> while it shows (the one nearest the current place when the items repeat); else <c>null</c>.</summary>
     public ISkUiView? GetRealizedView(int index) => Panel.RealizedView(index);

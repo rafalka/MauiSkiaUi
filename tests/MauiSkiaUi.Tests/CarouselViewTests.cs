@@ -554,6 +554,162 @@ public class CarouselViewTests
     }
 
     #endregion
+
+    #region VisibleViews
+
+    /// <summary>The items the views in <see cref="SkUiCarouselView.VisibleViews"/> show, in order.</summary>
+    private static List<object?> VisibleItems(SkUiCarouselView carousel) => [.. carousel.VisibleViews.Select(static view => view.BindingContext)];
+
+    [Fact]
+    public void VisibleViewsAreTheViewsInViewWithoutThoseCreatedAhead()
+    {
+        var carousel = Carousel(count: 20);
+        using var surface = new SkUiTestSurface(carousel, 300, 200);
+        surface.Frame(0);
+        Assert.Equal((0, 1), carousel.RealizedSlots); // the next item exists, touching the viewport
+        Assert.Equal(["Item 0"], VisibleItems(carousel));
+        Assert.Same(carousel.GetRealizedView(0), carousel.VisibleViews[0]);
+
+        carousel.ScrollToIndex(10, animated: false);
+        Assert.Equal(["Item 10"], VisibleItems(carousel));
+
+        // Between two items, both show.
+        Scroller(carousel).SetOffset(3100, 0);
+        Assert.Equal(["Item 10", "Item 11"], VisibleItems(carousel));
+    }
+
+    [Fact]
+    public void VisibleViewsIncludeNeighborsPeekingIntoTheInsets()
+    {
+        var carousel = Carousel(count: 5);
+        carousel.PeekAreaInsets = new Thickness(40, 0);
+        carousel.ItemSpacing = 10;
+        using var surface = new SkUiTestSurface(carousel, 300, 200);
+        surface.Frame(0);
+        Assert.Equal(["Item 0", "Item 1"], VisibleItems(carousel));
+        carousel.ScrollToIndex(1, animated: false);
+        Assert.Equal(["Item 0", "Item 1", "Item 2"], VisibleItems(carousel));
+    }
+
+    [Fact]
+    public void VisibleViewsReadLateAreCurrentAndRightToLeftKeepsTheStripOrder()
+    {
+        var carousel = Carousel(count: 10);
+        carousel.ItemExtent = 120;
+        carousel.SnapPointsAlignment = SnapPointsAlignment.Start;
+        carousel.FlowDirection = FlowDirection.RightToLeft;
+        using var surface = new SkUiTestSurface(carousel, 300, 200);
+        surface.Frame(0);
+        carousel.ScrollToIndex(4, animated: false);
+        // Read only now: filled from where the carousel is. Items 4 and 5 whole, 6 partly.
+        Assert.Equal(["Item 4", "Item 5", "Item 6"], VisibleItems(carousel));
+    }
+
+    [Fact]
+    public void VisibleViewsChangeOnceForEachViewEnteringOrLeavingDuringARenderThreadFling()
+    {
+        var carousel = Carousel(count: 50);
+        carousel.ItemExtent = 100;
+        carousel.SnapPointsType = SnapPointsType.None;
+        using var surface = new SkUiTestSurface(carousel, 300, 200);
+        surface.Frame(0);
+        var views = carousel.VisibleViews;
+        var changes = new List<System.Collections.Specialized.NotifyCollectionChangedEventArgs>();
+        views.CollectionChanged += (_, change) => changes.Add(change);
+        Assert.True(Scroller(carousel).StartFling(new Point(1500, 0)));
+        for (var ms = 0; ms < 3000; ms += 16)
+        {
+            surface.Frame(ms);
+            var x = carousel.ScrollView.ScrollX;
+            // Always the items whose bounds reach into [x, x + 300].
+            var first = (int)Math.Floor((x + 0.5) / 100);
+            var last = (int)Math.Ceiling((x + 300 - 0.5) / 100) - 1;
+            Assert.Equal([.. Enumerable.Range(first, last - first + 1).Select(index => (object?)$"Item {index}")], VisibleItems(carousel));
+        }
+        Assert.False(carousel.IsScrolling);
+        Assert.True(carousel.ScrollView.ScrollX > 500);
+        Assert.NotEmpty(changes);
+        Assert.All(changes, change =>
+        {
+            Assert.NotEqual(System.Collections.Specialized.NotifyCollectionChangedAction.Reset, change.Action);
+            Assert.Single((change.NewItems ?? change.OldItems)!);
+        });
+    }
+
+    [Fact]
+    public void ALoopingCarouselWithFewerItemsThanFitListsEachCopy()
+    {
+        var carousel = Carousel(count: 2, loop: true);
+        carousel.ItemExtent = 90;
+        carousel.SnapPointsAlignment = SnapPointsAlignment.Start;
+        using var surface = new SkUiTestSurface(carousel, 300, 200);
+        surface.Frame(0);
+        // 300 DIPs of 90 DIP items: three whole and a part of a fourth, the two items taking turns.
+        Assert.Equal(["Item 0", "Item 1", "Item 0", "Item 1"], VisibleItems(carousel));
+        Assert.Equal(4, carousel.VisibleViews.Distinct().Count());
+    }
+
+    [Fact]
+    public void WithAnItemEffectVisibleViewsAreTheViewsItDraws()
+    {
+        var carousel = Carousel(count: 20);
+        carousel.ItemExtent = 120;
+        carousel.ItemEffect = new SkUiCoverFlowEffect { VisibleSideItems = 2 };
+        using var surface = new SkUiTestSurface(carousel, 300, 200);
+        surface.Frame(0);
+        carousel.ScrollToIndex(10, animated: false);
+        // Cover flow stacks the side items close to the current one: two on either side draw, farther ones are transparent.
+        Assert.Equal(["Item 8", "Item 9", "Item 10", "Item 11", "Item 12"], VisibleItems(carousel));
+    }
+
+    [Fact]
+    public void VisibleViewsEmptyWithoutItemsAndFollowTheItems()
+    {
+        var items = Items(3);
+        var carousel = new SkUiCarouselView { ItemsSource = items, Loop = false, ItemTemplate = new DataTemplate(() => new SkUiBox()) };
+        using var surface = new SkUiTestSurface(carousel, 300, 200);
+        surface.Frame(0);
+        Assert.Single(carousel.VisibleViews);
+        items.Clear();
+        surface.Frame(16);
+        Assert.Empty(carousel.VisibleViews);
+        items.Add("Back");
+        surface.Frame(32);
+        Assert.Equal(["Back"], VisibleItems(carousel));
+    }
+
+    [Fact]
+    public void KeepingVisibleViewsCurrentAllocatesNothingWhileTheSetStaysTheSame()
+    {
+        static long PerStep(bool read)
+        {
+            var carousel = Carousel(count: 20);
+            using var surface = new SkUiTestSurface(carousel, 300, 200);
+            surface.Frame(0);
+            if (read)
+                _ = carousel.VisibleViews;
+            var scroller = Scroller(carousel);
+            var step = 0;
+            // Back and forth between items 0 and 1, so both stay in view.
+            void Step() => scroller.SetOffset(10 + step++ % 20 * 10, 0);
+            for (var i = 0; i < 40; i++)
+                Step();
+            Assert.True(!read || carousel.VisibleViews.Count == 2);
+            var fewest = long.MaxValue;
+            for (var batch = 0; batch < 3; batch++)
+            {
+                var allocated = GC.GetAllocatedBytesForCurrentThread();
+                for (var i = 0; i < 60; i++)
+                    Step();
+                fewest = Math.Min(fewest, GC.GetAllocatedBytesForCurrentThread() - allocated);
+            }
+            return fewest / 60;
+        }
+
+        Assert.Equal(PerStep(read: false), PerStep(read: true));
+    }
+
+    #endregion
 }
 
 /// <summary>The carousel's documented XAML: MAUI's names, a linked indicator, an effect, bindings.</summary>

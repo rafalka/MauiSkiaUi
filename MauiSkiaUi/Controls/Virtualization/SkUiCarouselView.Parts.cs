@@ -1,3 +1,4 @@
+using System.Collections.ObjectModel;
 using MauiSkiaUi.Rendering;
 
 namespace MauiSkiaUi;
@@ -87,6 +88,7 @@ public partial class SkUiCarouselView
         private readonly SkUiCarouselEngine _engine;
         private readonly List<ItemCell> _realized = []; // contiguous slots, ascending
         private readonly List<ItemCell> _drawOrder = [];
+        private readonly List<View> _visible = [];
         private readonly Dictionary<object, Stack<ItemCell>> _pool = [];
         private int _version;
         private double _arrangedCross = double.NaN;
@@ -233,6 +235,7 @@ public partial class SkUiCarouselView
             for (var position = _realized.Count - 1; position >= 0; position--)
                 Release(position);
             InvalidateRender(SkUiRenderDirty.Children);
+            UpdateVisibleViews();
         }
 
         /// <summary>Drops the recycled views (their template or items changed).</summary>
@@ -334,7 +337,71 @@ public partial class SkUiCarouselView
                     ArrangeCell(cell);
             if (changed)
                 InvalidateRender(SkUiRenderDirty.Children);
+            UpdateVisibleViews();
             return changed;
+        }
+
+        /// <summary>
+        /// Brings the carousel's <see cref="SkUiCarouselView.VisibleViews"/> (once it was read) up to the item views in view, in
+        /// strip order: with an item effect, the ones it draws (not transparent, moved and scaled into the viewport). The
+        /// collection changes only when the set does.
+        /// </summary>
+        public void UpdateVisibleViews()
+        {
+            if (_owner._visibleViews is not { } views)
+                return;
+            _visible.Clear();
+            if (HasGeometry)
+            {
+                var logical = LogicalOffset;
+                var effect = _owner._effect;
+                var physical = _engine.Physical(logical);
+                var metrics = Metrics;
+                foreach (var cell in _realized)
+                {
+                    if (cell.Content is not View view)
+                        continue;
+                    bool show;
+                    if (effect is null)
+                    {
+                        show = _engine.IsSlotInView(cell.Slot, logical);
+                    }
+                    else
+                    {
+                        var transform = effect.GetItemTransform(_engine.ItemPosition(cell.Slot, physical), metrics);
+                        show = transform.Opacity > 0 && _engine.IsSlotInView(cell.Slot, logical, transform.Translation, transform.Scale);
+                    }
+                    if (show)
+                        _visible.Add(view);
+                }
+            }
+            Sync(views, _visible);
+            _visible.Clear();
+        }
+
+        /// <summary>Changes <paramref name="views"/> into <paramref name="target"/> by removing, moving and inserting only what differs.</summary>
+        private static void Sync(ObservableCollection<View> views, List<View> target)
+        {
+            for (var index = 0; index < target.Count; index++)
+            {
+                while (index < views.Count && !target.Contains(views[index]))
+                    views.RemoveAt(index);
+                if (index < views.Count && ReferenceEquals(views[index], target[index]))
+                    continue;
+                var existing = -1;
+                for (var later = index + 1; later < views.Count; later++)
+                    if (ReferenceEquals(views[later], target[index]))
+                    {
+                        existing = later;
+                        break;
+                    }
+                if (existing > index)
+                    views.Move(existing, index);
+                else
+                    views.Insert(index, target[index]);
+            }
+            while (views.Count > target.Count)
+                views.RemoveAt(views.Count - 1);
         }
 
         /// <summary>The view of the item at <paramref name="index"/> nearest to the snap point, or <c>null</c>.</summary>

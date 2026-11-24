@@ -111,9 +111,7 @@ COLLECTION_VIEW_MAUI_ONLY = {
     "Command": "on a RefreshView this is RefreshCommand",
 }
 # MAUI CarouselView / IndicatorView members the drawn ones do not have, with what to do instead.
-CAROUSEL_MAUI_ONLY = {
-    "VisibleViews": "not available: use GetRealizedView(index) or the Scrolled event",
-}
+CAROUSEL_MAUI_ONLY = {}
 INDICATOR_MAUI_ONLY = {}
 SKIA_BASE_RE = re.compile(r"^(SkUi\w+|ISkUiView)$")
 # Drawn views or text in XAML; MAUI's data form (a bound object shown through the template) converts.

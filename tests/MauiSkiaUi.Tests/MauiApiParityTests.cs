@@ -114,7 +114,6 @@ public class MauiApiParityTests
         ("Core nodes are never a surface root, the only place SkiaUi applies the safe area (S1)",
             ["SkUiCoreAbsoluteLayout", "SkUiCoreBorder", "SkUiCoreContentView", "SkUiCoreGrid", "SkUiCoreHorizontalStackLayout", "SkUiCoreScrollView", "SkUiCoreVerticalStackLayout"],
             ["SafeAreaEdges"]),
-        ("Rarely used: GetRealizedView(index) or Scrolled instead; the roadmap's backlog keeps it", ["SkUiCarouselView"], ["VisibleViews", "VisibleViewsProperty"]),
         (CoreChildren, CoreLayouts, ["Count", "IsReadOnly", "Item"]),
         ("Filled in place: SetRowDefinitions / AddRowDefinition, SetColumnDefinitions / AddColumnDefinition", ["SkUiCoreGrid"], ["RowDefinitions", "ColumnDefinitions"]),
         (CoreNotTemplated, ["SkUiCoreContentView", "SkUiCoreIndicatorView"], ["ControlTemplate"]),

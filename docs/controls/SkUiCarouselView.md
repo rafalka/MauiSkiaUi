@@ -20,9 +20,10 @@ A drawn carousel: a strip of cards scrolled one at a time (a photo gallery, onbo
 - **Empty view.** `EmptyView` (or `EmptyViewTemplate`) shows instead of the items while there are none.
 - **Performance.** Scrolling, flings and snaps run on the render thread, as in the scroll view, and record nothing; item effects are evaluated by the compositor (below). A collection change rebinds only the views whose item changed.
 
+- **Visible views.** `VisibleViews` (MAUI's, read-only `ObservableCollection<View>`) holds the item views in view, in the order of the strip: the template root views whose bounds reach into the viewport (more than half a DIP), peeking neighbors included, without the views created ahead on either side. With an item effect, the views it draws: not transparent, and placed and scaled into the viewport. A looping carousel lists each copy of an item it shows. It follows the scrolling (render-thread flings included) and changes only when a view enters or leaves (one `Add` or `Remove` each, a `Move` when a recycled view comes back in another place), never by a reset; nothing is tracked until it is first read. `GetRealizedView(index)` gives the view of one item.
 - **Scroll bars.** `HorizontalScrollBarVisibility` / `VerticalScrollBarVisibility` (MAUI's): `Default` shows none (the position shows in the indicator), `Always` / `Never` as on the scroll view; a looping carousel never shows one, as in MAUI.
 
-Not available: MAUI's `VisibleViews` (use `GetRealizedView(index)` or `Scrolled`), a grouped source, autoplay (set `Position` from a timer), several items per snap point.
+Not available: a grouped source, autoplay (set `Position` from a timer), several items per snap point.
 
 ## Item effects
 
@@ -132,3 +133,5 @@ From MAUI: change `CarouselView` to `sk:SkUiCarouselView` and `IndicatorView` to
 | `ScrollTo(index, …)`, `ScrollTo(item, …)`, `ScrollToRequested` | | MAUI's: the event, then the scroll (not awaited); `ScrollToIndex` / `ScrollToItem` return a task |
 | `ScrollToIndex(index, animated)` / `ScrollToItem(item, animated)` | — | Tasks that complete when the scroll ends (SkiaUi); MAUI's `ScrollTo` overloads too |
 | `Scrolled` (event) | — | MAUI's `ItemsViewScrolledEventArgs` |
+| `VisibleViews` | empty | Read-only, MAUI's: the item views in view, in strip order (above) |
+| `GetRealizedView(index)` | — | The view of an item while it has one (the copy nearest the current place) |

@@ -46,6 +46,9 @@ internal sealed class SkUiCarouselEngine(ISkUiCarouselEngineHost host)
     /// <summary>How many points one snap query lists at most.</summary>
     public const int MaxSnapPoints = 4096;
 
+    /// <summary>How much of an item must be inside the viewport to count as in view, in DIPs (touching it is not showing).</summary>
+    public const double VisibilityTolerance = 0.5;
+
     private double _viewport = double.NaN; // offered along the axis (infinite: unbounded)
     private double _align;
     private double _padEnd;
@@ -263,6 +266,18 @@ internal sealed class SkUiCarouselEngine(ISkUiCarouselEngineHost host)
             last = Math.Max(last, (int)Math.Ceiling(center + effectRange));
         }
         return (Math.Max(0, first), Math.Min(Slots - 1, last));
+    }
+
+    /// <summary>
+    /// Whether slot <paramref name="slot"/> shows in the viewport at <paramref name="logical"/> (more than
+    /// <see cref="VisibilityTolerance"/> of it), moved along the axis by an item effect's physical <paramref name="translation"/>
+    /// and scaled about its center by <paramref name="scale"/>.
+    /// </summary>
+    public bool IsSlotInView(int slot, double logical, double translation = 0, double scale = 1)
+    {
+        var center = SlotStart(slot) + Extent / 2 + (host.Mirrored ? -translation : translation);
+        var half = Extent * Math.Abs(scale) / 2;
+        return center + half > logical + VisibilityTolerance && center - half < logical + ViewportLength - VisibilityTolerance;
     }
 
     /// <summary>The first and last slots in view at <paramref name="logical"/> (within the strip).</summary>
