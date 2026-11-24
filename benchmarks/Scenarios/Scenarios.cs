@@ -81,6 +81,7 @@ public static class Scenarios
         new CollectionFling(),
         new VirtualStackFling(),
         new CarouselSwipe(),
+        new Carousels(),
         new SwipeRows(),
         new RefreshSpinning(),
         new ShimmerListScroll(),
@@ -1397,6 +1398,57 @@ public sealed class CarouselSwipe : BenchScenario
 
     public override Func<View, IDisposable?>? Motion => root =>
         DeviceChecks.Repeat(root, TimeSpan.FromMilliseconds(400), step => ((SkUiCarouselView)root).ScrollTo((step + 1) % 30, animate: true));
+}
+
+/// <summary>
+/// Carousels on a page, headless (1.17 C1): building, laying out and recording a dozen carousels, and moving each to its next
+/// card, which realizes, recycles and rebinds item views and moves a looping strip. What the carousel engine costs.
+/// </summary>
+public sealed class Carousels : BenchScenario
+{
+    private const int Count = 12;
+    private const int Items = 30;
+
+    public override string Name => "carousels";
+    public override string Description => $"{Count} SkUiCarouselViews of {Items} cards in a scroll view (filling and peeking, several in view, looping with cover flow); update = each moved to its next card, not animated";
+
+    public override View Build()
+    {
+        var stack = new SkUiVerticalStackLayout { Spacing = 8 };
+        for (var index = 0; index < Count; index++)
+        {
+            var carousel = new SkUiCarouselView
+            {
+                HeightRequest = 120, IsScrollAnimated = false, Loop = index % 2 == 0,
+                ItemsSource = Enumerable.Range(0, Items).ToList(),
+                ItemTemplate = new DataTemplate(DeviceChecks.Card)
+            };
+            switch (index % 3)
+            {
+                case 0:
+                    carousel.PeekAreaInsets = new Thickness(40, 0);
+                    carousel.ItemSpacing = 8;
+                    break;
+                case 1:
+                    carousel.ItemExtent = 140;
+                    carousel.SnapPointsAlignment = SnapPointsAlignment.Start;
+                    break;
+                default:
+                    carousel.ItemExtent = 180;
+                    carousel.ItemEffect = new SkUiCoverFlowEffect();
+                    break;
+            }
+            stack.Children.Add(carousel);
+        }
+        return Scenarios.Scroll(stack);
+    }
+
+    public override Action<View>? Update => root =>
+    {
+        foreach (var child in ((SkUiVerticalStackLayout)((SkUiScrollView)root).Content!).Children)
+            if (child is SkUiCarouselView carousel)
+                carousel.Position = (carousel.Position + 1) % Items;
+    };
 }
 
 /// <summary>20 swipe view rows, one opened and the one before closed every 200 ms, alternating sides (1.14 B4).</summary>
