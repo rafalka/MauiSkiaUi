@@ -283,6 +283,7 @@ public sealed class ControlsGalleryPage : ContentPage
         _ when type == typeof(SkUiCoreVerticalShrinkLayout) => Framed(CoreVerticalShrinkLayoutDemoPage.CreateHost(out _, out _), 240, 160),
         _ when type == typeof(SkUiCoreHorizontalAlignStackLayout) => Framed(CoreHorizontalAlignStackLayoutDemoPage.CreateHost(out _, out _, out _, out _), 300, AlignStackDemo.AreaHeight),
         _ when type == typeof(SkUiCoreScrollView) => Framed(CoreScrollViewDemoPage.CreateHost(out _, out _, out _, out _, out _), 300, 200),
+        _ when type == typeof(SkUiCoreCarouselView) => Framed(CoreCarouselViewDemoPage.CreateSample(), 300, 200),
         _ when type == typeof(SkUiCoreBorder) => Framed(CorePressEffectDemoPage.CreateHost(out _, out _, out _), 300, 200),
         _ when type == typeof(SkUiCoreStateContainer) => Framed(CoreStateContainerDemoPage.CreateHost(out _), 260, 160),
         _ when type == typeof(SkUiCoreExpander) => Framed(CoreExpanderDemoPage.CreateHost(out _), 280, 180),

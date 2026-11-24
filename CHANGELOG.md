@@ -28,6 +28,8 @@ Publishing (the NuGet publish workflow, [docs/Releasing.md](docs/Releasing.md)) 
 
 - **Carousel autoplay:** `SkUiCarouselView.AutoPlayInterval` moves the carousel by itself, one snap point (or page) per interval, animated, back to the first item at the end of a carousel that does not loop. It waits while the user drags, flings, hovers it or has keyboard focus inside it, a full interval after it comes to rest, while it is hidden and while the app is in the background; a running screen reader pauses it, and reduce motion makes the steps jump. `IsAutoPlayPaused` is the app's pause. Docs: [SkUiCarouselView](docs/controls/SkUiCarouselView.md#how-it-works).
 
+- **Core carousel:** `SkUiCoreCarouselView`, the carousel on Core nodes, on the same layout engine as `SkUiCarouselView`: an item factory (`SetItemFactory(create, bind, key)`) whose nodes are recycled per key, `Position` / `CurrentItem` with MAUI's events, looping, peek insets, several items in view or per snap point, item effects drawn by the compositor, autoplay, `VisibleNodes`, loading more and an empty view. `SkUiCoreIndicatorView.SetCarousel` links an indicator. Docs: [SkUiCarouselView](docs/controls/SkUiCarouselView.md#core-carousel).
+
 ### Fixes
 
 - iOS: a drawn scroller no longer keeps the keyboard's room after the page that holds the surface shrinks to end at the keyboard's top (an app that resizes its pages for the keyboard itself). The keyboard's top is placed again when the surface moves or resizes, and a surface root that resizes measures its scrollers' room for the keyboard again, so a focused field is revealed within the content's own range instead of past its end ([#120](https://github.com/rafalka/MauiSkiaUi/issues/120)).

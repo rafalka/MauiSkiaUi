@@ -16,6 +16,7 @@ Shared pipelines: [Architecture.md](../design/Architecture.md) · [LayoutSystem.
 | `SkUiCoreGridSplitter` | [SkUiGridSplitter.md](SkUiGridSplitter.md) | Resizes the rows or columns of a Core grid or table (column grips in a table header); same engine as `SkUiGridSplitter` |
 | `SkUiCoreWrapLayout` / `SkUiCoreTileLayout` / `SkUiCoreHorizontalShrinkLayout` / `SkUiCoreVerticalShrinkLayout` / `SkUiCoreHorizontalAlignStackLayout` | [SkUiWrapLayout.md](SkUiWrapLayout.md), [SkUiTileLayout.md](SkUiTileLayout.md), [SkUiShrinkLayout.md](SkUiShrinkLayout.md), [SkUiHorizontalAlignStackLayout.md](SkUiHorizontalAlignStackLayout.md) | Same engines as the SkUi* twins (no Core flex layout) |
 | `SkUiCoreLabel` / `Button` / toggles / `Slider` / `ProgressBar` / Image / shapes / … | [SkUiCore.md](SkUiCore.md) | Core primitives & basic controls |
+| `SkUiCoreCarouselView` | [SkUiCarouselView.md](SkUiCarouselView.md#core-carousel) | The carousel on Core (1.17): the same layout engine, an item factory instead of a template, a linked `SkUiCoreIndicatorView` |
 | `SkUiCoreHost` | [SkUiCore.md](SkUiCore.md) | `SkUiView` bridge for Core roots |
 | `SkUiWeakListener<T>` / `SkUiWeakEvent` | [SkUiCore.md](SkUiCore.md#listening-to-shared-sources-own-controls) | Weak listening to shared sources and weak app-wide events, for your own controls (both layers) |
 | `SkUiDisplayBinding` | [SkUiCore.md](SkUiCore.md#item-texts-through-a-binding-own-controls) | Item texts through an `ItemDisplayBinding`-style binding, without keeping the last item alive, for your own controls (both layers) |

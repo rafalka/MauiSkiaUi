@@ -5,7 +5,8 @@ namespace MauiSkiaUi.Core;
 /// <summary>
 /// Drawn row of indicators, one per item, with the current one selected (Core analogue of <c>SkUiIndicatorView</c>), drawn
 /// by the look (<see cref="SkUiLook.DrawIndicators"/>). A tap on an indicator selects it; the selection moves with the look's
-/// <see cref="SkUiTransitionKind.IndicatorPosition"/> transition. Drive it from a pager of your own with
+/// <see cref="SkUiTransitionKind.IndicatorPosition"/> transition. Link it to a <see cref="SkUiCoreCarouselView"/> with
+/// <see cref="SetCarousel"/> (MAUI's <c>IndicatorView</c> link), or drive it from a pager of your own with
 /// <see cref="Position"/> and <see cref="Count"/>.
 /// </summary>
 public class SkUiCoreIndicatorView : SkUiCoreNode, ISkUiKeyHandler
@@ -88,7 +89,99 @@ public class SkUiCoreIndicatorView : SkUiCoreNode, ISkUiKeyHandler
         _model.PositionChanged(previous);
         InvalidatePaint();
         InvalidateSemantics();
+        // A tap, a key or the app: a linked carousel goes there.
+        if (!_following && Carousel is { } carousel)
+            carousel.OnIndicatorPositionChanged(this);
         return this;
+    }
+
+    // Weak: an indicator that outlives its carousel (kept by the app) keeps no carousel alive.
+    private WeakReference<SkUiCoreCarouselView>? _carousel;
+    private bool _following;
+
+    /// <summary>
+    /// The carousel this indicator shows (MAUI's <c>IndicatorView</c> link), or <c>null</c>: it sets <see cref="Count"/> (one
+    /// indicator per item, or per page with <see cref="SkUiCoreCarouselView.ItemsPerSnapPoint"/>) and <see cref="Position"/>,
+    /// the drawn selection slides with its scrolling (across the wrap of a looping carousel), a tap on an indicator scrolls it
+    /// there, and a vertical carousel makes the row vertical. A carousel shows one indicator: linking another lets the first
+    /// go. Held weakly.
+    /// </summary>
+    public SkUiCoreCarouselView? Carousel
+    {
+        get
+        {
+            if (_carousel is not { } link)
+                return null;
+            if (link.TryGetTarget(out var carousel))
+                return carousel;
+            Unlinked(); // collected without unlinking: the indicator is on its own again
+            return null;
+        }
+        set => SetCarousel(value);
+    }
+
+    /// <summary>Sets <see cref="Carousel"/>.</summary>
+    public SkUiCoreIndicatorView SetCarousel(SkUiCoreCarouselView? value)
+    {
+        var current = Carousel;
+        if (ReferenceEquals(current, value))
+            return this;
+        current?.UnlinkIndicator(this);
+        if (value is null)
+        {
+            Unlinked();
+        }
+        else
+        {
+            _carousel = new WeakReference<SkUiCoreCarouselView>(value);
+            _model.IsDriven = true;
+            value.LinkIndicator(this);
+        }
+        OnPropertyChanged(nameof(Carousel));
+        return this;
+    }
+
+    /// <summary>No carousel drives the indicator any more: it draws its own position and does not wrap.</summary>
+    private void Unlinked()
+    {
+        _carousel = null;
+        _model.IsDriven = false;
+        var changed = _model.Drive(null) | _model.Wraps;
+        _model.Wraps = false;
+        if (changed)
+            InvalidatePaint();
+    }
+
+    /// <summary>The linked carousel moved to <paramref name="position"/> (an indicator's index).</summary>
+    internal void FollowCarousel(int position)
+    {
+        _following = true;
+        try { SetPosition(position); }
+        finally { _following = false; }
+    }
+
+    /// <summary>The linked carousel's count of indicators (items or pages) and its position.</summary>
+    internal void FollowCarouselCount(int count, int position)
+    {
+        _following = true;
+        try
+        {
+            SetCount(count);
+            SetPosition(count > 0 ? Math.Min(position, count - 1) : position);
+        }
+        finally
+        {
+            _following = false;
+        }
+    }
+
+    /// <summary>The linked carousel's drawn position (fractional while it scrolls) and whether it loops.</summary>
+    internal void FollowDrawn(double position, bool wraps)
+    {
+        var changed = _model.Wraps != wraps;
+        _model.Wraps = wraps;
+        if (_model.Drive(position) || changed)
+            InvalidatePaint();
     }
 
     /// <summary>Sets <see cref="Count"/>.</summary>

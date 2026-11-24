@@ -2,7 +2,7 @@
 
 A drawn row of indicators, one per item, with the current one selected: the dots under a carousel or a paged onboarding flow.
 
-**MAUI counterpart:** `IndicatorView`. Its XAML ports by changing the prefix, `IndicatorTemplate` included when the template creates drawn views ([below](#indicator-templates)). Beyond MAUI: `IndicatorSpacing`, `Orientation` (vertical rows for vertical carousels), a selection that slides with a linked carousel's scrolling, and drawing by the look. Core twin: `SkUiCoreIndicatorView` (fluent setters, the same drawing and taps).
+**MAUI counterpart:** `IndicatorView`. Its XAML ports by changing the prefix, `IndicatorTemplate` included when the template creates drawn views ([below](#indicator-templates)). Beyond MAUI: `IndicatorSpacing`, `Orientation` (vertical rows for vertical carousels), a selection that slides with a linked carousel's scrolling, and drawing by the look. Core twin: `SkUiCoreIndicatorView` (fluent setters, the same drawing and taps; `SetCarousel` links a `SkUiCoreCarouselView`, as the carousel's `IndicatorView` does here).
 
 ## How it works
 

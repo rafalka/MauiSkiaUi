@@ -54,6 +54,32 @@ public sealed class TableEffect : SkUiCarouselEffect
 }
 ```
 
+## Core carousel
+
+`SkUiCoreCarouselView` (1.17) is the carousel on the Core layer, on the same layout engine: the members above in fluent form (`SetItemsSource`, `SetPosition`, `SetLoop`, `SetPeekAreaInsets`, `SetItemExtent`, `SetItemSpacing`, `SetOrientation`, `SetSnapPointsType`, `SetSnapPointsAlignment`, `SetItemsPerSnapPoint`, `SetItemEffect`, `SetAutoPlayInterval`, …, with `INotifyPropertyChanged`), MAUI's `PositionChanged` / `CurrentItemChanged` arguments, `ScrollToIndex` / `ScrollToItem` tasks, `RemainingItemsThreshold` and its event, `EmptyView` (a node), `GetRealizedNode(index)` and `VisibleNodes` (with `VisibleNodesChanged`, raised when a node enters or leaves the view).
+
+- **Item factory, not a template.** `SetItemFactory(create, bind, key)`: `create` makes a node for an item, `bind` shows an item in a node (again whenever a recycled node shows another item), and the optional `key` keeps nodes of different kinds of items apart (a template selector's role). Only the items in view and one on either side have nodes; without a factory each item shows its text in a centered `SkUiCoreLabel`.
+- **Indicator.** `SkUiCoreIndicatorView.SetCarousel(carousel)` links an indicator: its count and position follow (pages with `ItemsPerSnapPoint`), its selection slides with the scrolling, and a tap scrolls the carousel. A carousel shows one indicator.
+- **Not on Core:** MAUI's `ItemsLayout`, visual states (Core has no `VisualStateManager`; `bind` can read `Position`), scroll bars. Autoplay reads whether a Core carousel is shown through its ancestors at each step (Core nodes have no shown tracking): hidden or removed itself it stops at once; hidden through an ancestor it holds at the next tick, and once shown again it waits at least a full interval.
+- **Cost.** In the `core-carousels` bench (12 carousels of 30 cards, as `carousels`) the Core carousels allocate about a sixth of the drawn ones and lay out in a fraction of the time.
+
+```csharp
+var carousel = new SkUiCoreCarouselView()
+    .SetItemsSource(destinations)
+    .SetPeekAreaInsets(new Thickness(40, 0))
+    .SetItemSpacing(12)
+    .SetItemFactory(
+        create: _ => new SkUiCoreBorder().SetCornerRadius(16).SetContent(new SkUiCoreLabel().SetTextColor(Colors.White)),
+        bind: (node, item) =>
+        {
+            var card = (SkUiCoreBorder)node;
+            var destination = (Destination)item!;
+            card.SetBackgroundColor(destination.Color);
+            ((SkUiCoreLabel)card.Content!).SetText(destination.Name);
+        });
+var dots = new SkUiCoreIndicatorView().SetCarousel(carousel);
+```
+
 ## Shared conventions
 
 All SkiaUi controls inherit [`SkUiView`](SkUiView.md) behavior:

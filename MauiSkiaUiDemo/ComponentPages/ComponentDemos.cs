@@ -143,6 +143,8 @@ public static class ComponentDemos
         new(typeof(SkUiCoreHorizontalAlignStackLayout), typeof(CoreHorizontalAlignStackLayoutDemoPage), ComponentDemo.SkUiOnlyCounterpart, ComponentCategory.Core, () => new CoreHorizontalAlignStackLayoutDemoPage()),
         new(typeof(SkUiCoreScrollView), typeof(CoreScrollViewDemoPage), ComponentDemo.SkUiOnlyCounterpart, ComponentCategory.Core, () => new CoreScrollViewDemoPage(),
             Scenario: "scrolling with gestures"),
+        new(typeof(SkUiCoreCarouselView), typeof(CoreCarouselViewDemoPage), ComponentDemo.SkUiOnlyCounterpart, ComponentCategory.Core, () => new CoreCarouselViewDemoPage(),
+            Scenario: "carousel with an item factory and indicator"),
         new(typeof(SkUiCoreBorder), typeof(CorePressEffectDemoPage), ComponentDemo.SkUiOnlyCounterpart, ComponentCategory.Core,
             () => new CorePressEffectDemoPage(), Key: "CompositeButtons", Scenario: "composite buttons (press effect)"),
         new(typeof(SkUiCoreStateContainer), typeof(CoreStateContainerDemoPage), ComponentDemo.SkUiOnlyCounterpart, ComponentCategory.Core, () => new CoreStateContainerDemoPage(),

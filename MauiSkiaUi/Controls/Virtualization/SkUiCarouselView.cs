@@ -576,7 +576,8 @@ public partial class SkUiCarouselView : SkUiView, ISkUiScrollStepper
             command.Execute(CurrentItemChangedCommandParameter);
     }
 
-    private static PositionChangedEventArgs? TryCreatePositionArgs(int previous, int value)
+    /// <summary>MAUI's position event arguments (internal constructor), or <c>null</c> where it is missing; also used by the Core carousel.</summary>
+    internal static PositionChangedEventArgs? TryCreatePositionArgs(int previous, int value)
     {
         try
         {
@@ -588,7 +589,8 @@ public partial class SkUiCarouselView : SkUiView, ISkUiScrollStepper
         }
     }
 
-    private static CurrentItemChangedEventArgs? TryCreateCurrentItemArgs(object? previous, object? value)
+    /// <summary>MAUI's current-item event arguments (internal constructor), or <c>null</c> where it is missing; also used by the Core carousel.</summary>
+    internal static CurrentItemChangedEventArgs? TryCreateCurrentItemArgs(object? previous, object? value)
     {
         try
         {
