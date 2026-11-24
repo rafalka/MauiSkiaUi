@@ -55,6 +55,7 @@ public static class ComponentDemos
             Scenario: "in a RadioButton ControlTemplate"),
         new(typeof(SkUiContentView), typeof(ContentViewDemoPage), nameof(ContentView), ComponentCategory.Layouts, () => new ContentViewDemoPage()),
         new(typeof(SkUiZoomView), typeof(ZoomViewDemoPage), ComponentDemo.SkUiOnlyCounterpart, ComponentCategory.Layouts, () => new ZoomViewDemoPage()),
+        new(typeof(SkUiTabView), typeof(TabViewDemoPage), ComponentDemo.SkUiOnlyCounterpart, ComponentCategory.Layouts, () => new TabViewDemoPage()),
         new(typeof(SkUiAlternateContentView), typeof(AlternateContentViewDemoPage), ComponentDemo.SkUiOnlyCounterpart, ComponentCategory.Layouts, () => new AlternateContentViewDemoPage()),
         new(typeof(SkUiShimmer), typeof(ShimmerDemoPage), ComponentDemo.SkUiOnlyCounterpart, ComponentCategory.Layouts, () => new ShimmerDemoPage(),
             Scenario: "skeleton animations"),

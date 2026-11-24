@@ -104,7 +104,29 @@ internal sealed class SkUiRenderLink
             clipCornerRadius) =>
         Reveal = reveal;
 
+    /// <summary>
+    /// A channel that is piecewise linear in the offset: at <paramref name="inputs"/>[i] (ascending) the output is
+    /// <paramref name="outputs"/>[i], linear between neighbors and held outside the first and last. A tab view's indicator
+    /// uses it to hit each tab's position and width exactly while the panes move (no easing table can).
+    /// </summary>
+    public SkUiRenderLink(SkUiRenderNode source, bool horizontal, SkUiRenderLinkTarget target, float[] inputs, float[] outputs,
+        SkUiRenderLinkClipEdge clipEdge = SkUiRenderLinkClipEdge.Start, SkUiRenderLinkClipShape clipShape = SkUiRenderLinkClipShape.Rectangle)
+        : this(source, horizontal, target, inputs.Length > 0 ? inputs[0] : 0, inputs.Length > 0 ? inputs[^1] : 0,
+            outputs.Length > 0 ? outputs[0] : 0, outputs.Length > 0 ? outputs[^1] : 0, null, clipEdge, clipShape)
+    {
+        if (inputs.Length != outputs.Length || inputs.Length == 0)
+            throw new ArgumentException("A piecewise channel needs as many outputs as inputs, at least one.", nameof(outputs));
+        Inputs = inputs;
+        Outputs = outputs;
+    }
+
     public SkUiRenderNode Source { get; }
+
+    /// <summary>A piecewise channel's break points (ascending offsets), or <c>null</c>.</summary>
+    public float[]? Inputs { get; }
+
+    /// <summary>A piecewise channel's outputs at <see cref="Inputs"/>.</summary>
+    public float[]? Outputs { get; }
 
     /// <summary>The scroll-direction input that drives the channel instead of the offset; <c>null</c> = the offset.</summary>
     public SkUiRenderReveal? Reveal { get; }
@@ -138,6 +160,8 @@ internal sealed class SkUiRenderLink
     /// <summary>The output for an input offset.</summary>
     public float Evaluate(float input)
     {
+        if (Inputs is { } inputs && Outputs is { } outputs)
+            return Piecewise(inputs, outputs, input);
         float progress;
         if (_inverseSpan == 0) // the step sentinel set in the constructor
             progress = input >= InputStart ? 1 : 0;
@@ -146,6 +170,21 @@ internal sealed class SkUiRenderLink
         if (Curve is { } curve)
             progress = Sample(curve, progress);
         return From + (To - From) * progress;
+    }
+
+    private static float Piecewise(float[] inputs, float[] outputs, float input)
+    {
+        if (input <= inputs[0])
+            return outputs[0];
+        var last = inputs.Length - 1;
+        if (input >= inputs[last])
+            return outputs[last];
+        var index = 0;
+        while (index < last - 1 && input >= inputs[index + 1])
+            index++;
+        var span = inputs[index + 1] - inputs[index];
+        var fraction = span > 0 ? (input - inputs[index]) / span : 1;
+        return outputs[index] + (outputs[index + 1] - outputs[index]) * fraction;
     }
 
     /// <summary>A curve sampled at equal steps, read at <paramref name="progress"/> (0…1) with linear interpolation.</summary>

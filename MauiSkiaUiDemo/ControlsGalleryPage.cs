@@ -176,6 +176,7 @@ public sealed class ControlsGalleryPage : ContentPage
         _ when type == typeof(SkUiSlider) => new SkUiSlider { Value = 0.4, WidthRequest = 200 },
         _ when type == typeof(SkUiStepper) => new SkUiStepper { Value = 3, Maximum = 10 },
         _ when type == typeof(SkUiSegmentedControl) => SegmentedControlDemoPage.CreateControl(),
+        _ when type == typeof(SkUiTabView) => Framed(TabViewDemoPage.CreateSample(), 300, 220),
         _ when type == typeof(SkUiStepper<decimal>) => new SkUiStepper<decimal> { Maximum = 10, Increment = 0.25m, Value = 1.5m },
         _ when type == typeof(SkUiProgressBar) => new SkUiProgressBar { Progress = 0.6, WidthRequest = 200 },
         _ when type == typeof(SkUiEntry) => new SkUiEntry { Placeholder = "Type here", WidthRequest = 220 },
