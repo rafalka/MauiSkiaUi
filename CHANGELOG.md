@@ -10,7 +10,6 @@ Add entries under `## Unreleased`, grouped under these subsections (only the one
 - `### Other`: behavior changes that are not breaking, performance, samples and demo.
 
 Publishing (the NuGet publish workflow, [docs/Releasing.md](docs/Releasing.md)) renames `## Unreleased` to the new version. The package's `PackageReleaseNotes`, shown on nuget.org as plain text, gets a link to the version's section, the titles of its new features and its breaking changes; the GitHub release gets the whole section. Newest section first; headings are exactly `## <version>`. Sections up to 1.0.0-Prerelease07 predate the subsections.
-- **Dependencies:** SkiaSharp 4.157.0 (was 4.154.0), HarfBuzzSharp 14.4.0.200 (was 14.2.1.400).
 
 ## Unreleased
 
@@ -32,6 +31,7 @@ Publishing (the NuGet publish workflow, [docs/Releasing.md](docs/Releasing.md)) 
 
 - **Samples app:** a *Scroll effects* example, a trip's page built from scroll-linked effects: a landscape header in parallax layers that collapses into a toolbar (and grows when pulled), a title moving into the toolbar, a reading-progress line, section chips that stick under the toolbar, a carousel with parallax pictures, itinerary cards sliding in, and a price bar, an extended Book button and a back-to-top button that react to scrolling.
 - **DevFlow extension:** `dev.skiaui` has a `drag` tool that drags on the drawn content as a finger does (from an element or a window point, in real time, so a fast one flings): DevFlow's own scroll and gesture commands do not move drawn scrollers.
+- **Dependencies:** SkiaSharp 4.157.0 (was 4.154.0), HarfBuzzSharp 14.4.0.200 (was 14.2.1.400).
 
 ## 1.15.1
 
