@@ -382,6 +382,26 @@ public class PipelineTests
     }
 
     [Fact]
+    public void ASurfaceRootMeasuredWithAnUnboundedHeightDoesNotAskTheNativeLayoutWhenItsSizeStays()
+    {
+        // Its width equals the constraint's, but an unbounded axis means the constraint is the parent's own, not a measure
+        // at the root's bounds: a descendant change that keeps the root's size is laid out in place without asking.
+        var child = new SkUiBox { HeightRequest = 40, WidthRequest = 50, HorizontalOptions = LayoutOptions.Start };
+        var root = new SkUiVerticalStackLayout { Children = { new SkUiBox { WidthRequest = 100, HeightRequest = 20 }, child } };
+        using var surface = new SkUiTestSurface(root, 100, 60);
+        IView view = root;
+        view.Measure(100, double.PositiveInfinity);
+        view.Arrange(new Rect(0, 0, 100, 60));
+        surface.Frame();
+        var asked = root.NativeMeasureRequests;
+
+        child.WidthRequest = 70;
+        surface.Frame();
+        Assert.Equal(asked, root.NativeMeasureRequests);
+        Assert.Equal(new Rect(0, 20, 70, 40), child.Frame);
+    }
+
+    [Fact]
     public void ASurfaceRootArrangedNarrowerBeforeItsRelayoutIsMeasuredAtItsNewWidth()
     {
         // The tree changed, then the root is arranged narrower (a window resized) before being measured: its old height
