@@ -542,6 +542,113 @@ public class EntryTests
     }
 
     [Fact]
+    public void AScrollerGivesItsKeyboardRoomBackWhenTheSurfaceShrinksToEndAtTheKeyboard()
+    {
+        // Issue #120: the app shrinks its page to end at the keyboard's top after the keyboard reported its frame.
+        using var _ = SkUiTestHelpers.UseBundledFont();
+        var column = new SkUiVerticalStackLayout();
+        for (var index = 0; index < 10; index++)
+            column.Children.Add(new SkUiBox { HeightRequest = 60 });
+        var field = new SkUiEntry { FontFamily = SkUiTestHelpers.BundledFontFamily };
+        column.Children.Add(field);
+        var scroller = new SkUiScrollView { Content = column };
+        using var surface = new SkUiTestSurface(new SkUiContentView { Content = scroller }, 300, 612);
+        var root = surface.Root;
+        surface.Frame();
+        Assert.True(field.Focus());
+        root.FocusManager.SetKeyboardTop(411);
+        for (var time = 0; time <= 1000; time += 50)
+            surface.Frame(time);
+        Assert.Equal(201, scroller.KeyboardInset, 1);
+        // The surface now ends at the keyboard's top, and the keyboard top it reported is not reported again.
+        SkUiTestHelpers.Arrange(root, 300, 411);
+        for (var time = 1000; time <= 2000; time += 50)
+            surface.Frame(time);
+        Assert.Equal(0, scroller.KeyboardInset);
+        // The offset stays within the content's own range, and the field is still shown.
+        Assert.InRange(scroller.ScrollY, 0, column.Height - scroller.Height + 0.5);
+        Assert.True(column.Height - scroller.Height > 1, "the content still scrolls");
+        var bounds = SkUiDiagnostics.GetRootBounds(field)!.Value;
+        Assert.True(bounds.Bottom <= 411.5, $"field bottom {bounds.Bottom}");
+    }
+
+    [Fact]
+    public void ASurfaceThatShrinksUnderTheKeyboardRevealsTheFieldOnce()
+    {
+        using var _ = SkUiTestHelpers.UseBundledFont();
+        var column = new SkUiVerticalStackLayout();
+        for (var index = 0; index < 10; index++)
+            column.Children.Add(new SkUiBox { HeightRequest = 60 });
+        var field = new SkUiEntry { FontFamily = SkUiTestHelpers.BundledFontFamily };
+        column.Children.Add(field);
+        var scroller = new SkUiScrollView { Content = column };
+        using var surface = new SkUiTestSurface(new SkUiContentView { Content = scroller }, 300, 612);
+        var root = surface.Root;
+        surface.Frame();
+        Assert.True(field.Focus());
+        root.FocusManager.SetKeyboardTop(300);
+        for (var time = 0; time <= 1000; time += 50)
+            surface.Frame(time);
+        var reveals = root.FocusManager.RevealCount;
+        // The platform places the keyboard again for the new frame, which reveals: the resized root does not reveal again.
+        SkUiView.PlatformArrangedOverride = arranged => arranged.FocusManager.SetKeyboardTop(280);
+        try
+        {
+            SkUiTestHelpers.Arrange(root, 300, 500);
+        }
+        finally
+        {
+            SkUiView.PlatformArrangedOverride = null;
+        }
+        Assert.Equal(reveals + 1, root.FocusManager.RevealCount);
+        Assert.Equal(220, scroller.KeyboardInset, 1);
+        // Resized with the keyboard where it was: the root reveals, once.
+        SkUiTestHelpers.Arrange(root, 300, 450);
+        Assert.Equal(reveals + 2, root.FocusManager.RevealCount);
+        Assert.Equal(170, scroller.KeyboardInset, 1);
+        // The same size again: nothing to measure again.
+        SkUiTestHelpers.Arrange(root, 300, 450);
+        Assert.Equal(reveals + 2, root.FocusManager.RevealCount);
+    }
+
+    [Fact]
+    public void AScrollerGivesItsKeyboardRoomBackWhenTheKeyboardNoLongerCoversTheResizedSurface()
+    {
+        // As on iOS: the surface ends at the keyboard's top, and the keyboard placed again for it covers nothing.
+        using var _ = SkUiTestHelpers.UseBundledFont();
+        var column = new SkUiVerticalStackLayout();
+        for (var index = 0; index < 10; index++)
+            column.Children.Add(new SkUiBox { HeightRequest = 60 });
+        var field = new SkUiEntry { FontFamily = SkUiTestHelpers.BundledFontFamily };
+        column.Children.Add(field);
+        var scroller = new SkUiScrollView { Content = column };
+        using var surface = new SkUiTestSurface(new SkUiContentView { Content = scroller }, 300, 612);
+        var root = surface.Root;
+        surface.Frame();
+        Assert.True(field.Focus());
+        root.FocusManager.SetKeyboardTop(411);
+        for (var time = 0; time <= 1000; time += 50)
+            surface.Frame(time);
+        SkUiTestHelpers.Arrange(root, 300, 411);
+        root.FocusManager.SetKeyboardTop(SkUiFocusManager.KeyboardTopInSurface(411, 336, 411));
+        for (var time = 1000; time <= 2000; time += 50)
+            surface.Frame(time);
+        Assert.Equal(0, scroller.KeyboardInset);
+        Assert.InRange(scroller.ScrollY, 0, column.Height - scroller.Height + 0.5);
+    }
+
+    [Theory]
+    [InlineData(300, 336, 612, 300)]
+    // The surface ends at the keyboard's top, also off by a conversion's rounding.
+    [InlineData(411, 336, 411, double.PositiveInfinity)]
+    [InlineData(410.9999, 336, 411, double.PositiveInfinity)]
+    // Below the surface (hidden, a hardware keyboard's bar), or no height.
+    [InlineData(700, 44, 612, double.PositiveInfinity)]
+    [InlineData(300, 0, 612, double.PositiveInfinity)]
+    public void TheKeyboardTopInASurfaceCoversOnlyAboveItsBottom(double top, double height, double surfaceHeight, double expected) =>
+        Assert.Equal(expected, SkUiFocusManager.KeyboardTopInSurface(top, height, surfaceHeight));
+
+    [Fact]
     public void ACoreFieldIsKeptAboveTheKeyboardInItsCoreScroller()
     {
         using var _ = SkUiTestHelpers.UseBundledFont();
