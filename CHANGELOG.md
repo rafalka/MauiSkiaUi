@@ -13,6 +13,8 @@ Publishing (the NuGet publish workflow, [docs/Releasing.md](docs/Releasing.md)) 
 
 ## Unreleased
 
+## 1.16.0
+
 ### New features
 
 - **Scroll-linked effects:** `SkUiScrollEffect` ties a view's translation, scale, opacity or a clip to a scroller, evaluated on the render thread every frame: collapsing headers, parallax pictures, toolbar titles that fade in, headers that grow when the list is pulled past its top. Nothing is recorded again while the list scrolls, and the views follow render-thread flings.
