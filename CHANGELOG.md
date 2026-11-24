@@ -13,6 +13,10 @@ Publishing (the NuGet publish workflow, [docs/Releasing.md](docs/Releasing.md)) 
 
 ## Unreleased
 
+### Other
+
+- **No allocation per frame of a scroll motion:** flings, snapping, animated scrolls and the spring-back from overscroll report to the UI thread without allocating (about 360 bytes per frame before), on both layers. Carousels and collection views gain the same; what they do themselves as items come into view or change position can still allocate.
+
 ## 1.16.0
 
 ### New features

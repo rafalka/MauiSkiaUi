@@ -61,8 +61,18 @@ internal abstract class SkUiRenderAnimation
     /// <summary>Render thread: writes animated values; returns <c>true</c> when finished.</summary>
     internal abstract bool Advance(TimeSpan elapsed, ref SkUiRenderProps props);
 
-    /// <summary>Render thread: optional per-frame UI feedback (latest values), or <c>null</c>.</summary>
-    internal virtual Action? TakeReport(in SkUiRenderProps props) => null;
+    /// <summary>
+    /// Render thread: optional per-frame UI feedback (the latest values), handed to <see cref="DeliverReport"/> on the UI
+    /// thread; <c>false</c> without one. A value, not a closure: it is taken every frame.
+    /// </summary>
+    internal virtual bool TakeReport(in SkUiRenderProps props, out SkUiRenderReport report)
+    {
+        report = default;
+        return false;
+    }
+
+    /// <summary>UI thread: a report taken by <see cref="TakeReport"/>.</summary>
+    internal virtual void DeliverReport(in SkUiRenderReport report) { }
 
     /// <summary>
     /// Render thread: the scroll corrections applied to this motion so far (<see cref="ShiftScroll"/>). Scroll motions report
@@ -159,14 +169,20 @@ internal sealed class SkUiRenderTween : SkUiRenderAnimation
     /// <summary>Optional per-frame UI feedback with the first two animated values (scroll offsets without corrections).</summary>
     internal Action<float, float>? Report { get; init; }
 
-    internal override Action? TakeReport(in SkUiRenderProps props)
+    internal override bool TakeReport(in SkUiRenderProps props, out SkUiRenderReport report)
     {
-        if (Report is not { } report)
-            return null;
+        if (Report is null)
+        {
+            report = default;
+            return false;
+        }
         var first = props.Get(_properties[0]) - Shift(_properties[0]);
         var second = _properties.Length > 1 ? props.Get(_properties[1]) - Shift(_properties[1]) : 0;
-        return () => report(first, second);
+        report = new SkUiRenderReport(first, second);
+        return true;
     }
+
+    internal override void DeliverReport(in SkUiRenderReport report) => Report?.Invoke(report.X, report.Y);
 
     /// <summary>The scroll correction applied to a property's values (children offsets only).</summary>
     internal float Shift(SkUiRenderProperty property) => property switch
@@ -286,14 +302,15 @@ internal sealed class SkUiRenderFling : SkUiRenderAnimation
         _y.Start += dy;
     }
 
-    internal override Action? TakeReport(in SkUiRenderProps props)
+    internal override bool TakeReport(in SkUiRenderProps props, out SkUiRenderReport report)
     {
         var x = props.ChildrenOffsetX - (_mode == SkUiOverscrollMode.Bounce ? _overscrollX : 0) - ScrollShiftX;
         var y = props.ChildrenOffsetY - (_mode == SkUiOverscrollMode.Bounce ? _overscrollY : 0) - ScrollShiftY;
-        var overscrollX = _overscrollX;
-        var overscrollY = _overscrollY;
-        return () => _report(x, y, overscrollX, overscrollY);
+        report = new SkUiRenderReport(x, y, _overscrollX, _overscrollY);
+        return true;
     }
+
+    internal override void DeliverReport(in SkUiRenderReport report) => _report(report.X, report.Y, report.OverscrollX, report.OverscrollY);
 
     /// <summary>One axis of the fling: decay towards an edge, then (with overscroll) the bounce from it.</summary>
     private struct Axis(float velocity, float overscrollLimit)
@@ -347,7 +364,7 @@ internal sealed class SkUiRenderFling : SkUiRenderAnimation
 /// the top (<paramref name="restY"/>, negative). Reports the overscroll to the UI thread every frame.
 /// </summary>
 internal sealed class SkUiRenderOverscrollSettle(float x, float y, float overscrollX, float overscrollY, SkUiOverscrollMode mode,
-    float width, float height, Action<float, float> report, float restY = 0) : SkUiRenderAnimation
+    float width, float height, Action<float, float> reportOverscroll, float restY = 0) : SkUiRenderAnimation
 {
     private float _offsetX = x, _offsetY = y;
 
@@ -384,12 +401,14 @@ internal sealed class SkUiRenderOverscrollSettle(float x, float y, float overscr
 
     internal override void ShiftScrollTargets(float dx, float dy) => OnShiftScroll(dx, dy);
 
-    internal override Action? TakeReport(in SkUiRenderProps props)
+    internal override bool TakeReport(in SkUiRenderProps props, out SkUiRenderReport report)
     {
-        var overscrollX = _x;
-        var overscrollY = _y;
-        return () => report(overscrollX, overscrollY);
+        // Only the overscroll moves: the UI keeps its own offset.
+        report = default(SkUiRenderReport) with { OverscrollX = _x, OverscrollY = _y };
+        return true;
     }
+
+    internal override void DeliverReport(in SkUiRenderReport report) => reportOverscroll(report.OverscrollX, report.OverscrollY);
 }
 
 /// <summary>
@@ -400,7 +419,7 @@ internal sealed class SkUiRenderOverscrollSettle(float x, float y, float overscr
 /// offsets every frame.
 /// </summary>
 internal sealed class SkUiRenderScrollSpring(float targetX, float targetY, float velocityX, float velocityY, float maxX, float maxY,
-    Action<float, float> report) : SkUiRenderAnimation
+    Action<float, float> reportOffset) : SkUiRenderAnimation
 {
     private float _targetX = targetX, _targetY = targetY, _maxX = maxX, _maxY = maxY;
 
@@ -458,10 +477,11 @@ internal sealed class SkUiRenderScrollSpring(float targetX, float targetY, float
         return target + (distance + (velocity + Omega * distance) * t) * Math.Exp(-Omega * t);
     }
 
-    internal override Action? TakeReport(in SkUiRenderProps props)
+    internal override bool TakeReport(in SkUiRenderProps props, out SkUiRenderReport report)
     {
-        var x = props.ChildrenOffsetX - ScrollShiftX;
-        var y = props.ChildrenOffsetY - ScrollShiftY;
-        return () => report(x, y);
+        report = new SkUiRenderReport(props.ChildrenOffsetX - ScrollShiftX, props.ChildrenOffsetY - ScrollShiftY);
+        return true;
     }
+
+    internal override void DeliverReport(in SkUiRenderReport report) => reportOffset(report.X, report.Y);
 }

@@ -103,7 +103,7 @@ On Apple platforms a surface removed from a live layout must be collectable with
 
 Render-thread animation rules:
 
-- Values are reported back to the UI thread: every frame for scroll offsets, at completion for `AnimateAsync`. The reported value is *acknowledged* (`SkUiRenderState.Acknowledge`), so writing it back to the bindable property does not count as a UI change.
+- Values are reported back to the UI thread: every frame for scroll offsets, at completion for `AnimateAsync`. A frame's reports and completions go in one pooled batch (`SkUiRenderReports`) posted as a delegate created once, so a frame of a running motion allocates nothing. The reported value is *acknowledged* (`SkUiRenderState.Acknowledge`), so writing it back to the bindable property does not count as a UI change.
 - If the UI explicitly sets an animated property, the animation is cancelled (superseded) and the UI's value wins.
 - A new animation of the same property cancels the previous one.
 - Detaching a node cancels its animations. Content spin, content slide and timelines need no bookkeeping: they run only while the node is actually drawn, so culled or hidden spinners and shimmers stop requesting frames.

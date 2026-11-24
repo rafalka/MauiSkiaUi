@@ -1383,8 +1383,11 @@ internal sealed class SkUiScrollController(ISkUiRenderable owner, Action<SkUiRen
     private void OnScrolled()
     {
         Scrolled?.Invoke();
-        var moving = _moving;
-        ForEachBar(bar => bar.OnScrolled(moving));
+        // Every frame of a motion: no closure over _moving.
+        if (_moving)
+            ForEachBar(static bar => bar.OnScrolled(moving: true));
+        else
+            ForEachBar(static bar => bar.OnScrolled(moving: false));
     }
 
     private void FadeBars() => ForEachBar(static bar => bar.OnScrollEnded());
