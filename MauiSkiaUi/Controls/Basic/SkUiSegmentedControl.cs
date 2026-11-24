@@ -15,7 +15,7 @@ namespace MauiSkiaUi;
 /// <c>docs/controls/SkUiSegmentedControl.md</c>.
 /// </summary>
 [ContentProperty(nameof(Segments))]
-public class SkUiSegmentedControl : SkUiView, ISkUiFontElement, ISkUiSegmentedOwner
+public class SkUiSegmentedControl : SkUiView, ISkUiFontElement, ISkUiSegmentedOwner, ISkUiKeyHandler
 {
     /// <summary>The engine shared with the Core control, created on first use: property callbacks can run before the constructor.</summary>
     internal SkUiSegmentedModel Model => field ??= new SkUiSegmentedModel(this);
@@ -559,6 +559,28 @@ public class SkUiSegmentedControl : SkUiView, ISkUiFontElement, ISkUiSegmentedOw
     /// <summary>Segment <paramref name="index"/>'s rectangle in the control (tests).</summary>
     internal Rect SegmentBounds(int index) => Model.SegmentBounds(index);
 
+    /// <inheritdoc />
+    internal override bool TakesKeyboardFocus => Model.Count > 0;
+
+    /// <inheritdoc />
+    /// <remarks>The look draws the focus around the track.</remarks>
+    internal override bool ShowsFocusRing => false;
+
+    bool ISkUiKeyHandler.OnKeyDown(in SkUiKeyEvent key) => Model.OnKeyDown(key);
+
+    /// <inheritdoc />
+    protected override void OnPopulateSemantics(SkUiSemanticsInfo info)
+    {
+        base.OnPopulateSemantics(info);
+        Model.PopulateSemantics(info);
+    }
+
+    /// <inheritdoc />
+    protected override bool OnSemanticsAction(SkUiSemanticsActions action) => Model.PerformSemanticsAction(action) || base.OnSemanticsAction(action);
+
+    /// <inheritdoc />
+    internal override bool OnSemanticsPartAction(int part, SkUiSemanticsActions action) => Model.PerformSemanticsPartAction(part, action);
+
     #endregion
 
     #region Owner
@@ -566,6 +588,15 @@ public class SkUiSegmentedControl : SkUiView, ISkUiFontElement, ISkUiSegmentedOw
     Size ISkUiSegmentedOwner.ControlSize => new(Width, Height);
 
     bool ISkUiSegmentedOwner.IsRightToLeft => IsRightToLeft;
+
+    string? ISkUiSegmentedOwner.DescriptionOf(int index) =>
+        !ShowsItems && _segments is { } segments && index < segments.Count ? SemanticProperties.GetDescription(segments[index]) : null;
+
+    string ISkUiSegmentedOwner.AutomationIdOf(int index) =>
+        !ShowsItems && _segments is { } segments && index < segments.Count && segments[index].AutomationId is { Length: > 0 } id
+            ? id : index.ToString(System.Globalization.CultureInfo.InvariantCulture);
+
+    bool ISkUiSegmentedOwner.SelectByUser(int index) => SelectByUser(index);
 
     void ISkUiSegmentedOwner.InvalidateMeasure() => InvalidateMeasureOverride();
 

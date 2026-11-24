@@ -13,7 +13,7 @@ namespace MauiSkiaUi.Core;
 /// <see cref="ItemsSource"/> (texts from <see cref="ItemDisplay"/>); <see cref="SelectedIndex"/> and <see cref="SelectedItem"/>
 /// stay in step. Fluent <c>Set*</c> setters and <see cref="INotifyPropertyChanged"/>.
 /// </summary>
-public class SkUiCoreSegmentedControl : SkUiCoreNode, ISkUiFontElement, ISkUiSegmentedOwner
+public class SkUiCoreSegmentedControl : SkUiCoreNode, ISkUiFontElement, ISkUiSegmentedOwner, ISkUiKeyHandler
 {
     private readonly ObservableCollection<SkUiCoreSegment> _segments = [];
     private readonly HashSet<SkUiCoreSegment> _attached = [];
@@ -255,8 +255,13 @@ public class SkUiCoreSegmentedControl : SkUiCoreNode, ISkUiFontElement, ISkUiSeg
 
     private void OnSegmentPropertyChanged(object? sender, PropertyChangedEventArgs args)
     {
-        if (sender is not SkUiCoreSegment segment || args.PropertyName == nameof(SkUiCoreSegment.AutomationId))
+        if (sender is not SkUiCoreSegment segment)
             return;
+        if (args.PropertyName is nameof(SkUiCoreSegment.AutomationId) or nameof(SkUiCoreSegment.SemanticDescription))
+        {
+            InvalidateSemantics();
+            return;
+        }
         var index = _segments.IndexOf(segment);
         if (index >= 0)
             Model.SetSegment(index, segment.Text, segment.Icon, segment.IsEnabled);
@@ -412,6 +417,28 @@ public class SkUiCoreSegmentedControl : SkUiCoreNode, ISkUiFontElement, ISkUiSeg
     /// <summary>Segment <paramref name="index"/>'s rectangle in the control (tests).</summary>
     internal Rect SegmentBounds(int index) => Model.SegmentBounds(index);
 
+    /// <inheritdoc />
+    internal override bool TakesKeyboardFocus => Model.Count > 0;
+
+    /// <inheritdoc />
+    /// <remarks>The look draws the focus around the track.</remarks>
+    internal override bool ShowsFocusRing => false;
+
+    bool ISkUiKeyHandler.OnKeyDown(in SkUiKeyEvent key) => Model.OnKeyDown(key);
+
+    /// <inheritdoc />
+    protected override void OnPopulateSemantics(SkUiSemanticsInfo info)
+    {
+        base.OnPopulateSemantics(info);
+        Model.PopulateSemantics(info);
+    }
+
+    /// <inheritdoc />
+    protected override bool OnSemanticsAction(SkUiSemanticsActions action) => Model.PerformSemanticsAction(action) || base.OnSemanticsAction(action);
+
+    /// <inheritdoc />
+    internal override bool OnSemanticsPartAction(int part, SkUiSemanticsActions action) => Model.PerformSemanticsPartAction(part, action);
+
     #endregion
 
     #region Owner
@@ -419,6 +446,14 @@ public class SkUiCoreSegmentedControl : SkUiCoreNode, ISkUiFontElement, ISkUiSeg
     Size ISkUiSegmentedOwner.ControlSize => Frame.Size;
 
     bool ISkUiSegmentedOwner.IsRightToLeft => IsRightToLeft;
+
+    string? ISkUiSegmentedOwner.DescriptionOf(int index) => !ShowsItems && index < _segments.Count ? _segments[index].SemanticDescription : null;
+
+    string ISkUiSegmentedOwner.AutomationIdOf(int index) =>
+        !ShowsItems && index < _segments.Count && _segments[index].AutomationId is { Length: > 0 } id
+            ? id : index.ToString(System.Globalization.CultureInfo.InvariantCulture);
+
+    bool ISkUiSegmentedOwner.SelectByUser(int index) => SelectByUser(index);
 
     void ISkUiSegmentedOwner.InvalidateMeasure() => InvalidateMeasure();
 

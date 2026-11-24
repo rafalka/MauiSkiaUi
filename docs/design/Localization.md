@@ -17,6 +17,7 @@ SkiaUi shows or reads out only a few texts of its own; everything else (labels, 
 | `DayText`, `MonthText`, `YearText` | "Day", "Month", "Year" | The headers of a date picker's wheels (`AreColumnHeadersVisible`), and what screen readers call the wheels, headers shown or not |
 | `HourText`, `MinuteText`, `SecondText` | "Hour", "Minute", "Second" | The headers of a time picker's wheels, and what screen readers call them |
 | `WheelPositionFormat` | "{0} of {1}" | What screen readers read after the item in a picker wheel's middle row: its place (from 1) as `{0}`, the wheel's item count as `{1}` |
+| `ItemPositionFormat` | "{0} of {1}" | What screen readers read after a segment of a segmented control (1.17; tabs too): its place (from 1) as `{0}`, the count as `{1}` |
 | `LoadMoreText` | "Load more" | The default load-more button of `SkUiCollectionView` (`LoadMoreMode="Manual"`) |
 | `SelectedStateText` | "Selected" | What screen readers read as the value of a selected collection view item (also a chosen row of a picker with several choices) |
 | `ExpandedStateText` / `CollapsedStateText` | "Expanded" / "Collapsed" | What screen readers read after the header of an `SkUiExpander` or a collapsible collection view group |

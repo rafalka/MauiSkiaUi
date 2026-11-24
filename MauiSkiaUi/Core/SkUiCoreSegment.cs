@@ -13,6 +13,7 @@ public sealed class SkUiCoreSegment : INotifyPropertyChanged
     private ImageSource? _icon;
     private bool _isEnabled = true;
     private string? _automationId;
+    private string? _semanticDescription;
 
     /// <summary>Creates an empty segment.</summary>
     public SkUiCoreSegment() { }
@@ -32,6 +33,9 @@ public sealed class SkUiCoreSegment : INotifyPropertyChanged
     /// <summary>An identifier for UI automation (as <c>SkUiCoreNode.AutomationId</c>).</summary>
     public string? AutomationId { get => _automationId; set => SetAutomationId(value); }
 
+    /// <summary>What screen readers read for the segment when it has no text (an icon-only segment).</summary>
+    public string? SemanticDescription { get => _semanticDescription; set => SetSemanticDescription(value); }
+
     /// <inheritdoc />
     public event PropertyChangedEventHandler? PropertyChanged;
 
@@ -46,6 +50,9 @@ public sealed class SkUiCoreSegment : INotifyPropertyChanged
 
     /// <summary>Sets <see cref="AutomationId"/>.</summary>
     public SkUiCoreSegment SetAutomationId(string? value) => Set(ref _automationId, value);
+
+    /// <summary>Sets <see cref="SemanticDescription"/>.</summary>
+    public SkUiCoreSegment SetSemanticDescription(string? value) => Set(ref _semanticDescription, value);
 
     private SkUiCoreSegment Set<T>(ref T field, T value, [CallerMemberName] string? setter = null)
     {

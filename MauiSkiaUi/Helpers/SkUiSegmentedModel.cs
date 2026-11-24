@@ -11,6 +11,15 @@ internal interface ISkUiSegmentedOwner : ISkUiTransitionHost
     /// <summary>Whether the control lays out right to left (the first segment at the right end).</summary>
     bool IsRightToLeft { get; }
 
+    /// <summary>What segment <paramref name="index"/> is read as when it has no text (an icon's description), or <c>null</c>.</summary>
+    string? DescriptionOf(int index);
+
+    /// <summary>The automation id suffix of segment <paramref name="index"/>'s element (its own id, or its index).</summary>
+    string AutomationIdOf(int index);
+
+    /// <summary>The user chose segment <paramref name="index"/> (a key, a screen reader): the control selects it and runs its command; returns whether it changed.</summary>
+    bool SelectByUser(int index);
+
     void InvalidateMeasure();
     void InvalidatePaint();
     void InvalidateSemantics();
@@ -459,6 +468,102 @@ internal sealed class SkUiSegmentedModel
             Release();
         _owner.InvalidatePaint();
     }
+
+    /// <summary>
+    /// Keys, selecting at once and skipping disabled segments: Left / Right the previous / next segment (mirrored right to
+    /// left), Home / End the first / last; no wrap. The keys are taken while the control is enabled, also at the ends.
+    /// </summary>
+    public bool OnKeyDown(in SkUiKeyEvent key)
+    {
+        if (!IsEnabled || _segments.Count == 0 || key.HasCommandModifier)
+            return false;
+        var rtl = _owner.IsRightToLeft;
+        var target = key.Key switch
+        {
+            SkUiKey.Right => Next(rtl ? -1 : 1),
+            SkUiKey.Left => Next(rtl ? 1 : -1),
+            SkUiKey.Home => Enabled(0, 1),
+            SkUiKey.End => Enabled(_segments.Count - 1, -1),
+            _ => -2
+        };
+        if (target == -2)
+            return false;
+        if (target >= 0)
+            _owner.SelectByUser(target);
+        return true;
+    }
+
+    /// <summary>The next enabled segment from the selection in <paramref name="direction"/> (from the start or end without one), or -1.</summary>
+    private int Next(int direction) =>
+        Selected < 0 ? Enabled(direction > 0 ? 0 : _segments.Count - 1, direction) : Enabled(Selected + direction, direction);
+
+    /// <summary>The first enabled segment from <paramref name="from"/> in <paramref name="direction"/>, or -1.</summary>
+    private int Enabled(int from, int direction)
+    {
+        for (var index = from; index >= 0 && index < _segments.Count; index += direction)
+            if (IsSegmentEnabled(index))
+                return index;
+        return -1;
+    }
+
+    // The segments' element ids, kept while the control lives (an id stays with its place).
+    private int[] _partIds = [];
+
+    private int PartId(int index)
+    {
+        if (_partIds.Length <= index)
+            Array.Resize(ref _partIds, Math.Max(index + 1, _partIds.Length * 2));
+        ref var id = ref _partIds[index];
+        if (id == 0)
+            id = SkUiSemanticsTree.NewId();
+        return id;
+    }
+
+    /// <summary>
+    /// For screen readers: the control is a group whose value is the selected segment, stepped by increment / decrement, and
+    /// each segment an element of its own read with its text (or description), "Selected" and its place ("2 of 3");
+    /// activating one selects it.
+    /// </summary>
+    public void PopulateSemantics(SkUiSemanticsInfo info)
+    {
+        info.IsEnabled &= IsEnabled;
+        if (_segments.Count == 0)
+            return;
+        var strings = SkUiStrings.Current;
+        var culture = System.Globalization.CultureInfo.CurrentCulture;
+        info.Value = Selected >= 0 && Selected < _segments.Count ? Label(Selected) : null;
+        info.IsHorizontal = true;
+        if (IsEnabled)
+            info.Actions |= SkUiSemanticsActions.Increment | SkUiSemanticsActions.Decrement;
+        var size = _owner.ControlSize;
+        Arrange((float)size.Width, (float)size.Height);
+        for (var index = 0; index < _segments.Count; index++)
+        {
+            var place = string.Format(culture, strings.ItemPositionFormat, index + 1, _segments.Count);
+            info.AddPart(new SkUiSemanticsPart(PartId(index), index, _engine.Segment(index), Label(index), "_" + _owner.AutomationIdOf(index),
+                _segments[index].IsEnabled, index == Selected ? string.Concat(strings.SelectedStateText, ", ", place) : place));
+        }
+    }
+
+    private string Label(int index) => _segments[index].Text is { Length: > 0 } text ? text : _owner.DescriptionOf(index) ?? string.Empty;
+
+    /// <summary>A screen reader's increment / decrement: the next or previous enabled segment.</summary>
+    public bool PerformSemanticsAction(SkUiSemanticsActions action)
+    {
+        if (!IsEnabled)
+            return false;
+        var target = action switch
+        {
+            SkUiSemanticsActions.Increment => Next(1),
+            SkUiSemanticsActions.Decrement => Next(-1),
+            _ => -1
+        };
+        return target >= 0 && _owner.SelectByUser(target);
+    }
+
+    /// <summary>A screen reader activated segment <paramref name="part"/>: it is selected.</summary>
+    public bool PerformSemanticsPartAction(int part, SkUiSemanticsActions action) =>
+        action == SkUiSemanticsActions.Activate && IsSegmentEnabled(part) && (_owner.SelectByUser(part) || part == Selected);
 
     /// <summary>The control left its surface: the texts' blobs go (the icons stay loaded).</summary>
     public void ReleaseDrawingResources()
