@@ -50,8 +50,7 @@ internal sealed class SkUiAppleTextInput(SkUiOverlayContainer container) : ISkUi
         if (_keyboardEnd is not { } end || container.Window is null || container.KeyboardFocus is not { } focus)
             return;
         var frame = container.ConvertRectFromView(end, null);
-        // Off the surface's bottom (hidden, or a hardware keyboard's bar below it): no keyboard over the surface.
-        focus.SetKeyboardTop(frame.Top >= container.Bounds.Height || frame.Height <= 0 ? double.PositiveInfinity : frame.Top);
+        focus.SetKeyboardTop(SkUiFocusManager.KeyboardTopInSurface(frame.Top, frame.Height, container.Bounds.Height));
     }
 
     /// <summary>Typed characters arrive through <c>insertText</c>.</summary>

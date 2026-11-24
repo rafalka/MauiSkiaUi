@@ -711,11 +711,13 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
         // layout, when the invalidation above could only ask the native layout.
         if (SkiaParent is null && _measureDirty)
             _relayoutPending = true;
+        // The platform's text input can place the keyboard again for the new frame, revealing the focused field itself.
+        var revealsBefore = _safeArea?.KeyboardFocus?.RevealCount ?? 0;
         Handler?.PlatformArrange(Frame);
         // Offset-only changes are composite-time; the recorder re-records content only when the size changed.
         if (frameChanged)
             InvalidateRender(SkUiRenderDirty.Props);
-        RevealFocusedFieldAfterArrange(SkiaParent is null && previousSize != Frame.Size);
+        RevealFocusedFieldAfterArrange(SkiaParent is null && previousSize != Frame.Size, revealsBefore);
         return Frame.Size;
     }
 

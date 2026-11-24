@@ -132,12 +132,27 @@ public partial class SkUiView
     /// <paramref name="resized"/> while the keyboard is up (an app that shrinks its page to end at the keyboard's top): the
     /// drawn scrollers' room for the keyboard is measured from their new viewports, not kept from the old ones (issue #120).
     /// </summary>
-    private void RevealFocusedFieldAfterArrange(bool resized)
+    /// <param name="resized">Whether this arrange changed the root's size.</param>
+    /// <param name="revealsBefore">The focus manager's <see cref="SkUiFocusManager.RevealCount"/> before the arrange.</param>
+    private void RevealFocusedFieldAfterArrange(bool resized, int revealsBefore)
     {
-        if (_safeArea is not { } state || !(state.RevealAfterArrange || (resized && !double.IsPositiveInfinity(state.KeyboardTop))))
+        if (_safeArea is not { KeyboardFocus: { } focus } state)
             return;
-        state.RevealAfterArrange = false;
-        state.KeyboardFocus?.RevealFocusedField();
+        if (state.RevealAfterArrange)
+        {
+            state.RevealAfterArrange = false;
+            focus.RevealFocusedField();
+            return;
+        }
+        if (!resized || double.IsPositiveInfinity(state.KeyboardTop))
+            return;
+        // Revealed during this arrange already (the platform placed the keyboard again for the new frame); or a root that keeps
+        // its bottom clear of the keyboard pads again first, and the arrange that applies it reveals (exact, as
+        // OnKeyboardTopChanged: a changed padding).
+        if (focus.RevealCount != revealsBefore
+            || (IsSoftInput(SafeAreaEdgesValue.Bottom) && SafeAreaInsetFor(Frame).Bottom != SafeAreaInset.Bottom))
+            return;
+        focus.RevealFocusedField();
     }
 
     private SafeAreaEdges SafeAreaEdgesValue => (SafeAreaEdges)GetValue(SafeAreaEdgesShared);
