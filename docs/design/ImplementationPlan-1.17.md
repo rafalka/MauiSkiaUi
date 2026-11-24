@@ -2,7 +2,7 @@
 
 **Goal:** the carousel closes its last MAUI gaps and gains what apps build around it by hand: MAUI's `VisibleViews`, autoplay, several items per snap point, and a carousel on the Core layer. On the same carousel engine, the review's segmented control and tab view (F1): a one-of-many selector with a sliding selection on both layers, and a tab strip over panes that are created when first shown and swiped on the render thread.
 
-**Status:** proposed 24 November 2026 on `1.17-implementation`. The decisions below are proposed; each is agreed before the step that depends on it starts.
+**Status:** proposed 24 November 2026 on `1.17-implementation`. The decisions below are proposed; each is agreed before the step that depends on it starts. C0 done (SkiaSharp 4.157.0). C1 done (24 November 2026): `SkUiCarouselEngine` and its host interface `ISkUiCarouselEngineHost`, with `CarouselEngineTests`; the carousel's tests unchanged and green; the new headless `carousels` bench (the existing `carousel-swipe` is device-only) within noise of the code before.
 
 **Scope:** the carousel item of the backlog's [MAUI parity](Roadmap.md#maui-parity) and F1 of the [review plan](ImplementationPlan-PerformanceAndControls.md#f1-segmented-control-and-tab-view), which this plan replaces where the two differ. The review's chips (F5) and range slider and rating (F6), planned for 1.17 by the [1.16 plan's D1](ImplementationPlan-1.16.md#decisions), are not in it ([D1](#decisions)).
 
@@ -86,7 +86,7 @@ The review plan's [F1 tables](ImplementationPlan-PerformanceAndControls.md#f1-se
 ### C1 The engine (internal)
 
 - `Controls/Virtualization/SkUiCarouselEngine.cs` per [D2](#decisions): input is the count, the viewport, the insets, the extent, the spacing, the alignment, looping, the direction and the scroll offset; output is each slot's rectangle, the snap offsets (the `ISkUiSnapPointSource` query), the current index, the slots to realize, and the correction when the strip moves back by cycles. `ItemsPanel` keeps the views, the pool, visual states and effect links, and asks the engine for everything else.
-- *Check:* `CarouselViewTests`, `IndicatorViewTests`, `IndicatorTemplateTests` and the `CarouselSwiped` leak scenario green without changes; new `CarouselEngineTests` on the engine alone (fill and extent, peek insets, each alignment, looping and moving back, right to left, zero and one item); `scripts/bench.sh --baseline HEAD -S carousel-swipe` shows no slower frame.
+- *Check:* `CarouselViewTests`, `IndicatorViewTests`, `IndicatorTemplateTests` and the `CarouselSwiped` leak scenario green without changes; new `CarouselEngineTests` on the engine alone (fill and extent, peek insets, each alignment, looping and moving back, right to left, zero and one item); the headless `carousels` bench (12 carousels, each moved a card per update; `carousel-swipe` is device-only) shows no slower phase against the code before the extraction.
 
 ### C2 `VisibleViews`
 

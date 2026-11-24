@@ -78,204 +78,107 @@ public partial class SkUiCarouselView
 
     /// <summary>
     /// The strip of items inside the scroller: item views exist for the slots near the viewport only, recycled per template.
-    /// A looping carousel repeats the items (<c>slot mod count</c>) along a strip of several copies and moves the offset back
-    /// to the middle copy by whole cycles as it scrolls (scroll corrections, which running flings and snaps follow). All
-    /// positions are worked out in logical offsets (from the start of the items; mirrored from the physical offset in
-    /// right-to-left layouts).
+    /// Where the items go, looping included (the strip of copies and moving back to its middle copy by whole cycles), is the
+    /// <see cref="SkUiCarouselEngine"/>'s; the panel realizes, recycles and places the views and drives the scroller.
     /// </summary>
-    private sealed class ItemsPanel(SkUiCarouselView owner) : SkUiView, ISkUiSnapPointSource, ISkUiScrollListener
+    private sealed class ItemsPanel : SkUiView, ISkUiSnapPointSource, ISkUiScrollListener, ISkUiCarouselEngineHost
     {
-        /// <summary>How far from the middle copy (in cycles of all items) a looping carousel goes before it moves back.</summary>
-        private const double RecenterDistance = 0.75;
-
-        /// <summary>How many points one snap query lists at most.</summary>
-        private const int MaxSnapPoints = 4096;
-
+        private readonly SkUiCarouselView _owner;
+        private readonly SkUiCarouselEngine _engine;
         private readonly List<ItemCell> _realized = []; // contiguous slots, ascending
         private readonly List<ItemCell> _drawOrder = [];
         private readonly Dictionary<object, Stack<ItemCell>> _pool = [];
-        private int _count;
         private int _version;
-        private double _viewport = double.NaN; // offered along the axis (infinite: unbounded)
-        private double _viewportLength;
-        private double _crossConstraint = double.PositiveInfinity;
         private double _arrangedCross = double.NaN;
-        private double _extent;
-        private double _stride;
-        private double _spacing;
-        private double _padStart;
-        private double _padEnd;
-        private double _align;
-        private double _length;
-        private int _slots;
-        private int _copies = 1;
-        private bool _geometryValid;
         private bool _arranged;
         private bool _updating;
-        private bool _placeRequested = true; // the first layout places the current item
-        private double? _keep;               // the item position to show once the layout changed
-        private double? _pendingLogical;     // the offset the scroller takes after its next arrange
         private Point _lastOffset;
 
-        private bool Horizontal => owner._horizontal;
+        public ItemsPanel(SkUiCarouselView owner)
+        {
+            _owner = owner;
+            _engine = new SkUiCarouselEngine(this);
+        }
 
-        private bool Mirrored => owner._horizontal && IsRightToLeft;
+        private bool Horizontal => _owner._horizontal;
 
-        public int Count => _count;
+        private bool Mirrored => _owner._horizontal && IsRightToLeft;
+
+        bool ISkUiCarouselEngineHost.Loop => _owner._loop;
+
+        bool ISkUiCarouselEngineHost.Horizontal => _owner._horizontal;
+
+        bool ISkUiCarouselEngineHost.Mirrored => Mirrored;
+
+        public int Count => _engine.Count;
 
         /// <summary>Whether the items repeat without an end.</summary>
-        public bool Loops => owner._loop && _count > 1;
+        public bool Loops => _engine.Loops;
 
         /// <summary>Whether the items are laid out (positions and offsets are known).</summary>
-        public bool HasGeometry => _geometryValid && _stride > 0 && _count > 0 && _slots > 0;
+        public bool HasGeometry => _engine.HasGeometry;
 
         /// <summary>The viewport along the axis (the offered one, or an item and the peek insets when unbounded).</summary>
-        public double ViewportLength => _viewportLength;
+        public double ViewportLength => _engine.ViewportLength;
 
         public (int First, int Last) RealizedSlots => _realized.Count == 0 ? (-1, -1) : (_realized[0].Slot, _realized[^1].Slot);
 
-        public (double Extent, double Stride, int Slots, int Copies) GeometryInfo => (_extent, _stride, _slots, _copies);
+        public (double Extent, double Stride, int Slots, int Copies) GeometryInfo => (_engine.Extent, _engine.Stride, _engine.Slots, _engine.Copies);
 
         #region Geometry
 
-        /// <summary>The largest logical offset.</summary>
-        private double MaxLogical => Math.Max(0, _length - _viewportLength);
-
-        /// <summary>Where the middle copy of the items starts (looping).</summary>
-        private int HomeSlot => _copies / 2 * _count;
-
         /// <summary>The scroller's offset along the axis.</summary>
-        private double PhysicalOffset => Horizontal ? owner.Controller.X : owner.Controller.Y;
+        private double PhysicalOffset => Horizontal ? _owner.Controller.X : _owner.Controller.Y;
 
         /// <summary>The current logical offset: the one the next layout takes, or the scroller's.</summary>
-        private double LogicalOffset => _pendingLogical ?? Logical(PhysicalOffset);
-
-        private double Logical(double physical) => Mirrored ? MaxLogical - physical : physical;
-
-        private double Physical(double logical) => Mirrored ? MaxLogical - logical : logical;
-
-        /// <summary>The logical offset that lines slot <paramref name="slot"/> up at the snap point (not clamped).</summary>
-        private double SnapOffset(int slot) => slot * _stride - _align;
-
-        /// <summary><see cref="SnapOffset"/> within the scroll range (a strip that does not loop cannot pass its ends).</summary>
-        private double ClampedSnapOffset(int slot) => Math.Clamp(SnapOffset(slot), 0, MaxLogical);
-
-        /// <summary>The slot at the snap point, fractional while scrolling.</summary>
-        private double FractionalSlot => (LogicalOffset + _align) / _stride;
+        private double LogicalOffset => _engine.LogicalOffset(PhysicalOffset);
 
         /// <summary>The item at the snap point, fractional (see <see cref="SkUiCarouselView.ScrollPosition"/>).</summary>
-        public double ScrollPosition => Loops ? Mod(FractionalSlot, _count) : Math.Clamp(FractionalSlot, 0, _count - 1);
+        public double ScrollPosition => _engine.ScrollPosition(LogicalOffset);
 
         /// <summary>How far the strip is past the nearest snap point, in items (-0.5 to 0.5).</summary>
-        public double WithinItem => HasGeometry ? FractionalSlot - NearestSlot : 0;
+        public double WithinItem => _engine.WithinItem(LogicalOffset);
 
-        private int IndexOfSlot(int slot) => Loops ? (int)Mod(slot, _count) : slot;
-
-        /// <summary>
-        /// The slot nearest to the snap point. Halves round up (to the next slot), the same way in both directions: banker's
-        /// rounding would round half-item offsets alternately down and up.
-        /// </summary>
-        private int NearestSlot => (int)Math.Floor(FractionalSlot + 0.5);
-
-        private static double Mod(double value, double count) => (value % count + count) % count;
-
-        private SkUiCarouselItemMetrics Metrics => new(_extent, double.IsFinite(_arrangedCross) ? _arrangedCross : 0, _spacing, _viewportLength, Horizontal);
+        private SkUiCarouselItemMetrics Metrics => _engine.Metrics(_arrangedCross);
 
         /// <summary>The viewport along the axis offered by the carousel's layout.</summary>
         public void SetViewport(double viewport)
         {
-            // Exact: a layout offering the same length needs nothing (NaN before the first).
-            if (viewport == _viewport || (double.IsInfinity(viewport) && double.IsInfinity(_viewport)))
-                return;
-            KeepCurrentPlace();
-            _viewport = viewport;
-            InvalidateMeasureOverride();
+            if (_engine.SetViewport(viewport, LogicalOffset, _arranged))
+                InvalidateMeasureOverride();
         }
 
         /// <summary>The number of items changed (or the items did): the item position <paramref name="keep"/> shows once laid out.</summary>
         public void SetCount(int count, double keep)
         {
-            _count = count;
+            _engine.SetCount(count, keep);
             _version++;
-            _keep = count > 0 ? keep : null;
-            _placeRequested = true;
-            _geometryValid = false;
             if (count == 0)
                 ReleaseAll();
             InvalidateMeasureOverride();
         }
 
         /// <summary>The items' layout changes next: the current place (the fractional item at the snap point) is kept.</summary>
-        public void KeepCurrentPlace()
-        {
-            if (HasGeometry && _arranged)
-                _keep ??= Loops ? Mod(FractionalSlot, _count) : FractionalSlot;
-            _placeRequested = true;
-            _geometryValid = false;
-        }
+        public void KeepCurrentPlace() => _engine.KeepCurrentPlace(LogicalOffset, _arranged);
 
         /// <summary>Lays the items out again (a setting or the template changed); their views are rebound.</summary>
         public void Refresh()
         {
             _version++;
-            _geometryValid = false;
+            _engine.Invalidate();
             InvalidateMeasureOverride();
         }
 
         private void UpdateGeometry(double crossConstraint)
         {
-            _crossConstraint = crossConstraint;
-            var insets = owner.PeekAreaInsets;
-            var (start, end) = Horizontal ? (Mirrored ? (insets.Right, insets.Left) : (insets.Left, insets.Right)) : (insets.Top, insets.Bottom);
-            var spacing = owner.LayoutItemSpacing;
-            var itemExtent = owner.ItemExtent;
-            var extent = itemExtent > 0 ? itemExtent
-                : double.IsFinite(_viewport) ? Math.Max(0, _viewport - start - end)
-                : ProbeExtent(crossConstraint);
-            var viewport = double.IsFinite(_viewport) ? _viewport : extent + start + end;
-            var stride = extent + spacing;
-            var inner = viewport - start - end;
-            var align = owner.LayoutSnapPointsAlignment switch
-            {
-                SnapPointsAlignment.Center => (inner - extent) / 2,
-                SnapPointsAlignment.End => inner - extent,
-                _ => 0
-            };
-            var copies = 1;
-            if (Loops && stride > 0)
-            {
-                // Room on either side of the middle copy for the drift before moving back, the longest fling, the viewport
-                // and the items an effect shows.
-                var cycle = _count * stride;
-                var range = owner._effect?.GetVisibleRange(new SkUiCarouselItemMetrics(extent, 0, spacing, viewport, Horizontal)) ?? 0;
-                var reach = RecenterDistance * cycle + SkUiGestureSettings.FlingMaximumVelocity * SkUiRenderFling.TotalTravelPerVelocity
-                    + viewport + (2 + range) * stride;
-                copies = 2 * (int)Math.Ceiling(reach / cycle) + 1;
-            }
-            var slots = stride > 0 ? _count * copies : 0;
-            var length = slots > 0 ? start + slots * stride - spacing + end : start + end;
-            // Exact: any change of the layout's numbers lays the items out again from the kept place.
-            var changed = !_geometryValid && (extent != _extent || stride != _stride || align != _align || copies != _copies || slots != _slots
-                || start != _padStart || end != _padEnd || viewport != _viewportLength || length != _length);
-            (_extent, _stride, _spacing, _align, _copies, _slots, _padStart, _padEnd, _viewportLength, _length) =
-                (extent, stride, spacing, align, copies, slots, start, end, viewport, length);
-            _geometryValid = true;
-            if ((changed || _placeRequested || _keep is not null) && HasGeometry)
-            {
-                var place = _keep ?? Math.Min(owner._position, _count - 1);
-                _pendingLogical = Loops ? SnapOffset(HomeSlot) + place * _stride : Math.Clamp(place * _stride - _align, 0, MaxLogical);
-                // Cells show other slots now: placed again from scratch.
-                _version++;
-            }
-            _keep = null;
-            _placeRequested = false;
+            var layout = new SkUiCarouselLayout(_owner.PeekAreaInsets, _owner.LayoutItemSpacing, _owner.ItemExtent, _owner.LayoutSnapPointsAlignment, _owner._effect);
+            if (_engine.UpdateGeometry(layout, crossConstraint, _owner._position))
+                _version++; // cells show other slots now: placed again from scratch
         }
 
         /// <summary>Items that fill an unbounded carousel are as long as the first one measures.</summary>
-        private double ProbeExtent(double cross)
+        double ISkUiCarouselEngineHost.ProbeExtent(double cross)
         {
-            if (_count == 0)
-                return 0;
             var cell = TakeCell(0);
             var size = Horizontal ? ((IView)cell).Measure(double.PositiveInfinity, cross) : ((IView)cell).Measure(cross, double.PositiveInfinity);
             ReturnCell(cell);
@@ -288,9 +191,9 @@ public partial class SkUiCarouselView
 
         private ItemCell TakeCell(int index)
         {
-            var key = owner.ItemKey(owner.ItemAt(index));
-            var cell = _pool.TryGetValue(key, out var pooled) && pooled.TryPop(out var recycled) ? recycled : owner.CreateCell(key);
-            owner.BindCell(cell, index);
+            var key = _owner.ItemKey(_owner.ItemAt(index));
+            var cell = _pool.TryGetValue(key, out var pooled) && pooled.TryPop(out var recycled) ? recycled : _owner.CreateCell(key);
+            _owner.BindCell(cell, index);
             cell.Version = _version;
             return cell;
         }
@@ -305,7 +208,7 @@ public partial class SkUiCarouselView
 
         private ItemCell Realize(int slot)
         {
-            var cell = TakeCell(IndexOfSlot(slot));
+            var cell = TakeCell(_engine.IndexOfSlot(slot));
             cell.Slot = slot;
             cell.VisualState = null;
             AddLogicalChild(cell);
@@ -343,40 +246,30 @@ public partial class SkUiCarouselView
 
         private void MeasureCell(ItemCell cell)
         {
-            var cross = double.IsFinite(_arrangedCross) ? _arrangedCross : _crossConstraint;
+            var cross = double.IsFinite(_arrangedCross) ? _arrangedCross : _engine.CrossConstraint;
+            var extent = _engine.Extent;
             if (Horizontal)
-                ((IView)cell).Measure(_extent, cross);
+                ((IView)cell).Measure(extent, cross);
             else
-                ((IView)cell).Measure(cross, _extent);
+                ((IView)cell).Measure(cross, extent);
         }
 
         private void ArrangeCell(ItemCell cell)
         {
             // Logical: the layout mirrors frames in right-to-left layouts.
-            var start = _padStart + cell.Slot * _stride;
-            ((IView)cell).Arrange(Horizontal ? new Rect(start, 0, _extent, _arrangedCross) : new Rect(0, start, _arrangedCross, _extent));
+            var start = _engine.SlotStart(cell.Slot);
+            var extent = _engine.Extent;
+            ((IView)cell).Arrange(Horizontal ? new Rect(start, 0, extent, _arrangedCross) : new Rect(0, start, _arrangedCross, extent));
         }
 
         /// <summary>The slots that show (with one item of prefetch on either side, and the items an effect shows).</summary>
-        private (int First, int Last) SlotWindow()
-        {
-            // Slots that overlap the viewport widened by one stride on either side (touching it is not overlapping).
-            var offset = LogicalOffset;
-            var first = (int)Math.Floor((offset - _stride - _padStart - _extent) / _stride) + 1;
-            var last = (int)Math.Ceiling((offset + _viewportLength + _stride - _padStart) / _stride) - 1;
-            if (owner._effect is { } effect && effect.GetVisibleRange(Metrics) is > 0 and var range)
-            {
-                var center = FractionalSlot;
-                first = Math.Min(first, (int)Math.Floor(center - range));
-                last = Math.Max(last, (int)Math.Ceiling(center + range));
-            }
-            return (Math.Max(0, first), Math.Min(_slots - 1, last));
-        }
+        private (int First, int Last) SlotWindow() =>
+            _engine.SlotWindow(LogicalOffset, _owner._effect is { } effect ? effect.GetVisibleRange(Metrics) : 0);
 
         /// <summary>Realizes the slots that show and releases the others; rebinds cells whose item changed. Returns whether the cells changed.</summary>
         private bool RealizeWindow(bool arrange)
         {
-            if (!HasGeometry || !double.IsFinite(_viewportLength) || _viewportLength <= 0)
+            if (!HasGeometry || !double.IsFinite(_engine.ViewportLength) || _engine.ViewportLength <= 0)
             {
                 var had = _realized.Count > 0;
                 ReleaseAll();
@@ -400,9 +293,9 @@ public partial class SkUiCarouselView
                 var cell = _realized[position];
                 if (cell.Version == _version)
                     continue;
-                var index = IndexOfSlot(cell.Slot);
-                var item = owner.ItemAt(index);
-                if (!Equals(owner.ItemKey(item), cell.TemplateKey))
+                var index = _engine.IndexOfSlot(cell.Slot);
+                var item = _owner.ItemAt(index);
+                if (!Equals(_owner.ItemKey(item), cell.TemplateKey))
                 {
                     Release(position);
                     _realized.Insert(position, Realize(cell.Slot));
@@ -410,7 +303,7 @@ public partial class SkUiCarouselView
                 }
                 else if (index != cell.Index || !ReferenceEquals(item, cell.Item))
                 {
-                    owner.BindCell(cell, index);
+                    _owner.BindCell(cell, index);
                     cell.VisualState = null;
                     UpdateVisualState(cell);
                 }
@@ -448,7 +341,7 @@ public partial class SkUiCarouselView
         public ISkUiView? RealizedView(int index)
         {
             ItemCell? best = null;
-            var center = HasGeometry ? FractionalSlot : 0;
+            var center = HasGeometry ? _engine.FractionalSlot(LogicalOffset) : 0;
             foreach (var cell in _realized)
                 if (cell.Index == index && (best is null || Math.Abs(cell.Slot - center) < Math.Abs(best.Slot - center)))
                     best = cell;
@@ -478,7 +371,7 @@ public partial class SkUiCarouselView
         {
             // By slot, not by item: a looping carousel can show copies of an item, and only the current item's copy nearest
             // to the snap point (and its neighbors) take the roles; the other copies are default items.
-            var current = HasGeometry ? NearestSlotOf(owner._position) : owner._position;
+            var current = HasGeometry ? _engine.NearestSlotOf(_owner._position, LogicalOffset) : _owner._position;
             var state = (cell.Slot - current) switch
             {
                 0 => CurrentItemVisualState,
@@ -498,78 +391,36 @@ public partial class SkUiCarouselView
         #region Scrolling
 
         /// <summary>The item at the snap point: <paramref name="keep"/> while its (clamped) snap point is where the strip is.</summary>
-        public int CurrentIndex(int keep)
-        {
-            if (!HasGeometry)
-                return keep;
-            if (!Loops)
-            {
-                // Items whose snap points the ends clamp share them: the current one stays current there.
-                if (keep >= 0 && keep < _count && Math.Abs(ClampedSnapOffset(keep) - LogicalOffset) < 0.5)
-                    return keep;
-                return Math.Clamp(NearestSlot, 0, _count - 1);
-            }
-            return IndexOfSlot(NearestSlot);
-        }
+        public int CurrentIndex(int keep) => _engine.CurrentIndex(LogicalOffset, keep);
 
         /// <summary>The last item in view (not looping).</summary>
-        public int LastVisibleIndex => HasGeometry
-            ? Math.Clamp((int)Math.Floor((LogicalOffset + _viewportLength - _padStart - 0.5) / _stride), 0, _count - 1)
-            : -1;
-
-        /// <summary>The logical offset of the item at <paramref name="index"/>: looping, the nearest copy of it (the shorter way round).</summary>
-        private double TargetOffset(int index)
-        {
-            if (!Loops)
-                return ClampedSnapOffset(index);
-            return SnapOffset(NearestSlotOf(index));
-        }
-
-        /// <summary>The slot of the item at <paramref name="index"/> nearest to the snap point (the shorter way round when looping).</summary>
-        private int NearestSlotOf(int index)
-        {
-            if (!Loops)
-                return index;
-            var current = NearestSlot;
-            var delta = (int)Mod(index - Mod(current, _count), _count);
-            if (delta > _count / 2)
-                delta -= _count;
-            return current + delta;
-        }
+        public int LastVisibleIndex => _engine.LastVisibleIndex(LogicalOffset);
 
         /// <summary>Scrolls so the item at <paramref name="index"/> is at the snap point; before the layout, the layout places it.</summary>
         public Task ScrollToIndex(int index, bool animated)
         {
-            if (!HasGeometry || !_arranged || _pendingLogical is not null)
+            var logical = LogicalOffset;
+            if (_engine.DeferPlacement(index, logical, _arranged))
             {
-                _keep = index;
-                _placeRequested = true;
-                if (HasGeometry)
-                    _pendingLogical = TargetOffset(index);
-                _geometryValid = false;
                 InvalidateMeasureOverride();
                 return Task.CompletedTask;
             }
-            var target = Physical(TargetOffset(index));
-            var controller = owner.Controller;
+            var target = _engine.Physical(_engine.TargetOffset(index, logical));
+            var controller = _owner.Controller;
             return Horizontal ? controller.ScrollToAsync(target, controller.Y, animated) : controller.ScrollToAsync(controller.X, target, animated);
         }
 
         /// <summary>After the scroller's arrange: it takes the offset the layout wants (the kept place).</summary>
         public void ApplyPendingOffset()
         {
-            if (_pendingLogical is not { } logical)
+            if (_engine.TakePendingOffset() is not { } target)
                 return;
-            _pendingLogical = null;
-            if (!HasGeometry)
-                return;
-            var controller = owner.Controller;
-            var target = Physical(Math.Clamp(logical, 0, MaxLogical));
+            var controller = _owner.Controller;
             var delta = target - PhysicalOffset;
             if (Math.Abs(delta) < 0.01)
             {
                 Update();
-                owner.OnLayoutScrolled();
+                _owner.OnLayoutScrolled();
                 return;
             }
             if (controller.IsMotionRunning || controller.Dragging)
@@ -605,22 +456,14 @@ public partial class SkUiCarouselView
         /// <summary>Looping: once the strip is far from its middle copy, moves it back by whole cycles (what shows stays the same).</summary>
         private void Recenter()
         {
-            if (!Loops || !HasGeometry || _pendingLogical is not null)
-                return;
-            var cycle = _count * _stride;
-            var drift = LogicalOffset - SnapOffset(HomeSlot);
-            if (Math.Abs(drift) < RecenterDistance * cycle)
-                return;
-            var cycles = (int)Math.Round(drift / cycle);
+            var cycles = _engine.RecenterCycles(LogicalOffset, out var physical);
             if (cycles == 0)
                 return;
             // The cells move with their slots: each keeps its item (slot mod count) and only moves in the strip.
-            var slots = cycles * _count;
+            var slots = cycles * _engine.Count;
             foreach (var cell in _realized)
                 cell.Slot -= slots;
-            var logical = -cycles * cycle;
-            var physical = Mirrored ? -logical : logical;
-            owner.Controller.CorrectOffset(Horizontal ? physical : 0, Horizontal ? 0 : physical);
+            _owner.Controller.CorrectOffset(Horizontal ? physical : 0, Horizontal ? 0 : physical);
             InvalidateMeasureFromChild(); // the scroller's extent comes back with the next measure
             InvalidateRender(SkUiRenderDirty.Children);
         }
@@ -628,42 +471,27 @@ public partial class SkUiCarouselView
         /// <summary>The scrolled-event arguments for the current offset.</summary>
         public ItemsViewScrolledEventArgs CreateScrolledArgs()
         {
-            var controller = owner.Controller;
+            var controller = _owner.Controller;
             var offset = new Point(controller.X, controller.Y);
             var delta = offset - _lastOffset;
             _lastOffset = offset;
-            var logical = LogicalOffset;
-            var first = Math.Clamp((int)Math.Floor((logical - _padStart) / _stride), 0, _slots - 1);
-            var last = Math.Clamp((int)Math.Floor((logical + _viewportLength - _padStart - 0.5) / _stride), 0, _slots - 1);
+            var (first, last) = _engine.VisibleSlots(LogicalOffset);
             return new ItemsViewScrolledEventArgs
             {
                 HorizontalDelta = delta.Width,
                 VerticalDelta = delta.Height,
                 HorizontalOffset = offset.X,
                 VerticalOffset = offset.Y,
-                FirstVisibleItemIndex = IndexOfSlot(first),
-                CenterItemIndex = CurrentIndex(owner._position),
-                LastVisibleItemIndex = IndexOfSlot(last)
+                FirstVisibleItemIndex = _engine.IndexOfSlot(first),
+                CenterItemIndex = CurrentIndex(_owner._position),
+                LastVisibleItemIndex = _engine.IndexOfSlot(last)
             };
         }
 
         void ISkUiSnapPointSource.GetSnapOffsets(bool horizontal, double from, double to, List<double> points)
         {
-            if (!HasGeometry || horizontal != Horizontal)
-                return;
-            var (low, high) = Mirrored ? (Logical(to), Logical(from)) : (from, to);
-            var first = Math.Max(0, (int)Math.Ceiling((low + _align) / _stride));
-            var last = Math.Min(_slots - 1, (int)Math.Floor((high + _align) / _stride));
-            if (!Loops)
-            {
-                // Clamped snap points of the first and last items lie at the ends.
-                first = Math.Min(first, low <= 0 ? 0 : first);
-                last = Math.Max(last, high >= MaxLogical ? _slots - 1 : last);
-            }
-            if (last - first >= MaxSnapPoints)
-                last = first + MaxSnapPoints - 1;
-            for (var slot = first; slot <= last; slot++)
-                points.Add(Physical(Loops ? SnapOffset(slot) : ClampedSnapOffset(slot)));
+            if (horizontal == Horizontal)
+                _engine.GetSnapOffsets(from, to, points);
         }
 
         #endregion
@@ -683,21 +511,20 @@ public partial class SkUiCarouselView
         /// <summary>Places <paramref name="cell"/> by the effect (UI side: for hit-testing and immediate painting) and links it for the compositor.</summary>
         public void ApplyEffect(ItemCell cell, ref SkUiRenderProps props, ref SkUiItemEffectLink? link)
         {
-            if (owner._effect is not { } effect || !HasGeometry)
+            if (_owner._effect is not { } effect || !HasGeometry)
             {
                 link = null;
                 return;
             }
-            var source = ((ISkUiRenderable)owner.Scroller).RenderState.Node;
-            var factor = (float)(-1 / _stride);
-            var @base = (float)(Physical(SnapOffset(cell.Slot)) / _stride);
+            var source = ((ISkUiRenderable)_owner.Scroller).RenderState.Node;
+            var (factor, @base) = _engine.EffectLinkTerms(cell.Slot);
             var metrics = Metrics;
             // Exact: a link is immutable once committed; any change of its numbers makes a new one.
             if (link is null || !ReferenceEquals(link.Source, source) || !ReferenceEquals(link.Effect, effect)
                 || link.Factor != factor || link.Base != @base || link.Metrics != metrics || link.Horizontal != Horizontal)
                 link = new SkUiItemEffectLink(source, Horizontal, factor, @base, effect, metrics);
             props.ItemEffect = link;
-            var offset = owner.Scroller.VisualScrollOffset;
+            var offset = _owner.Scroller.VisualScrollOffset;
             link.Apply(ref props, (float)offset.X, (float)offset.Y);
         }
 
@@ -711,19 +538,19 @@ public partial class SkUiCarouselView
         /// <remarks>With an effect, nearer items are hit (and drawn) over farther ones: back to front by their depth at the current offset.</remarks>
         internal override void AddRenderChildren(List<ISkUiRenderable> children)
         {
-            if (owner._effect is not { } effect || !HasGeometry || _realized.Count < 2)
+            if (_owner._effect is not { } effect || !HasGeometry || _realized.Count < 2)
             {
                 foreach (var cell in _realized)
                     children.Add(cell);
                 return;
             }
-            var offset = owner.Scroller.VisualScrollOffset;
+            var offset = _owner.Scroller.VisualScrollOffset;
             var physical = Horizontal ? offset.X : offset.Y;
             var metrics = Metrics;
             _drawOrder.Clear();
             foreach (var cell in _realized)
             {
-                cell.Depth = effect.GetItemTransform((Physical(SnapOffset(cell.Slot)) - physical) / _stride, metrics).ZIndex;
+                cell.Depth = effect.GetItemTransform(_engine.ItemPosition(cell.Slot, physical), metrics).ZIndex;
                 _drawOrder.Add(cell);
             }
             _drawOrder.Sort(static (a, b) => a.Depth != b.Depth ? a.Depth.CompareTo(b.Depth) : a.Slot.CompareTo(b.Slot));
@@ -732,12 +559,12 @@ public partial class SkUiCarouselView
             _drawOrder.Clear();
         }
 
-        internal override void OnGetRenderProps(ref SkUiRenderProps props) => props.SortsChildrenByDepth = owner._effect is not null;
+        internal override void OnGetRenderProps(ref SkUiRenderProps props) => props.SortsChildrenByDepth = _owner._effect is not null;
 
         protected override Size MeasureContent(double widthConstraint, double heightConstraint)
         {
             var cross = Horizontal ? heightConstraint : widthConstraint;
-            if (!_geometryValid || cross != _crossConstraint)
+            if (_engine.NeedsLayout(cross))
                 UpdateGeometry(cross);
             RealizeWindow(arrange: false);
             var across = 0d;
@@ -749,7 +576,8 @@ public partial class SkUiCarouselView
             }
             if (double.IsFinite(cross))
                 across = Math.Min(across, cross);
-            return Horizontal ? new Size(_length, across) : new Size(across, _length);
+            var length = _engine.Length;
+            return Horizontal ? new Size(length, across) : new Size(across, length);
         }
 
         protected override void ArrangeContent(Size size)
