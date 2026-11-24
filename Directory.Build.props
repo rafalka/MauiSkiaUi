@@ -11,7 +11,7 @@
 
     <!-- Pin SkiaSharp and its companion packages (HarfBuzz, Views, native assets) via $(SkiaSharpVersion); keep them in lockstep. One
          version for both lines: SkiaSharp.Views.Maui.Controls has net10 assets only, which net11 builds use on MAUI 11. -->
-    <SkiaSharpVersion>4.154.0</SkiaSharpVersion>
+    <SkiaSharpVersion>4.157.0</SkiaSharpVersion>
     <!-- CommunityToolkit.Maui for SkiaUi.Maui.CommunityToolkit, the demo, the samples and the tests: 15.x is the last net10 line,
          17.x targets net11 only. -->
     <CommunityToolkitMaui10Version>15.0.1</CommunityToolkitMaui10Version>
@@ -23,7 +23,7 @@
     <MarkdigVersion>1.6.0</MarkdigVersion>
     <CSharpMathVersion>0.5.1</CSharpMathVersion>
     <!-- HarfBuzzSharp version SkiaSharp.HarfBuzz $(SkiaSharpVersion) depends on (for the Linux native assets of headless projects). -->
-    <HarfBuzzSharpVersion>14.2.1.400</HarfBuzzSharpVersion>
+    <HarfBuzzSharpVersion>14.4.0.200</HarfBuzzSharpVersion>
     <!-- The DevFlow agent the demo and samples apps reference in Debug (docs/DevFlow.md): one preview build for both. -->
     <MauiDevFlowAgentVersion>0.1.0-preview.13.26512.5</MauiDevFlowAgentVersion>
 

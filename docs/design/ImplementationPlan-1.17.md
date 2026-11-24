@@ -6,7 +6,7 @@
 
 **Scope:** the carousel item of the backlog's [MAUI parity](Roadmap.md#maui-parity) and F1 of the [review plan](ImplementationPlan-PerformanceAndControls.md#f1-segmented-control-and-tab-view), which this plan replaces where the two differ. The review's chips (F5) and range slider and rating (F6), planned for 1.17 by the [1.16 plan's D1](ImplementationPlan-1.16.md#decisions), are not in it ([D1](#decisions)).
 
-**Baseline:** 1.16.0 (net10 with MAUI 10.0.130 and net11 with MAUI 11.0.10, SDK 11.0.100, SkiaSharp 4.154.0).
+**Baseline:** 1.16.0 (net10 with MAUI 10.0.130 and net11 with MAUI 11.0.10, SDK 11.0.100, SkiaSharp 4.154.0). Step 0 moves SkiaSharp to 4.157.0, the latest stable release, before any feature work ([C0](#c0-skiasharp-41570)).
 
 **Rules** (from [Requirements.md](Requirements.md#principles)):
 
@@ -77,6 +77,11 @@ The review plan's [F1 tables](ImplementationPlan-PerformanceAndControls.md#f1-se
 - Step 1's review of the control pages may change the tables; changes are copied back here.
 
 ## Phase C: the carousel
+
+### C0 SkiaSharp 4.157.0
+
+- `SkiaSharpVersion` 4.154.0 → 4.157.0 and `HarfBuzzSharpVersion` 14.2.1.400 → 14.4.0.200 in `Directory.Build.props` (SkiaSharp.Views.Maui.Controls 4.157.0 asks for MAUI 10.0.110, below the 10.0.130 pin). 4.158 and 4.159 are release candidates only (24 November 2026).
+- *Check:* library build at 0 warnings on both lines, headless suite green, demo app builds; `scripts/bench.sh --baseline HEAD` shows no slower phase.
 
 ### C1 The engine (internal)
 

@@ -10,6 +10,7 @@ Add entries under `## Unreleased`, grouped under these subsections (only the one
 - `### Other`: behavior changes that are not breaking, performance, samples and demo.
 
 Publishing (the NuGet publish workflow, [docs/Releasing.md](docs/Releasing.md)) renames `## Unreleased` to the new version. The package's `PackageReleaseNotes`, shown on nuget.org as plain text, gets a link to the version's section, the titles of its new features and its breaking changes; the GitHub release gets the whole section. Newest section first; headings are exactly `## <version>`. Sections up to 1.0.0-Prerelease07 predate the subsections.
+- **Dependencies:** SkiaSharp 4.157.0 (was 4.154.0), HarfBuzzSharp 14.4.0.200 (was 14.2.1.400).
 
 ## Unreleased
 

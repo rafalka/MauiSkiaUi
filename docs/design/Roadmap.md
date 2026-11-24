@@ -173,6 +173,7 @@ Additive only. F2 of the [November 2026 review](ImplementationPlan-PerformanceAn
 
 Additive only. The carousel item of [MAUI parity](#maui-parity) and F1 of the [November 2026 review](ImplementationPlan-PerformanceAndControls.md#f1-segmented-control-and-tab-view). The review's chips (F5) and range slider and rating (F6), planned here by the 1.16 plan, go back to the backlog after the sheet (24 November 2026). Planned on `1.17-implementation`; the decisions are proposed. Steps, decisions and verification: [ImplementationPlan-1.17.md](ImplementationPlan-1.17.md).
 
+- **Step 0:** SkiaSharp 4.157.0 (was 4.154.0) and HarfBuzzSharp 14.4.0.200, before the features.
 - **Phase C, the carousel:** its layout moves to an internal engine with no view types, shared by three users; MAUI's `VisibleViews`; several items per snap point (`ItemsPerSnapPoint`, pages stable on every round of a loop, the indicator counting pages); autoplay (`AutoPlayInterval`, waiting while the user scrolls, hovers or has focus inside, and while the carousel is not shown; `IsAutoPlayPaused`); `SkUiCoreCarouselView` with an item factory and a linked `SkUiCoreIndicatorView`.
 - **Phase S, F1:** `SkUiSegmentedControl` and `SkUiCoreSegmentedControl` (text and icon segments, a sliding selection, keys and screen readers, drawn by every look); `SkUiTabView`, a tab strip over panes created when first shown and kept, swiped on the carousel engine, its indicator following the panes on the render thread through 1.16's scroll links; `SkUiCoreTabView` at the cut line.
 
