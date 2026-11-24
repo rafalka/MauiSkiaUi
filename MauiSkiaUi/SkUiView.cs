@@ -20,6 +20,7 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
     private bool _ownLayoutPending; // this node's own measure changed (not only a descendant's)
     private bool _laidOut;          // measured and arranged at least once
     private bool _relayoutPending;  // surface roots: a descendant's measure changed, relaid out before the next frame
+    private Size _askedAtOwnSize = NotAskedAtOwnSize; // surface roots: the constraint at the root's own size the native layout was asked about
     private Visibility _effectiveVisibility = Visibility.Visible; // IView.Visibility when last invalidated (MAUI's default)
     private SkUiRenderDirty _renderPending;
     private SkUiRenderState? _renderState;
@@ -618,6 +619,10 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
     protected override Size MeasureOverride(double widthConstraint, double heightConstraint)
     {
         var constraint = new Size(widthConstraint, heightConstraint);
+        // Measured with another constraint since the native layout was asked (MayBeCappedAtOwnSize): it may be asked again,
+        // also when a later measure comes back to that constraint (an expander opened, closed and opened again).
+        if (constraint != _askedAtOwnSize)
+            _askedAtOwnSize = NotAskedAtOwnSize;
         if (!_measureDirty && constraint == _lastConstraint)
             return _measuredSize;
 
@@ -757,7 +762,7 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
         var width = KeepsConstraint(_lastConstraint.Width, size.Width, previous.Width) ? _lastConstraint.Width : size.Width;
         var height = KeepsConstraint(_lastConstraint.Height, size.Height, previous.Height) ? _lastConstraint.Height : size.Height;
         if (view.Measure(width, height) != previous)
-            base.InvalidateMeasureOverride(); // the native layout sizes the root again
+            RequestNativeMeasure(); // the native layout sizes the root again
 
         static bool KeepsConstraint(double constraint, double arranged, double desired) =>
             double.IsPositiveInfinity(constraint) || arranged >= desired - MeasureConstraintTolerance;
@@ -796,8 +801,9 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
     /// arranged; moved children are composite-time): a child's measure changed, or the node's size follows state it does
     /// not draw itself (an expander's reveal). A relayout every frame then records only views whose size changed and
     /// leaves ancestor shadows alone; on a surface root it is laid out in place before the next frame
-    /// (<see cref="RelayoutIfNeeded"/>), asking the native layout only when the root's size changes. The caller requests
-    /// the frame (a child re-records itself; an expander changes its content's scale).
+    /// (<see cref="RelayoutIfNeeded"/>), asking the native layout only when the root's size changes or its measure may be
+    /// capped at its own size (<see cref="MayBeCappedAtOwnSize"/>). The caller requests the frame (a child re-records
+    /// itself; an expander changes its content's scale).
     /// </summary>
     internal void InvalidateMeasureFromChild()
     {
@@ -812,7 +818,8 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
     /// Surface roots, before recording a frame: lays the tree out again after a descendant's measure changed, with the
     /// constraint and bounds the native layout last gave the root (they have not changed, or the native layout would
     /// have measured the root itself). When the root's own size changes, the native layout is asked as well, and the
-    /// tree is arranged in the old bounds until it runs.
+    /// tree is arranged in the old bounds until it runs; so it is when the size did not change but the constraint is the
+    /// root's own size on an axis, once per constraint (<see cref="MayBeCappedAtOwnSize"/>).
     /// </summary>
     internal void RelayoutIfNeeded()
     {
@@ -829,8 +836,8 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
                 IView view = this;
                 var previous = view.DesiredSize;
                 var size = view.Measure(_lastConstraint.Width, _lastConstraint.Height);
-                if (size != previous)
-                    base.InvalidateMeasureOverride();
+                if (size != previous || MayBeCappedAtOwnSize(size))
+                    RequestNativeMeasure();
                 view.Arrange(_lastArrangeBounds);
             }
         }
@@ -843,6 +850,45 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
     }
 
     private const int MaxRelayoutPasses = 3;
+
+    /// <summary>Asks the native layout to measure this view again (MAUI's own invalidation: the handler and its native parents).</summary>
+    private void RequestNativeMeasure()
+    {
+        NativeMeasureRequests++;
+        base.InvalidateMeasureOverride();
+    }
+
+    /// <summary>How many times this view asked the native layout to measure it again (tests).</summary>
+    internal int NativeMeasureRequests { get; private set; }
+
+    /// <summary>No constraint at the root's own size was asked about since it was last measured with another one.</summary>
+    private static readonly Size NotAskedAtOwnSize = new(-1, -1);
+
+    /// <summary>
+    /// Whether a relayout whose measure kept the root's <paramref name="size"/> should still ask the native layout, once per
+    /// constraint: on an axis where the last constraint is the root's own size, the measure is capped there, and that
+    /// constraint is either the parent's real limit (a root that fills a page) or the native layout measuring the root again
+    /// at its current bounds (iOS's <c>LayoutSubviews</c> in a <c>Border</c> inside a <c>ScrollView</c>), which would keep a
+    /// root sized by its content from ever growing (issue #122). Only the native layout knows which: asked, it measures with
+    /// the real constraint (unbounded in a scroll view), so the root grows; one that fills its parent comes back with the same
+    /// constraint and is not asked again until it is measured with another one. A constraint unbounded on an axis is the
+    /// parent's own (bounds are finite on both axes), so it is not asked about: a root measured with an unbounded height
+    /// commonly has its width equal to the constraint's. The tree is not measured unbounded here (a virtual list would realize
+    /// every item).
+    /// </summary>
+    private bool MayBeCappedAtOwnSize(Size size)
+    {
+        // Exact: a cache key, the constraint the native layout gave and was already asked about.
+        if (_lastConstraint == _askedAtOwnSize)
+            return false;
+        if (double.IsPositiveInfinity(_lastConstraint.Width) || double.IsPositiveInfinity(_lastConstraint.Height))
+            return false;
+        if (Math.Abs(_lastConstraint.Width - size.Width) >= MeasureConstraintTolerance
+            && Math.Abs(_lastConstraint.Height - size.Height) >= MeasureConstraintTolerance)
+            return false;
+        _askedAtOwnSize = _lastConstraint;
+        return true;
+    }
 
     /// <summary>A descendant's measure changed and the tree still has to be laid out again (<see cref="RelayoutIfNeeded"/>).</summary>
     internal bool RelayoutPending => _relayoutPending;
@@ -891,12 +937,13 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
             {
                 // Relayout boundary: a descendant changed, so this surface root is laid out again in place right
                 // before its next frame (RelayoutIfNeeded), as one frame with the change. The native layout is
-                // only asked when the root's own size changes. The frame is requested by the change's origin, which
+                // only asked when the root's own size changes or its measure may be capped at its own size
+                // (MayBeCappedAtOwnSize). The frame is requested by the change's origin, which
                 // always re-records itself (its mark reaches this root after this layout walk).
                 _relayoutPending = true;
             }
             else
-                base.InvalidateMeasureOverride();
+                RequestNativeMeasure();
             LayoutInvalidated?.Invoke(this, EventArgs.Empty);
         }
         if (invalidatePaint)

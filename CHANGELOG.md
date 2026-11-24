@@ -25,6 +25,7 @@ Publishing (the NuGet publish workflow, [docs/Releasing.md](docs/Releasing.md)) 
 ### Fixes
 
 - iOS: a drawn scroller no longer keeps the keyboard's room after the page that holds the surface shrinks to end at the keyboard's top (an app that resizes its pages for the keyboard itself). The keyboard's top is placed again when the surface moves or resizes, and a surface root that resizes measures its scrollers' room for the keyboard again, so a focused field is revealed within the content's own range instead of past its end ([#120](https://github.com/rafalka/MauiSkiaUi/issues/120)).
+- **Surface root sized by its content stops growing on iOS (#122):** a surface root in a MAUI `ScrollView` (here inside a `Border`) kept its old height when a nested view grew (a nested `SkUiExpander` opening), cutting the new content off at its bottom edge. iOS measures the root again at its current bounds, so its last constraint was its own height: the relayout before the next frame was capped there, saw no size change and never asked the native layout. A relayout whose constraint equals the root's size on an axis now asks the native layout; it measures with its real constraint, so the root grows (and grows again each time the content does), while a root that fills its parent comes back with the same constraint and is not asked again until it is measured with another one.
 
 ### Other
 
