@@ -309,6 +309,79 @@ public class PipelineTests
     }
 
     [Fact]
+    public void ASurfaceRootMeasuredAtItsOwnBoundsAsksTheNativeLayoutWhenADescendantGrows()
+    {
+        // #122: in a ScrollView, iOS measures a content-sized root again at its current bounds (LayoutSubviews), so its last
+        // constraint is its own height. A descendant that grows is capped there, the size does not change, and the native
+        // layout was never asked: the root kept its old height and clipped the new content.
+        var child = new SkUiBox { HeightRequest = 40 };
+        var root = new SkUiVerticalStackLayout { Children = { child } };
+        using var surface = new SkUiTestSurface(root, 100, 40);
+        IView view = root;
+        view.Measure(100, double.PositiveInfinity);
+        view.Arrange(new Rect(0, 0, 100, 40));
+        view.Measure(100, 40); // the native layout at the root's bounds
+        surface.Frame();
+        var asked = root.NativeMeasureRequests;
+
+        child.HeightRequest = 70;
+        surface.Frame();
+        Assert.Equal(asked + 1, root.NativeMeasureRequests);
+        Assert.Equal(40, root.Frame.Height); // until the native layout gives it the new bounds
+
+        // The native layout measures with its real constraint, then at the new bounds again.
+        view.Measure(100, double.PositiveInfinity);
+        view.Arrange(new Rect(0, 0, 100, 70));
+        view.Measure(100, 70);
+        surface.Frame();
+        Assert.Equal(70, root.Frame.Height);
+        Assert.Equal(70, child.Frame.Height);
+
+        // Shrinks back to the first constraint (an expander closed), then grows again: asked again.
+        child.HeightRequest = 40;
+        surface.Frame();
+        view.Measure(100, double.PositiveInfinity);
+        view.Arrange(new Rect(0, 0, 100, 40));
+        view.Measure(100, 40);
+        surface.Frame();
+        asked = root.NativeMeasureRequests;
+        child.HeightRequest = 70;
+        surface.Frame();
+        Assert.Equal(asked + 1, root.NativeMeasureRequests);
+    }
+
+    [Fact]
+    public void ASurfaceRootThatFillsItsParentAsksTheNativeLayoutOncePerConstraint()
+    {
+        // A root whose last constraint is its own size because its parent limits it (its content overflows a fixed slot):
+        // asked once, the native layout comes back with the same constraint, and later descendant changes are laid out in
+        // place without asking again.
+        var child = new SkUiBox { HeightRequest = 40, WidthRequest = 50, HorizontalOptions = LayoutOptions.Start };
+        var root = new SkUiVerticalStackLayout { Children = { new SkUiBox { WidthRequest = 100, HeightRequest = 120 }, child } };
+        using var surface = new SkUiTestSurface(root, 100, 80);
+        IView view = root;
+        view.Measure(100, 80);
+        view.Arrange(new Rect(0, 0, 100, 80));
+        surface.Frame();
+        var asked = root.NativeMeasureRequests;
+
+        child.WidthRequest = 60;
+        surface.Frame();
+        Assert.Equal(asked + 1, root.NativeMeasureRequests);
+        view.Measure(100, 80); // the native layout: the same constraint
+        view.Arrange(new Rect(0, 0, 100, 80));
+        surface.Frame();
+
+        child.WidthRequest = 70;
+        surface.Frame();
+        child.HeightRequest = 50;
+        surface.Frame();
+        Assert.Equal(asked + 1, root.NativeMeasureRequests);
+        Assert.Equal(new Rect(0, 120, 70, 50), child.Frame);
+        Assert.Equal(new Rect(0, 0, 100, 80), root.Frame);
+    }
+
+    [Fact]
     public void ASurfaceRootArrangedNarrowerBeforeItsRelayoutIsMeasuredAtItsNewWidth()
     {
         // The tree changed, then the root is arranged narrower (a window resized) before being measured: its old height

@@ -22,6 +22,10 @@ Publishing (the NuGet publish workflow, [docs/Releasing.md](docs/Releasing.md)) 
   - `SnapsToEnds` keeps a drag, fling or wheel scroll from stopping inside an effect's range: a collapsing header ends fully open or collapsed, with or without the list's snap points.
   - Reduced motion keeps fades and clips and stops parallax and scaling (per effect: `ReducedMotion`). Factories: `Parallax`, `FadeIn`, `CollapseTo`, `HideOnScroll`. Docs: [SkUiScrollView](docs/controls/SkUiScrollView.md#scroll-linked-effects); demo: the gallery's Scroll effects page.
 
+### Fixes
+
+- **Surface root sized by its content stops growing on iOS (#122):** a surface root in a MAUI `ScrollView` (here inside a `Border`) kept its old height when a nested view grew (a nested `SkUiExpander` opening), cutting the new content off at its bottom edge. iOS measures the root again at its current bounds, so its last constraint was its own height: the relayout before the next frame was capped there, saw no size change and never asked the native layout. A relayout whose constraint equals the root's size on an axis now asks the native layout; it measures with its real constraint, so the root grows (and grows again each time the content does), while a root that fills its parent comes back with the same constraint and is not asked again until it is measured with another one.
+
 ### Other
 
 - **Samples app:** a *Scroll effects* example, a trip's page built from scroll-linked effects: a landscape header in parallax layers that collapses into a toolbar (and grows when pulled), a title moving into the toolbar, a reading-progress line, section chips that stick under the toolbar, a carousel with parallax pictures, itinerary cards sliding in, and a price bar, an extended Book button and a back-to-top button that react to scrolling.
