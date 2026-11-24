@@ -29,6 +29,7 @@ What the next releases bring, and the work after them. What has shipped is in th
 | **1.15.0** | As 1.11.0 | As 1.11.0 | 11.0.100 | As 1.11.0 | `master`, released 19 November 2026 |
 | **1.15.1** | As 1.11.0 | As 1.11.0 | 11.0.100 | As 1.11.0 | `master`, released 20 November 2026 |
 | **1.16.0** | As 1.11.0 | As 1.11.0 | 11.0.100 | As 1.11.0 | Proposed |
+| **1.17.0** | As 1.11.0 | As 1.11.0 | 11.0.100 | As 1.11.0 | Proposed |
 
 SkiaUi up to 1.10 targets MAUI 10.x only; 1.11 adds net11 targets with MAUI 11 next to them ([1.11.0](#1110-net-11-and-maui-11-shipped)). Development happens on `devel`; `master` holds stable releases ([Releasing.md](../Releasing.md#branches-and-versions)).
 
@@ -168,6 +169,13 @@ Additive only. F2 of the [November 2026 review](ImplementationPlan-PerformanceAn
 - **Phase B, the API:** `SkUiScrollEffect` (source, orientation, input range, property, output range, easing) on `SkUiView.ScrollEffects` and `SkUiCoreNode.AddScrollEffect`, and `SkUiScrollReveal` (tracked or triggered show / hide by scroll direction, shown near the start, settling at rest, `Show` / `Hide`), with factories for parallax, fade-in, collapse and hide-on-scroll; reduce motion keeps fades and clips and stops parallax and zoom; snapping a collapsing header to its ends if time allows.
 - **Docs, demo and bench:** recipes (collapsing header with parallax and pull-to-stretch, a collection view's sticky header and footer by direction, a hiding floating button, an extended button shrinking to its icon, a fading toolbar), a gallery page, `skui-scroll-effects` / `core-scroll-effects` benches, device frame times on the S9 and the iPhone 8.
 
+### 1.17.0: carousel parity, segmented control and tab view (proposed)
+
+Additive only. The carousel item of [MAUI parity](#maui-parity) and F1 of the [November 2026 review](ImplementationPlan-PerformanceAndControls.md#f1-segmented-control-and-tab-view). The review's chips (F5) and range slider and rating (F6), planned here by the 1.16 plan, go back to the backlog after the sheet (24 November 2026). Planned on `1.17-implementation`; the decisions are proposed. Steps, decisions and verification: [ImplementationPlan-1.17.md](ImplementationPlan-1.17.md).
+
+- **Phase C, the carousel:** its layout moves to an internal engine with no view types, shared by three users; MAUI's `VisibleViews`; several items per snap point (`ItemsPerSnapPoint`, pages stable on every round of a loop, the indicator counting pages); autoplay (`AutoPlayInterval`, waiting while the user scrolls, hovers or has focus inside, and while the carousel is not shown; `IsAutoPlayPaused`); `SkUiCoreCarouselView` with an item factory and a linked `SkUiCoreIndicatorView`.
+- **Phase S, F1:** `SkUiSegmentedControl` and `SkUiCoreSegmentedControl` (text and icon segments, a sliding selection, keys and screen readers, drawn by every look); `SkUiTabView`, a tab strip over panes created when first shown and kept, swiped on the carousel engine, its indicator following the panes on the render thread through 1.16's scroll links; `SkUiCoreTabView` at the cut line.
+
 ## Backlog (1.x)
 
 Taken up when a real app needs it, roughly in this order within each area. Items name the control or mechanism; their designs are in the linked docs.
@@ -176,8 +184,8 @@ Taken up when a real app needs it, roughly in this order within each area. Items
 
 - **Calendar:** built in [1.13](#1130-and-1131-calendar-shipped); non-Gregorian calendars, a calendar popup with time wheels for `SkUiDateTimePicker`, platform looks' calendars, image markers and a month view with event lines are [1.15](#1150-and-1151-the-calendar-finished-shipped). A scheduler stays out of scope; so do the Julian and East Asian lunisolar calendars.
 - **Full SVG** in an optional `SkiaUi.Maui.Svg` package on Svg.Skia, for what [1.7's icon reader](../archive/ImplementationPlan-1.7.md) leaves out: gradients, `<use>`, filters and CSS in downloaded files and rich illustrations. Needs a vector entry in the image cache and protection against hostile files (design and a spike's findings: [the full SVG plan](ImplementationPlan-FullSvg.md)).
-- **From the November 2026 review** (briefs, order and open decisions: [ImplementationPlan-PerformanceAndControls.md](ImplementationPlan-PerformanceAndControls.md#track-f-features)), scroll-linked effects in 1.16 and the rest from 1.17, roughly in this order. Each is the common pattern on SkiaUi's own API, not a copy of one vendor's control:
-  - **Segmented control and tab view** (F1): a tab strip over panes created when first shown, swiped on the carousel's engine.
+- **From the November 2026 review** (briefs, order and open decisions: [ImplementationPlan-PerformanceAndControls.md](ImplementationPlan-PerformanceAndControls.md#track-f-features)), scroll-linked effects in 1.16, the segmented control and tab view in 1.17 and the rest after it, roughly in this order. Each is the common pattern on SkiaUi's own API, not a copy of one vendor's control:
+  - **Segmented control and tab view** (F1, [1.17](#1170-carousel-parity-segmented-control-and-tab-view-proposed)): a tab strip over panes created when first shown, swiped on the carousel's engine.
   - **Scroll-linked effects** (F2, [1.16](#1160-scroll-linked-effects-proposed)): a public link from a scroller's offset to translation, opacity, scale and a clipped height on the render thread (collapsing headers, parallax); takes in the overscroll-linked effects under [Lists and scrolling](#lists-and-scrolling).
   - **Sheet** (F3): a bottom or side sheet inside a surface, with detents, a scrim and a popup presenter for the pickers. A drawn container, not a window.
   - **Charts** (F4) in an optional `SkiaUi.Maui.Charts` package: sparkline, line, area and bar first; pie, donut, gauges, pan and zoom later.
@@ -188,7 +196,7 @@ Taken up when a real app needs it, roughly in this order within each area. Items
 
 ### MAUI parity
 
-- **CarouselView / IndicatorView:** `VisibleViews`; autoplay, several items per snap point, a Core carousel.
+- **CarouselView / IndicatorView** ([1.17](#1170-carousel-parity-segmented-control-and-tab-view-proposed)): `VisibleViews`; autoplay, several items per snap point, a Core carousel.
 - **MAUI 11 members** (net11 only; `BoxView.Fill` and `Editor.ReturnCommand` are known gaps in the parity test from 1.11): `LongPressGestureRecognizer` on drawn views, `BoxView.Fill`, `Editor.ReturnCommand` / `ReturnCommandParameter`, the `CancellationToken` overloads of `FadeToAsync` and the other animation extensions, `VisualElement.InvalidateStyle` / `VisualStateManager.InvalidateVisualStates`.
 - **Gesture recognizers on drawn views:** `PanGestureRecognizer` with `TouchPoints` other than 1 (reported and not run since 1.2).
 - **Labels:** span press feedback, HTML images, block indents; one fitted size for a group of labels.

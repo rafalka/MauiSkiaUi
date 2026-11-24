@@ -53,9 +53,20 @@ Parity with MAUI is the starting point. What drawn controls add on top of it:
 - **One gesture model.** A per-pointer gesture arena decides between nested taps, long presses, swipes and scrolls the same way on every platform; MAUI's `TapGestureRecognizer` works on drawn views ([event mechanism](docs/design/EventMechanism.md)).
 - **Fewer leaks to chase.** Drawn controls have no handler and no native peer to keep them alive, long-lived sources are listened to weakly, and leak scenarios run headless with every test run and on devices.
 
-## Install
+## Packages
 
-Package on nuget.org: **[SkiaUi.Maui](https://www.nuget.org/packages/SkiaUi.Maui/)**.
+SkiaUi is four NuGet packages, released together with one version and one [changelog](https://github.com/rafalka/MauiSkiaUi/blob/master/CHANGELOG.md). Only **SkiaUi.Maui** is required; the others are optional add-ons that depend on it, so an app pays only for what it uses.
+
+| Package | What it provides | Depends on |
+| --- | --- | --- |
+| **[SkiaUi.Maui](https://www.nuget.org/packages/SkiaUi.Maui/)** | The library: every `SkUi*` control and layout, the Core layer (`SkUiCore*`), the surface hosts, native overlays (`SkUiMauiContentView`), looks and color schemes, the text engine, gestures, accessibility and image loading | .NET MAUI, SkiaSharp |
+| **[SkiaUi.Maui.CommunityToolkit](https://www.nuget.org/packages/SkiaUi.Maui.CommunityToolkit/)** | [CommunityToolkit.Maui](https://github.com/CommunityToolkit/Maui) integration: drawn pickers (and other drawn controls with popups) open their lists in the toolkit's `Popup`, plus drawn counterparts of the toolkit's layouts, [`SkUiDockLayout`](docs/controls/SkUiDockLayout.md) and [`SkUiUniformItemsLayout`](docs/controls/SkUiUniformItemsLayout.md) | SkiaUi.Maui, CommunityToolkit.Maui |
+| **[SkiaUi.Maui.Markdown](https://www.nuget.org/packages/SkiaUi.Maui.Markdown/)** | A drawn Markdown view on both layers ([`SkUiMarkdownView`, `SkUiCoreMarkdown`](docs/controls/SkUiMarkdownView.md)): headings, lists, tables, code, quotes, alerts, footnotes and images, the same on every platform and safe with untrusted documents (nothing a document says happens by itself) | SkiaUi.Maui, [Markdig](https://github.com/xoofx/markdig) |
+| **[SkiaUi.Maui.Markdown.Math](https://www.nuget.org/packages/SkiaUi.Maui.Markdown.Math/)** | Formulas for the Markdown view: LaTeX in `$ … $` and `$$ … $$` drawn with [CSharpMath](https://github.com/verybadcat/CSharpMath), each one checked before it is drawn so a hostile formula cannot crash the app | SkiaUi.Maui.Markdown, CSharpMath |
+
+The [migration skills](plugins/skiaui-migration/README.md) and the [DevFlow skill](plugins/skiaui-devflow/README.md) for AI coding agents are Claude Code plugins in this repository, not NuGet packages.
+
+## Install
 
 **Requirements:** .NET 10 with .NET MAUI 10.0.130 or a later 10.x (SDK 10.0.402 or newer); Android 5.0 (API 21), iOS 15, Mac Catalyst 17 and Windows 10 1809 or newer. iOS and Mac Catalyst builds work with Xcode 26.6 (workload set 10.0.401), Xcode 27.1 (workload set 10.0.402.1) or Xcode 27.2 (workload set 10.0.404), macOS 26.6 or newer for Xcode 27; apps built with Xcode 27 must use the UIKit scene lifecycle ([migration guide](docs/Migration.md#ios-and-mac-catalyst-scene-lifecycle)). SkiaUi 1.0.x builds with MAUI 10.0.110, Mac Catalyst 15 and Xcode 26.
 
@@ -69,17 +80,28 @@ Register in `MauiProgram`:
 builder.UseSkiaUi();
 ```
 
-Using [CommunityToolkit.Maui](https://github.com/CommunityToolkit/Maui)? **[SkiaUi.Maui.CommunityToolkit](https://www.nuget.org/packages/SkiaUi.Maui.CommunityToolkit/)** opens drawn pickers' lists in the toolkit's `Popup` (without it, they open in MAUI's action sheet, or on any popup system through an `ISkUiPopupPresenter` of yours):
+Optional packages, each added the same way:
 
-```bash
-dotnet add package SkiaUi.Maui.CommunityToolkit
-```
+- **Using [CommunityToolkit.Maui](https://github.com/CommunityToolkit/Maui)?** Add **SkiaUi.Maui.CommunityToolkit** so drawn pickers open their lists in the toolkit's `Popup` (without it, they open in MAUI's action sheet, or on any popup system through an `ISkUiPopupPresenter` of yours), and for the drawn dock and uniform items layouts:
 
-```csharp
-builder.UseMauiCommunityToolkit().UseSkiaUi().UseSkiaUiCommunityToolkit();
-```
+  ```bash
+  dotnet add package SkiaUi.Maui.CommunityToolkit
+  ```
 
-Showing Markdown? **[SkiaUi.Maui.Markdown](https://www.nuget.org/packages/SkiaUi.Maui.Markdown/)** draws a document on both layers, and **[SkiaUi.Maui.Markdown.Math](https://www.nuget.org/packages/SkiaUi.Maui.Markdown.Math/)** adds formulas. Nothing a document says happens by itself: [SkUiMarkdownView](docs/controls/SkUiMarkdownView.md).
+  ```csharp
+  builder.UseMauiCommunityToolkit().UseSkiaUi().UseSkiaUiCommunityToolkit();
+  ```
+
+- **Showing Markdown?** Add **SkiaUi.Maui.Markdown**; it needs no registration ([SkUiMarkdownView](docs/controls/SkUiMarkdownView.md)). For formulas add **SkiaUi.Maui.Markdown.Math** too and turn it on for the whole app (or per view with `markdownView.UseMath()`):
+
+  ```bash
+  dotnet add package SkiaUi.Maui.Markdown
+  dotnet add package SkiaUi.Maui.Markdown.Math
+  ```
+
+  ```csharp
+  builder.UseSkiaUi().UseSkiaUiMarkdownMath();
+  ```
 
 ## Quick start
 
