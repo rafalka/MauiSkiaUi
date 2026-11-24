@@ -490,7 +490,8 @@ public sealed class SkUiCoreScrollBar : SkUiCoreNode
     private sealed class Thumb(SkUiCoreScrollBar bar, ISkUiRenderable scroller) : SkUiCoreNode
     {
         private (float Factor, float Range) _track;
-        private SkUiRenderLink? _link;
+        private SkUiRenderLink[]? _links;
+        private (SkUiRenderNode? Source, float Factor, float Range) _linked;
 
         /// <summary>The current translation along the track (UI side).</summary>
         public double Translation
@@ -499,7 +500,7 @@ public sealed class SkUiCoreScrollBar : SkUiCoreNode
             {
                 var props = SkUiRenderProps.Default;
                 OnGetRenderProps(ref props);
-                return bar.Vertical ? props.TranslationY : props.TranslationX;
+                return bar.Vertical ? props.EffectiveTranslationY : props.EffectiveTranslationX;
             }
         }
 
@@ -525,18 +526,21 @@ public sealed class SkUiCoreScrollBar : SkUiCoreNode
         {
             var source = scroller.RenderState.Node;
             var (factor, range) = _track;
-            if (_link is not { } link || !ReferenceEquals(link.Source, source)
-                || (bar.Vertical ? link.FactorY : link.FactorX) != factor || (bar.Vertical ? link.MaxY : link.MaxX) != range)
+            // Exact comparisons: a cache key (the channel is rebuilt only when what it was built from changes).
+            if (_links is not { } links || !ReferenceEquals(_linked.Source, source) || _linked.Factor != factor || _linked.Range != range)
             {
-                link = _link = bar.Vertical
-                    ? new SkUiRenderLink(source, 0, 0, 0, 0, factor, 0, 0, range)
-                    : new SkUiRenderLink(source, factor, 0, 0, range, 0, 0, 0, 0);
+                // Along the track: factor · offset, held between 0 and the range (0 when the content fits or has no track).
+                var length = Math.Max(0, range);
+                var inputEnd = factor > 0 ? length / factor : 1;
+                var to = factor > 0 ? length : 0;
+                var target = bar.Vertical ? SkUiRenderLinkTarget.TranslationY : SkUiRenderLinkTarget.TranslationX;
+                links = _links = [new SkUiRenderLink(source, horizontal: !bar.Vertical, target, 0, inputEnd, 0, to)];
+                _linked = (source, factor, range);
             }
-            props.Link = link;
+            props.Links = links;
             // The same placement on the UI side, for hit-testing and immediate painting.
-            var translation = link.Evaluate(bar._scroller.ChildrenOffset.X, bar._scroller.ChildrenOffset.Y);
-            props.TranslationX = translation.X;
-            props.TranslationY = translation.Y;
+            var input = bar._scroller.LinkInput;
+            props.LinkValues = SkUiRenderLinkValues.Evaluate(links, input.X, input.Y);
         }
     }
 }

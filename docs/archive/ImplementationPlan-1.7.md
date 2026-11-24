@@ -2,11 +2,11 @@
 
 **Goal:** an app's `.svg` icons draw at runtime on both layers, sharp at the size the view has and in the color the theme asks for, as cheap per frame as a bitmap. `SkiaUi.Maui` gets a small SVG reader of its own, with no new dependency and no new package.
 
-**Scope:** this one feature, for icons. It reads the part of SVG that icons use and reports what it knows it cannot draw as a `LoadError`. A `MauiImage` keeps working exactly as today, and an app can use both. Full SVG (gradients, `<use>`, filters, downloaded illustrations) stays in the [backlog](Roadmap.md#new-controls-and-packages), with [its own plan](ImplementationPlan-FullSvg.md).
+**Scope:** this one feature, for icons. It reads the part of SVG that icons use and reports what it knows it cannot draw as a `LoadError`. A `MauiImage` keeps working exactly as today, and an app can use both. Full SVG (gradients, `<use>`, filters, downloaded illustrations) stays in the [backlog](../design/Roadmap.md#new-controls-and-packages), with [its own plan](../design/ImplementationPlan-FullSvg.md).
 
-**Baseline:** .NET MAUI 10.0.120 (or the latest 10.0.x when 1.7 ships), SkiaSharp 4.154.0, branch `1.7-implementation` from `devel` after 1.6.0. What has shipped is in the [changelog](../../CHANGELOG.md); the rest of the 1.x backlog stays in the [roadmap](Roadmap.md#backlog-1x).
+**Baseline:** .NET MAUI 10.0.120 (or the latest 10.0.x when 1.7 ships), SkiaSharp 4.154.0, branch `1.7-implementation` from `devel` after 1.6.0. What has shipped is in the [changelog](../../CHANGELOG.md); the rest of the 1.x backlog stays in the [roadmap](../design/Roadmap.md#backlog-1x).
 
-**Rules** (as in 1.4, from [Requirements.md](Requirements.md#principles)):
+**Rules** (as in 1.4, from [Requirements.md](../design/Requirements.md#principles)):
 
 - 1.x keeps the 1.0 API: everything here is additive.
 - Both layers: each member lands on the SkUi\* side and its Core twin, with one shared reader and the one image loader and cache.
@@ -60,7 +60,7 @@ Internal to `MauiSkiaUi/Imaging`: bytes to a small tree of nodes, and that tree 
 
 ## Phase L — In the image loader
 
-**Done.** Costly files on the phones stay in the [verification backlog](Roadmap.md#verification-backlog).
+**Done.** Costly files on the phones stay in the [verification backlog](../design/Roadmap.md#verification-backlog).
 
 - **L1 Where bytes become an image** ([D1](#decisions)). Size: S.
   - `SkUiImageDecoder.Decode`: where `SKCodec.Create` returns `null` and the bytes start with `<` after a BOM and white space, the reader runs. Raster decoding gains nothing, and every source gets it: `Source="check.svg"`, a URI with its disk cache and progress, a file, a stream.
@@ -98,7 +98,7 @@ Gradients (the likely next addition: additive, and 13% of the sample SVGs in the
 
 ## Docs, migration and demo
 
-Done with each step: [CHANGELOG.md](../../CHANGELOG.md) (one entry under `## Unreleased`), [Roadmap.md](Roadmap.md); the rest as listed in [M2](#phase-m--measurements-demo-and-docs).
+Done with each step: [CHANGELOG.md](../../CHANGELOG.md) (one entry under `## Unreleased`), [Roadmap.md](../design/Roadmap.md); the rest as listed in [M2](#phase-m--measurements-demo-and-docs).
 
 ## Order
 
@@ -116,7 +116,7 @@ Done with each step: [CHANGELOG.md](../../CHANGELOG.md) (one entry under `## Unr
 
 - **D1 The reader lives in the decoder, not behind a new source kind.** Every source already reads bytes, so URIs, the disk cache, progress, shared loads and events work with no new code; Android's XML drawables already render at the decode bounds through the same loader. **Implemented.**
 - **D2 A bitmap at the view's size, not a picture.** A bitmap draws about five times faster per frame on a CPU raster surface, needs no change to `SkUiImageSlot`, the fade or the slot's users, and is what an icon needs: it is sized by layout and rarely animated in scale. **Implemented.**
-- **D3 Our own subset, not Svg.Skia.** For icons it loads about 13 times faster per icon and about 18 times faster for the first one, adds no dependency, package or Trusted Publishing policy, avoids Svg.Custom's reflection over named colors when trimmed, and has no external references to close. It costs a reader to maintain and files it will not draw, which fail visibly. The design on Svg.Skia and its spike findings stay in the [full SVG plan](ImplementationPlan-FullSvg.md), if a real app needs it. **Implemented.**
+- **D3 Our own subset, not Svg.Skia.** For icons it loads about 13 times faster per icon and about 18 times faster for the first one, adds no dependency, package or Trusted Publishing policy, avoids Svg.Custom's reflection over named colors when trimmed, and has no external references to close. It costs a reader to maintain and files it will not draw, which fail visibly. The design on Svg.Skia and its spike findings stay in the [full SVG plan](../design/ImplementationPlan-FullSvg.md), if a real app needs it. **Implemented.**
 - **D4 Fail, do not guess.** An icon with a part missing looks like a design bug that is hard to trace, while a `LoadError` names the element. Elements that are not SVG are skipped, which matched Svg.Skia's result on the one such file scanned. **Implemented.**
 - **D5 Color on the source, as `FontImageSource`.** It reaches every control that takes an image, moving an icon from a font glyph is a one-element change, and the view gains no property. `currentColor` is what these icons use, so `Color` replaces only that and leaves colors written in the file alone. Names: `SkUiVectorImageSource`, `FromVector`, `FromVectorText`. **Implemented.**
 - **D6 No source generator.** Against the reader it saves about 22 µs per icon, once, and draws no faster than a picture. Its first call is slower than `SKPath.ParseSvgPathData` on a string constant, because the method has to be compiled. A generator would also need its own SVG parser, since SkiaSharp's native library does not belong in the compiler, and a name lookup from XAML would keep every icon in a trimmed app. Build-time work, if ever wanted, fits an MSBuild task as Resizetizer does. **Implemented.**

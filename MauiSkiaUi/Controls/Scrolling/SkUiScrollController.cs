@@ -412,6 +412,8 @@ internal sealed class SkUiScrollController(ISkUiRenderable owner, Action<SkUiRen
         if (!moving)
             FadeBars();
         MovingChanged?.Invoke(moving);
+        if (!moving)
+            CameToRest?.Invoke();
     }
 
     /// <summary>Recognizer that turns drags into scrolling (created on first use).</summary>
@@ -462,6 +464,8 @@ internal sealed class SkUiScrollController(ISkUiRenderable owner, Action<SkUiRen
         {
             // Not sent yet: it starts from the corrected offset the UI commits with it.
             _motion?.ShiftScrollTargets((float)dx, (float)dy);
+            // The offset commits as set; the render node still hears it was a correction, not a scroll.
+            owner.RenderState.PendingScrollCorrection += new SKPoint((float)dx, (float)dy);
         }
         invalidate(SkUiRenderDirty.Props);
         offsetChanged();
@@ -570,7 +574,7 @@ internal sealed class SkUiScrollController(ISkUiRenderable owner, Action<SkUiRen
         StopMotion();
         ClearOverscroll();
         SetOffset(useX ? X + dx : X, useY ? Y + dy : Y);
-        if (SnapPointsType != SnapPointsType.None)
+        if (SnapPointsType != SnapPointsType.None || HasEndSnapRanges || CameToRest is not null)
             SnapAfterWheel();
         // An axis this scroller moved is used up, also when its edge cut the step short: the rest is not handed to the
         // outer scrollers, so a list reaching its end does not jerk the page with the same step (as browsers do); the
@@ -583,6 +587,19 @@ internal sealed class SkUiScrollController(ISkUiRenderable owner, Action<SkUiRen
 
     private int _wheelVersion;
 
+    /// <summary>
+    /// Raised when the scroller comes to rest: a drag or render-thread motion ended (<see cref="MovingChanged"/> false), or
+    /// wheel / trackpad scrolling paused (<see cref="WheelSnapDelay"/>), which never sets <see cref="IsMoving"/>.
+    /// </summary>
+    internal event Action? CameToRest;
+
+    /// <summary>Wheel or trackpad scrolling paused: snap, and tell what follows the rest (scroll-direction reveals).</summary>
+    internal void OnWheelRest()
+    {
+        Snap(Point.Zero);
+        CameToRest?.Invoke();
+    }
+
     /// <summary>Settles on the nearest snap point once the wheel or trackpad stops (needs a UI dispatcher).</summary>
     private void SnapAfterWheel()
     {
@@ -590,7 +607,7 @@ internal sealed class SkUiScrollController(ISkUiRenderable owner, Action<SkUiRen
         Microsoft.Maui.Dispatching.Dispatcher.GetForCurrentThread()?.DispatchDelayed(WheelSnapDelay, () =>
         {
             if (version == _wheelVersion && !_moving)
-                Snap(Point.Zero);
+                OnWheelRest();
         });
     }
 
@@ -795,6 +812,13 @@ internal sealed class SkUiScrollController(ISkUiRenderable owner, Action<SkUiRen
             return false;
         if (SnapPointsType != SnapPointsType.None)
             return Snap(new Point(vx, vy));
+        // A fling that would stop inside a range that settles on its ends (a collapsing header half open) snaps instead.
+        if (HasEndSnapRanges && StopsInsideEndSnapRange(vx, vy))
+        {
+            // Consumed even when already on the nearer end (Snap only sets the offset then): a free fling would stop inside.
+            Snap(new Point(vx, vy));
+            return true;
+        }
         StopMotion();
         var mode = EffectiveOverscroll;
         var bounce = mode != SkUiOverscrollMode.None;
@@ -871,7 +895,7 @@ internal sealed class SkUiScrollController(ISkUiRenderable owner, Action<SkUiRen
     /// </summary>
     public bool Snap(Point velocity)
     {
-        if (SnapPointsType == SnapPointsType.None)
+        if (SnapPointsType == SnapPointsType.None && !HasEndSnapRanges)
             return false;
         var x = Horizontal && MaxX > 0 ? SnapTarget(horizontal: true, X, velocity.X, _dragOrigin.X) : X;
         var y = Vertical && MaxY > 0 ? SnapTarget(horizontal: false, Y, velocity.Y, _dragOrigin.Y) : Y;
@@ -904,6 +928,13 @@ internal sealed class SkUiScrollController(ISkUiRenderable owner, Action<SkUiRen
     {
         // Where a fling with this velocity would stop (the decay's total travel).
         var projected = current + velocity * SkUiRenderFling.TotalTravelPerVelocity;
+        if (SnapPointsType == SnapPointsType.None)
+            return OutsideEndSnapRanges(horizontal, Math.Clamp(projected, 0, horizontal ? MaxX : MaxY), current);
+        return OutsideEndSnapRanges(horizontal, SnapPointTarget(horizontal, current, velocity, origin, projected), current);
+    }
+
+    private double SnapPointTarget(bool horizontal, double current, double velocity, double origin, double projected)
+    {
         // The snap points the motion can reach, with a viewport of room on either side (a virtual carousel lists only those).
         var viewport = horizontal ? Viewport.Width : Viewport.Height;
         var points = SnapOffsets(horizontal,
@@ -981,6 +1012,83 @@ internal sealed class SkUiScrollController(ISkUiRenderable owner, Action<SkUiRen
         points.Sort();
         RemoveDuplicates(points);
         return points;
+    }
+
+    private List<EndSnapRange>? _endSnapRanges;
+
+    /// <summary>A range of offsets a motion never comes to rest strictly inside (<see cref="SetEndSnapRanges"/>).</summary>
+    internal readonly record struct EndSnapRange(object Owner, bool Horizontal, double Start, double End);
+
+    /// <summary>Whether some range settles on its ends (<see cref="SetEndSnapRanges"/>).</summary>
+    internal bool HasEndSnapRanges => _endSnapRanges is { Count: > 0 };
+
+    /// <summary>
+    /// Replaces <paramref name="owner"/>'s ranges of offsets that settle on their ends (a scroll effect's
+    /// <see cref="SkUiScrollEffect.SnapsToEnds"/>): a drag, fling or wheel scroll that would come to rest strictly inside one
+    /// ends on its nearer end instead, with or without snap points; programmatic scrolls are left alone. Overlapping ranges
+    /// act as one; a range under 1 DIP, or one that lies outside the scroll range once clamped to it, does nothing. Empty:
+    /// none.
+    /// </summary>
+    internal void SetEndSnapRanges(object owner, IEnumerable<(bool Horizontal, double Start, double End)> ranges)
+    {
+        _endSnapRanges?.RemoveAll(range => ReferenceEquals(range.Owner, owner));
+        foreach (var (horizontal, start, end) in ranges)
+            (_endSnapRanges ??= []).Add(new EndSnapRange(owner, horizontal, Math.Min(start, end), Math.Max(start, end)));
+    }
+
+    /// <summary>Whether a fling with this velocity would come to rest strictly inside a range that settles on its ends.</summary>
+    private bool StopsInsideEndSnapRange(double vx, double vy)
+    {
+        var x = Math.Clamp(X + vx * SkUiRenderFling.TotalTravelPerVelocity, 0, MaxX);
+        var y = Math.Clamp(Y + vy * SkUiRenderFling.TotalTravelPerVelocity, 0, MaxY);
+        // Exact: the helper returns its input unchanged when no range moves it.
+        return (Horizontal && OutsideEndSnapRanges(horizontal: true, x, X) != x) || (Vertical && OutsideEndSnapRanges(horizontal: false, y, Y) != y);
+    }
+
+    /// <summary>
+    /// <paramref name="target"/>, or the nearer end of a range that settles on its ends when the target is strictly inside one
+    /// (the part of it within the scroll range; nearer to <paramref name="target"/>, ties toward <paramref name="current"/>).
+    /// </summary>
+    private double OutsideEndSnapRanges(bool horizontal, double target, double current)
+    {
+        if (_endSnapRanges is not { Count: > 0 } ranges)
+            return target;
+        var max = horizontal ? MaxX : MaxY;
+        double start = 0, end = 0;
+        var found = false;
+        foreach (var range in ranges)
+        {
+            if (range.Horizontal != horizontal)
+                continue;
+            var low = Math.Clamp(range.Start, 0, max);
+            var high = Math.Clamp(range.End, 0, max);
+            if (high - low < 1 || target <= low + 0.5 || target >= high - 0.5)
+                continue;
+            (start, end, found) = (low, high, true);
+            break;
+        }
+        if (!found)
+            return target;
+        // Overlapping ranges act as one (the order effects were added in does not matter): grow to every range that
+        // overlaps, so the end chosen is not inside another one.
+        for (var grown = true; grown;)
+        {
+            grown = false;
+            foreach (var range in ranges)
+            {
+                if (range.Horizontal != horizontal)
+                    continue;
+                var low = Math.Clamp(range.Start, 0, max);
+                var high = Math.Clamp(range.End, 0, max);
+                if (high - low < 1 || high <= start || low >= end || (low >= start && high <= end))
+                    continue;
+                (start, end, grown) = (Math.Min(start, low), Math.Max(end, high), true);
+            }
+        }
+        var toStart = target - start;
+        var toEnd = end - target;
+        // Exact: an exact tie is the case that falls back to the side the motion came from.
+        return toStart < toEnd || (toStart == toEnd && current <= target) ? start : end;
     }
 
     /// <summary>Drops snap points less than half a DIP after the previous one (sorted points).</summary>
@@ -1137,6 +1245,15 @@ internal sealed class SkUiScrollController(ISkUiRenderable owner, Action<SkUiRen
     public SKPoint ChildrenOffset => EffectiveOverscroll == SkUiOverscrollMode.Bounce
         ? new SKPoint((float)(X + OverscrollX), (float)(Y + OverscrollY))
         : new SKPoint((float)X, (float)Y);
+
+    /// <summary>
+    /// The offset scroll links follow (UI side): the scroll offset with the overscroll shown, bounced or stretched (negative
+    /// past the start, beyond the range past the end), as the compositor reads it (<see cref="SkUiRenderProps.ScrollLinkInputX"/>).
+    /// A pull that is not shown (pull to refresh without overscroll) does not count.
+    /// </summary>
+    public SKPoint LinkInput => EffectiveOverscroll == SkUiOverscrollMode.None
+        ? new SKPoint((float)X, (float)Y)
+        : new SKPoint((float)(X + OverscrollX), (float)(Y + OverscrollY));
 
     /// <summary>Fills the owner's scroll render properties: the children offset, clip and (stretch overscroll) scale.</summary>
     public void FillRenderProps(ref SkUiRenderProps props)

@@ -26,7 +26,9 @@ What the next releases bring, and the work after them. What has shipped is in th
 | **1.13.0** | As 1.11.0 | As 1.11.0 | 11.0.100 | As 1.11.0 | `master`, released 17 November 2026 |
 | **1.13.1** | As 1.11.0 | As 1.11.0 | 11.0.100 | As 1.11.0 | `master`, released 17 November 2026 |
 | **1.14.0** | As 1.11.0 | As 1.11.0 | 11.0.100 | As 1.11.0 | `master`, released 18 November 2026 |
-| **1.15.0** | As 1.11.0 | As 1.11.0 | 11.0.100 | As 1.11.0 | Proposed |
+| **1.15.0** | As 1.11.0 | As 1.11.0 | 11.0.100 | As 1.11.0 | `master`, released 19 November 2026 |
+| **1.15.1** | As 1.11.0 | As 1.11.0 | 11.0.100 | As 1.11.0 | `master`, released 20 November 2026 |
+| **1.16.0** | As 1.11.0 | As 1.11.0 | 11.0.100 | As 1.11.0 | Proposed |
 
 SkiaUi up to 1.10 targets MAUI 10.x only; 1.11 adds net11 targets with MAUI 11 next to them ([1.11.0](#1110-net-11-and-maui-11-shipped)). Development happens on `devel`; `master` holds stable releases ([Releasing.md](../Releasing.md#branches-and-versions)).
 
@@ -74,7 +76,7 @@ Searchable picker lists (`IsSearchEnabled`), the pickers' chevron (`IsChevronVis
 
 ### 1.6.0: viewport insets (shipped)
 
-Steps and decisions: [ImplementationPlan-1.6.md](ImplementationPlan-1.6.md). The rest of what was planned for 1.6 moved to [1.9.0](#190-performance-tiles-core-containers-and-password-reveal-shipped).
+Steps and decisions: [ImplementationPlan-1.6.md](../archive/ImplementationPlan-1.6.md). The rest of what was planned for 1.6 moved to [1.9.0](#190-performance-tiles-core-containers-and-password-reveal-shipped).
 
 - **Viewport insets (device checks in the [verification backlog](#verification-backlog)):** `ViewportInsets` on the scroll views and the collection view (the virtual stack follows its scroller's), so edge-to-edge pages scroll content under drawn top and bottom bars while scroll bars, `ScrollTo`, snap points, the refresh indicator, sticky headers and keyboard reveal work in the uncovered band; the surface root's `SafeAreaInsets` readable for binding.
 - **Fix:** hosted native views follow a resize of what clips them ([#81](https://github.com/rafalka/MauiSkiaUi/issues/81), fixed in [#82](https://github.com/rafalka/MauiSkiaUi/pull/82)).
@@ -83,7 +85,7 @@ Steps and decisions: [ImplementationPlan-1.6.md](ImplementationPlan-1.6.md). The
 
 From [#83](https://github.com/rafalka/MauiSkiaUi/pull/83): [what it costs](../Performance.md#vector-icons), [how to use it](../controls/SkUiImage.md#vector-icons).
 
-One feature: an app's `.svg` icons drawn at runtime on both layers, through a small SVG reader in `SkiaUi.Maui`, with no new dependency or package. A `MauiImage` keeps working as today, and an app can use both. Steps and decisions: [ImplementationPlan-1.7.md](ImplementationPlan-1.7.md).
+One feature: an app's `.svg` icons drawn at runtime on both layers, through a small SVG reader in `SkiaUi.Maui`, with no new dependency or package. A `MauiImage` keeps working as today, and an app can use both. Steps and decisions: [ImplementationPlan-1.7.md](../archive/ImplementationPlan-1.7.md).
 
 - **Reader:** the part of SVG that icons use: shapes and paths, fill and stroke, dashes, transforms, clips, masks, class rules and one-line text. What it knows it cannot draw is a `LoadError` naming it, and a file cannot make requests, take the app down or hold a thread for long.
 - **Drawing:** a bitmap at the view's size in exact pixels, so an icon stays sharp at any size and draws as cheaply as an image.
@@ -94,7 +96,7 @@ One feature: an app's `.svg` icons drawn at runtime on both layers, through a sm
 
 From [#84](https://github.com/rafalka/MauiSkiaUi/pull/84): [how to use it](../controls/SkUiMarkdownView.md), [what it costs](../Performance.md#markdown).
 
-One feature: a drawn Markdown view on both layers, in new optional packages, with no new dependency in `SkiaUi.Maui`. Steps, order, a spike's findings and decisions: [ImplementationPlan-1.8.md](ImplementationPlan-1.8.md).
+One feature: a drawn Markdown view on both layers, in new optional packages, with no new dependency in `SkiaUi.Maui`. Steps, order, a spike's findings and decisions: [ImplementationPlan-1.8.md](../archive/ImplementationPlan-1.8.md).
 
 - **View:** `SkUiMarkdownView` + `SkUiCoreMarkdown` in `SkiaUi.Maui.Markdown` on Markdig: text, quotes, alerts, code, lists, tables, images and links, styled by one style object over the color scheme; a growing text only rebuilds its tail.
 - **Untrusted documents:** nothing opens by itself, remote images stay off until an app allows them, a document cannot read a local file, and hostile input cannot take the app down.
@@ -103,7 +105,7 @@ One feature: a drawn Markdown view on both layers, in new optional packages, wit
 
 ### 1.9.0: performance, tiles, Core containers and password reveal (shipped)
 
-Moved from 1.6, then from 1.8. Built on the branch `1.9-implementation`. Steps, order and open decisions: [ImplementationPlan-1.9.md](ImplementationPlan-1.9.md).
+Moved from 1.6, then from 1.8. Built on the branch `1.9-implementation`. Steps, order and open decisions: [ImplementationPlan-1.9.md](../archive/ImplementationPlan-1.9.md).
 
 - **Fixes taken in:** reorder from a drag handle (#86, `IsReorderHandle`), a drawn root sized by its content grows with it again (#85), VoiceOver's explore by touch finds buttons inside drawn controls (done).
 
@@ -115,14 +117,14 @@ Moved from 1.6, then from 1.8. Built on the branch `1.9-implementation`. Steps, 
 
 ### 1.10.0: Community Toolkit layouts and collection view parity (shipped)
 
-Built on the branch `1.10-implementation`. Steps, order and open decisions: [ImplementationPlan-1.10.md](ImplementationPlan-1.10.md).
+Built on the branch `1.10-implementation`. Steps, order and open decisions: [ImplementationPlan-1.10.md](../archive/ImplementationPlan-1.10.md).
 
 - **Community Toolkit layouts** in `SkiaUi.Maui.CommunityToolkit`: drawn `SkUiDockLayout` and `SkUiUniformItemsLayout` on the toolkit's layout managers, with the toolkit's attached `DockPosition`; `SkUiLayout.AffectsChildLayout` and `OnChildrenChanged` made public for them (and for app layouts on other managers) (done: [SkUiDockLayout](../controls/SkUiDockLayout.md), [SkUiUniformItemsLayout](../controls/SkUiUniformItemsLayout.md)).
 - **Collection view parity:** keyboard item navigation (the list as one tab stop with a current item), extended (Shift / Ctrl) selection, a selected-item template, and animated inserts, removes and moves (opt-in in 1.x) (done: [Keyboard](../controls/SkUiCollectionView.md#keyboard), [Animated changes](../controls/SkUiCollectionView.md#animated-changes), `SelectedItemTemplate`; device checks in the [verification backlog](#verification-backlog)).
 
 ### 1.11.0: .NET 11 and MAUI 11 (shipped)
 
-Every package targets `net11.0-*` with MAUI 11 next to `net10.0-*` with MAUI 10, so apps that stay on .NET 10 keep restoring the net10 assets and never see MAUI 11; no net10 target framework is dropped. Platform support only: the MAUI 11 members new to the API go to [MAUI parity](#maui-parity). Built on the branch `feature/net11-support`, with device checks on both runtimes (CoreCLR replaces Mono on mobile in .NET 11). Steps, decisions and verification: [ImplementationPlan-1.11.md](ImplementationPlan-1.11.md).
+Every package targets `net11.0-*` with MAUI 11 next to `net10.0-*` with MAUI 10, so apps that stay on .NET 10 keep restoring the net10 assets and never see MAUI 11; no net10 target framework is dropped. Platform support only: the MAUI 11 members new to the API go to [MAUI parity](#maui-parity). Built on the branch `feature/net11-support`, with device checks on both runtimes (CoreCLR replaces Mono on mobile in .NET 11). Steps, decisions and verification: [ImplementationPlan-1.11.md](../archive/ImplementationPlan-1.11.md).
 
 - Per-TFM MAUI (10.0.130 / 11.0.10), Community Toolkit (15.0.1 / 17.0.0) and minimum Android (API 21 / 24); SkiaSharp 4.154.0 on both lines.
 - .NET SDK 11.0.100 and Xcode 27.2 build both lines' packages (decided in step 0); SDK 10 builds the net10 iOS / Mac Catalyst app heads and the .NET 10 line alone (`net10/`).
@@ -130,33 +132,41 @@ Every package targets `net11.0-*` with MAUI 11 next to `net10.0-*` with MAUI 10,
 
 ### 1.12.0: inline picker wheels and pickers of your own (shipped)
 
-Additive only. Steps, decisions and verification: [ImplementationPlan-1.12.md](ImplementationPlan-1.12.md).
+Additive only. Steps, decisions and verification: [ImplementationPlan-1.12.md](../archive/ImplementationPlan-1.12.md).
 
 - **Inline wheels** ([#98](https://github.com/rafalka/MauiSkiaUi/issues/98)) (device checks on the [verification backlog](#verification-backlog): [SkUiPickerWheels](../controls/SkUiPickerWheels.md)): `SkUiPickerWheels`, the popup's wheels as a public control placed in a layout and always open. It has `SkUiPickerColumn` columns, commits once the wheel settles, has optional haptics, keeps vertical drags from scrolling a parent, and gives each column screen reader and keyboard support. The multi-column and date / time popups use it, so there is one implementation. SkUi\* only until a Core carousel exists.
 - **Pickers of your own** ([CustomPickers.md](../controls/CustomPickers.md)): the picker base classes can be derived from outside the library, with a public popup content class (SkiaUi's popup chrome around the app's drawn body) and a typed request for presenters. Built on them: `SkUiValuePicker<T>` / `SkUiCoreValuePicker<T>`, for value types SkiaUi does not ship (a color, a duration). Samples are built on public API only, with a guide.
 
 ### 1.13.0 and 1.13.1: calendar (shipped)
 
-Additive only. The drawn calendar of [FR-33](Requirements.md#functional-requirements), on SkiaUi's own API (the date picker's names where it has them: `MinimumDate`, `MaximumDate`, `BlackoutDates`, `DateEnabled`). Steps, decisions and verification: [ImplementationPlan-1.13.md](ImplementationPlan-1.13.md); the control: [SkUiCalendar](../controls/SkUiCalendar.md). Its device checks are on the [verification backlog](#verification-backlog). 1.13.1 fixed the semantics tree after `AnimateAsync` ([#103](https://github.com/rafalka/MauiSkiaUi/issues/103)).
+Additive only. The drawn calendar of [FR-33](Requirements.md#functional-requirements), on SkiaUi's own API (the date picker's names where it has them: `MinimumDate`, `MaximumDate`, `BlackoutDates`, `DateEnabled`). Steps, decisions and verification: [ImplementationPlan-1.13.md](../archive/ImplementationPlan-1.13.md); the control: [SkUiCalendar](../controls/SkUiCalendar.md). Its device checks are on the [verification backlog](#verification-backlog). 1.13.1 fixed the semantics tree after `AnimateAsync` ([#103](https://github.com/rafalka/MauiSkiaUi/issues/103)).
 
 - **Wave 1, the calendar:** `SkUiCalendar` and `SkUiCoreCalendar` on one engine and one drawn node. Month, year, decade and century views (the title steps up, a cell steps down, a pinch zooms out or in, `MinimumDisplayMode` / `MaximumDisplayMode` limit them); swiping and previous / next buttons between pages, horizontally or vertically, animated by the look; one to six weeks; day names, week numbers and the neighbor months' days; none, single, multiple and range selection, with `RangeSelectionTarget` for apps that pick which end a tap sets; the date picker's day rules; events under the days (dots, bars, icon glyphs, captions) and a day painter for days drawn the app's way; today, selection, range band and fonts for every part, drawn by the look; keyboard and screen readers.
 - **Wave 2:** the calendar as the date pickers' popup (`PopupStyle`: `Wheels`, `Calendar`, or the look's, wheels on the built-in looks; `CalendarStyle`); `SkUiDateRangePicker` and `SkUiCoreDateRangePicker` on the range selection; range rules (`MinimumRangeDays`, `MaximumRangeDays`, `AllowsDisabledDaysInRange`) and several ranges (`MultipleRanges`, `SelectedRanges`); a screen-reader element per day and for the header's title and buttons. `SkUiDateTimePicker` keeps its wheels.
 
 ### 1.14.0: performance (shipped)
 
-Moved from 1.13 on 17 November 2026. No new control and no behavior change: the allocations a review of the code found on input events, on frames that re-record and on first frames of large trees (16 November 2026). Steps, decisions and verification: [ImplementationPlan-1.14.md](ImplementationPlan-1.14.md); the review's findings and briefs: [ImplementationPlan-PerformanceAndControls.md](ImplementationPlan-PerformanceAndControls.md). Runtime async was tried and not kept. Also fixed: surfaces removed from a live layout are collected on iOS and Mac Catalyst. Left on the [verification backlog](#verification-backlog): the .NET 11 device measurements (A7 step 4).
+Moved from 1.13 on 17 November 2026. No new control and no behavior change: the allocations a review of the code found on input events, on frames that re-record and on first frames of large trees (16 November 2026). Steps, decisions and verification: [ImplementationPlan-1.14.md](../archive/ImplementationPlan-1.14.md); the review's findings and briefs: [ImplementationPlan-PerformanceAndControls.md](ImplementationPlan-PerformanceAndControls.md). Runtime async was tried and not kept. Also fixed: surfaces removed from a live layout are collected on iOS and Mac Catalyst. Left on the [verification backlog](#verification-backlog): the .NET 11 device measurements (A7 step 4).
 
 - **Wave 1** (independent steps): `System.Threading.Lock` for the ten `object` gates (compositor, frame renderer, Metal surface, image caches, fonts); the gesture arena without an array per pointer event; the text plain-path check without a dictionary lookup per character; image memory-cache hits without a `Task` or a load context.
 - **Wave 2:** pooled render batches and updates; shared scratch paints in looks and painters; `LangVersion` 14 for both lines, `params ReadOnlySpan<T>` overloads of the `params` setters, a runtime-async trial on net11, and [Performance.md](../Performance.md) measured again on .NET 11.
 - **Wave 3, from the backlog:** an edited paragraph re-shaped without new arrays per keystroke; text shadows cast on the GPU (44 fps on the Galaxy S9 today; the one step that changes pixels, with its look checks done before release); cheaper overlay bookkeeping on Android, after a measurement; and the device frame-time checks of the collection view, virtual stack, carousel, swipe view, refresh view and shimmer from the [verification backlog](#verification-backlog), run with the .NET 11 measurements.
 
-### 1.15.0: the calendar, finished (proposed)
+### 1.15.0 and 1.15.1: the calendar, finished (shipped)
 
-Additive only. Closes what 1.13 left open on the calendar; the review's controls (F1, F5, F6) move to 1.16. Built on `1.15-implementation`: A2 to A4, the date and time popup, platform looks' calendars, image markers, event lines and other calendar systems (wave C); the slide's frame times were measured on both phones and keep up, so the render-thread slide is not needed; the device checks by hand stay on the verification backlog. Steps, decisions and verification: [ImplementationPlan-1.15.md](ImplementationPlan-1.15.md).
+Additive only. Closes what 1.13 left open on the calendar; the review's controls (F1, F5, F6) moved to 1.16, then to 1.17 when scroll-linked effects took 1.16. Built on `1.15-implementation`: A2 to A4, the date and time popup, platform looks' calendars, image markers, event lines and other calendar systems (wave C); the slide's frame times were measured on both phones and keep up, so the render-thread slide is not needed; the device checks by hand stay on the verification backlog. Steps, decisions and verification: [ImplementationPlan-1.15.md](../archive/ImplementationPlan-1.15.md).
 
 - **Wave A, verify and harden:** 1.13's device checks (slide frame times, feel, TalkBack / VoiceOver, keyboards, the pickers' calendar popups), calendar bench scenarios and zero-allocation slide frames, an edge-case sweep, a Core / SkUi parity test.
 - **Wave B, the gaps:** render-thread page slides (not needed: the S9 keeps up after a fix A1 found), a calendar popup with time wheels for `SkUiDateTimePicker`, platform looks' calendars, image markers, event lines in a month view (not a scheduler).
 - **Wave C:** other calendar systems (Thai, Taiwan, Korean, Japanese, Hijri, Umm al-Qura, Persian, Hebrew) through `System.Globalization.Calendar`; in 1.15.
+
+### 1.16.0: scroll-linked effects (proposed)
+
+Additive only. F2 of the [November 2026 review](ImplementationPlan-PerformanceAndControls.md#f2-scroll-linked-effects), moved ahead of the review's controls (F1, F5, F6 go to 1.17) on 23 November 2026: a view follows a scroller's offset or its scroll direction on the render thread, with no re-recording, on both layers. Takes in the render-thread effects linked to overscroll from [Lists and scrolling](#lists-and-scrolling). Built on `1.16-implementation`: phase A, the public API (B1 to B4), docs and the gallery page; headless benches and snapping to the ends (B5); the device checks are next. Steps, decisions and verification: [ImplementationPlan-1.16.md](ImplementationPlan-1.16.md).
+
+- **Phase A, the engine:** a list of scroll links per render node in place of the single translation link (the scroll bar thumb moves to it), evaluated by the compositor onto translation, scale, opacity and a clipped height or width (kept at the start, end or center, with rectangle, rounded or capsule corners, the shadow following); scroll-direction reveals whose state lives on the render thread; overscroll (bounce and stretch) as input; the same values on the UI side for hit-testing, the immediate painter and screen readers.
+- **Phase B, the API:** `SkUiScrollEffect` (source, orientation, input range, property, output range, easing) on `SkUiView.ScrollEffects` and `SkUiCoreNode.AddScrollEffect`, and `SkUiScrollReveal` (tracked or triggered show / hide by scroll direction, shown near the start, settling at rest, `Show` / `Hide`), with factories for parallax, fade-in, collapse and hide-on-scroll; reduce motion keeps fades and clips and stops parallax and zoom; snapping a collapsing header to its ends if time allows.
+- **Docs, demo and bench:** recipes (collapsing header with parallax and pull-to-stretch, a collection view's sticky header and footer by direction, a hiding floating button, an extended button shrinking to its icon, a fading toolbar), a gallery page, `skui-scroll-effects` / `core-scroll-effects` benches, device frame times on the S9 and the iPhone 8.
 
 ## Backlog (1.x)
 
@@ -164,11 +174,11 @@ Taken up when a real app needs it, roughly in this order within each area. Items
 
 ### New controls and packages
 
-- **Calendar:** built in [1.13](#1130-and-1131-calendar-shipped); non-Gregorian calendars, a calendar popup with time wheels for `SkUiDateTimePicker`, platform looks' calendars, image markers and a month view with event lines are [1.15](#1150-the-calendar-finished-proposed). A scheduler stays out of scope; so do the Julian and East Asian lunisolar calendars.
-- **Full SVG** in an optional `SkiaUi.Maui.Svg` package on Svg.Skia, for what [1.7's icon reader](ImplementationPlan-1.7.md) leaves out: gradients, `<use>`, filters and CSS in downloaded files and rich illustrations. Needs a vector entry in the image cache and protection against hostile files (design and a spike's findings: [the full SVG plan](ImplementationPlan-FullSvg.md)).
-- **From the November 2026 review** (briefs, order and open decisions: [ImplementationPlan-PerformanceAndControls.md](ImplementationPlan-PerformanceAndControls.md#track-f-features)), from 1.16, roughly in this order. Each is the common pattern on SkiaUi's own API, not a copy of one vendor's control:
+- **Calendar:** built in [1.13](#1130-and-1131-calendar-shipped); non-Gregorian calendars, a calendar popup with time wheels for `SkUiDateTimePicker`, platform looks' calendars, image markers and a month view with event lines are [1.15](#1150-and-1151-the-calendar-finished-shipped). A scheduler stays out of scope; so do the Julian and East Asian lunisolar calendars.
+- **Full SVG** in an optional `SkiaUi.Maui.Svg` package on Svg.Skia, for what [1.7's icon reader](../archive/ImplementationPlan-1.7.md) leaves out: gradients, `<use>`, filters and CSS in downloaded files and rich illustrations. Needs a vector entry in the image cache and protection against hostile files (design and a spike's findings: [the full SVG plan](ImplementationPlan-FullSvg.md)).
+- **From the November 2026 review** (briefs, order and open decisions: [ImplementationPlan-PerformanceAndControls.md](ImplementationPlan-PerformanceAndControls.md#track-f-features)), scroll-linked effects in 1.16 and the rest from 1.17, roughly in this order. Each is the common pattern on SkiaUi's own API, not a copy of one vendor's control:
   - **Segmented control and tab view** (F1): a tab strip over panes created when first shown, swiped on the carousel's engine.
-  - **Scroll-linked effects** (F2): a public link from a scroller's offset to translation, opacity, scale and a clipped height on the render thread (collapsing headers, parallax); takes in the overscroll-linked effects under [Lists and scrolling](#lists-and-scrolling).
+  - **Scroll-linked effects** (F2, [1.16](#1160-scroll-linked-effects-proposed)): a public link from a scroller's offset to translation, opacity, scale and a clipped height on the render thread (collapsing headers, parallax); takes in the overscroll-linked effects under [Lists and scrolling](#lists-and-scrolling).
   - **Sheet** (F3): a bottom or side sheet inside a surface, with detents, a scrim and a popup presenter for the pickers. A drawn container, not a window.
   - **Charts** (F4) in an optional `SkiaUi.Maui.Charts` package: sparkline, line, area and bar first; pie, donut, gauges, pan and zoom later.
   - **Chips** (F5), which the pickers' token template can then use; **range slider and rating** (F6); **autocomplete** (F7).
@@ -197,8 +207,8 @@ Taken up when a real app needs it, roughly in this order within each area. Items
 
 - Virtual stack: a public horizontal layout, `VirtualScrollMode` (`InfiniteFeed`, `Loop`), `PrefetchDistance`, `QueryItemSize`, a load-more hook with a placeholder, a Core twin.
 - Scroll bars: the thumb shrinking during a bounce (iOS), repeated paging on a held track press; native overlays following a stretch.
-- Pull to refresh from other edges; render-thread effects linked to overscroll.
-- Markdown: long documents as virtualized rows, measuring and recording only the top-level blocks near the viewport (the first frame of a 100 KB document takes about 760 ms on the S9, [Performance.md](../Performance.md#markdown)). Not planned for now. Needs the virtual stack's Core twin or starts on `SkUiMarkdownView` only, and an opt-in way to scroll, since the view is as tall as its document today. Design notes: [1.8 plan, V2](ImplementationPlan-1.8.md#phase-v--long-documents).
+- Pull to refresh from other edges (render-thread effects linked to overscroll: [1.16](#1160-scroll-linked-effects-proposed)).
+- Markdown: long documents as virtualized rows, measuring and recording only the top-level blocks near the viewport (the first frame of a 100 KB document takes about 760 ms on the S9, [Performance.md](../Performance.md#markdown)). Not planned for now. Needs the virtual stack's Core twin or starts on `SkUiMarkdownView` only, and an opt-in way to scroll, since the view is as tall as its document today. Design notes: [1.8 plan, V2](../archive/ImplementationPlan-1.8.md#phase-v--long-documents).
 
 ### Looks, colors and motion
 
@@ -226,6 +236,7 @@ Taken up when a real app needs it, roughly in this order within each area. Items
 Device runs that are still open. How to run them: [Testing.md](Testing.md#device-acceptance-checklists-still-open).
 
 - **Text input:** dictation, Google / iOS / third-party password managers on devices; drawn popups over a focused field. Password reveal (1.9): checked 9 November 2026 on the Galaxy S9 (Android 10, Samsung Keyboard, Samsung Pass) and the iPhone 8 (iOS 16.7) by the device tests' password reveal check, and on the S9 by hand on the samples' sign-in form (see [TextInput.md](TextInput.md#text-fields-d3)); still open: Google and third-party autofill services and iOS Passwords on a revealed field, TalkBack and VoiceOver themselves speaking it, Windows' masked box and Narrator. (CJK and Korean composition, Android autofill on devices, Windows runs, VoiceOver text navigation on a device and the Windows touch keyboard: verified, reported 29 October 2026.)
+- **Scroll-linked effects (1.16):** the feel of the gallery page's recipes under a finger (stretch, settle, triggered reveals) on both phones. The device benches ran on 23 November 2026 on the S9 and the iPhone 8: no regression without effects ([Benchmarks.md](Benchmarks.md#116-on-the-galaxy-s9-and-the-iphone-8-23-november-2026)).
 - **Accessibility:** TalkBack, VoiceOver (iOS) and Narrator on devices; keyboards on Android and Windows; an Appium run with `ExposeAutomationIds`.
 - **Hosted controls:** the manual checklist (soft keyboard, IME, WebView nesting) on devices and Windows.
 - **Controls:** the feel under a finger (a drag of the refresh view, the swipe view and the carousel; scroll bars and overscroll) and the avatar view on devices; frame times of the collection view (with memory at 10,000 items), virtual lists, swipe view, refresh view, carousel, expanders and a scrolling list of shimmering rows were measured in 1.14 ([Performance.md](../Performance.md#list-controls-on-devices)), which left two leads: the iPhone 8's heap rising across a bench run (a leak of surfaces removed from a live layout on iOS and Mac Catalyst, fixed in 1.14), and the S9 counting more frames than its screen shows; the pickers' presenters on Windows (the toolkit's anchored list was checked on 29 October 2026: frame, keyboard, dismissal), in landscape, on rotation and window resize, with screen readers; tooltips on Windows and iPad.

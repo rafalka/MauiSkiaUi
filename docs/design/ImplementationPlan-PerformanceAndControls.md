@@ -1,6 +1,6 @@
 # SkiaUi implementation plan: allocation pass and new controls
 
-**Status:** from [a review](Review-2026-11.md) of the architecture, the implementation and the .NET 10 / 11 and C# 14 / 15 feature use (16 November 2026). The findings are agreed and on the [roadmap](Roadmap.md): track A is release 1.14 (moved from 1.13 on 17 November 2026, when the calendar took 1.13), planned step by step in [ImplementationPlan-1.14.md](ImplementationPlan-1.14.md) (which wins where the two differ), and track F is on the backlog, starting in 1.16 (moved from 1.15 on 19 November 2026, when finishing the calendar took 1.15: [ImplementationPlan-1.15.md](ImplementationPlan-1.15.md)). [D1](#decisions) is agreed; the other decisions are still proposed, each to be agreed before its package starts.
+**Status:** from [a review](Review-2026-11.md) of the architecture, the implementation and the .NET 10 / 11 and C# 14 / 15 feature use (16 November 2026). The findings are agreed and on the [roadmap](Roadmap.md): track A is release 1.14 (moved from 1.13 on 17 November 2026, when the calendar took 1.13), planned step by step in [ImplementationPlan-1.14.md](../archive/ImplementationPlan-1.14.md) (which wins where the two differ), and track F is on the backlog, starting in 1.16 (moved from 1.15 on 19 November 2026, when finishing the calendar took 1.15: [ImplementationPlan-1.15.md](../archive/ImplementationPlan-1.15.md)); F2 is 1.16 (23 November 2026: [ImplementationPlan-1.16.md](ImplementationPlan-1.16.md)), the controls F1, F5, F6 follow in 1.17. [D1](#decisions) is agreed; the other decisions are still proposed, each to be agreed before its package starts.
 
 **Goal:**
 
@@ -82,7 +82,7 @@ Proposed. Agree them before the first step.
 - **D7 The data grid (F9) is SkUi\* only at first** and waits for a decision on the virtual stack's horizontal layout (backlog).
 - **D8 Backdrop blur (F10) ships only if the Galaxy S9 holds 50 fps** with one blurred bar over a scrolling list. Otherwise it stays a spike with its numbers in Performance.md.
 - **D9 Runtime async (A7) is enabled only if** the image-load scenarios allocate less and the package does not grow.
-- **D10 Releases (proposed):** 1.13 the calendar (not part of this plan); 1.14 track A; 1.15 the calendar finished (not part of this plan; agreed 19 November 2026, which moved everything below by one release); 1.16 F1, F5, F6; 1.17 F2, F3; 1.18 F4 phase 1; then F7, F8, F9, F10 as apps ask.
+- **D10 Releases (proposed):** 1.13 the calendar (not part of this plan); 1.14 track A; 1.15 the calendar finished (not part of this plan; agreed 19 November 2026, which moved everything below by one release); 1.16 F1, F5, F6; 1.17 F2, F3; 1.18 F4 phase 1; then F7, F8, F9, F10 as apps ask. Changed on 23 November 2026 ([1.16 plan, D1](ImplementationPlan-1.16.md#decisions)): 1.16 F2; 1.17 F1, F5, F6; 1.18 F3; 1.19 F4 phase 1.
 
 ## Order and parallel work
 
@@ -215,6 +215,8 @@ Steps:
 **Done when:** all checks pass and the PR reports the lines duplicated between the two segmented layers ([D3](#decisions)).
 
 ### F2 Scroll-linked effects
+
+Planned step by step for 1.16 in [ImplementationPlan-1.16.md](ImplementationPlan-1.16.md), which wins where the two differ.
 
 - **Size:** M. **Depends on:** track A. **Agent:** a stronger agent throughout (compositor and cross-thread values).
 - **Read first:** `SkUiRenderLink` and `SkUiItemEffectLink` in `SkUiRenderProps.cs`, where `SkUiCompositor` evaluates `Link`, the pinned-header code in the scroll views (grep `Link =`), [ScrollingAndCollectionViews.md](ScrollingAndCollectionViews.md) (grep "pinned").

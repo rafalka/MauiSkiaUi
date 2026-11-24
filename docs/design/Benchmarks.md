@@ -128,6 +128,7 @@ The catalog lives in [benchmarks/Scenarios/Scenarios.cs](../../benchmarks/Scenar
 | `text-shadow-scroll` / `-none` | Device only: the Effects stress page's text-shadow row, 400 cards (avatar, title, subtitle) with a shadow on each title (black, offset 1, 2, radius 3, 35 %) or none (the reference), scrolled at the page's speed (the list in 6 s), sampled for 4 s. GPU surfaces draw text shadows from the glyphs (1.14 B2); compare the motion stats with the reference |
 | `collection-fling`, `virtual-stack-fling`, `carousel-swipe`, `swipe-rows`, `refresh-spinning`, `shimmer-list-scroll` | Device only, 3 s motions (1.14 B4): a collection view over 10,000 cards flung at the fastest velocity; a virtual stack layout over 10,000 cards scrolled; a carousel of 30 cards moved one card every 400 ms; 20 swipe rows opened and closed in turn every 200 ms; a refresh view refreshing over 40 cards; 120 shimmering rows scrolled. Results: [Performance.md](../Performance.md#list-controls-on-devices) |
 | `virtual-fling` | `SkUiVirtualScrollView` over 10,000 buttons of three heights (recycled template views): the first frame realizes only the rows near the viewport; on a device, render-thread `AnimateScrollTo` towards the end while rows are realized, measured and anchored |
+| `skui-scroll-effects`, `core-scroll-effects`, their `-none` references, `skui-scroll-reveal` | (1.16) A 1,000-row list (collection view; Core: a Core scroll view of labels) under a 200 DIP header collapsing to 56 by scroll effects, or the same page without them; sticky header, footer and floating button hidden by one reveal. Update = a scroll step of 150 DIPs; motion (devices) = an animated scroll. Effects are made by reflection, so older baselines run the page without them |
 | `spinners` `[device]` | 120 activity indicators (render-thread content spin) |
 | `toggle-transitions` `[device]` | 48 switches + 48 check boxes re-toggled every 120 ms: state-change transitions always running (UI clock, one re-record per control per frame) |
 | `toggle-transitions-busy` `[device]` | The same while the UI thread is blocked 25 ms every 100 ms (where UI-thread transitions lose frames) |
@@ -158,7 +159,7 @@ The headless runner reaches the internal frame pipeline (`SkUiFrameRenderer`) by
 
 ### 1.14 wave 1 (17 November 2026)
 
-[ImplementationPlan-1.14.md](ImplementationPlan-1.14.md) A1, A2, A5, A6 against `v1.13.0`: headless, all scenarios, `-r 2`, macOS (Apple silicon), net10. 9 faster, 3 slower, 442 within noise.
+[ImplementationPlan-1.14.md](../archive/ImplementationPlan-1.14.md) A1, A2, A5, A6 against `v1.13.0`: headless, all scenarios, `-r 2`, macOS (Apple silicon), net10. 9 faster, 3 slower, 442 within noise.
 
 | Scenario | Metric | 1.13.0 | Wave 1 | Δ % | Note |
 | --- | --- | ---: | ---: | ---: | --- |
@@ -175,7 +176,7 @@ The label and button scenarios allocate the same: their allocations are the tree
 
 ### 1.14 waves 1 and 2 (17 November 2026)
 
-[ImplementationPlan-1.14.md](ImplementationPlan-1.14.md) A1 to A7 against `v1.13.0`: headless, all scenarios, `-r 2`, macOS (Apple silicon), net10. 15 faster, 6 slower, 441 within noise.
+[ImplementationPlan-1.14.md](../archive/ImplementationPlan-1.14.md) A1 to A7 against `v1.13.0`: headless, all scenarios, `-r 2`, macOS (Apple silicon), net10. 15 faster, 6 slower, 441 within noise.
 
 | Scenario | Metric | 1.13.0 | 1.14 | Δ % | Note |
 | --- | --- | ---: | ---: | ---: | --- |
@@ -198,7 +199,7 @@ What headless scenarios do not show: per-event and per-frame gains measured by t
 
 ### 1.14 overlay bookkeeping on Android (17 November 2026)
 
-[ImplementationPlan-1.14.md](ImplementationPlan-1.14.md) B3, on the Galaxy S9 (Android 10, net10 Release, `-n 6`). On devices `allocKB` is what every thread allocated during the 1.5 s motion window (about 91 frames).
+[ImplementationPlan-1.14.md](../archive/ImplementationPlan-1.14.md) B3, on the Galaxy S9 (Android 10, net10 Release, `-n 6`). On devices `allocKB` is what every thread allocated during the 1.5 s motion window (about 91 frames).
 
 | Scenario | fps | avg / max render ms | allocKB before | allocKB after |
 | --- | ---: | ---: | ---: | ---: |
@@ -210,7 +211,7 @@ The cost was in Live placement only: 6.9 KB per frame more than the drawn refere
 
 ### 1.14 text-shadow spike (18 November 2026)
 
-[ImplementationPlan-1.14.md](ImplementationPlan-1.14.md) B2 step 1. `text-shadow-scroll-*`: the Effects stress page's text-shadow row (400 cards, a shadow on each bold title: black, offset 1, 2, radius 3, 35 %), scrolled at the page's speed (the list in 6 s, about 67 cards per second), sampled for 4 s. A temporary switch in the library picked the path: `cpu` today's CPU raster per card (3 per frame at most), `gpu` the same raster on a GPU surface of the frame's context, `gpu16` that with 16 per frame, `glyph` the title's glyphs drawn again in its recording, blurred by a mask filter, in the shadow's color and at its offset (the label unclipped, so the halo is not cut at its frame). `-n 6`; the S9 on net10 Release (Android 10), the iPhone 8 on net11 Release (iOS 16, launched through Xcode 26.6's `mlaunch`; SDK 10 has no workloads on this machine).
+[ImplementationPlan-1.14.md](../archive/ImplementationPlan-1.14.md) B2 step 1. `text-shadow-scroll-*`: the Effects stress page's text-shadow row (400 cards, a shadow on each bold title: black, offset 1, 2, radius 3, 35 %), scrolled at the page's speed (the list in 6 s, about 67 cards per second), sampled for 4 s. A temporary switch in the library picked the path: `cpu` today's CPU raster per card (3 per frame at most), `gpu` the same raster on a GPU surface of the frame's context, `gpu16` that with 16 per frame, `glyph` the title's glyphs drawn again in its recording, blurred by a mask filter, in the shadow's color and at its offset (the label unclipped, so the halo is not cut at its frame). `-n 6`; the S9 on net10 Release (Android 10), the iPhone 8 on net11 Release (iOS 16, launched through Xcode 26.6's `mlaunch`; SDK 10 has no workloads on this machine).
 
 | Variant | S9 fps | S9 avg / max render ms | S9 allocKB | iPhone 8 fps | iPhone 8 avg / max render ms | iPhone 8 allocKB |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
@@ -224,7 +225,7 @@ Both paths pass the plan's 55 fps bar on the S9. The glyph path costs about 1 ms
 
 ### 1.14 runtime-async trial (17 November 2026)
 
-[ImplementationPlan-1.14.md](ImplementationPlan-1.14.md) A7 step 3: `<Features>runtime-async=on</Features>` on the headless `net11.0` target against the same commit without it (`--net 11`, `-n 10 -r 3`; the flag took effect: async methods carry `MethodImplAttributes.Async` and no state machine). The net11 suite passed with it.
+[ImplementationPlan-1.14.md](../archive/ImplementationPlan-1.14.md) A7 step 3: `<Features>runtime-async=on</Features>` on the headless `net11.0` target against the same commit without it (`--net 11`, `-n 10 -r 3`; the flag took effect: async methods carry `MethodImplAttributes.Async` and no state machine). The net11 suite passed with it.
 
 | Measure | Without | With | Δ |
 | --- | ---: | ---: | ---: |
@@ -236,11 +237,47 @@ Not kept ([D9](ImplementationPlan-PerformanceAndControls.md#decisions): allocati
 
 ### 1.15 calendar scenarios (19 November 2026)
 
-[ImplementationPlan-1.15.md](ImplementationPlan-1.15.md) A2: `scripts/bench.sh --baseline v1.14.0 -n 10 -S skui-calendars,core-calendars` (headless, a year of month calendars with a day style marking every day; update = each to its next month). Every phase within noise of 1.14.0; first-frame allocations 3 to 4 % lower (443 KB SkUi, 341 KB Core). Twelve calendars record in about 0.5 ms and re-record in 0.7 ms, so a calendar's first frame is cheap; what mattered was the swipe frame, which allocated 0.8 to 127 KB per frame and now allocates nothing in the calendar's drawing (`CalendarAllocationTests`; 104 bytes per frame through the pipeline, the re-recorded picture). The device scenario `calendar-slide` (a page slide every 400 ms with markers on every day) is for step A1.
+[ImplementationPlan-1.15.md](../archive/ImplementationPlan-1.15.md) A2: `scripts/bench.sh --baseline v1.14.0 -n 10 -S skui-calendars,core-calendars` (headless, a year of month calendars with a day style marking every day; update = each to its next month). Every phase within noise of 1.14.0; first-frame allocations 3 to 4 % lower (443 KB SkUi, 341 KB Core). Twelve calendars record in about 0.5 ms and re-record in 0.7 ms, so a calendar's first frame is cheap; what mattered was the swipe frame, which allocated 0.8 to 127 KB per frame and now allocates nothing in the calendar's drawing (`CalendarAllocationTests`; 104 bytes per frame through the pipeline, the re-recorded picture). The device scenario `calendar-slide` (a page slide every 400 ms with markers on every day) is for step A1.
 
 ### 1.15 calendar slide on devices (19 November 2026)
 
-[ImplementationPlan-1.15.md](ImplementationPlan-1.15.md) A1: `calendar-slide` and `carousel-swipe` against v1.14.0, `-n 6`, the S9 on net10, the iPhone 8 on net11 (`mlaunch`). The first S9 run, before the slot fix, showed the slide at 36 fps (UI thread 11.2 / 31.1 ms) and a probe in the bench's copy of the library put 88 KB of each draw's 89 KB in the markers; the fixed runs and their table are in [Performance.md](../Performance.md#calendar-on-devices). A run with the S9's lock screen up measures nothing (every frame wait times out): unlock it, and keep it awake through the builds.
+[ImplementationPlan-1.15.md](../archive/ImplementationPlan-1.15.md) A1: `calendar-slide` and `carousel-swipe` against v1.14.0, `-n 6`, the S9 on net10, the iPhone 8 on net11 (`mlaunch`). The first S9 run, before the slot fix, showed the slide at 36 fps (UI thread 11.2 / 31.1 ms) and a probe in the bench's copy of the library put 88 KB of each draw's 89 KB in the markers; the fixed runs and their table are in [Performance.md](../Performance.md#calendar-on-devices). A run with the S9's lock screen up measures nothing (every frame wait times out): unlock it, and keep it awake through the builds.
+
+### 1.16 scroll-linked effects (23 November 2026)
+
+[ImplementationPlan-1.16.md](ImplementationPlan-1.16.md): `skui-scroll-effects` and `core-scroll-effects` (a 1,000-row list under a 200 DIP header collapsing to 56: clip, parallax, title, fading caption) against their `-none` references (the same page without effects), and `skui-scroll-reveal` (sticky header, sticky footer and floating button hidden by one triggered reveal). Update = a scroll step of 150 DIPs; motion (devices) = an animated scroll. `scripts/bench.sh -n 10 --quiet-gc`, headless, macOS (Apple silicon), net10:
+
+| Scenario | update (ms) | updatePictures | composite (ms) | generate (ms) | allocKB |
+| --- | --- | --- | --- | --- | --- |
+| `skui-scroll-effects` | 0.3 | 8 | 0.1 | 0.6 | 1,164 |
+| `skui-scroll-effects-none` | 0.4 | 8 | 0.1 | 0.1 | 1,124 |
+| `core-scroll-effects` | 0.4 | 0 | 0.3 | 1.7 | 3,180 |
+| `core-scroll-effects-none` | 0.5 | 0 | 0.3 | 1.2 | 3,142 |
+| `skui-scroll-reveal` | 0.5 | 8 | 0.1 | 0.8 | 1,272 |
+
+A scroll step costs the same with effects as without, and records nothing for them (the 8 pictures are the rows it realizes). `generate` includes making the effects by reflection (so a baseline without them builds); the effects, links and reflection add about 40 KB per page. Against `v1.15.1` (`--baseline v1.15.1 -n 6 --quiet-gc`, the five scenarios plus `virtual-fling` and `collection-snap-fling`) only `generate` of the pages with effects is slower (the baseline has none to make); every other phase is within noise. The render time per frame during a fling (the plan's 5 % target) is a device measurement, on the verification backlog until the S9 and iPhone 8 run.
+
+### 1.16 on the Galaxy S9 and the iPhone 8 (23 November 2026)
+
+[ImplementationPlan-1.16.md](ImplementationPlan-1.16.md): the cost of the branch when no scroll effect is used, and the lag of the event-based alternative. Galaxy S9 (Android 10), net10, Release; iPhone 8 (iOS 16.7), net11, Release, launched through `mlaunch` with Xcode 26.6's device support (`SKUI_MLAUNCH_SDKROOT=/Applications/Xcode-26.6.0.app/Contents/Developer`: Xcode 27 no longer launches on iOS 16).
+
+**No effects, against `v1.15.1`** (`scripts/bench.sh -t android --baseline v1.15.1 -n 6`): `scroll-fling`, `collection-fling`, `virtual-stack-fling`, `virtual-fling`, `carousel-swipe`, `swipe-rows`, `shimmer-list-scroll`, `skui-labels`, `core-labels`, `skui-buttons` and the `-none` scroll effect page: motion frame rates, render times and first frames within noise. The first run showed `heapKB` 5 MB higher in every motion scenario: a single step of exactly 5,000 KB at one iteration, then flat. A second run (`-r 2`, alternating, `scroll-fling`, `collection-fling`, `carousel-swipe`, `skui-scroll-effects-none`) showed the same step in the baseline too: the Android runtime growing its heap by a block, not memory the branch keeps. With it on both sides, the heap is within noise (+0.2 to +1.2 %); 0 of 39 metrics slower. In `skui-scroll-effects`, the page with effects, against the same page on 1.15.1 (which has none): frame rate and render time within noise, 10 % more allocation (the effects and their links).
+
+**iPhone 8, the same scenarios against `v1.15.1`:** 105 of 110 metrics within noise. The five others: `generate` of the three pages with effects (1.15.1 has none to make) and `virtual-stack-fling`'s UI-thread time, one UI frame in one of six iterations on each side (4.3 against 5.8 ms). Motion frame rates, render times, first frames and heaps within noise (heap +0.1 to +4 %, no step this time).
+
+**Event-based lag** (the demo's Scroll lag page, `-e SKUI_DEMO_ROUTE scroll-lag -e SKUI_SCROLL_LAG run`, two runs): a header over a 10,000-row list moving up at half the scroll speed, from the list's `Scrolled` event (setting `TranslationY`) or from a scroll effect. A probe drawn with the header records on the render thread, in each frame, where the header is drawn against where the offset drawn in that frame puts it. "Busy" adds 8 ms of UI-thread work per 16 ms.
+
+| Motion | Event: mean lag | Event: 95th percentile | Event: largest | Effect |
+| --- | --- | --- | --- | --- |
+| Fling | 2.1–2.3 frames (13–15 DIPs) | 4.2–5.0 frames (40–55 DIPs) | 8–15 frames (77–112 DIPs) | 0 |
+| Fling, busy | 2.3–2.6 frames (12–14 DIPs) | 4.4–5.2 frames (27–45 DIPs) | 6–8 frames (48–68 DIPs) | 0 |
+| Animated scroll | 3.1–3.4 frames (68–71 DIPs) | 5.5–7.0 frames (125–136 DIPs) | 6–8 frames (143 DIPs) | 0 |
+| Animated scroll, busy | 2.7–3.6 frames (57–88 DIPs) | 5.3–8.1 frames (126–164 DIPs) | 9 frames (137–201 DIPs) | 0 |
+| Drag (offsets set on the UI thread) | 0 | 0 | 0 | 0 |
+
+On the **iPhone 8** (two runs) the event path lags exactly one frame during flings (12 DIPs on average, 95th percentile 21–23, at most 26, busy or not) and one to two during animated scrolls (49–66 DIPs on average, at most 169); drags are exact; the effect is exact in all of them.
+
+The DIPs are for a view moving at half the scroll speed; one that moves with the content (a collapsing header's edge against the first row) is off by twice as much. During drags the event path is exact: the offset and the handler's change commit together. During render-thread motions (flings, animated scrolls, snaps, springs) the offset reaches the UI thread after the frame that drew it, and the change it causes is drawn two to three frames later on the S9, up to fifteen. Mac Catalyst (Apple silicon, 120 Hz, Debug) showed one frame (up to three when busy).
 
 ## Guidance for agents and reviewers
 

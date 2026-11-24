@@ -37,8 +37,12 @@ namespace MauiSkiaUi;
 /// </para>
 /// </remarks>
 [ContentProperty(nameof(ItemTemplate))]
-public partial class SkUiCollectionView : SkUiView, ISkUiItemsView, ISkUiRefreshOwner, ISkUiViewportInsets
+public partial class SkUiCollectionView : SkUiView, ISkUiItemsView, ISkUiRefreshOwner, ISkUiViewportInsets, ISkUiScrollEffectSource
 {
+    /// <summary>Scroll effects follow the list's scroller (a sticky header's nearest scrolling ancestor is the collection view).</summary>
+    ISkUiScrollHost? ISkUiScrollEffectSource.ScrollEffectHost => _scroller;
+
+
     /// <summary>A container in a skeleton made from content, also while empty: its children are the bones.</summary>
     internal override bool IsSkeletonContainer => true;
 

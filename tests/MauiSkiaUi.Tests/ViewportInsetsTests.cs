@@ -6,7 +6,7 @@ using Xunit;
 namespace MauiSkiaUi.Tests;
 
 /// <summary>
-/// Phase V of docs/design/ImplementationPlan-1.6.md: <c>ViewportInsets</c> on the scrollers and lists (the content scrolls under
+/// Phase V of docs/archive/ImplementationPlan-1.6.md: <c>ViewportInsets</c> on the scrollers and lists (the content scrolls under
 /// views drawn over the viewport, and every behavior uses the band they leave uncovered) and <see cref="SkUiView.SafeAreaInsets"/>
 /// on the surface root.
 /// </summary>

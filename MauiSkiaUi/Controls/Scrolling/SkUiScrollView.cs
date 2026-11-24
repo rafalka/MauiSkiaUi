@@ -25,8 +25,11 @@ internal interface ISkUiScrollListener
 /// <see cref="Overscrolled"/> and <see cref="PullReleased"/> report pulls past the edges (with <see cref="PullEdges"/>, also
 /// of content that does not overflow), for effects and gestures built on them (stretchy headers, pull to dismiss).
 /// </summary>
-public class SkUiScrollView : SkUiContentView, ISkUiScrollHost, ISkUiViewportInsets
+public class SkUiScrollView : SkUiContentView, ISkUiScrollHost, ISkUiViewportInsets, ISkUiScrollEffectSource
 {
+    ISkUiScrollHost? ISkUiScrollEffectSource.ScrollEffectHost => this;
+
+
     /// <summary>A container in a skeleton made from content, also while empty: its children are the bones.</summary>
     internal override bool IsSkeletonContainer => true;
 

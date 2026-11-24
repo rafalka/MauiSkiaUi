@@ -29,6 +29,12 @@ internal sealed class SkUiRenderNode
 
     /// <summary>Raster of the content shadow and what it was made from (see <see cref="SkUiCompositor"/>).</summary>
     internal SkUiShadowCache? ShadowCache;
+
+    /// <summary>
+    /// The scroll corrections applied to this node's offset so far (anchoring: rows inserted above move the offset, not the
+    /// list), so a scroll-direction reveal (<see cref="SkUiRenderReveal"/>) can tell them from scrolling.
+    /// </summary>
+    internal SKPoint ScrollCorrection;
 }
 
 /// <summary>
@@ -73,6 +79,12 @@ internal sealed class SkUiRenderUpdate(SkUiRenderNode node)
     public SKPoint ScrollShift;
 
     /// <summary>
+    /// A scroll correction the UI made while no render-thread motion ran: the offset in <see cref="Props"/> already includes
+    /// it; it is only added up into <see cref="SkUiRenderNode.ScrollCorrection"/> (scroll-direction reveals leave it out).
+    /// </summary>
+    public SKPoint ScrollCorrection;
+
+    /// <summary>
     /// Forgets everything for reuse (<see cref="SkUiRenderBatch.NewUpdate"/>). Disposes nothing: once applied, what the
     /// update carried belongs to the compositor's tree.
     /// </summary>
@@ -87,6 +99,7 @@ internal sealed class SkUiRenderUpdate(SkUiRenderNode node)
         After = null;
         Children = null;
         ScrollShift = default;
+        ScrollCorrection = default;
     }
 }
 
@@ -171,6 +184,12 @@ internal sealed class SkUiCompositor : IDisposable
     private readonly Action<Action> _postToUi;
     private readonly SKPaint _layerPaint = new();
     private readonly SKPaint _shadowPaint = new();
+
+    /// <summary>Reveals whose timed move ended while drawing this frame: reported to the UI side with the frame's reports.</summary>
+    private readonly List<SkUiRenderReveal> _endedReveals = [];
+
+    /// <summary>Reused for rounded scroll-linked clips and the shadows that follow them (no native object per frame).</summary>
+    private readonly SKRoundRect _clipRoundRect = new();
     private readonly SKPaint _drawablePaint = new();
     private readonly List<SkUiRenderNode> _removed = [];
     private readonly List<SkUiRenderAnimation> _animations = [];
@@ -425,6 +444,14 @@ internal sealed class SkUiCompositor : IDisposable
             // A content shadow drawn live because it just changed (or over the budget) is rasterized on the next frame,
             // while idle, instead of at the start of the next scroll.
             _continuous = _spinning || _animations.Count > 0 || _rasterizePending;
+            if (_endedReveals.Count > 0)
+            {
+                // Rare (the end of a show, hide, settle or trigger): one closure per ended reveal.
+                reports ??= [];
+                foreach (var reveal in _endedReveals)
+                    reports.Add(reveal.ReportMoveEnded);
+                _endedReveals.Clear();
+            }
             if (reports is not null)
                 PostReports(reports);
             return NeedsFrame;
@@ -544,6 +571,8 @@ internal sealed class SkUiCompositor : IDisposable
             }
             if (update.ScrollShift != SKPoint.Empty)
                 ShiftScroll(node, update.ScrollShift, retainedOffset);
+            if (update.ScrollCorrection != SKPoint.Empty)
+                node.ScrollCorrection += update.ScrollCorrection;
             if (update.HasContent)
             {
                 if (!ReferenceEquals(node.Before, update.Before)) node.Before?.Dispose();
@@ -676,6 +705,7 @@ internal sealed class SkUiCompositor : IDisposable
     /// </param>
     private void ShiftScroll(SkUiRenderNode node, SKPoint shift, int retainedOffset)
     {
+        node.ScrollCorrection += shift;
         foreach (var animation in _animations)
             if (ReferenceEquals(animation.Target, node) && !animation.IsCancelled && (animation.PropertyMask & ScrollOffsetMask) != 0)
                 animation.ShiftScroll(shift.X, shift.Y);
@@ -773,6 +803,8 @@ internal sealed class SkUiCompositor : IDisposable
             return;
         SKMatrix matrix;
         var opacity = props.DrawnOpacity;
+        var clipped = false;
+        var clip = default(SkUiRenderLinkClip);
         if (props.ItemEffect is { Source.Disposed: false } effect)
         {
             // A carousel item: placed (and faded) by its effect at the scroller's current offset.
@@ -783,9 +815,22 @@ internal sealed class SkUiCompositor : IDisposable
                 return;
             matrix = placed.Matrix;
         }
+        else if (props.Links is { } links)
+        {
+            // Scroll-linked: translation, scale, opacity and clip from the sources' current (possibly animated) offsets.
+            // A reveal's timed move keeps the frames coming (as spinning content does).
+            var values = SkUiRenderLinkValues.Evaluate(links, props.LinkValues, _now, _endedReveals, ref _spinning);
+            opacity *= values.Opacity;
+            if (opacity <= 0)
+                return;
+            clipped = SkUiRenderLinkClip.TryGet(links, values, props.Width, props.Height, out clip);
+            if (clipped && clip.IsEmpty)
+                return;
+            matrix = props.GetMatrix(values);
+        }
         else
         {
-            matrix = props.Link is { } link ? Follow(props, link) : props.Matrix;
+            matrix = props.Matrix;
         }
         var save = canvas.Save();
         if (isRoot)
@@ -802,9 +847,18 @@ internal sealed class SkUiCompositor : IDisposable
             canvas.SaveLayer(props.LayerBounds, _layerPaint);
         }
         if (props.Shadow is { } shadow)
-            DrawShadow(canvas, node, shadow);
+        {
+            if (clipped)
+                DrawClippedShadow(canvas, node, shadow, clip);
+            else
+                DrawShadow(canvas, node, shadow);
+        }
         else if (node.ShadowCache is not null)
+        {
             DisposeShadowCache(node);
+        }
+        if (clipped)
+            clip.Apply(canvas, _clipRoundRect); // inside this node's save, around its body
         if (props.DrawableSpace)
         {
             // The drawables below position themselves in this node's coordinates, wherever it is drawn.
@@ -818,19 +872,6 @@ internal sealed class SkUiCompositor : IDisposable
             DrawBody(canvas, node, ownSave: false); // inside this node's save
         }
         canvas.RestoreToCount(save);
-    }
-
-    /// <summary>
-    /// The matrix of a scroll-linked node: its translation from the source's current (possibly render-thread animated)
-    /// children offset. A disposed source (detached) leaves the committed translation.
-    /// </summary>
-    private static SKMatrix Follow(in SkUiRenderProps props, SkUiRenderLink link)
-    {
-        if (link.Source.Disposed)
-            return props.Matrix;
-        ref readonly var source = ref link.Source.Props;
-        var translation = link.Evaluate(source.ChildrenOffsetX, source.ChildrenOffsetY);
-        return props.GetMatrix(translation.X, translation.Y);
     }
 
     /// <summary>
@@ -903,6 +944,45 @@ internal sealed class SkUiCompositor : IDisposable
         }
         LiveShadows++;
         SkUiShadowPainter.DrawFromContent(canvas, shadow, _shadowPaint, (this, node), static (c, state) => state.Item1.DrawBody(c, state.Item2, ownSave: true));
+    }
+
+    /// <summary>
+    /// The shadow of a node with a scroll-linked clip, which follows the clip as it changes: an outline shadow is cast by the
+    /// clip's rounded rectangle (within the outline's bounds), a content shadow by the clipped content, drawn live (a cached
+    /// raster would be of another clip).
+    /// </summary>
+    private void DrawClippedShadow(SKCanvas canvas, SkUiRenderNode node, SkUiRenderShadow shadow, in SkUiRenderLinkClip clip)
+    {
+        if (shadow.Outline is { } outline)
+        {
+            if (node.ShadowCache is not null)
+                DisposeShadowCache(node); // a content shadow's raster from before: not this shadow
+            if (clip.TryGetOutlineShadow(outline.Bounds, shadow.OutlineCornerRadius, out var rect, out var radius, out var hidden))
+            {
+                _clipRoundRect.SetRect(rect, radius, radius);
+                SkUiShadowPainter.DrawRoundRect(canvas, shadow, _clipRoundRect, _shadowPaint);
+            }
+            else if (!hidden)
+            {
+                DrawShadow(canvas, node, shadow); // the clip leaves the outline whole: its own shape
+            }
+            return;
+        }
+        if (clip.Rect.Contains(node.Props.VisualBounds))
+        {
+            DrawShadow(canvas, node, shadow); // the clip cuts nothing it draws: the cached shadow serves
+            return;
+        }
+        if (node.ShadowCache is not null)
+            DisposeShadowCache(node);
+        LiveShadows++;
+        SkUiShadowPainter.DrawFromContent(canvas, shadow, _shadowPaint, (this, node, clip), static (c, state) =>
+        {
+            var save = c.Save();
+            state.clip.Apply(c, state.Item1._clipRoundRect);
+            state.Item1.DrawBody(c, state.node, ownSave: true);
+            c.RestoreToCount(save);
+        });
     }
 
     private static void DisposeShadowCache(SkUiRenderNode node)
@@ -1122,6 +1202,7 @@ internal sealed class SkUiCompositor : IDisposable
             _root = null;
             _layerPaint.Dispose();
             _shadowPaint.Dispose();
+            _clipRoundRect.Dispose();
             _drawablePaint.Dispose();
         }
     }

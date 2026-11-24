@@ -182,6 +182,10 @@ avatar.SetClip(new SkUiCoreEllipse());
 - **`SetClip(IShape)`**: a Core shape is placed in the node's bounds (as when it shapes a border: `new SkUiCoreEllipse()` is a circle that follows the size); a MAUI geometry (`EllipseGeometry`, `RectangleGeometry`, …) is in the node's coordinates. Changes of the shape's properties re-clip. Input keeps the rectangular bounds.
 - All three are composited: transforms, `AnimateAsync`, scrolling and shadow / clip edits record nothing.
 
+### Scroll-linked effects
+
+`AddScrollEffect(s)`, `RemoveScrollEffect` and `ScrollEffects` tie a node's translation, scale, opacity or a clip to a scroller on the render thread, as `SkUiView.ScrollEffects` does: a Core scroll view, or (through the `SkUiCoreHost`) a SkUi\* one, by `Source` or as the nearest scrolling ancestor. See [scroll-linked effects](SkUiScrollView.md#scroll-linked-effects).
+
 ## Styling Core nodes
 
 Core nodes have no MAUI `Style`, `BasedOn` or implicit styles: they are not bindable objects, and there is no resource lookup. Three code-first tools cover the same ground, from app-wide to per node. Sample: **Styles for Core nodes** in the samples app (`CoreStylesSample`).

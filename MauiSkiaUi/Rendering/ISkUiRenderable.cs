@@ -103,6 +103,11 @@ internal sealed class SkUiRenderState
     public List<SkUiRenderAnimation>? ActiveAnimations;
     /// <summary>A scroll correction for the render thread's running scroll motion, sent with the next frame (<see cref="SkUiRenderUpdate.ScrollShift"/>).</summary>
     public SKPoint PendingScrollShift;
+    /// <summary>
+    /// A scroll correction made while no render-thread motion runs (the offset itself is committed as set), sent with the
+    /// next frame so the render node can tell it from scrolling (<see cref="SkUiRenderUpdate.ScrollCorrection"/>).
+    /// </summary>
+    public SKPoint PendingScrollCorrection;
     /// <summary>The node's id in semantics trees (0 until it first is an element); kept by <see cref="Reset"/>.</summary>
     public int SemanticsId;
 
@@ -130,6 +135,7 @@ internal sealed class SkUiRenderState
         }
         PendingAnimations?.Clear();
         PendingScrollShift = SKPoint.Empty;
+        PendingScrollCorrection = SKPoint.Empty;
         Node = new SkUiRenderNode();
         Dirty = SkUiRenderDirty.All;
         HasCommitted = false;

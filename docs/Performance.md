@@ -208,7 +208,7 @@ Bench scenarios (`scripts/bench.sh -t android|ios --net 11 -S …`, [Benchmarks.
 | Frames per second over the motion | 21 | 44 | 43 | 45 |
 | Allocated over the motion | 25.9 MB | 0.64 MB | 17.5 MB | 0.53 MB |
 
-- **Every frame of a slide fits a 60 Hz frame on both phones in 1.15.** 44 frames per second is what the scenario can show: a slide fills 280 ms of each 400 ms (60 × 0.7 = 42; the carousel's longer animation shows 49–52 in the same scenario). So slides stay on the UI thread ([1.15 plan, B1](design/ImplementationPlan-1.15.md#b1-render-thread-page-slides-conditional)).
+- **Every frame of a slide fits a 60 Hz frame on both phones in 1.15.** 44 frames per second is what the scenario can show: a slide fills 280 ms of each 400 ms (60 × 0.7 = 42; the carousel's longer animation shows 49–52 in the same scenario). So slides stay on the UI thread ([1.15 plan, B1](archive/ImplementationPlan-1.15.md#b1-render-thread-page-slides-conditional)).
 - **What 1.14 paid for:** marker captions laid out again in every frame, and a caption that shrinks to fit (the S9's font made "Off" overflow) fitted again in every cell, since cells of a grid differ in width by float rounding. At 1.15 the calendar's drawing allocates nothing per frame; what is left is the new picture each frame and the work of a page change (a new title, a new month's day styles).
 - **The render thread takes 1 ms more per frame at 1.15 on both phones** (playing the recorded calendar back). Within the budget; not investigated yet.
 

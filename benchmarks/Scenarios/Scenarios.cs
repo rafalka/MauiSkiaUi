@@ -86,6 +86,7 @@ public static class Scenarios
         new ShimmerListScroll(),
         new VirtualListFling(),
         new CollectionSnapFling(),
+        .. ScrollEffectsScenario.All(),
         new CollectionChanges(animated: false),
         new CollectionChanges(animated: true),
         new PickerWheels(),

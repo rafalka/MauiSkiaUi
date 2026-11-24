@@ -1,6 +1,6 @@
 # SkiaUi 1.13 implementation plan: calendar
 
-**Goal:** a drawn calendar on both layers, `SkUiCalendar` and `SkUiCoreCalendar` ([FR-33](Requirements.md#functional-requirements)): a control on a page for bookings, schedules and date ranges, and later the month grid the date pickers can open instead of wheels. The performance work planned for 1.13 moved to [1.14](ImplementationPlan-1.14.md) on 17 November 2026.
+**Goal:** a drawn calendar on both layers, `SkUiCalendar` and `SkUiCoreCalendar` ([FR-33](../design/Requirements.md#functional-requirements)): a control on a page for bookings, schedules and date ranges, and later the month grid the date pickers can open instead of wheels. The performance work planned for 1.13 moved to [1.14](ImplementationPlan-1.14.md) on 17 November 2026.
 
 **Baseline:** 1.12.0 (net10 with MAUI 10.0.130 and net11 with MAUI 11.0.10, SDK 11.0.100, SkiaSharp 4.154.0).
 
@@ -53,7 +53,7 @@
 - Headless tests (`CalendarGridTests`, `CalendarTests`): grids by culture and first day, week paging, year / decade / century cells, rules, selection modes on both layers, the range target, write-back to a one-way binding, keys, display-mode steps, swipe settle and page commit, the marker area and the day painter, drawing both layers to the same pixels, implicit styles (`ImplicitStyleTests` finds the new view).
 - Leak scenario: a calendar swiped and its selection changed on a closed page.
 - Demo: a gallery page with the properties to play with, a styled calendar (a compact header with round buttons, today as a ring), a range booking and a month of events (bars, a glyph, a caption, dots).
-- Docs: [SkUiCalendar](../controls/SkUiCalendar.md), the controls index, the changelog, [Requirements](Requirements.md) (FR-33), [Migration.md](../Migration.md) (from other calendar controls) and the migration skills.
+- Docs: [SkUiCalendar](../controls/SkUiCalendar.md), the controls index, the changelog, [Requirements](../design/Requirements.md) (FR-33), [Migration.md](../Migration.md) (from other calendar controls) and the migration skills.
 
 ### Step 5 Verification and release
 

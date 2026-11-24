@@ -4,11 +4,11 @@
 
 **Status:** shipped in 1.6.0.
 
-**Scope:** phase V and the fix for hosted native views that keep an old clip when what clips them is resized ([#81](https://github.com/rafalka/MauiSkiaUi/issues/81), fixed in [#82](https://github.com/rafalka/MauiSkiaUi/pull/82)). The other work first planned for 1.6 (performance, the tile layout, Core containers, password reveal) moved to [1.9](ImplementationPlan-1.9.md); 1.7 brings [vector icons](Roadmap.md#170-vector-icons-shipped) and 1.8 [Markdown](ImplementationPlan-1.8.md).
+**Scope:** phase V and the fix for hosted native views that keep an old clip when what clips them is resized ([#81](https://github.com/rafalka/MauiSkiaUi/issues/81), fixed in [#82](https://github.com/rafalka/MauiSkiaUi/pull/82)). The other work first planned for 1.6 (performance, the tile layout, Core containers, password reveal) moved to [1.9](ImplementationPlan-1.9.md); 1.7 brings [vector icons](../design/Roadmap.md#170-vector-icons-shipped) and 1.8 [Markdown](ImplementationPlan-1.8.md).
 
-**Baseline:** .NET MAUI 10.0.120, SkiaSharp 4.154.0, from `devel` after 1.5.1. What has shipped is in the [changelog](../../CHANGELOG.md); the rest of the 1.x backlog stays in the [roadmap](Roadmap.md#backlog-1x).
+**Baseline:** .NET MAUI 10.0.120, SkiaSharp 4.154.0, from `devel` after 1.5.1. What has shipped is in the [changelog](../../CHANGELOG.md); the rest of the 1.x backlog stays in the [roadmap](../design/Roadmap.md#backlog-1x).
 
-**Rules** (as in 1.4, from [Requirements.md](Requirements.md#principles)):
+**Rules** (as in 1.4, from [Requirements.md](../design/Requirements.md#principles)):
 
 - 1.x keeps the 1.0 API: everything here is additive.
 - Both layers: each member lands on the SkUi\* control and its Core twin (`Set*`), with one shared engine.
@@ -35,20 +35,20 @@ The scroller already has the mechanism, internal: `SkUiScrollController.Insets` 
   - Tests: values follow the surface's safe area; bindings update on change.
 - **V4 Demo and docs.** Size: S.
   - A gallery page "Edge-to-edge scrolling": translucent drawn top and bottom bars over a collection view and a scroll view, the bars' sizes bound into `ViewportInsets`, with snap points, a sticky header, pull to refresh and a text field at the bottom.
-  - [SkUiScrollView.md](../controls/SkUiScrollView.md), [SkUiCollectionView.md](../controls/SkUiCollectionView.md), [SkUiRefreshView.md](../controls/SkUiRefreshView.md), [ScrollingAndCollectionViews.md](ScrollingAndCollectionViews.md); [Migration.md](../Migration.md): iOS `ContentInset` / Android `clipToPadding="false"` patterns and MAUI pages that fake them with header and footer spacers map to `ViewportInsets`.
+  - [SkUiScrollView.md](../controls/SkUiScrollView.md), [SkUiCollectionView.md](../controls/SkUiCollectionView.md), [SkUiRefreshView.md](../controls/SkUiRefreshView.md), [ScrollingAndCollectionViews.md](../design/ScrollingAndCollectionViews.md); [Migration.md](../Migration.md): iOS `ContentInset` / Android `clipToPadding="false"` patterns and MAUI pages that fake them with header and footer spacers map to `ViewportInsets`.
 
 ## Docs, migration and demo
 
-Done with each step: the control pages named in the steps; [Migration.md](../Migration.md) and the migration skills (`plugins/skiaui-migration`) where a MAUI pattern now maps; the demo's component gallery; [Roadmap.md](Roadmap.md); [CHANGELOG.md](../../CHANGELOG.md) (an entry under `## Unreleased` per feature).
+Done with each step: the control pages named in the steps; [Migration.md](../Migration.md) and the migration skills (`plugins/skiaui-migration`) where a MAUI pattern now maps; the demo's component gallery; [Roadmap.md](../design/Roadmap.md); [CHANGELOG.md](../../CHANGELOG.md) (an entry under `## Unreleased` per feature).
 
 ## Decisions
 
 - **D1 A new `ViewportInsets`, not `Padding`.** Padding keeps its meaning (space inside the scrolled content, as in MAUI), so 1.x pages draw as before; `ViewportInsets` says which part of the viewport is covered. **Implemented.**
 - **D2 The keyboard and the end inset.** The keyboard covers the bottom bar, so the end inset is the larger of the two, not their sum. A collection view's sticky footer still adds to that, as it did to the keyboard before. **Implemented.**
-- **D3 The safe area stays the app's.** Drawn views inside a surface still do not apply `SafeAreaEdges` ([not planned](Roadmap.md#not-planned)); the surface root exposes the insets so the app sizes its bars and passes them on. **Implemented.**
+- **D3 The safe area stays the app's.** Drawn views inside a surface still do not apply `SafeAreaEdges` ([not planned](../design/Roadmap.md#not-planned)); the surface root exposes the insets so the app sizes its bars and passes them on. **Implemented.**
 
 ## Acceptance
 
 - Headless suite and memory-leak scenarios pass; 0 build warnings with the trim and AOT analyzers.
 - `scripts/bench.sh --baseline v1.5.1` shows no regression in the existing scenarios.
-- The edge-to-edge gallery page checked on an iPhone with a notch, an Android phone in edge-to-edge, Mac Catalyst and Windows (what is still open: [verification backlog](Roadmap.md#verification-backlog)).
+- The edge-to-edge gallery page checked on an iPhone with a notch, an Android phone in edge-to-edge, Mac Catalyst and Windows (what is still open: [verification backlog](../design/Roadmap.md#verification-backlog)).

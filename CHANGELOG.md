@@ -13,6 +13,20 @@ Publishing (the NuGet publish workflow, [docs/Releasing.md](docs/Releasing.md)) 
 
 ## Unreleased
 
+### New features
+
+- **Scroll-linked effects:** `SkUiScrollEffect` ties a view's translation, scale, opacity or a clip to a scroller, evaluated on the render thread every frame: collapsing headers, parallax pictures, toolbar titles that fade in, headers that grow when the list is pulled past its top. Nothing is recorded again while the list scrolls, and the views follow render-thread flings.
+  - `SkUiView.ScrollEffects` (XAML) and `AddScrollEffect(s)` / `RemoveScrollEffect` on both layers (`SkUiCoreNode`); the scroller is a `SkUiScrollView`, `SkUiCoreScrollView`, `SkUiCollectionView` or `SkUiRefreshView` by `Source` (`x:Reference`), or the nearest scrolling ancestor (a collection view's sticky header and footer find their list).
+  - An offset range (overscroll included, bounce or stretch) maps onto `From` / `To` through an optional easing; clips keep the start, end or center with square, rounded or capsule corners, and the view's shadow follows the clip. Taps and screen readers see only what shows.
+  - `SkUiScrollReveal` hides views while the list scrolls down and brings them back on any scroll up: tracked (follows the scroll, settles at rest), triggered (a timed show or hide past a threshold) while scrolling (hidden in step with any scroll, back when the list comes to rest: a floating button out of the way) or manual (only `Show()` / `Hide()` move it, for the app's own rules), always shown at the start, `Show()` / `Hide()`, `IsShown`; one reveal can drive several views (a sticky header and footer, a floating button, an extended button shrinking to its icon).
+  - `SnapsToEnds` keeps a drag, fling or wheel scroll from stopping inside an effect's range: a collapsing header ends fully open or collapsed, with or without the list's snap points.
+  - Reduced motion keeps fades and clips and stops parallax and scaling (per effect: `ReducedMotion`). Factories: `Parallax`, `FadeIn`, `CollapseTo`, `HideOnScroll`. Docs: [SkUiScrollView](docs/controls/SkUiScrollView.md#scroll-linked-effects); demo: the gallery's Scroll effects page.
+
+### Other
+
+- **Samples app:** a *Scroll effects* example, a trip's page built from scroll-linked effects: a landscape header in parallax layers that collapses into a toolbar (and grows when pulled), a title moving into the toolbar, a reading-progress line, section chips that stick under the toolbar, a carousel with parallax pictures, itinerary cards sliding in, and a price bar, an extended Book button and a back-to-top button that react to scrolling.
+- **DevFlow extension:** `dev.skiaui` has a `drag` tool that drags on the drawn content as a finger does (from an element or a window point, in real time, so a fast one flings): DevFlow's own scroll and gesture commands do not move drawn scrollers.
+
 ## 1.15.1
 
 ### New features
@@ -141,7 +155,7 @@ Publishing (the NuGet publish workflow, [docs/Releasing.md](docs/Releasing.md)) 
 
 ### New features
 
-- **.NET 11 and MAUI 11:** SkiaUi.Maui, SkiaUi.Maui.CommunityToolkit, SkiaUi.Maui.Markdown and SkiaUi.Maui.Markdown.Math target `net11.0-*` with MAUI 11.0.10 (Community Toolkit 17.0.0) next to `net10.0-*` with MAUI 10, so .NET 10 apps keep restoring the net10 assets and never see MAUI 11. The net11 assets need Android 7.0 (API 24) and build with .NET SDK 11.0.100 and Xcode 27.2; the other minimum OS versions are unchanged. Details and the behaviour differences between the lines: [ImplementationPlan-1.11.md](docs/design/ImplementationPlan-1.11.md).
+- **.NET 11 and MAUI 11:** SkiaUi.Maui, SkiaUi.Maui.CommunityToolkit, SkiaUi.Maui.Markdown and SkiaUi.Maui.Markdown.Math target `net11.0-*` with MAUI 11.0.10 (Community Toolkit 17.0.0) next to `net10.0-*` with MAUI 10, so .NET 10 apps keep restoring the net10 assets and never see MAUI 11. The net11 assets need Android 7.0 (API 24) and build with .NET SDK 11.0.100 and Xcode 27.2; the other minimum OS versions are unchanged. Details and the behaviour differences between the lines: [ImplementationPlan-1.11.md](docs/archive/ImplementationPlan-1.11.md).
 
 ### Breaking changes
 

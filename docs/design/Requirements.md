@@ -102,6 +102,7 @@ Status: **Shipped** (in the current release line), **Partly** (shipped, with ope
 | FR-33 | Calendar | Built for 1.13, with the date pickers' calendar popup and a date range picker | [SkUiCalendar](../controls/SkUiCalendar.md), [SkUiDateRangePicker](../controls/SkUiDateRangePicker.md) |
 | FR-34 | Markdown view, safe with untrusted documents (optional packages) | Built for 1.8 | [SkUiMarkdownView](../controls/SkUiMarkdownView.md) |
 | FR-35 | Zoom view | Built for 1.8 | [SkUiZoomView](../controls/SkUiZoomView.md) |
+| FR-36 | Scroll-linked effects on the render thread: translation, scale, opacity and clips from a scroller's offset (overscroll included) or scroll direction, on both layers | Built for 1.16 | [SkUiScrollView](../controls/SkUiScrollView.md#scroll-linked-effects) |
 
 ### Core layer (FR-C)
 

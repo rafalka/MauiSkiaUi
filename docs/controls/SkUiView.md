@@ -122,6 +122,10 @@ MAUI's `Background`, `Shadow` and `Clip` work on every drawn view, so MAUI XAML 
 - Core nodes have the same three: `SetBackground(Paint)`, `SetShadow(IShadow)` (e.g. `SkUiCoreShadow`), `SetClip(IShape)` ([SkUiCore.md](SkUiCore.md#backgrounds-shadows-and-clips)).
 - Not drawn: image paints (MAUI's `ImageBrush` is internal); shape-aware hit-testing stays opt-in for later.
 
+## Scroll-linked effects
+
+`ScrollEffects` (created on first read) ties the view's translation, scale, opacity or a clip to a scroller on the render thread: collapsing headers, parallax, fades, and views that hide by scroll direction with a shared `SkUiScrollReveal`. `AddScrollEffect`, `AddScrollEffects` and `RemoveScrollEffect` for code. Recipes, members and the reduced-motion rules: [SkUiScrollView, scroll-linked effects](SkUiScrollView.md#scroll-linked-effects).
+
 ## Accessibility and keyboard
 
 Drawn views are read by TalkBack, VoiceOver and Narrator, take keyboard focus, and follow the system text size ([Accessibility.md](../design/Accessibility.md)). MAUI's accessibility XAML ports by changing the prefix:

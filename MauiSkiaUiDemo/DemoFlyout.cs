@@ -46,7 +46,8 @@ public static class DemoFlyout
         new("Performance",
         [
             new("Stress", "stress", () => new StressPage()),
-            new("Effects stress", "effects-stress", () => new EffectsStressPage())
+            new("Effects stress", "effects-stress", () => new EffectsStressPage()),
+            new("Scroll lag", "scroll-lag", () => new ScrollLagPage())
         ])
     ];
 

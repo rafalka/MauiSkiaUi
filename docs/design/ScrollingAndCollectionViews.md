@@ -270,7 +270,18 @@ Two owners share one helper, `SkUiPullToRefresh`: the indicator (the public Core
 - **`PullEdges`** generalizes the pull at the vertical start to every edge: `SkUiScrollController.CanOverscroll` lets a drag pull past an edge in `PullEdges` (or the top, for `PullsAtVerticalStart` and `PullsForRefreshView`) when the offset is at that edge, on the scrolled axes only, whatever the overscroll mode and the content's size. The pull is tracked and rubber-banded as any overscroll; `None` draws nothing.
 - **`Overscrolled`** is raised from `OverscrollChanged` (drags, render-thread bounce and spring-back reports), with one `SkUiOverscrolledEventArgs` per controller reused for every report (no allocation per frame).
 - **`PullReleased`** comes from the controller's release report, now per edge (`Action<SkUiScrollEdges, double>`); the pull-to-refresh owners keep only the top.
-- Effects that follow the events run on the UI thread, a frame behind the render thread during a bounce when the UI thread is busy; render-thread scroll links for them are not public yet.
+- Effects that follow the events run on the UI thread, a frame behind the render thread during a bounce when the UI thread is busy. Since 1.16, effects that can be written as a property of an offset (or of the scroll direction) run on the render thread instead: [scroll-linked effects](#scroll-linked-effects).
+
+## Scroll-linked effects
+
+(1.16) `SkUiScrollEffect` on any view (`SkUiView.ScrollEffects`, `SkUiCoreNode.AddScrollEffect`) maps a scroller's offset, overscroll included, or a `SkUiScrollReveal`'s scroll-direction progress onto translation, scale, opacity or a clip; recipes on [SkUiScrollView](../controls/SkUiScrollView.md#scroll-linked-effects), the plan in [ImplementationPlan-1.16.md](ImplementationPlan-1.16.md).
+
+| Part | Design |
+| --- | --- |
+| **Render links** | Each effect becomes a `SkUiRenderLink` channel in the node's `SkUiRenderProps.Links` ([RenderingPipeline](RenderingPipeline.md)); the compositor evaluates them each frame against the source's current children offset (`ScrollLinkInputX/Y`: a bounce is in the offset, a stretch is turned back from the children scale). Nothing is recorded; the source can be a sibling. |
+| **UI side** | `SkUiScrollEffectSet` (one per view, both layers) resolves each effect's scroller (`ISkUiScrollEffectSource`: the scroll views, a collection view's list scroller, a refresh view's pulled scroller; else the nearest scrolling ancestor), builds the links when the effects, the scroller's render node, the flow direction or reduced motion change, and writes the UI-side values (`LinkValues`) that hit-testing, the immediate painter and semantics read. It listens to the scrollers' reports while drawn (re-commit, semantics, reveals' range and rest) and lets go on `ReleaseDrawingResources`. |
+| **Reveals** | `SkUiRenderReveal` holds the progress on the render thread (tracked or triggered, the start band, timed moves with frames kept coming); corrections (`SkUiRenderNode.ScrollCorrection`, from `ShiftScroll`) and overscroll do not move it; the UI side reads the progress last drawn and requests settle / show / hide lock-free. |
+| **Clips** | Clip width / height with an edge and square, rounded or capsule corners, from a reused `SKRoundRect`; an outline shadow is cast by the clip, a content shadow drawn live from the clipped content. Layout never changes: a collapsing header sits over the list, whose `ViewportInsets` leave its expanded size. |
 
 ## Carousel
 

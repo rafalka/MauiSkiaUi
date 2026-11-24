@@ -92,6 +92,13 @@ internal sealed class SkUiRenderRecorder : IDisposable
             state.PendingScrollShift = SKPoint.Empty;
         }
 
+        if (state.PendingScrollCorrection != SKPoint.Empty)
+        {
+            update ??= batch.NewUpdate(state.Node);
+            update.ScrollCorrection = state.PendingScrollCorrection;
+            state.PendingScrollCorrection = SKPoint.Empty;
+        }
+
         if ((dirty & SkUiRenderDirty.Children) != 0)
         {
             var start = _scratch.Count;
@@ -181,6 +188,7 @@ internal static class SkUiImmediatePainter
     [ThreadStatic] private static SKPaint? _layerPaint;
     [ThreadStatic] private static SKPaint? _shadowPaint;
     [ThreadStatic] private static SKPaint? _drawablePaint;
+    [ThreadStatic] private static SKRoundRect? _clipRoundRect;
     [ThreadStatic] private static SKMatrix _surface;
     [ThreadStatic] private static SKMatrix _space;
     [ThreadStatic] private static List<ISkUiRenderable>? _children;
@@ -212,7 +220,10 @@ internal static class SkUiImmediatePainter
             return props.Pinned;
         if (!applyOffset)
             props.X = props.Y = 0;
-        if (props.IsSkippedWhenDrawn)
+        // Scroll-linked opacity and clip at the UI side's offsets, as the compositor draws them at the render thread's.
+        var opacity = props.EffectiveOpacity;
+        var clipped = props.TryGetLinkClip(out var clip);
+        if (props.IsSkippedWhenDrawn || opacity <= 0 || (clipped && clip.IsEmpty))
             return false;
         var save = canvas.Save();
         try
@@ -221,21 +232,48 @@ internal static class SkUiImmediatePainter
             canvas.Concat(in matrix);
             if (canvas.QuickReject(props.InkBounds))
                 return false;
-            if (props.DrawnOpacity < 1)
+            if (opacity < 1)
             {
                 var paint = _layerPaint ??= new SKPaint();
-                paint.Color = SKColors.White.WithAlpha((byte)(255 * props.DrawnOpacity));
+                paint.Color = SKColors.White.WithAlpha((byte)(255 * opacity));
                 canvas.SaveLayer(props.LayerBounds, paint);
             }
+            var roundRect = clipped ? _clipRoundRect ??= new SKRoundRect() : null;
             if (props.Shadow is { } shadow)
             {
                 // The compositor rasterizes content shadows; drawn live they give the same pixels.
                 var shadowPaint = _shadowPaint ??= new SKPaint();
-                if (shadow.Outline is not null)
+                if (clipped && shadow.Outline is { } outline)
+                {
+                    // Cast by the clip's round rectangle where it cuts the outline; whole otherwise (as the compositor does).
+                    if (clip.TryGetOutlineShadow(outline.Bounds, shadow.OutlineCornerRadius, out var rect, out var radius, out var hidden))
+                    {
+                        roundRect!.SetRect(rect, radius, radius);
+                        SkUiShadowPainter.DrawRoundRect(canvas, shadow, roundRect, shadowPaint);
+                    }
+                    else if (!hidden)
+                    {
+                        SkUiShadowPainter.DrawOutline(canvas, shadow, shadowPaint);
+                    }
+                }
+                else if (shadow.Outline is not null)
+                {
                     SkUiShadowPainter.DrawOutline(canvas, shadow, shadowPaint);
+                }
                 else
-                    SkUiShadowPainter.DrawFromContent(canvas, shadow, shadowPaint, (node, props), static (c, state) => PaintBody(state.node, c, state.props));
+                {
+                    SkUiShadowPainter.DrawFromContent(canvas, shadow, shadowPaint, (node, props, clipped, clip), static (c, state) =>
+                    {
+                        var clipSave = c.Save();
+                        if (state.clipped)
+                            state.clip.Apply(c, _clipRoundRect!);
+                        PaintBody(state.node, c, state.props);
+                        c.RestoreToCount(clipSave);
+                    });
+                }
             }
+            if (clipped)
+                clip.Apply(canvas, roundRect!);
             var space = _space;
             if (props.DrawableSpace)
                 _space = canvas.TotalMatrix;

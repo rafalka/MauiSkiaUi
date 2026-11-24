@@ -111,6 +111,35 @@ internal sealed class SkUiRenderShadow(SkUiShadowStyle style, SKPath? outline, S
     /// <summary>The silhouette of an opaque fill (clipped by the node's clip); <c>null</c>: the shadow of the drawn content.</summary>
     public SKPath? Outline { get; } = outline;
 
+    private float _outlineCornerRadius = float.NaN;
+
+    /// <summary>
+    /// The corner radius of <see cref="Outline"/> (a round rectangle's; half the shorter side of an oval; 0 otherwise), worked
+    /// out once (a scroll-linked clip asks for it every frame). Either thread may compute it first: the value is the same.
+    /// </summary>
+    public float OutlineCornerRadius
+    {
+        get
+        {
+            if (float.IsNaN(_outlineCornerRadius))
+                _outlineCornerRadius = CornerRadiusOf(Outline);
+            return _outlineCornerRadius;
+        }
+    }
+
+    /// <summary>The corner radius of <paramref name="path"/>: a round rectangle's, half an oval's shorter side, else 0.</summary>
+    internal static float CornerRadiusOf(SKPath? path)
+    {
+        if (path is null)
+            return 0;
+        if (path.IsOval)
+            return Math.Min(path.Bounds.Width, path.Bounds.Height) / 2;
+        if (!path.IsRoundRect)
+            return 0;
+        using var roundRect = path.GetRoundRect();
+        return roundRect.Radii[0].X;
+    }
+
     /// <summary>Where the node draws (its visual bounds); the content shadow is taken from this area.</summary>
     public SKRect Source { get; } = source;
 
@@ -163,6 +192,21 @@ internal static class SkUiShadowPainter
         var save = canvas.Save();
         canvas.Translate(style.OffsetX, style.OffsetY);
         canvas.DrawPath(shadow.Outline!, paint);
+        canvas.RestoreToCount(save);
+        paint.Reset();
+    }
+
+    /// <summary>The shadow of an opaque round rectangle (a scroll-linked clip of an outline shadow's node), at the offset.</summary>
+    public static void DrawRoundRect(SKCanvas canvas, SkUiRenderShadow shadow, SKRoundRect roundRect, SKPaint paint)
+    {
+        var style = shadow.Style;
+        paint.Reset();
+        paint.IsAntialias = true;
+        style.Apply(paint);
+        paint.MaskFilter = style.Blur;
+        var save = canvas.Save();
+        canvas.Translate(style.OffsetX, style.OffsetY);
+        canvas.DrawRoundRect(roundRect, paint);
         canvas.RestoreToCount(save);
         paint.Reset();
     }

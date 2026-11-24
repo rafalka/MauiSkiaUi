@@ -127,6 +127,146 @@ await scroller.ScrollToAsync(0, 400, animated: true);
 await scroller.ScrollToAsync(finalLabel, ScrollToPosition.Center, animated: true);
 ```
 
+## Scroll-linked effects
+
+(1.16) A view's translation, scale, opacity or a clip can follow a scroller, on the render thread: a header that collapses as the list scrolls, a parallax picture, a toolbar title that fades in, a header that grows when the list is pulled past its top, and views that hide while the list scrolls down and come back on any scroll up. Nothing is recorded again while the scroller moves, and the views follow render-thread flings. Works on both layers: `SkUiView.ScrollEffects` / `AddScrollEffect`, `SkUiCoreNode.AddScrollEffect`.
+
+**`SkUiScrollEffect`** maps an offset range onto one property:
+
+| Member | Default | Notes |
+| --- | --- | --- |
+| `Source` | `null` | The scroller: a `SkUiScrollView`, `SkUiCoreScrollView`, `SkUiCollectionView` (its list) or `SkUiRefreshView` (the scroller it pulls). `null`: the view's nearest scrolling ancestor (for a collection view's header or footer, the collection view) |
+| `Orientation` | `Vertical` | Which offset drives it |
+| `InputStart`, `InputEnd` | `0`, `0` | The offset range in DIPs. Offsets include the overscroll shown, bounce or stretch: below 0 is a pull past the start. Equal values make a step |
+| `Property` | `TranslationY` | `TranslationX`, `TranslationY`, `Opacity`, `Scale`, `ScaleX`, `ScaleY`, `ClipHeight`, `ClipWidth` |
+| `From`, `To` | `0`, `0` | The output at `InputStart` and `InputEnd`, held outside |
+| `Easing` | linear | Sampled at 33 points for the render thread |
+| `ClipEdge` | `Start` | Clips: the part that stays (`Start` top or leading, `End` bottom or trailing, `Center`) |
+| `ClipShape`, `ClipCornerRadius` | `Rectangle` | Clips: `Rectangle`, `RoundRectangle`, `Capsule` (a pill at every size) |
+| `Reveal` | `null` | A [scroll-direction input](#views-that-hide-by-scroll-direction) instead of the offset |
+| `SnapsToEnds` | `false` | A drag, fling or wheel scroll never comes to rest strictly inside the input range: it settles on the nearer end (a header ends fully open or collapsed), with or without the scroller's snap points; programmatic scrolls are left alone. Overlapping ranges act as one. Offset effects only |
+| `ReducedMotion` | `Default` | See [reduced motion](#reduced-motion) |
+| `IsEnabled` | `true` | Off: the property shows the view's own value |
+
+Effects combine with each other and with the view's own values: translations add, scales and opacities multiply, clips take the smaller. A clip does not change layout: the view keeps its size and its neighbors stay put. It clips the view's content, children and shadow (an outline shadow follows the clip's shape), and taps and screen readers see only the part that shows; a view faded to 0 is not hit and not read. An effect belongs to one view at a time. Factories: `Parallax(rate)`, `FadeIn(start, end)`, `CollapseTo(expanded, collapsed)`, `HideOnScroll(reveal, translationY)`.
+
+### Collapsing header
+
+The header sits over the list; the list's `ViewportInsets` leave its expanded height, so the rows start below it and scroll under it as it collapses. Put the clip on the header, which stays in place, and move what is inside it: a clip clips the view's children, while a clip and a translation on the same view move together (the part kept slides away with it).
+
+```xml
+<sk:SkUiGrid>
+  <sk:SkUiCollectionView x:Name="List" ViewportInsets="0,240,0,0" ItemsSource="{Binding Items}" />
+  <sk:SkUiGrid HeightRequest="240" VerticalOptions="Start" InputTransparent="True" IsClippedToBounds="False">
+    <sk:SkUiView.ScrollEffects>
+      <!-- 240 → 56 over the first 184 DIPs, and on at the same slope into a pull (424 at -184), so a growing picture is not cut -->
+      <sk:SkUiScrollEffect Source="{x:Reference List}" Property="ClipHeight" InputStart="-184" InputEnd="184" From="424" To="56" />
+      <!-- never left half open: a separate clip over 0…184 that settles on its ends (it never clips below the one above) -->
+      <sk:SkUiScrollEffect Source="{x:Reference List}" Property="ClipHeight" InputStart="0" InputEnd="184" From="240" To="56" SnapsToEnds="True" />
+    </sk:SkUiView.ScrollEffects>
+    <sk:SkUiImage Source="hero.jpg" Aspect="AspectFill" AnchorY="0">
+      <sk:SkUiView.ScrollEffects>
+        <!-- moves up at half speed inside the shrinking header -->
+        <sk:SkUiScrollEffect Source="{x:Reference List}" Property="TranslationY" InputStart="0" InputEnd="184" From="0" To="-92" />
+        <!-- grows when the list is pulled past its top -->
+        <sk:SkUiScrollEffect Source="{x:Reference List}" Property="Scale" InputStart="0" InputEnd="-200" From="1" To="1.5" />
+      </sk:SkUiView.ScrollEffects>
+    </sk:SkUiImage>
+    <sk:SkUiLabel Text="Title" VerticalOptions="End" Margin="16,0,16,14">
+      <sk:SkUiView.ScrollEffects>
+        <!-- moves with the content, to the bottom of the collapsed bar -->
+        <sk:SkUiScrollEffect Source="{x:Reference List}" Property="TranslationY" InputStart="0" InputEnd="184" From="0" To="-184" />
+      </sk:SkUiView.ScrollEffects>
+    </sk:SkUiLabel>
+  </sk:SkUiGrid>
+</sk:SkUiGrid>
+```
+
+`SkUiScrollEffect.CollapseTo(240, 56)` is the clip alone (holding 240 during a pull).
+
+A toolbar title that fades in once the list's big title has scrolled under it: `<sk:SkUiScrollEffect Source="{x:Reference List}" Property="Opacity" InputStart="20" InputEnd="60" From="0" To="1" />`.
+
+### Views that hide by scroll direction
+
+**`SkUiScrollReveal`** turns the scroller's movement into a progress from shown to hidden; an effect with `Reveal` maps it from `From` (shown) to `To` (hidden).
+
+| Member | Default | Notes |
+| --- | --- | --- |
+| `Source`, `Orientation` | `null`, `Vertical` | As on the effect; `null` resolves from the first view it drives |
+| `Response` | `Tracked` | `Tracked`: follows the scroll, `Distance` DIPs from shown to hidden. `Triggered`: after `Threshold` DIPs in one direction, moves fully in or out over `Duration`. `WhileScrolling`: scrolling either way hides it in step with the scroll (`Distance` DIPs to fully hidden), and it comes back, animated over `Duration`, when the scroller comes to rest. `Manual`: the scroll does not move it, only `Show()` / `Hide()` do (rules of the app's own, such as hiding a bar while a field has focus). `ShowsNearStart` applies to `Tracked` and `Triggered` only |
+| `Distance`, `Threshold`, `Duration` | `56`, `24`, 200 ms | |
+| `SettlesWhenIdle` | `true` | Tracked: at rest halfway, finishes showing or hiding |
+| `ShowsNearStart` | `true` | Fully shown at the start of the list: within `Distance` of it, never more hidden than the offset allows, so a header never leaves a gap above the first row |
+| `IsShown` | | Read-only, raises `PropertyChanged`; `Show()` / `Hide()` animate, and the next scroll takes over |
+
+Rows inserted above (anchoring) and pulls past the ends do not move a reveal; a jump of more than two viewports shows its views again. Share one reveal between views so they move as one.
+
+A collection view's sticky header that shrinks while the list scrolls down and opens again on any scroll up, and a sticky footer that slides out (no `Source`: the nearest scroller of a header is its collection view; rows scroll behind both, so nothing leaves a gap):
+
+```xml
+<sk:SkUiCollectionView ItemsSource="{Binding Items}" IsStickyHeader="True" IsStickyFooter="True">
+  <sk:SkUiCollectionView.Header>
+    <local:SearchHeader HeightRequest="120">
+      <sk:SkUiView.ScrollEffects>
+        <sk:SkUiScrollEffect Property="ClipHeight" From="120" To="56">
+          <sk:SkUiScrollEffect.Reveal>
+            <sk:SkUiScrollReveal Distance="64" />
+          </sk:SkUiScrollEffect.Reveal>
+        </sk:SkUiScrollEffect>
+      </sk:SkUiView.ScrollEffects>
+    </local:SearchHeader>
+  </sk:SkUiCollectionView.Header>
+  <sk:SkUiCollectionView.Footer>
+    <local:BottomBar HeightRequest="64">
+      <sk:SkUiView.ScrollEffects>
+        <sk:SkUiScrollEffect Property="TranslationY" From="0" To="64">
+          <sk:SkUiScrollEffect.Reveal>
+            <sk:SkUiScrollReveal Response="Triggered" />
+          </sk:SkUiScrollEffect.Reveal>
+        </sk:SkUiScrollEffect>
+      </sk:SkUiView.ScrollEffects>
+    </local:BottomBar>
+  </sk:SkUiCollectionView.Footer>
+</sk:SkUiCollectionView>
+```
+
+A header given as data with a `HeaderTemplate` takes the effects on the template's root. While a sticky part is hidden, the scroll bar, `ScrollTo` and snap points still treat its band as covered.
+
+A floating button over the list (outside it, so the shared reveal names its `Source`), sliding out and fading:
+
+```xml
+<ContentPage.Resources>
+  <sk:SkUiScrollReveal x:Key="FabReveal" Source="{x:Reference List}" Response="Triggered" />
+</ContentPage.Resources>
+…
+<sk:SkUiButton Text="+" WidthRequest="56" HeightRequest="56" CornerRadius="28" Margin="16" HorizontalOptions="End" VerticalOptions="End">
+  <sk:SkUiView.ScrollEffects>
+    <sk:SkUiScrollEffect Property="TranslationY" From="0" To="88" Reveal="{StaticResource FabReveal}" />
+    <sk:SkUiScrollEffect Property="Opacity" From="1" To="0" Reveal="{StaticResource FabReveal}" />
+  </sk:SkUiView.ScrollEffects>
+</sk:SkUiButton>
+```
+
+A floating button that hides **while the list scrolls**, either way, in step with it, and comes back when the list comes to rest (a drag released, a fling ended):
+
+```xml
+<sk:SkUiButton Text="+" WidthRequest="56" HeightRequest="56" CornerRadius="28" Margin="16" HorizontalOptions="End" VerticalOptions="End">
+  <sk:SkUiView.ScrollEffects>
+    <sk:SkUiScrollEffect Property="TranslationY" From="0" To="88" Reveal="{StaticResource WhileScrollingReveal}" />
+    <sk:SkUiScrollEffect Property="Opacity" From="1" To="0" Reveal="{StaticResource WhileScrollingReveal}" />
+  </sk:SkUiView.ScrollEffects>
+</sk:SkUiButton>
+<!-- in the resources: <sk:SkUiScrollReveal x:Key="WhileScrollingReveal" Source="{x:Reference List}" Response="WhileScrolling" Distance="88" /> -->
+```
+
+For a rule of the app's own, a `Manual` reveal moves only on `Show()` and `Hide()`, and its effects still run on the render thread.
+
+An extended button that shrinks to its icon: the capsule keeps its trailing end (`ClipWidth`, `ClipEdge="End"`, `ClipShape="Capsule"`, 160 → 56), the icon follows the leading edge (`TranslationX` 0 → 104; negative in right to left, as `TranslationX` does not mirror) and the label fades, all on one shared reveal. The button's shadow shrinks with the capsule.
+
+### Reduced motion
+
+Under `SkUiMotion.IsMotionReduced`, fades and clips run; scales, and translations that do not move exactly with the content (parallax), hold `From`; a triggered or manual reveal's show and hide jump halfway for translation and scale while its fades still run; a tracked or while-scrolling reveal still follows the scroll, and its settle or return at rest completes at once. `ReducedMotion="Run"` or `"HoldFrom"` overrides this for one effect. Write `From` as the page at rest: an effect that follows a pull runs its range backwards (`InputStart="0" InputEnd="-200" From="1" To="1.5"`), so reduced motion holds the resting value, not the pulled one; `InputStart` may be larger than `InputEnd`.
+
 ## Key properties / APIs
 
 `Orientation`, `ScrollX`, `ScrollY`, `ContentSize`, `ViewportInsets`, `HorizontalScrollBarVisibility`, `VerticalScrollBarVisibility`, `VerticalScrollBar`, `HorizontalScrollBar`, `Overscroll`, `SnapPointsType`, `SnapPointsAlignment`, `PullEdges`, `OverscrollX`, `OverscrollY`, `Overscrolled`, `PullReleased`, `IsScrolling`, `Scrolled`, `ScrollToRequested`, `ScrollTo`, `ScrollToAsync` (offset, element, Core node), `GetScrollPositionForElement`, `AnimateScrollTo`. Core: [`SkUiCoreScrollView`](SkUiCore.md) has the same features (`Set*` setters, `ScrollToAsync(SkUiCoreNode, …)`, `GetScrollPositionForNode`).
@@ -139,6 +279,7 @@ await scroller.ScrollToAsync(finalLabel, ScrollToPosition.Center, animated: true
 | Scroll bars | Drawn by the look, the same on every platform; `Default` fades as on mobile, and a hovering pointer expands the bar for dragging and paging (desktop); bars can be styled and placed by the app |
 | Bounce / overscroll | Per look or per scroller (`Overscroll`), not only the platform's |
 | Snap points | `SnapPointsType` / `SnapPointsAlignment` on the content's children (MAUI has them on CollectionView only) |
+| Scroll-linked effects | [`ScrollEffects`](#scroll-linked-effects) on any view, on the render thread (MAUI: a `Scrolled` handler setting `TranslationY` / `Opacity` on the UI thread) |
 | Overscroll events | `Overscrolled`, `PullReleased` and `PullEdges` for effects and gestures at the edges; MAUI has none (a `RefreshView` around the scroller ports as `SkUiRefreshView`) |
 | Content insets | `ViewportInsets` says what bars drawn over the scroller cover, for every behavior (iOS `contentInset` / Android `clipToPadding="false"`; MAUI has no API) |
 | Nested scrolling | Supported (axis-aware, chaining, fling hand-off; also with Core `SkUiCoreScrollView` and native ancestors) |
@@ -148,4 +289,4 @@ await scroller.ScrollToAsync(finalLabel, ScrollToPosition.Center, animated: true
 
 ## Related
 
-[ScrollingAndCollectionViews.md](../design/ScrollingAndCollectionViews.md) · [SkUiRefreshView](SkUiRefreshView.md) · Gallery: `ScrollViewDemoPage` (`PullEdges`, overscroll in the status line) · Tests: `ScrollViewOverscrollTests`
+[ScrollingAndCollectionViews.md](../design/ScrollingAndCollectionViews.md) · [SkUiRefreshView](SkUiRefreshView.md) · Gallery: `ScrollViewDemoPage` (`PullEdges`, overscroll in the status line), `ScrollEffectsDemoPage` (the scroll-linked recipes) · Samples app: *Scroll effects* (`TripScrollEffectsSample`: a trip's page combining them, with layered parallax, sticky chips, slide-in cards and a back-to-top button) · Tests: `ScrollViewOverscrollTests`, `ScrollEffectTests`, `ScrollRevealTests`, `ScrollLinkTests`

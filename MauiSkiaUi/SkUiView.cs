@@ -1064,6 +1064,7 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
         props.IsVisible = IsVisible;
         props.ClipToBounds = ClipToBounds;
         OnGetRenderProps(ref props);
+        _scrollEffects?.Apply(ref props);
         if (_effects is { } effects)
         {
             props.ClipPath = effects.GetClipPath(_clip, props.Width, props.Height);
@@ -1273,6 +1274,7 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
     /// </summary>
     internal virtual void ReleaseDrawingResources()
     {
+        _scrollEffects?.Release();
         _effects?.Forget();
         _skeletonState?.Bones.Forget();
     }
