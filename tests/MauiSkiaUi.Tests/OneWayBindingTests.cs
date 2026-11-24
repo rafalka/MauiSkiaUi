@@ -616,6 +616,25 @@ public sealed class OneWayBindingItemsTests : IDisposable
     }
 
     [Fact]
+    public void CarouselPositionInsideAPageGoesToThePagesFirstItemAndTheBindingStays()
+    {
+        var carousel = new SkUiCarouselView
+        {
+            ItemsSource = Items(10), Loop = false, ItemsPerSnapPoint = 3, IsScrollAnimated = false, ItemTemplate = Rows(200)
+        };
+        using var surface = new SkUiTestSurface(carousel, 300, 200);
+        surface.Frame(0);
+        var source = BindingSource<int>.Bind(carousel, SkUiCarouselView.PositionProperty, 0);
+
+        source.Value = 4;
+        Assert.Equal(3, carousel.Position);
+        Assert.Equal(300, carousel.ScrollView.ScrollX);
+        source.Value = 8;
+        Assert.Equal(6, carousel.Position); // the binding still applies
+        Assert.Equal(600, carousel.ScrollView.ScrollX);
+    }
+
+    [Fact]
     public void RefreshViewFollowsTheBindingAfterAPull()
     {
         var refresh = new SkUiRefreshView

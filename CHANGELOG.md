@@ -24,6 +24,8 @@ Publishing (the NuGet publish workflow, [docs/Releasing.md](docs/Releasing.md)) 
 
 - **Carousel `VisibleViews`:** MAUI's `CarouselView.VisibleViews` (a read-only `ObservableCollection<View>`), the item views in view, in strip order, peeking neighbors included and the views created ahead left out; with an item effect, the views it draws. It follows the scrolling, render-thread flings included, and changes only when a view enters or leaves (never a reset); nothing is tracked until it is first read. Docs: [SkUiCarouselView](docs/controls/SkUiCarouselView.md).
 
+- **Several carousel items per snap point:** `SkUiCarouselView.ItemsPerSnapPoint` groups the items into pages, and swipes, flings, `Mandatory` snapping, the arrow keys and screen readers move page by page. With `ItemExtent` 0 a page fills the carousel minus the peek insets and the spacing between its items. A looping carousel starts each round again at its first item, so the pages stay the same (10 items, 3 per page: 1–3, 4–6, 7–9, 10, then 1–3); `Position` is always a page's first item (set to an item inside a page, it goes to that page without cutting a one-way binding), and a linked `SkUiIndicatorView` shows one indicator per page. Docs: [SkUiCarouselView](docs/controls/SkUiCarouselView.md).
+
 ### Fixes
 
 - iOS: a drawn scroller no longer keeps the keyboard's room after the page that holds the surface shrinks to end at the keyboard's top (an app that resizes its pages for the keyboard itself). The keyboard's top is placed again when the surface moves or resizes, and a surface root that resizes measures its scrollers' room for the keyboard again, so a focused field is revealed within the content's own range instead of past its end ([#120](https://github.com/rafalka/MauiSkiaUi/issues/120)).

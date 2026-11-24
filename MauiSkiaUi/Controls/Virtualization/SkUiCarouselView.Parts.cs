@@ -138,6 +138,9 @@ public partial class SkUiCarouselView
         /// <summary>The item at the snap point, fractional (see <see cref="SkUiCarouselView.ScrollPosition"/>).</summary>
         public double ScrollPosition => _engine.ScrollPosition(LogicalOffset);
 
+        /// <summary>The page at the snap point, fractional (the indicator's position with several items per snap point).</summary>
+        public double PagePosition => _engine.PagePosition(LogicalOffset);
+
         /// <summary>How far the strip is past the nearest snap point, in items (-0.5 to 0.5).</summary>
         public double WithinItem => _engine.WithinItem(LogicalOffset);
 
@@ -173,7 +176,8 @@ public partial class SkUiCarouselView
 
         private void UpdateGeometry(double crossConstraint)
         {
-            var layout = new SkUiCarouselLayout(_owner.PeekAreaInsets, _owner.LayoutItemSpacing, _owner.ItemExtent, _owner.LayoutSnapPointsAlignment, _owner._effect);
+            var layout = new SkUiCarouselLayout(_owner.PeekAreaInsets, _owner.LayoutItemSpacing, _owner.ItemExtent, _owner.LayoutSnapPointsAlignment, _owner._effect,
+                _owner._perPage);
             if (_engine.UpdateGeometry(layout, crossConstraint, _owner._position))
                 _version++; // cells show other slots now: placed again from scratch
         }
@@ -457,7 +461,7 @@ public partial class SkUiCarouselView
 
         #region Scrolling
 
-        /// <summary>The item at the snap point: <paramref name="keep"/> while its (clamped) snap point is where the strip is.</summary>
+        /// <summary>The item at the snap point (a page's first): <paramref name="keep"/> while its (clamped) snap point is where the strip is.</summary>
         public int CurrentIndex(int keep) => _engine.CurrentIndex(LogicalOffset, keep);
 
         /// <summary>The last item in view (not looping).</summary>

@@ -70,6 +70,8 @@ public partial class SkUiCarouselView : SkUiView, ISkUiScrollStepper
     private bool _loop = true;
     private bool _scrollAnimated = true;
     private int _position;
+    private int _perPage = 1;
+    private bool _followingIndicator;
     private bool _syncing;
     private bool? _requestedAnimation;
     private int _targetIndex = -1;
@@ -263,18 +265,18 @@ public partial class SkUiCarouselView : SkUiView, ISkUiScrollStepper
         var mode = ItemsUpdatingScrollMode;
         if (count > 0 && mode == ItemsUpdatingScrollMode.KeepLastItemInView)
         {
-            position = count - 1;
+            position = PageStart(count - 1);
             within = 0;
         }
         else if (count > 0)
         {
             var keep = keepCurrentItem && mode == ItemsUpdatingScrollMode.KeepItemsInView;
             var index = keep && previousItem is not null ? _source!.IndexOf(previousItem) : -1;
-            position = index >= 0 ? index : Math.Clamp(Position, 0, count - 1);
+            position = PageStart(index >= 0 ? index : Math.Clamp(Position, 0, count - 1));
         }
         Panel.SetCount(count, position + within);
         UpdateOverscroll();
-        _indicator?.CarouselItemsChanged(count);
+        _indicator?.CarouselItemsChanged(PageCount);
         if (count > 0)
             ApplyPosition(_position, position, fromScroll: true);
         else if (previousCount > 0)
@@ -327,7 +329,7 @@ public partial class SkUiCarouselView : SkUiView, ISkUiScrollStepper
     /// <summary>Bindable property for <see cref="Position"/> (two-way by default: scrolling sets it).</summary>
     public static readonly BindableProperty PositionProperty = BindableProperty.Create(nameof(Position), typeof(int), typeof(SkUiCarouselView), 0, BindingMode.TwoWay,
         validateValue: SkUiValidate.NonNegative,
-        propertyChanged: (view, old, value) => ((SkUiCarouselView)view).OnPositionChanged((int)old, (int)value));
+        propertyChanged: (view, old, value) => ((SkUiCarouselView)view).OnPositionChanged((int)value));
 
     /// <summary>Bindable property for <see cref="CurrentItem"/> (two-way by default: scrolling sets it).</summary>
     public static readonly BindableProperty CurrentItemProperty = BindableProperty.Create(nameof(CurrentItem), typeof(object), typeof(SkUiCarouselView), null, BindingMode.TwoWay,
@@ -413,6 +415,7 @@ public partial class SkUiCarouselView : SkUiView, ISkUiScrollStepper
     {
         if (index < 0 || index >= ItemCount)
             throw new ArgumentOutOfRangeException(nameof(index), index, "The index is not an item of the carousel.");
+        index = PageStart(index);
         _requestedAnimation = animated;
         try
         {
@@ -456,17 +459,23 @@ public partial class SkUiCarouselView : SkUiView, ISkUiScrollStepper
     /// <summary>Raised by MAUI's <c>ScrollTo</c> methods before the carousel scrolls (MAUI's handlers scroll on it; here it reports).</summary>
     public event EventHandler<ScrollToRequestEventArgs>? ScrollToRequested;
 
-    private void OnPositionChanged(int previous, int value)
+    private void OnPositionChanged(int value)
     {
         if (_syncing)
             return;
         var count = ItemCount;
-        if (count > 0 && value >= count)
+        if (count > 0)
         {
-            WriteBack(PositionProperty, count - 1);
-            return;
+            // Within the items, on a page's first item; coerced before the write (WriteBack skips an unchanged value).
+            var coerced = PageStart(Math.Min(value, count - 1));
+            if (coerced != value)
+            {
+                WriteBack(PositionProperty, coerced);
+                return;
+            }
         }
-        ApplyPosition(previous, value, fromScroll: false);
+        // The position applied last, not the property's previous value (a coerced value passed through it).
+        ApplyPosition(_position, value, fromScroll: false);
     }
 
     private void OnCurrentItemChanged(object? previous, object? value)
@@ -508,7 +517,7 @@ public partial class SkUiCarouselView : SkUiView, ISkUiScrollStepper
         }
         if (previous != value)
             RaisePositionChanged(previous, value);
-        _indicator?.FollowCarousel(value);
+        _indicator?.FollowCarousel(value / _perPage);
         Panel.UpdateVisualStates();
         if (!fromScroll)
             ScrollToCurrent(_requestedAnimation ?? _scrollAnimated);
@@ -839,6 +848,64 @@ public partial class SkUiCarouselView : SkUiView, ISkUiScrollStepper
     /// </summary>
     public SnapPointsAlignment SnapPointsAlignment { get => (SnapPointsAlignment)GetValue(SnapPointsAlignmentProperty); set => SetValue(SnapPointsAlignmentProperty, value); }
 
+    /// <summary>Bindable property for <see cref="ItemsPerSnapPoint"/>.</summary>
+    public static readonly BindableProperty ItemsPerSnapPointProperty = BindableProperty.Create(nameof(ItemsPerSnapPoint), typeof(int), typeof(SkUiCarouselView), 1,
+        validateValue: SkUiValidate.PositiveNumber<int>,
+        propertyChanged: (view, _, value) => ((SkUiCarouselView)view).OnItemsPerSnapPointChanged((int)value));
+
+    /// <summary>
+    /// How many items one snap point moves past (default 1; SkiaUi extension): the items form pages of that many from the
+    /// first, and swipes, flings, the keyboard and screen readers move page by page. A looping carousel starts each round again
+    /// at its first item, so a short last page is a short step (10 items, 3 per page: 1–3, 4–6, 7–9, 10, then 1–3). With
+    /// <see cref="ItemExtent"/> 0 that many items fill the carousel minus <see cref="PeekAreaInsets"/> and the spacing between
+    /// them; <see cref="SnapPointsAlignment"/> lines the page up. <see cref="Position"/> is always a page's first item (set to
+    /// another item, it goes to that item's page), and a linked <see cref="IndicatorView"/> shows one indicator per page.
+    /// </summary>
+    public int ItemsPerSnapPoint { get => (int)GetValue(ItemsPerSnapPointProperty); set => SetValue(ItemsPerSnapPointProperty, value); }
+
+    /// <summary>Sets <see cref="ItemsPerSnapPoint"/> (same as the property setter).</summary>
+    public SkUiCarouselView SetItemsPerSnapPoint(int value)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThan(value, 1);
+        ItemsPerSnapPoint = value;
+        return this;
+    }
+
+    /// <summary>The first item of the page that holds the item at <paramref name="index"/>.</summary>
+    private int PageStart(int index) => index - index % _perPage;
+
+    /// <summary>The number of pages of <see cref="ItemsPerSnapPoint"/> items (the last one maybe shorter).</summary>
+    private int PageCount => (ItemCount + _perPage - 1) / _perPage;
+
+    /// <summary>The items form pages of another size: the position goes to its page's first item, at once.</summary>
+    private void OnItemsPerSnapPointChanged(int value)
+    {
+        OnLayoutChanged(carousel => carousel._perPage = value);
+        // The indicator's count and position change together: its coercion to a count in between asks for nothing.
+        _followingIndicator = true;
+        try
+        {
+            var count = ItemCount;
+            var page = count > 0 ? PageStart(Math.Min(_position, count - 1)) : _position;
+            if (page != _position)
+            {
+                _requestedAnimation = false;
+                try { ApplyPosition(_position, page, fromScroll: false); }
+                finally { _requestedAnimation = null; }
+            }
+            if (_indicator is { } indicator)
+            {
+                indicator.CarouselItemsChanged(PageCount);
+                indicator.FollowCarousel(_position / _perPage);
+            }
+        }
+        finally
+        {
+            _followingIndicator = false;
+        }
+        FollowWithIndicator();
+    }
+
     /// <summary>Bindable property for <see cref="ItemsLayout"/>.</summary>
     public static readonly BindableProperty ItemsLayoutProperty = BindableProperty.Create(nameof(ItemsLayout), typeof(LinearItemsLayout), typeof(SkUiCarouselView), null,
         validateValue: SkUiValidate.NotNull,
@@ -1041,7 +1108,8 @@ public partial class SkUiCarouselView : SkUiView, ISkUiScrollStepper
     /// <summary>
     /// An indicator view that shows the carousel's items (MAUI's link, usually <c>{x:Reference}</c>): its count and position
     /// follow the carousel, its selection moves with the scrolling (across the wrap of a looping carousel), and a tap on an
-    /// indicator scrolls the carousel to its item. A vertical carousel makes its row vertical.
+    /// indicator scrolls the carousel to its item. With several <see cref="ItemsPerSnapPoint"/> it shows pages: one indicator
+    /// per page, its template bound to the page's first item. A vertical carousel makes its row vertical.
     /// </summary>
     public SkUiIndicatorView? IndicatorView { get => (SkUiIndicatorView?)GetValue(IndicatorViewProperty); set => SetValue(IndicatorViewProperty, value); }
 
@@ -1058,9 +1126,9 @@ public partial class SkUiCarouselView : SkUiView, ISkUiScrollStepper
             return;
         value.Carousel?.UnlinkIndicator(value);
         value.Link(this);
-        value.CarouselItemsChanged(ItemCount);
+        value.CarouselItemsChanged(PageCount);
         value.Orientation = _horizontal ? StackOrientation.Horizontal : StackOrientation.Vertical;
-        value.FollowCarousel(_position);
+        value.FollowCarousel(_position / _perPage);
         FollowWithIndicator();
     }
 
@@ -1077,12 +1145,14 @@ public partial class SkUiCarouselView : SkUiView, ISkUiScrollStepper
         IndicatorView = null;
     }
 
-    /// <summary>The linked indicator's position changed: a tap (or the app) asks for an item.</summary>
+    /// <summary>The linked indicator's position changed: a tap (or the app) asks for an item, or a page's first item.</summary>
     private void OnIndicatorPositionChanged(SkUiIndicatorView indicator)
     {
-        if (!ReferenceEquals(indicator, _indicator) || indicator.Position == _position || ItemCount == 0)
+        if (!ReferenceEquals(indicator, _indicator) || _followingIndicator || ItemCount == 0)
             return;
-        WriteBack(PositionProperty, Math.Min(indicator.Position, ItemCount - 1));
+        var index = PageStart(Math.Min(indicator.Position, PageCount - 1) * _perPage);
+        if (index != _position)
+            WriteBack(PositionProperty, index);
     }
 
     /// <summary>The indicator draws the scroll position while the carousel moves, and the position once it rests.</summary>
@@ -1091,7 +1161,7 @@ public partial class SkUiCarouselView : SkUiView, ISkUiScrollStepper
         if (_indicator is not { } indicator)
             return;
         var moving = Controller.IsMoving && Panel.HasGeometry;
-        indicator.Follow(moving ? Panel.ScrollPosition : _position, Panel.Loops);
+        indicator.Follow(moving ? Panel.PagePosition : _position / _perPage, Panel.Loops);
     }
 
     #endregion
@@ -1306,26 +1376,26 @@ public partial class SkUiCarouselView : SkUiView, ISkUiScrollStepper
 
     bool ISkUiScrollStepper.CanStep(bool forward)
     {
-        var count = ItemCount;
-        if (count <= 1)
+        if (PageCount <= 1)
             return false;
-        return Panel.Loops || (LogicalForward(forward) ? _position < count - 1 : _position > 0);
+        return Panel.Loops || (LogicalForward(forward) ? _position < PageStart(ItemCount - 1) : _position > 0);
     }
 
     bool ISkUiScrollStepper.Step(bool forward, bool page)
     {
         if (!((ISkUiScrollStepper)this).CanStep(forward))
             return false;
-        var count = ItemCount;
-        var next = _position + (LogicalForward(forward) ? 1 : -1);
-        _ = ScrollToIndex(Panel.Loops ? (next + count) % count : Math.Clamp(next, 0, count - 1));
+        // A page of ItemsPerSnapPoint items; looping, past the last page to the first and before the first to the last.
+        var last = PageStart(ItemCount - 1);
+        var next = _position + (LogicalForward(forward) ? _perPage : -_perPage);
+        _ = ScrollToIndex(next > last ? 0 : next < 0 ? last : next);
         return true;
     }
 
     bool ISkUiScrollStepper.StepToEdge(bool end)
     {
         var count = ItemCount;
-        var target = end ? count - 1 : 0;
+        var target = end ? PageStart(count - 1) : 0;
         if (count == 0 || target == _position)
             return false;
         _ = ScrollToIndex(target);

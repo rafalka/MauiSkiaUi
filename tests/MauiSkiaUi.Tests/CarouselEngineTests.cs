@@ -32,7 +32,7 @@ public class CarouselEngineTests
     }
 
     private static SkUiCarouselLayout Layout(Thickness insets = default, double spacing = 0, double extent = 0,
-        SnapPointsAlignment alignment = SnapPointsAlignment.Center) => new(insets, spacing, extent, alignment, null);
+        SnapPointsAlignment alignment = SnapPointsAlignment.Center, int perPage = 1) => new(insets, spacing, extent, alignment, null, perPage);
 
     /// <summary>An engine laid out for <paramref name="count"/> items in a <paramref name="viewport"/> long viewport.</summary>
     private static SkUiCarouselEngine LaidOut(Host host, int count, double viewport, SkUiCarouselLayout layout, int position = 0)
@@ -239,4 +239,77 @@ public class CarouselEngineTests
         Assert.False(engine.DeferPlacement(1, 900, arranged: true)); // laid out and arranged: scroll now
         Assert.Equal(300, engine.TargetOffset(1, 900), Tolerance);
     }
+
+    #region Pages
+
+    [Fact]
+    public void PagesOfThreeFillTheViewportAndTheShortLastPageRestsAtTheEnd()
+    {
+        var engine = LaidOut(new Host(), 10, 300, Layout(perPage: 3));
+        var points = new List<double>();
+
+        engine.GetSnapOffsets(0, engine.MaxLogical, points);
+
+        Assert.Equal((100d, 4), (engine.Extent, engine.Pages));
+        Assert.Equal(700, engine.MaxLogical, Tolerance);
+        Assert.Equal([0, 300, 600, 700], points);
+        Assert.Equal(6, engine.CurrentIndex(640, keep: 0));
+        Assert.Equal(9, engine.CurrentIndex(660, keep: 0)); // nearer to where the last page rests than to the page before
+        Assert.Equal(9, engine.CurrentIndex(700, keep: 0));
+        Assert.Equal(6, engine.CurrentIndex(600, keep: 7)); // not a page's first item: the page there
+        Assert.Equal(0, engine.PagePosition(0), Tolerance);
+        Assert.Equal(1.5, engine.PagePosition(450), Tolerance);
+        Assert.Equal(2.5, engine.PagePosition(650), Tolerance); // the short step to the last page
+        Assert.Equal(3, engine.PagePosition(700), Tolerance);
+    }
+
+    [Fact]
+    public void FillingPagesLeaveRoomForTheInsetsAndTheSpacingBetweenTheirItems()
+    {
+        var engine = LaidOut(new Host(), 10, 300, Layout(new Thickness(30, 0, 30, 0), spacing: 6, perPage: 3));
+
+        Assert.Equal(76, engine.Extent, Tolerance); // (300 - 2 × 30 - 2 × 6) / 3
+        Assert.Equal(82, engine.Stride, Tolerance);
+        Assert.Equal(3 * 82, engine.SnapOffset(3), Tolerance); // the page fills the room between the insets: no alignment shift
+    }
+
+    [Fact]
+    public void WithAnItemExtentThePageOfItsItemsLinesUp()
+    {
+        var engine = LaidOut(new Host(), 10, 300, Layout(extent: 50, perPage: 3));
+
+        Assert.Equal(50, engine.Extent, Tolerance);
+        Assert.Equal(150 - 75, engine.SnapOffset(3), Tolerance); // the 150-long page centered in 300
+    }
+
+    [Fact]
+    public void AnUnboundedViewportHoldsAPageOfMeasuredItems()
+    {
+        var engine = LaidOut(new Host { Probe = 120 }, 10, double.PositiveInfinity, Layout(spacing: 10, perPage: 2));
+
+        Assert.Equal(120, engine.Extent, Tolerance);
+        Assert.Equal(250, engine.ViewportLength, Tolerance);
+    }
+
+    [Fact]
+    public void LoopingPagesStartAgainWithEachCycle()
+    {
+        var engine = LaidOut(new Host { Loop = true }, 10, 300, Layout(perPage: 3));
+        var home = engine.Copies / 2 * 10;
+        var points = new List<double>();
+
+        engine.GetSnapOffsets(engine.SnapOffset(home), engine.SnapOffset(home + 20), points);
+
+        // 1–3, 4–6, 7–9, 10, then 1–3 again: the short page is a short step, and the second round is the same.
+        Assert.Equal([300, 300, 300, 100, 300, 300, 300, 100], points.Zip(points.Skip(1), static (a, b) => b - a));
+        var lastPage = engine.SnapOffset(home + 9);
+        Assert.Equal(home + 9, engine.NearestPageSlot(lastPage + 40));
+        Assert.Equal(home + 10, engine.NearestPageSlot(lastPage + 50)); // halves go to the next page
+        Assert.Equal(0, engine.CurrentIndex(lastPage + 60, keep: 9));
+        Assert.Equal(3.5, engine.PagePosition(lastPage + 50), Tolerance);
+        Assert.Equal(1.5, engine.PagePosition(engine.SnapOffset(home + 13) + 150), Tolerance);
+        Assert.Equal(home + 3, engine.NearestSlotOf(3, engine.SnapOffset(home)));
+    }
+
+    #endregion
 }

@@ -2,7 +2,7 @@
 
 A drawn carousel: a strip of cards scrolled one at a time (a photo gallery, onboarding pages, featured products), with a current item, looping past the last card back to the first, and an indicator view underneath.
 
-**MAUI counterpart:** `CarouselView`. Most of its XAML ports by changing the prefix, `ItemsLayout` included (once set, it decides the orientation, spacing and snap points that `Orientation`, `ItemSpacing`, `SnapPointsType` and `SnapPointsAlignment` give without it), and item templates create drawn views. Beyond MAUI: several cards in view (`ItemExtent`), item effects as the cards scroll (cover flow, scaling, or your own), `ScrollPosition`, `ScrollToIndex` / `ScrollToItem` returning a task. Its indicator view is [`SkUiIndicatorView`](SkUiIndicatorView.md).
+**MAUI counterpart:** `CarouselView`. Most of its XAML ports by changing the prefix, `ItemsLayout` included (once set, it decides the orientation, spacing and snap points that `Orientation`, `ItemSpacing`, `SnapPointsType` and `SnapPointsAlignment` give without it), and item templates create drawn views. Beyond MAUI: several cards in view (`ItemExtent`), several cards per swipe (`ItemsPerSnapPoint`), item effects as the cards scroll (cover flow, scaling, or your own), `ScrollPosition`, `ScrollToIndex` / `ScrollToItem` returning a task. Its indicator view is [`SkUiIndicatorView`](SkUiIndicatorView.md).
 
 ## How it works
 
@@ -14,16 +14,17 @@ A drawn carousel: a strip of cards scrolled one at a time (a photo gallery, onbo
 - **Item changes.** With an `INotifyCollectionChanged` source (listened to weakly) every change keeps the current item current where it shows; when it was removed, the position stays. `ItemsUpdatingScrollMode` (MAUI's) can choose otherwise: `KeepItemsInView` (default) as described, `KeepScrollOffset` keeps `Position` (whichever item is there now), `KeepLastItemInView` moves to the last item, also when the source is replaced. MAUI's handlers return to the first item for `KeepItemsInView`; the drawn carousel keeps the item in view, as 1.x did. Once every item is gone, `Position` goes back to 0 and `CurrentItem` to `null`. Items appended or inserted while the carousel flings do not stop the fling. A new `ItemsSource` or `ItemTemplate` creates the views again.
 - **Loading more.** `RemainingItemsThreshold` (MAUI's): when the last item in view is that many items or fewer from the end, `RemainingItemsThresholdReached` is raised and its command runs, once per item count; append the next items and it fires again near the new end. In a looping carousel the current item counts instead of the last in view (load more while the user goes round).
 - **Swiping.** Drags take part in the gesture arena as a horizontal (or vertical) scroller: taps on cards work, a carousel nested in a vertical page gets the sideways drags, and at the ends of a carousel that does not loop the drag bounces (`IsBounceEnabled`, per the look's overscroll) or chains to an outer scroller. `IsSwipeEnabled = false` turns drags and the wheel off; `Position`, the keyboard and screen readers still scroll.
-- **Keyboard and screen readers.** With focus inside the carousel, the arrow keys step one item (in the reading direction, also right to left), Home and End go to the first and last items, and screen readers' scroll actions page item by item.
+- **Keyboard and screen readers.** With focus inside the carousel, the arrow keys step one item, or one page with `ItemsPerSnapPoint` (in the reading direction, also right to left), Home and End go to the first and last items, and screen readers' scroll actions page item by item.
 - **Right to left.** The strip runs from the right: the first item shows, the next one is to its left.
 - **Indicator.** `IndicatorView` links an [`SkUiIndicatorView`](SkUiIndicatorView.md) (MAUI's link, usually `{x:Reference}`): its count and position follow the carousel, its selection slides with the scrolling (across the wrap of a looping carousel), and a tap on a dot scrolls the carousel there.
 - **Empty view.** `EmptyView` (or `EmptyViewTemplate`) shows instead of the items while there are none.
 - **Performance.** Scrolling, flings and snaps run on the render thread, as in the scroll view, and record nothing; item effects are evaluated by the compositor (below). A collection change rebinds only the views whose item changed.
 
+- **Several items per snap point.** `ItemsPerSnapPoint` (a SkiaUi extension, default 1) groups the items into pages of that many from the first: swipes, flings, `Mandatory` snapping, the keyboard and screen readers move page by page (`None` ignores the pages). With `ItemExtent` 0 a page fills the carousel minus `PeekAreaInsets` and the `ItemSpacing` between its items; with a positive `ItemExtent` the items keep that length and `SnapPointsAlignment` lines the page up. A short last page is a short step; a looping carousel starts each round again at its first item, so the pages are the same every time (10 items, 3 per page: 1–3, 4–6, 7–9, 10, then 1–3), and a carousel that does not loop rests its short last page at the end. `Position` stays the index of the item at the snap point, so it is always a page's first item: set to an item inside a page (or `ScrollToIndex`, `CurrentItem`), it goes to that page and becomes the page's first item, without cutting a one-way binding. A linked indicator shows one indicator per page (its template bound to the page's first item), and a tap on one goes to that page. Changing `ItemsPerSnapPoint` keeps the current item's page, at once.
 - **Visible views.** `VisibleViews` (MAUI's, read-only `ObservableCollection<View>`) holds the item views in view, in the order of the strip: the template root views whose bounds reach into the viewport (more than half a DIP), peeking neighbors included, without the views created ahead on either side. With an item effect, the views it draws: not transparent, and placed and scaled into the viewport. A looping carousel lists each copy of an item it shows. It follows the scrolling (render-thread flings included) and changes only when a view enters or leaves (one `Add` or `Remove` each, a `Move` when a recycled view comes back in another place), never by a reset; nothing is tracked until it is first read. `GetRealizedView(index)` gives the view of one item.
 - **Scroll bars.** `HorizontalScrollBarVisibility` / `VerticalScrollBarVisibility` (MAUI's): `Default` shows none (the position shows in the indicator), `Always` / `Never` as on the scroll view; a looping carousel never shows one, as in MAUI.
 
-Not available: a grouped source, autoplay (set `Position` from a timer), several items per snap point.
+Not available: a grouped source, autoplay (set `Position` from a timer).
 
 ## Item effects
 
@@ -118,6 +119,7 @@ From MAUI: change `CarouselView` to `sk:SkUiCarouselView` and `IndicatorView` to
 | `PeekAreaInsets` | `0` | Room at the ends of the axis where neighbors peek; shortens filling items |
 | `ItemExtent` | `0` | When positive, every item's length along the axis (several in view); 0 fills (SkiaUi) |
 | `ItemSpacing` | `0` | Gap between items |
+| `ItemsPerSnapPoint` | `1` | Items per page: swipes, keys and the indicator move page by page; `Position` is a page's first item (SkiaUi) |
 | `Orientation` | `Horizontal` | `ItemsLayoutOrientation` |
 | `SnapPointsType` / `SnapPointsAlignment` | `MandatorySingle` / `Center` | MAUI's `LinearItemsLayout` settings |
 | `ItemsLayout` | not set: reads as horizontal, `MandatorySingle`, `Center` | MAUI's `LinearItemsLayout` (XAML: `"HorizontalList"`, `"VerticalList"` or an element). Once set, it decides what the four properties above give without it (also as it changes); they keep their values and apply again when it is cleared (setting both is reported once) |
@@ -127,7 +129,7 @@ From MAUI: change `CarouselView` to `sk:SkUiCarouselView` and `IndicatorView` to
 | `IsDragging` / `IsScrolling` | — | Read-only; `IsDraggingProperty` (MAUI's) for triggers, set when a drag starts and ends |
 | `ScrollPosition` | — | Fractional item at the snap point (SkiaUi) |
 | `ItemEffect` | `null` | `SkUiCoverFlowEffect`, `SkUiScaleEffect`, or your own (SkiaUi) |
-| `IndicatorView` | `null` | A linked `SkUiIndicatorView` |
+| `IndicatorView` | `null` | A linked `SkUiIndicatorView` (one indicator per page with `ItemsPerSnapPoint`) |
 | `RemainingItemsThreshold` (+ event, command) | `-1` | Load more near the end |
 | `EmptyView` / `EmptyViewTemplate` | — | Shown without items: a drawn view, or in XAML text as a centered label (`EmptyView="No photos"`), as on MAUI |
 | `ScrollTo(index, …)`, `ScrollTo(item, …)`, `ScrollToRequested` | | MAUI's: the event, then the scroll (not awaited); `ScrollToIndex` / `ScrollToItem` return a task |
