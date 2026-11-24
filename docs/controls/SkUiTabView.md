@@ -1,6 +1,6 @@
 # SkUiTabView
 
-> **Status: design for review (1.17 step S1).** Nothing on this page ships yet. It is the contract for steps S7 and S8 of [ImplementationPlan-1.17.md](../design/ImplementationPlan-1.17.md#s7-tab-view) (decisions D3 and D8 there); the questions at the end are decided in the review, and changes to the tables are copied back to the plan.
+> **Status: design, reviewed 24 November 2026 (1.17 step S1).** Nothing on this page ships yet. It is the contract for steps S7 and S8 of [ImplementationPlan-1.17.md](../design/ImplementationPlan-1.17.md#s7-tab-view) (decisions D3 and D8 there); the [review's decisions](#review-decisions) are at the end.
 
 Tabbed content inside a page: a strip of tab headers and, below (or above) it, one pane per tab, swiped sideways or chosen by a tap on its header. Settings sections, a product's "Details · Reviews · Shipping", a profile's "Posts · Media · Likes".
 
@@ -86,10 +86,12 @@ tabs.SelectionChanged += (_, args) => Analytics.Track(args.CurrentIndex);
 
 [`SkUiSegmentedControl`](SkUiSegmentedControl.md) (the strip's engine) · [`SkUiCarouselView`](SkUiCarouselView.md) (the panes' layout engine) · [`SkUiContentView`](SkUiContentView.md) (`ContentLoading="WhenShown"`)
 
-## Open questions for the review
+## Review decisions
 
-1. **Members beyond the plan's table:** the colors (`HeaderTextColor`, `SelectedHeaderTextColor`, `IndicatorColor`, `StripBackgroundColor`), the header font members, `AddTab`, and Ctrl+Tab are additions. Keep all of them?
-2. **`Tabs` from data:** a list of `SkUiTabItem`s only (bindable, as above), or also `ItemsSource` with `HeaderTemplate` / `ContentTemplate` for tabs made from view models?
-3. **Pane lifetime:** kept once created (as above, decision D3), or an option to release panes far from the selected one for very many heavy tabs?
-4. **Icon placement:** at the start of the text, except Material 3 which stacks it above (as above), or one placement on every look?
-5. **Swiping onto a disabled tab:** skipped, landing on the next enabled tab (as above), or a swipe that stops at the disabled tab's neighbor?
+Reviewed and accepted on 24 November 2026, as proposed:
+
+1. **Members beyond the plan's table** are kept: `HeaderTextColor`, `SelectedHeaderTextColor`, `IndicatorColor`, `StripBackgroundColor`, the header font members, `AddTab`, and Ctrl+Tab / Ctrl+Shift+Tab.
+2. **Tabs** are a list of `SkUiTabItem`s (bindable); no `ItemsSource` with templates in 1.17.
+3. **Panes are kept** once created (D3); no option to release them.
+4. **Icons** sit at the start of the header text, except on Material 3, which stacks the icon above the text.
+5. **Swiping onto a disabled tab** skips it: the swipe lands on the next enabled tab.

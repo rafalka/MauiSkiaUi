@@ -1,6 +1,6 @@
 # SkUiSegmentedControl
 
-> **Status: design for review (1.17 step S1).** Nothing on this page ships yet. It is the contract for steps S2 to S6 of [ImplementationPlan-1.17.md](../design/ImplementationPlan-1.17.md#phase-s-segmented-control-and-tab-view-f1); the questions at the end are decided in the review, and changes to the tables are copied back to the plan.
+> **Status: design, reviewed 24 November 2026 (1.17 step S1).** Nothing on this page ships yet. It is the contract for steps S2 to S6 of [ImplementationPlan-1.17.md](../design/ImplementationPlan-1.17.md#phase-s-segmented-control-and-tab-view-f1); the [review's decisions](#review-decisions) are at the end.
 
 A row of two to about five mutually exclusive options drawn as one control, with the selected one marked: a view switch ("Day · Week · Month"), a filter ("All · Unread"), a mode ("Map · Satellite"). One selection at a time, always visible, no popup.
 
@@ -86,10 +86,12 @@ core.SelectionChanged += (_, args) => Filter(args.CurrentIndex == 1);
 
 [`SkUiTabView`](SkUiTabView.md) (its strip is drawn on the same engine) · [`SkUiRadioButton`](SkUiRadioButton.md) (one of many, as a list) · [`SkUiPicker`](SkUiPicker.md) (one of many, in a popup)
 
-## Open questions for the review
+## Review decisions
 
-1. **Core segments:** `SkUiCoreSegment` (a plain class with change notification), as above, or `SkUiSegment` shared by both layers (it is a `BindableObject`, which Core avoids elsewhere)? The plan's table has `SkUiSegment` only.
-2. **Event arguments:** one new `SkUiSelectedIndexChangedEventArgs` for the segmented control and the tab view, as above, or MAUI's `SelectionChangedEventArgs` shape (previous and current items)?
-3. **Equal widths:** every segment as wide as the widest content (iOS's rule, as above), or the available width split equally even when measured unbounded?
-4. **Deselecting:** no "none" from a tap (as every platform's control), as above, or an `AllowsEmptySelection` option?
-5. **Keys:** arrows select at once (as a radio group and Fluent's `SelectorBar`), as above, or move a focus ring and select with Space / Enter?
+Reviewed and accepted on 24 November 2026, as proposed:
+
+1. **Core segments** are `SkUiCoreSegment`, a plain class with change notification; `SkUiSegment` (a `BindableObject`) is the SkUi\* layer's.
+2. **Event arguments:** one new `SkUiSelectedIndexChangedEventArgs` (`PreviousIndex`, `CurrentIndex`), shared with the tab view.
+3. **Equal widths:** every segment as wide as the widest content; arranged wider, the width is split equally.
+4. **No deselecting** from a tap; no empty-selection option.
+5. **Keys** select at once (arrows, Home / End); no separate focus ring per segment.
