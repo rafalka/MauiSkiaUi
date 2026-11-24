@@ -57,7 +57,12 @@ public enum SkUiTransitionKind
     /// A calendar's page slides to the previous or next month (or year, decade, century), and its display mode zooms between
     /// days, months, years and decades. A swipe's settle uses it too.
     /// </summary>
-    CalendarPage
+    CalendarPage,
+    /// <summary>
+    /// A segmented control's selection moves to the segment chosen: the marker slides across (or, in a look whose segments
+    /// fade, the old one fades out and the new one in).
+    /// </summary>
+    SegmentSelection
     // New members go last: the values are compiled into callers (a look built against an earlier 1.x keeps its meaning).
 }
 

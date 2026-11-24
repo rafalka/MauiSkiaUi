@@ -26,6 +26,7 @@ public class AndroidMaterial3SkUiLook : AndroidSkUiLook
         SkUiTransitionKind.CheckBox or SkUiTransitionKind.RadioButton => SkUiTransition.FromMilliseconds(100, SkUiEasings.Emphasized),
         SkUiTransitionKind.IndicatorPosition => SkUiTransition.FromMilliseconds(300, SkUiEasings.Emphasized),
         SkUiTransitionKind.PickerOpen => SkUiTransition.FromMilliseconds(250, SkUiEasings.EmphasizedDecelerate),
+        SkUiTransitionKind.SegmentSelection => SkUiTransition.FromMilliseconds(200, SkUiEasings.Standard),
         _ => base.GetTransitionCore(kind)
     };
 
@@ -146,4 +147,20 @@ public class AndroidMaterial3SkUiLook : AndroidSkUiLook
 
     /// <inheritdoc />
     protected override float CalendarTodayRingWidth => 1;
+
+    /// <inheritdoc />
+    /// <remarks>Material 3's segmented buttons: outlined, the selected one filled with a check before its label, fading.</remarks>
+    public override SkUiSegmentedStyle SegmentedStyle => SkUiSegmentedStyle.Outlined;
+
+    /// <inheritdoc />
+    /// <remarks>40 dp high, fully rounded ends, 18 dp icons and checks 8 dp before the label.</remarks>
+    public override SkUiSegmentedMetrics SegmentedMetrics => new(40, 0, 0, 12, 20, 18, 8, 18);
+
+    /// <inheritdoc />
+    /// <remarks>Material 3's primary tabs: an underline as wide as the label, rounded, and icons above the text.</remarks>
+    public override SkUiTabStripStyle TabStripStyle => SkUiTabStripStyle.LabelUnderline;
+
+    /// <inheritdoc />
+    /// <remarks>48 dp with text headers, 64 with icons; a 3 dp underline.</remarks>
+    public override SkUiTabStripMetrics TabStripMetrics => new(48, 64, 16, 3, 24, 2, true);
 }

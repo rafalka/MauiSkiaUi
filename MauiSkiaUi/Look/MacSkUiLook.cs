@@ -75,4 +75,12 @@ public class MacSkUiLook : IosSkUiLook
 
     /// <inheritdoc />
     public override double CalendarDayNameFontSize => 11;
+
+    /// <inheritdoc />
+    /// <remarks>The Mac's segmented control: 28 high, a 7 DIP corner radius, smaller icons.</remarks>
+    public override SkUiSegmentedMetrics SegmentedMetrics => new(28, 2, 0, 10, 7, 16, 4, 0);
+
+    /// <inheritdoc />
+    /// <remarks>A compact strip: 32 high with text headers, 48 with icons.</remarks>
+    public override SkUiTabStripMetrics TabStripMetrics => new(32, 48, 12, 2, 16, 4, false);
 }

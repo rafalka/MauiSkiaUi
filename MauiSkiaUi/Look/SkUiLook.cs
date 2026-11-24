@@ -15,7 +15,7 @@ namespace MauiSkiaUi;
 /// in the paint struct (<see cref="SkUiToggleVisual"/>, <see cref="SkUiPressVisual"/>), and <see cref="GetTransition"/>
 /// sets each transition's duration and easing. Painters run on the UI thread.
 /// </remarks>
-public class SkUiLook
+public partial class SkUiLook
 {
     #region Current
 

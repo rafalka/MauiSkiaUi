@@ -33,6 +33,7 @@ public class WindowsSkUiLook : DefaultSkUiLook
         // Fluent's list transitions: decelerating moves, short fades.
         SkUiTransitionKind.ItemInsert or SkUiTransitionKind.ItemRemove => SkUiTransition.FromMilliseconds(167, Easing.Linear),
         SkUiTransitionKind.ItemMove => SkUiTransition.FromMilliseconds(250, SkUiEasings.FluentDecelerate),
+        SkUiTransitionKind.SegmentSelection => SkUiTransition.FromMilliseconds(250, SkUiEasings.FluentDecelerate),
         _ => base.GetTransitionCore(kind)
     };
 
@@ -272,4 +273,20 @@ public class WindowsSkUiLook : DefaultSkUiLook
         };
         canvas.DrawRoundRect(shape, radius, radius, paint);
     }
+
+    /// <inheritdoc />
+    /// <remarks>Fluent's selector bar: no track, an accent bar under the selected text that slides.</remarks>
+    public override SkUiSegmentedStyle SegmentedStyle => SkUiSegmentedStyle.Bar;
+
+    /// <inheritdoc />
+    /// <remarks>32 epx high, 4 epx corners, 16 epx icons.</remarks>
+    public override SkUiSegmentedMetrics SegmentedMetrics => new(32, 0, 0, 12, 4, 16, 8, 0);
+
+    /// <inheritdoc />
+    /// <remarks>Fluent's tabs: a short accent bar with rounded ends under the label, no divider.</remarks>
+    public override SkUiTabStripStyle TabStripStyle => SkUiTabStripStyle.ShortBar;
+
+    /// <inheritdoc />
+    /// <remarks>40 epx with text headers, 52 with icons; a 3 epx bar.</remarks>
+    public override SkUiTabStripMetrics TabStripMetrics => new(40, 52, 12, 3, 16, 8, false);
 }

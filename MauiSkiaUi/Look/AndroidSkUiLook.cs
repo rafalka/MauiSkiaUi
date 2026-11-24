@@ -49,6 +49,8 @@ public class AndroidSkUiLook : DefaultSkUiLook
         SkUiTransitionKind.CheckBox or SkUiTransitionKind.RadioButton => SkUiTransition.FromMilliseconds(150, SkUiEasings.Standard),
         SkUiTransitionKind.IndicatorPosition => SkUiTransition.FromMilliseconds(250, SkUiEasings.Standard),
         SkUiTransitionKind.PickerOpen => SkUiTransition.FromMilliseconds(225, SkUiEasings.Standard),
+        // Material's toggle button groups cross-fade the selection.
+        SkUiTransitionKind.SegmentSelection => SkUiTransition.FromMilliseconds(150, SkUiEasings.Standard),
         _ => base.GetTransitionCore(kind)
     };
 
@@ -181,4 +183,20 @@ public class AndroidSkUiLook : DefaultSkUiLook
 
     /// <inheritdoc />
     public override SkUiColorScheme GetColorScheme(bool isDark) => isDark ? AndroidSkUiColorScheme.Dark : AndroidSkUiColorScheme.Light;
+
+    /// <inheritdoc />
+    /// <remarks>Material 2's toggle button group: an outlined track whose selected segment takes a tint, cross-fading.</remarks>
+    public override SkUiSegmentedStyle SegmentedStyle => SkUiSegmentedStyle.Tinted;
+
+    /// <inheritdoc />
+    /// <remarks>36 dp high, 4 dp corners, 16 dp beside each segment's content.</remarks>
+    public override SkUiSegmentedMetrics SegmentedMetrics => new(36, 0, 0, 16, 4, 18, 8, 0);
+
+    /// <inheritdoc />
+    /// <remarks>Material 2's tabs: an accent strip with white headers and a full-width underline.</remarks>
+    public override SkUiTabStripStyle TabStripStyle => SkUiTabStripStyle.Filled;
+
+    /// <inheritdoc />
+    /// <remarks>48 dp with text headers, 72 with icons above the text; a 2 dp underline.</remarks>
+    public override SkUiTabStripMetrics TabStripMetrics => new(48, 72, 16, 2, 24, 4, true);
 }

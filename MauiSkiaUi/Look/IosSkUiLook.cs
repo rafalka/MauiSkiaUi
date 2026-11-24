@@ -50,6 +50,7 @@ public class IosSkUiLook : DefaultSkUiLook
         // UITableView's row animations: about 0.3 s, fades and moves together.
         SkUiTransitionKind.ItemInsert or SkUiTransitionKind.ItemRemove => SkUiTransition.FromMilliseconds(300, Easing.CubicInOut),
         SkUiTransitionKind.ItemMove => SkUiTransition.FromMilliseconds(300, SkUiEasings.IosStandard),
+        SkUiTransitionKind.SegmentSelection => SkUiTransition.FromMilliseconds(300, SkUiEasings.IosStandard),
         _ => base.GetTransitionCore(kind)
     };
 
@@ -196,4 +197,12 @@ public class IosSkUiLook : DefaultSkUiLook
 
     /// <inheritdoc />
     public override double CalendarFontSize => 20;
+
+    /// <inheritdoc />
+    /// <remarks>iOS 26's segmented control: a capsule track with a raised thumb that slides.</remarks>
+    public override SkUiSegmentedStyle SegmentedStyle => SkUiSegmentedStyle.Thumb;
+
+    /// <inheritdoc />
+    /// <remarks>UISegmentedControl's 32 pt height, a capsule (the radius is half of it), the thumb 2 pt inside the track.</remarks>
+    public override SkUiSegmentedMetrics SegmentedMetrics => new(32, 2, 0, 12, 16, 18, 6, 0);
 }
