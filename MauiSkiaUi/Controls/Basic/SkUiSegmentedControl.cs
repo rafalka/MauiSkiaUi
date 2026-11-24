@@ -11,7 +11,7 @@ namespace MauiSkiaUi;
 /// A row of mutually exclusive options drawn as one control, the selected one marked by the look (a sliding pill, a raised
 /// thumb, a filled segment with a check, a bar): a view switch, a filter, a mode. Options come from <see cref="Segments"/>
 /// (the XAML content) or <see cref="ItemsSource"/>; <see cref="SelectedIndex"/> and <see cref="SelectedItem"/> (two-way) say
-/// which is selected. MAUI has no counterpart. The Core twin is <c>SkUiCoreSegmentedControl</c>; see
+/// which is selected. MAUI has no counterpart. The Core twin is <see cref="Core.SkUiCoreSegmentedControl"/>; see
 /// <c>docs/controls/SkUiSegmentedControl.md</c>.
 /// </summary>
 [ContentProperty(nameof(Segments))]

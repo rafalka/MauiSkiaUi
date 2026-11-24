@@ -653,3 +653,8 @@ Whether tapping a picture opens it, zoomable, through the app's popup presenter.
 
 Whether the fourth segment (`SkUiSegment.IsEnabled`) can be chosen. A disabled segment is dimmed and ignores taps; the
 `SelectedIndex` editor can still select it, as code can.
+
+## CoreSegmentedControlDemoPage.Flagged segment enabled
+
+Whether the third segment (`SkUiCoreSegment.IsEnabled`) can be chosen. A disabled segment is dimmed and ignores taps; the
+`SelectedIndex` editor can still select it, as code can.
