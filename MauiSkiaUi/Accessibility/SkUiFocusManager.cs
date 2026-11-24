@@ -349,6 +349,17 @@ internal sealed class SkUiFocusManager(SkUiView root)
             RevealFocusedField();
     }
 
+    /// <summary>
+    /// Where a keyboard <paramref name="height"/> DIPs tall, beginning at <paramref name="top"/> in a surface's coordinates, begins
+    /// in a surface <paramref name="surfaceHeight"/> DIPs tall: positive infinity when it begins at or below the surface's bottom
+    /// (hidden, a hardware keyboard's bar below it, or a surface that ends at the keyboard's top) or has no height.
+    /// </summary>
+    internal static double KeyboardTopInSurface(double top, double height, double surfaceHeight) =>
+        height <= 0 || top >= surfaceHeight - KeyboardTolerance ? double.PositiveInfinity : top;
+
+    /// <summary>How many times <see cref="RevealFocusedField"/> ran (a root's arrange reveals once).</summary>
+    internal int RevealCount => _revealVersion;
+
     /// <summary>Keeps the focused text field above the soft keyboard (see <see cref="SetKeyboardTop"/>).</summary>
     internal void RevealFocusedField()
     {

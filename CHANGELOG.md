@@ -22,6 +22,10 @@ Publishing (the NuGet publish workflow, [docs/Releasing.md](docs/Releasing.md)) 
   - `SnapsToEnds` keeps a drag, fling or wheel scroll from stopping inside an effect's range: a collapsing header ends fully open or collapsed, with or without the list's snap points.
   - Reduced motion keeps fades and clips and stops parallax and scaling (per effect: `ReducedMotion`). Factories: `Parallax`, `FadeIn`, `CollapseTo`, `HideOnScroll`. Docs: [SkUiScrollView](docs/controls/SkUiScrollView.md#scroll-linked-effects); demo: the gallery's Scroll effects page.
 
+### Fixes
+
+- iOS: a drawn scroller no longer keeps the keyboard's room after the page that holds the surface shrinks to end at the keyboard's top (an app that resizes its pages for the keyboard itself). The keyboard's top is placed again when the surface moves or resizes, and a surface root that resizes measures its scrollers' room for the keyboard again, so a focused field is revealed within the content's own range instead of past its end ([#120](https://github.com/rafalka/MauiSkiaUi/issues/120)).
+
 ### Other
 
 - **Samples app:** a *Scroll effects* example, a trip's page built from scroll-linked effects: a landscape header in parallax layers that collapses into a toolbar (and grows when pulled), a title moving into the toolbar, a reading-progress line, section chips that stick under the toolbar, a carousel with parallax pictures, itinerary cards sliding in, and a price bar, an extended Book button and a back-to-top button that react to scrolling.

@@ -77,6 +77,12 @@ public partial class SkUiView
     /// </summary>
     [ThreadStatic] internal static Func<SkUiView, (Size Window, Point Origin, Thickness SafeArea)>? WindowPlacementOverride;
 
+    /// <summary>
+    /// Test hook: runs where a surface root's handler arranges its native view, as the platform's text input placing the
+    /// keyboard again for the new frame does (<c>SkUiAppleTextInput.SurfaceArranged</c>).
+    /// </summary>
+    [ThreadStatic] internal static Action<SkUiView>? PlatformArrangedOverride;
+
     /// <summary>What a surface root keeps for the safe area, created the first time it pads itself or follows the keyboard.</summary>
     private sealed class SafeAreaState
     {
@@ -128,14 +134,27 @@ public partial class SkUiView
 
     /// <summary>
     /// After a root made room for the keyboard: the focus manager keeps the focused field in view again, in the smaller
-    /// viewports (its drawn scrollers no longer need room of their own for the keyboard).
+    /// viewports (its drawn scrollers no longer need room of their own for the keyboard). Also after a root that was
+    /// <paramref name="resized"/> while the keyboard is up (an app that shrinks its page to end at the keyboard's top): the
+    /// drawn scrollers' room for the keyboard is measured from their new viewports, not kept from the old ones (issue #120).
     /// </summary>
-    private void RevealFocusedFieldIfPadded()
+    /// <param name="resized">Whether this arrange changed the root's size.</param>
+    /// <param name="revealsBefore">The focus manager's <see cref="SkUiFocusManager.RevealCount"/> before the arrange.</param>
+    private void RevealFocusedFieldAfterArrange(bool resized, int revealsBefore)
     {
-        if (_safeArea is not { RevealAfterArrange: true } state)
+        if (_safeArea is not { KeyboardFocus: { } focus } state)
             return;
+        var padded = state.RevealAfterArrange;
         state.RevealAfterArrange = false;
-        state.KeyboardFocus?.RevealFocusedField();
+        if (!padded && (!resized || double.IsPositiveInfinity(state.KeyboardTop)))
+            return;
+        // Once per arrange: not when one ran during it already (the platform placed the keyboard again for the new frame), nor
+        // while a root that keeps its bottom clear of the keyboard is about to pad again: the arrange that applies the padding
+        // reveals (exact, as OnKeyboardTopChanged: a changed padding).
+        if (focus.RevealCount != revealsBefore
+            || (IsSoftInput(SafeAreaEdgesValue.Bottom) && SafeAreaInsetFor(Frame).Bottom != SafeAreaInset.Bottom))
+            return;
+        focus.RevealFocusedField();
     }
 
     private SafeAreaEdges SafeAreaEdgesValue => (SafeAreaEdges)GetValue(SafeAreaEdgesShared);
