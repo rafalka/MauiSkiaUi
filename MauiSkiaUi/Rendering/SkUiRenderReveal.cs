@@ -41,8 +41,9 @@ internal enum SkUiRenderRevealRequest
 /// <param name="Threshold">Triggered: DIPs in one direction that start a show or hide.</param>
 /// <param name="Duration">Seconds of a full move (trigger, settle, show, hide); shorter moves take their share.</param>
 /// <param name="ShowsNearStart">The progress never exceeds the offset over <paramref name="Distance"/>: fully shown at the start.</param>
+/// <param name="InstantMoves">Timed moves (settle, show, hide) finish at once (reduced motion); the scroll still moves it smoothly.</param>
 internal sealed record SkUiRenderRevealSettings(
-    SkUiRenderRevealResponse Response, float Distance, float Threshold, float Duration, bool ShowsNearStart)
+    SkUiRenderRevealResponse Response, float Distance, float Threshold, float Duration, bool ShowsNearStart, bool InstantMoves = false)
 {
     public static SkUiRenderRevealSettings Default { get; } = new(SkUiRenderRevealResponse.Tracked, 56, 24, 0.2f, true);
 }
@@ -217,7 +218,7 @@ internal sealed class SkUiRenderReveal(SkUiRenderNode source, bool horizontal)
 
         if (IsMoving)
         {
-            var step = settings.Duration > 0 ? seconds / settings.Duration : 1;
+            var step = settings.Duration > 0 && !settings.InstantMoves ? seconds / settings.Duration : 1;
             _progress = _target > _progress ? Math.Min(_target, _progress + step) : Math.Max(_target, _progress - step);
             // Exact: the move lands on its target value, set above.
             if (_progress == _target)

@@ -197,6 +197,9 @@ public sealed class SkUiScrollReveal : INotifyPropertyChanged
         }
         _host = host;
         _boundSet = set;
+        // Reduced motion may have changed since the settings were made (the views build again when it does).
+        if (RenderSettings() is var settings && settings != render.Settings)
+            render.Settings = settings;
         UpdateRange();
         return render;
     }
@@ -289,7 +292,10 @@ public sealed class SkUiScrollReveal : INotifyPropertyChanged
             SkUiScrollRevealResponse.WhileScrolling => SkUiRenderRevealResponse.WhileScrolling,
             _ => SkUiRenderRevealResponse.Tracked
         },
-        (float)Distance, (float)Threshold, (float)Duration.TotalSeconds, ShowsNearStart);
+        (float)Distance, (float)Threshold, (float)Duration.TotalSeconds, ShowsNearStart,
+        // Reduced motion: a reveal that follows the scroll still does, but its settle and show at rest complete at once
+        // (a timed reveal's translation and scale jump through their effects' step instead, and their fades still run).
+        InstantMoves: SkUiMotion.IsMotionReduced && Response is SkUiScrollRevealResponse.Tracked or SkUiScrollRevealResponse.WhileScrolling);
 
     private static double NonNegative(double value) =>
         double.IsFinite(value) && value >= 0 ? value : throw new ArgumentOutOfRangeException(nameof(value), value, "A finite number of DIPs, at least 0.");

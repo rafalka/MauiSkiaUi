@@ -46,7 +46,7 @@ internal sealed class SkUiScrollEffectSet
         Effects = new EffectCollection(this);
     }
 
-    /// <summary>The effects, in order (order never changes the result).</summary>
+    /// <summary>The effects, in order (order never changes the result; overlapping <see cref="SkUiScrollEffect.SnapsToEnds"/> ranges act as one).</summary>
     public Collection<SkUiScrollEffect> Effects { get; }
 
     /// <summary>

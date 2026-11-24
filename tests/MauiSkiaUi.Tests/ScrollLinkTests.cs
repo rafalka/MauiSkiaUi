@@ -132,6 +132,24 @@ public class ScrollLinkTests
     }
 
     [Fact]
+    public void AGoneSourceDropsOnlyItsOwnChannels()
+    {
+        var gone = Node();
+        var live = Node();
+        live.Props = SkUiRenderProps.Default with { ChildrenOffsetY = 100 };
+        SkUiRenderLink[] links =
+        [
+            new(gone, false, SkUiRenderLinkTarget.TranslationY, 0, 100, 0, -30),
+            new(live, false, SkUiRenderLinkTarget.Opacity, 0, 100, 1, 0.5f)
+        ];
+        gone.Disposed = true;
+        var committed = SkUiRenderLinkValues.Identity with { TranslationY = -15, Opacity = 0.75f };
+        var values = SkUiRenderLinkValues.Evaluate(links, committed);
+        Assert.Equal(0, values.TranslationY, Tolerance);   // the gone source's channel drops out
+        Assert.Equal(0.5f, values.Opacity, Tolerance);     // the live one still follows its scroller
+    }
+
+    [Fact]
     public void ALinkedSiblingFollowsARenderThreadFlingWithoutReRecording()
     {
         // 50 DIPs down over the first 1,000 of scroll.

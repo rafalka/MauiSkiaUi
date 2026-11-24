@@ -695,5 +695,49 @@ public class ScrollEffectTests
         Assert.Throws<ArgumentNullException>(() => SkUiScrollEffect.HideOnScroll(null!, 10));
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void OverlappingEndSnapRangesActAsOneInEitherOrder(bool reversed)
+    {
+        var (list, box, root) = Page();
+        var first = new SkUiScrollEffect(SkUiScrollEffectProperty.Opacity, 0, 144, 1, 1) { Source = list, SnapsToEnds = true };
+        var second = new SkUiScrollEffect(SkUiScrollEffectProperty.Opacity, 100, 300, 1, 1) { Source = list, SnapsToEnds = true };
+        if (reversed)
+            box.AddScrollEffects(second, first);
+        else
+            box.AddScrollEffects(first, second);
+        using var surface = new SkUiTestSurface(root, 140, 100);
+        surface.Frame(0);
+        var scroller = ((ISkUiScrollHost)list).Scroller;
+        // 120 is inside both: as one range 0…300, the nearer end is 0 (not 144, which is inside 100…300).
+        scroller.SetOffset(0, 120);
+        scroller.Snap(Point.Zero);
+        Settle(surface, 10);
+        Assert.Equal(0, scroller.Y, 0.5);
+    }
+
+    [Fact]
+    public void UnderReducedMotionAWhileScrollingRevealComesBackAtOnceAtRest()
+    {
+        using var _ = new ReducedMotion();
+        var (list, box, root) = Page();
+        var reveal = new SkUiScrollReveal { Response = SkUiScrollRevealResponse.WhileScrolling, Source = list, Distance = 40, Duration = TimeSpan.FromSeconds(1) };
+        box.AddScrollEffect(SkUiScrollEffect.HideOnScroll(reveal, 50));
+        using var surface = new SkUiTestSurface(root, 140, 100);
+        list.ScrollTo(0, 400);
+        surface.Frame(0);
+        var scroller = ((ISkUiScrollHost)list).Scroller;
+        scroller.Wheel(0, -60); // hides it smoothly, in step with the scroll
+        surface.Frame(16);
+        surface.Frame(32);
+        Assert.False(reveal.IsShown);
+        scroller.OnWheelRest();
+        surface.Frame(48); // the request
+        surface.Frame(64); // a 1 s show, finished at once
+        Assert.True(reveal.IsShown);
+        Assert.Equal(0, Props(box).LinkValues.TranslationY, Tolerance);
+    }
+
     #endregion
 }

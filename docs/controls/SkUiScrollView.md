@@ -144,7 +144,7 @@ await scroller.ScrollToAsync(finalLabel, ScrollToPosition.Center, animated: true
 | `ClipEdge` | `Start` | Clips: the part that stays (`Start` top or leading, `End` bottom or trailing, `Center`) |
 | `ClipShape`, `ClipCornerRadius` | `Rectangle` | Clips: `Rectangle`, `RoundRectangle`, `Capsule` (a pill at every size) |
 | `Reveal` | `null` | A [scroll-direction input](#views-that-hide-by-scroll-direction) instead of the offset |
-| `SnapsToEnds` | `false` | A drag, fling or wheel scroll never comes to rest strictly inside the input range: it settles on the nearer end (a header ends fully open or collapsed), with or without the scroller's snap points; programmatic scrolls are left alone. Offset effects only |
+| `SnapsToEnds` | `false` | A drag, fling or wheel scroll never comes to rest strictly inside the input range: it settles on the nearer end (a header ends fully open or collapsed), with or without the scroller's snap points; programmatic scrolls are left alone. Overlapping ranges act as one. Offset effects only |
 | `ReducedMotion` | `Default` | See [reduced motion](#reduced-motion) |
 | `IsEnabled` | `true` | Off: the property shows the view's own value |
 
@@ -265,7 +265,7 @@ An extended button that shrinks to its icon: the capsule keeps its trailing end 
 
 ### Reduced motion
 
-Under `SkUiMotion.IsMotionReduced`, fades and clips run; scales, and translations that do not move exactly with the content (parallax), hold `From`; a triggered reveal's show and hide jump halfway for translation and scale while its fades still run. `ReducedMotion="Run"` or `"HoldFrom"` overrides this for one effect. Write `From` as the page at rest: an effect that follows a pull runs its range backwards (`InputStart="0" InputEnd="-200" From="1" To="1.5"`), so reduced motion holds the resting value, not the pulled one; `InputStart` may be larger than `InputEnd`.
+Under `SkUiMotion.IsMotionReduced`, fades and clips run; scales, and translations that do not move exactly with the content (parallax), hold `From`; a triggered or manual reveal's show and hide jump halfway for translation and scale while its fades still run; a tracked or while-scrolling reveal still follows the scroll, and its settle or return at rest completes at once. `ReducedMotion="Run"` or `"HoldFrom"` overrides this for one effect. Write `From` as the page at rest: an effect that follows a pull runs its range backwards (`InputStart="0" InputEnd="-200" From="1" To="1.5"`), so reduced motion holds the resting value, not the pulled one; `InputStart` may be larger than `InputEnd`.
 
 ## Key properties / APIs
 

@@ -1025,7 +1025,9 @@ internal sealed class SkUiScrollController(ISkUiRenderable owner, Action<SkUiRen
     /// <summary>
     /// Replaces <paramref name="owner"/>'s ranges of offsets that settle on their ends (a scroll effect's
     /// <see cref="SkUiScrollEffect.SnapsToEnds"/>): a drag, fling or wheel scroll that would come to rest strictly inside one
-    /// ends on its nearer end instead, with or without snap points; programmatic scrolls are left alone. Empty: none.
+    /// ends on its nearer end instead, with or without snap points; programmatic scrolls are left alone. Overlapping ranges
+    /// act as one; a range under 1 DIP, or one that lies outside the scroll range once clamped to it, does nothing. Empty:
+    /// none.
     /// </summary>
     internal void SetEndSnapRanges(object owner, IEnumerable<(bool Horizontal, double Start, double End)> ranges)
     {
@@ -1052,20 +1054,41 @@ internal sealed class SkUiScrollController(ISkUiRenderable owner, Action<SkUiRen
         if (_endSnapRanges is not { Count: > 0 } ranges)
             return target;
         var max = horizontal ? MaxX : MaxY;
+        double start = 0, end = 0;
+        var found = false;
         foreach (var range in ranges)
         {
             if (range.Horizontal != horizontal)
                 continue;
-            var start = Math.Clamp(range.Start, 0, max);
-            var end = Math.Clamp(range.End, 0, max);
-            if (end - start < 1 || target <= start + 0.5 || target >= end - 0.5)
+            var low = Math.Clamp(range.Start, 0, max);
+            var high = Math.Clamp(range.End, 0, max);
+            if (high - low < 1 || target <= low + 0.5 || target >= high - 0.5)
                 continue;
-            var toStart = target - start;
-            var toEnd = end - target;
-            // Exact: an exact tie is the case that falls back to the side the motion came from.
-            return toStart < toEnd || (toStart == toEnd && current <= target) ? start : end;
+            (start, end, found) = (low, high, true);
+            break;
         }
-        return target;
+        if (!found)
+            return target;
+        // Overlapping ranges act as one (the order effects were added in does not matter): grow to every range that
+        // overlaps, so the end chosen is not inside another one.
+        for (var grown = true; grown;)
+        {
+            grown = false;
+            foreach (var range in ranges)
+            {
+                if (range.Horizontal != horizontal)
+                    continue;
+                var low = Math.Clamp(range.Start, 0, max);
+                var high = Math.Clamp(range.End, 0, max);
+                if (high - low < 1 || high <= start || low >= end || (low >= start && high <= end))
+                    continue;
+                (start, end, grown) = (Math.Min(start, low), Math.Max(end, high), true);
+            }
+        }
+        var toStart = target - start;
+        var toEnd = end - target;
+        // Exact: an exact tie is the case that falls back to the side the motion came from.
+        return toStart < toEnd || (toStart == toEnd && current <= target) ? start : end;
     }
 
     /// <summary>Drops snap points less than half a DIP after the previous one (sorted points).</summary>

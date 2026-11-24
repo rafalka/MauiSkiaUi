@@ -206,18 +206,21 @@ internal record struct SkUiRenderLinkValues
 
     /// <summary>
     /// The contribution of <paramref name="links"/> on the render thread, at their sources' current offsets (reveals advanced
-    /// to <paramref name="now"/>). A channel whose source is gone (detached) contributes what the UI side last computed:
-    /// <paramref name="committed"/> is used whole then. <paramref name="moving"/> is set when a reveal's timed move runs (the
+    /// to <paramref name="now"/>). A channel whose source is gone (detached) drops out; when every source is gone,
+    /// <paramref name="committed"/> (what the UI side last computed) is returned whole. <paramref name="moving"/> is set when a reveal's timed move runs (the
     /// frames must keep coming); reveals whose move ended are added to <paramref name="ended"/>.
     /// </summary>
     public static SkUiRenderLinkValues Evaluate(SkUiRenderLink[] links, in SkUiRenderLinkValues committed, TimeSpan now,
         List<SkUiRenderReveal>? ended, ref bool moving)
     {
         var values = Identity;
+        var live = false;
         foreach (var link in links)
         {
+            // A channel whose source is gone (detached) drops out; the others still follow theirs.
             if (link.Source.Disposed)
-                return committed;
+                continue;
+            live = true;
             float input;
             if (link.Reveal is { } reveal)
             {
@@ -232,7 +235,8 @@ internal record struct SkUiRenderLinkValues
             }
             values.Add(link.Target, link.Evaluate(input));
         }
-        return values;
+        // Every source gone: what the UI side last computed, so the node stays where it was drawn.
+        return live || links.Length == 0 ? values : committed;
     }
 
     /// <inheritdoc cref="Evaluate(SkUiRenderLink[], in SkUiRenderLinkValues, TimeSpan, List{SkUiRenderReveal}?, ref bool)" />
