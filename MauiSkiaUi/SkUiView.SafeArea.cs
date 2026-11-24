@@ -77,6 +77,12 @@ public partial class SkUiView
     /// </summary>
     [ThreadStatic] internal static Func<SkUiView, (Size Window, Point Origin, Thickness SafeArea)>? WindowPlacementOverride;
 
+    /// <summary>
+    /// Test hook: runs where a surface root's handler arranges its native view, as the platform's text input placing the
+    /// keyboard again for the new frame does (<c>SkUiAppleTextInput.SurfaceArranged</c>).
+    /// </summary>
+    [ThreadStatic] internal static Action<SkUiView>? PlatformArrangedOverride;
+
     /// <summary>What a surface root keeps for the safe area, created the first time it pads itself or follows the keyboard.</summary>
     private sealed class SafeAreaState
     {
@@ -138,17 +144,13 @@ public partial class SkUiView
     {
         if (_safeArea is not { KeyboardFocus: { } focus } state)
             return;
-        if (state.RevealAfterArrange)
-        {
-            state.RevealAfterArrange = false;
-            focus.RevealFocusedField();
+        var padded = state.RevealAfterArrange;
+        state.RevealAfterArrange = false;
+        if (!padded && (!resized || double.IsPositiveInfinity(state.KeyboardTop)))
             return;
-        }
-        if (!resized || double.IsPositiveInfinity(state.KeyboardTop))
-            return;
-        // Revealed during this arrange already (the platform placed the keyboard again for the new frame); or a root that keeps
-        // its bottom clear of the keyboard pads again first, and the arrange that applies it reveals (exact, as
-        // OnKeyboardTopChanged: a changed padding).
+        // Once per arrange: not when one ran during it already (the platform placed the keyboard again for the new frame), nor
+        // while a root that keeps its bottom clear of the keyboard is about to pad again: the arrange that applies the padding
+        // reveals (exact, as OnKeyboardTopChanged: a changed padding).
         if (focus.RevealCount != revealsBefore
             || (IsSoftInput(SafeAreaEdgesValue.Bottom) && SafeAreaInsetFor(Frame).Bottom != SafeAreaInset.Bottom))
             return;

@@ -590,12 +590,25 @@ public class EntryTests
         for (var time = 0; time <= 1000; time += 50)
             surface.Frame(time);
         var reveals = root.FocusManager.RevealCount;
-        SkUiTestHelpers.Arrange(root, 300, 500);
+        // The platform places the keyboard again for the new frame, which reveals: the resized root does not reveal again.
+        SkUiView.PlatformArrangedOverride = arranged => arranged.FocusManager.SetKeyboardTop(280);
+        try
+        {
+            SkUiTestHelpers.Arrange(root, 300, 500);
+        }
+        finally
+        {
+            SkUiView.PlatformArrangedOverride = null;
+        }
         Assert.Equal(reveals + 1, root.FocusManager.RevealCount);
-        Assert.Equal(200, scroller.KeyboardInset, 1);
+        Assert.Equal(220, scroller.KeyboardInset, 1);
+        // Resized with the keyboard where it was: the root reveals, once.
+        SkUiTestHelpers.Arrange(root, 300, 450);
+        Assert.Equal(reveals + 2, root.FocusManager.RevealCount);
+        Assert.Equal(170, scroller.KeyboardInset, 1);
         // The same size again: nothing to measure again.
-        SkUiTestHelpers.Arrange(root, 300, 500);
-        Assert.Equal(reveals + 1, root.FocusManager.RevealCount);
+        SkUiTestHelpers.Arrange(root, 300, 450);
+        Assert.Equal(reveals + 2, root.FocusManager.RevealCount);
     }
 
     [Fact]

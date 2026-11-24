@@ -181,4 +181,32 @@ public class SafeAreaEdgesTests
         SkUiTestHelpers.Arrange(root, Window.Width, Window.Height);
         Assert.Equal(new Rect(0, 47, 400, 800 - 47 - 34), child.Frame);
     }
+
+    [Fact]
+    public void ARootThatPadsAgainForTheKeyboardRevealsAfterTheArrangeThatAppliesIt()
+    {
+        using var _ = new WindowScope(Point.Zero);
+        var (root, child) = Root(new SkUiGrid { SafeAreaEdges = new SafeAreaEdges(SafeAreaRegions.None, SafeAreaRegions.None, SafeAreaRegions.None, SafeAreaRegions.SoftInput) });
+        SkUiTestHelpers.Arrange(root, Window.Width, Window.Height);
+        var focus = new SkUiFocusManager(root);
+        focus.SetKeyboardTop(500);
+        SkUiTestHelpers.Arrange(root, Window.Width, Window.Height);
+        Assert.Equal(1, focus.RevealCount);
+        // The root shrinks, and the platform places the keyboard again for its new frame: the padding changes once more, so
+        // this arrange reveals nothing (it would scroll by the padding it is about to replace).
+        SkUiView.PlatformArrangedOverride = _ => focus.SetKeyboardTop(450);
+        try
+        {
+            SkUiTestHelpers.Arrange(root, Window.Width, 700);
+        }
+        finally
+        {
+            SkUiView.PlatformArrangedOverride = null;
+        }
+        Assert.Equal(1, focus.RevealCount);
+        // The arrange that applies the padding reveals, once.
+        SkUiTestHelpers.Arrange(root, Window.Width, 700);
+        Assert.Equal(new Rect(0, 0, 400, 450), child.Frame);
+        Assert.Equal(2, focus.RevealCount);
+    }
 }
