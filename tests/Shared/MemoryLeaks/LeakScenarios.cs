@@ -56,6 +56,7 @@ public static class LeakScenarios
         new("CollectionViewItemsAnimated", Scrolling, "SkUiCollectionView over a long-lived collection with AnimatesItemChanges, as a list and as a grid of two columns with sticky collapsible group headers over long-lived groups: items inserted, removed (fading out over the items), moved and replaced, several changes while rows still glide, a group collapsed and expanded, the template replaced while removed rows fade; closed while rows glide and fade.", () => new CollectionViewItemsAnimatedRun()),
         new("RefreshPulled", Scrolling, "SkUiRefreshView (inline style, automatic completion) with a long-lived command around a header and a drawn scroller: pulled through the scroller and by the header (content held down while refreshing), each refresh ended by a deferral taken in Refreshing, a short pull released before the trigger (the indicator going back), the scroller replaced while still linked and the old one detached; closed mid-pull.", () => new RefreshRun()),
         new("CarouselSwiped", Scrolling, "SkUiCarouselView over a long-lived collection with a long-lived shared cover flow effect, a long-lived position command and a linked indicator view: swiped and flung forward past the middle of its looping strip (moved back by corrections), an indicator tapped, the position set by code, items added and removed, the effect switched, looping turned off and the end reached (load-more command); closed mid-fling.", () => new CarouselRun()),
+        new("CarouselAutoPlay", Scrolling, "SkUiCarouselView with autoplay (a short interval) over a long-lived collection, a linked indicator view and a long-lived position command: steps on its own a few times; closed while a step animates (its timer pending).", () => new CarouselAutoPlayRun()),
         new("PickerOpened", Controls, "SkUiPicker and SkUiCorePicker over a long-lived collection (a display binding, an item template), opened on a long-lived presenter that keeps the last request (as a popup stack does): tapped open and an item chosen in the drawn list, dismissed, closed by IsOpen = false and by hiding the picker, opened by the keyboard, the Core picker chosen; closed with a popup open.", () => new PickerRun()),
         new("DisplayBindingChips", Controls, "Chips an app control builds from view-model items through a long-lived SkUiDisplayBinding over a long-lived binding (as one in app resources), fading on press: texts read from a list, from a sequence and one item alone, chips tapped, the items replaced and read again.", () => new DisplayBindingRun()),
         new("PickerWheelsOpened", Controls, "SkUiPicker with several choices and SkUiMultiColumnPicker, and their Core twins, over long-lived collections (columns' items, a long-lived presenter that keeps the last request): tapped open, rows toggled and wheels set through the request, completed with a selection, a draft accepted (UpdateMode WhenFinished), dismissed, closed by IsOpen = false and by hiding, columns removed while open; inline SkUiPickerWheels over the same items: chosen with a key, set by the app, built again when a column comes and goes; pickers of your own (a value picker and one on SkUiPickerBase) whose popup bodies hold their picker, completed through the request the presenter keeps; closed with a popup open.", () => new PickerWheelsRun()),
@@ -3258,6 +3259,49 @@ public static class LeakScenarios
 
         public override string? CheckInteraction() =>
             _positions >= 8 && _loads >= 1 ? null : $"Position changed {_positions} times (expected 8 or more), loaded {_loads} times (expected 1 or more).";
+    }
+
+    private sealed class CarouselAutoPlayRun : LeakScenarioRun
+    {
+        private SkUiCarouselView? _carousel;
+        private int _positions;
+
+        public override View Build(LeakScenarioContext context)
+        {
+            LeakItems.Shared.Clear();
+            for (var index = 0; index < 5; index++)
+                LeakItems.Shared.Add($"Card {index}");
+            var indicator = context.Track(new SkUiIndicatorView { HeightRequest = 24 }, "autoplay indicator");
+            _carousel = context.Track(new SkUiCarouselView
+            {
+                ItemsSource = LeakItems.Shared,
+                PeekAreaInsets = new Thickness(40, 0),
+                ItemSpacing = 8,
+                AutoPlayInterval = TimeSpan.FromMilliseconds(400),
+                IndicatorView = indicator,
+                PositionChangedCommand = LeakCommands.Shared,
+                ItemTemplate = new DataTemplate(() => context.Track(Text("", 18), "autoplay card"))
+            }, "autoplay carousel");
+            _carousel.PositionChanged += (_, _) => _positions++;
+            var grid = new SkUiGrid { RowDefinitions = [new RowDefinition(GridLength.Star), new RowDefinition(GridLength.Auto)] };
+            Grid.SetRow(indicator, 1);
+            grid.Children.Add(_carousel);
+            grid.Children.Add(indicator);
+            return Root(grid);
+        }
+
+        public override async Task InteractAsync(LeakScenarioContext context)
+        {
+            // A few steps on its own, then close right as the next one starts (its scroll animating, the timer pending).
+            for (var wait = 0; wait < 200 && _positions < 3; wait++)
+                await context.WaitAsync(16);
+            var before = _positions;
+            for (var wait = 0; wait < 100 && _positions == before; wait++)
+                await context.WaitAsync(16);
+        }
+
+        public override string? CheckInteraction() =>
+            _positions >= 4 ? null : $"The carousel stepped {_positions} times on its own (expected 4 or more).";
     }
 
     private sealed class CollectionViewGroupedRun : LeakScenarioRun

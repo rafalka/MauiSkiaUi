@@ -748,8 +748,9 @@ public partial class SkUiCarouselView : SkUiView, ISkUiScrollStepper
         UpdateDragging();
         if (Controller.IsMoving || _requestingScroll)
             return;
-        // Settled: on the snap point of the position reached (or asked for).
+        // Settled: on the snap point of the position reached (or asked for); autoplay waits a full interval from here.
         _targetIndex = -1;
+        RestartAutoPlay();
         if (Panel.HasGeometry && ItemCount > 0)
         {
             var current = Panel.CurrentIndex(_position);

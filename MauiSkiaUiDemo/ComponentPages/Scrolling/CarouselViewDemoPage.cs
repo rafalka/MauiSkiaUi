@@ -9,7 +9,8 @@ namespace MauiSkiaUiDemo;
 /// properties set both carousels (MAUI's get a new <see cref="LinearItemsLayout"/> for the items layout's settings: its handler
 /// does not follow changes of the one it has); SkiaUi-only editors show
 /// several cards at once (<see cref="SkUiCarouselView.ItemExtent"/>), several cards per swipe
-/// (<see cref="SkUiCarouselView.ItemsPerSnapPoint"/>: pages, with one dot per page), item effects (cover flow, scaling) and loading more
+/// (<see cref="SkUiCarouselView.ItemsPerSnapPoint"/>: pages, with one dot per page), autoplay
+/// (<see cref="SkUiCarouselView.AutoPlayInterval"/>, with the pause), item effects (cover flow, scaling) and loading more
 /// cards as the end comes near. The indicator style is the look's (Look &amp; colors page).
 /// </summary>
 public sealed class CarouselViewDemoPage : ComponentDemoPage
@@ -107,6 +108,9 @@ public sealed class CarouselViewDemoPage : ComponentDemoPage
         Number(nameof(SkUiCarouselView.ItemExtent), 0, 300, 0, value => _skia.ItemExtent = value, () => _skia.ItemExtent, whole: true);
         Number(nameof(SkUiCarouselView.ItemsPerSnapPoint), 1, 4, 1, value => _skia.ItemsPerSnapPoint = (int)value, () => _skia.ItemsPerSnapPoint,
             whole: true);
+        Number("AutoPlayInterval (seconds, 0: off)", 0, 8, 0, value => _skia.AutoPlayInterval = TimeSpan.FromSeconds(value),
+            () => _skia.AutoPlayInterval.TotalSeconds, whole: true);
+        Toggle(nameof(SkUiCarouselView.IsAutoPlayPaused), false, value => _skia.IsAutoPlayPaused = value, () => _skia.IsAutoPlayPaused);
         Choice(nameof(SkUiCarouselView.ItemEffect), [NoEffect, CoverFlow, ScaleEffect], NoEffect, value => _skia.ItemEffect = value switch
         {
             CoverFlow => _coverFlow,
