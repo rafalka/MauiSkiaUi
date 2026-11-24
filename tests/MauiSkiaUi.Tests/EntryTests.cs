@@ -542,6 +542,37 @@ public class EntryTests
     }
 
     [Fact]
+    public void AScrollerGivesItsKeyboardRoomBackWhenTheSurfaceShrinksToEndAtTheKeyboard()
+    {
+        // Issue #120: the app shrinks its page to end at the keyboard's top after the keyboard reported its frame.
+        using var _ = SkUiTestHelpers.UseBundledFont();
+        var column = new SkUiVerticalStackLayout();
+        for (var index = 0; index < 10; index++)
+            column.Children.Add(new SkUiBox { HeightRequest = 60 });
+        var field = new SkUiEntry { FontFamily = SkUiTestHelpers.BundledFontFamily };
+        column.Children.Add(field);
+        var scroller = new SkUiScrollView { Content = column };
+        using var surface = new SkUiTestSurface(new SkUiContentView { Content = scroller }, 300, 612);
+        var root = surface.Root;
+        surface.Frame();
+        Assert.True(field.Focus());
+        root.FocusManager.SetKeyboardTop(411);
+        for (var time = 0; time <= 1000; time += 50)
+            surface.Frame(time);
+        Assert.Equal(201, scroller.KeyboardInset, 1);
+        // The surface now ends at the keyboard's top, and the keyboard top it reported is not reported again.
+        SkUiTestHelpers.Arrange(root, 300, 411);
+        for (var time = 1000; time <= 2000; time += 50)
+            surface.Frame(time);
+        Assert.Equal(0, scroller.KeyboardInset);
+        // The offset stays within the content's own range, and the field is still shown.
+        Assert.InRange(scroller.ScrollY, 0, column.Height - scroller.Height + 0.5);
+        Assert.True(column.Height - scroller.Height > 1, "the content still scrolls");
+        var bounds = SkUiDiagnostics.GetRootBounds(field)!.Value;
+        Assert.True(bounds.Bottom <= 411.5, $"field bottom {bounds.Bottom}");
+    }
+
+    [Fact]
     public void ACoreFieldIsKeptAboveTheKeyboardInItsCoreScroller()
     {
         using var _ = SkUiTestHelpers.UseBundledFont();

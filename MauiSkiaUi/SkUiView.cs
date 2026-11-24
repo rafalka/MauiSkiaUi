@@ -715,7 +715,7 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
         // Offset-only changes are composite-time; the recorder re-records content only when the size changed.
         if (frameChanged)
             InvalidateRender(SkUiRenderDirty.Props);
-        RevealFocusedFieldIfPadded();
+        RevealFocusedFieldAfterArrange(SkiaParent is null && previousSize != Frame.Size);
         return Frame.Size;
     }
 

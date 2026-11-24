@@ -18,18 +18,41 @@ internal sealed class SkUiAppleTextInput(SkUiOverlayContainer container) : ISkUi
     private SkUiTextInputView? _view;
     private NSObject? _keyboardFrame;
     private NSObject? _keyboardHide;
+    // The keyboard's last reported frame (UIKit's end frame), kept to place it again when the surface moves; null: hidden.
+    private CGRect? _keyboardEnd;
 
     /// <summary>The keyboard moved or changed size: the surface's focus manager keeps the focused field above it.</summary>
     private void OnKeyboardFrame(object? sender, UIKeyboardEventArgs args)
     {
-        if (container.Window is null || container.KeyboardFocus is not { } focus)
+        _keyboardEnd = args.FrameEnd;
+        UpdateKeyboardTop();
+    }
+
+    private void OnKeyboardHidden()
+    {
+        _keyboardEnd = null;
+        container.KeyboardFocus?.SetKeyboardTop(double.PositiveInfinity);
+    }
+
+    /// <summary>
+    /// The surface was arranged (moved or resized): where the keyboard begins in it changed too. An app that shrinks its page to
+    /// end at the keyboard's top often does it after the keyboard reported its frame; the keyboard then no longer covers the
+    /// surface, and its drawn scrollers give their room for it back (issue #120).
+    /// </summary>
+    internal void SurfaceArranged()
+    {
+        if (_keyboardEnd is not null)
+            UpdateKeyboardTop();
+    }
+
+    private void UpdateKeyboardTop()
+    {
+        if (_keyboardEnd is not { } end || container.Window is null || container.KeyboardFocus is not { } focus)
             return;
-        var frame = container.ConvertRectFromView(args.FrameEnd, null);
+        var frame = container.ConvertRectFromView(end, null);
         // Off the surface's bottom (hidden, or a hardware keyboard's bar below it): no keyboard over the surface.
         focus.SetKeyboardTop(frame.Top >= container.Bounds.Height || frame.Height <= 0 ? double.PositiveInfinity : frame.Top);
     }
-
-    private void OnKeyboardHidden() => container.KeyboardFocus?.SetKeyboardTop(double.PositiveInfinity);
 
     /// <summary>Typed characters arrive through <c>insertText</c>.</summary>
     public bool ReceivesCharacters => true;

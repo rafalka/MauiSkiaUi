@@ -493,6 +493,16 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
     }
 #endif
 
+#if IOS || MACCATALYST
+    /// <inheritdoc />
+    public override void PlatformArrange(Rect rect)
+    {
+        base.PlatformArrange(rect);
+        // The keyboard's top in the surface follows the surface's new frame (a page shrunk to end at the keyboard).
+        _container?.TextInput?.SurfaceArranged();
+    }
+#endif
+
 #if WINDOWS
     /// <inheritdoc />
     public override void PlatformArrange(Rect rect)

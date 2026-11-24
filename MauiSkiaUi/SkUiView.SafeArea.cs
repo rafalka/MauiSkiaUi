@@ -128,11 +128,13 @@ public partial class SkUiView
 
     /// <summary>
     /// After a root made room for the keyboard: the focus manager keeps the focused field in view again, in the smaller
-    /// viewports (its drawn scrollers no longer need room of their own for the keyboard).
+    /// viewports (its drawn scrollers no longer need room of their own for the keyboard). Also after a root that was
+    /// <paramref name="resized"/> while the keyboard is up (an app that shrinks its page to end at the keyboard's top): the
+    /// drawn scrollers' room for the keyboard is measured from their new viewports, not kept from the old ones (issue #120).
     /// </summary>
-    private void RevealFocusedFieldIfPadded()
+    private void RevealFocusedFieldAfterArrange(bool resized)
     {
-        if (_safeArea is not { RevealAfterArrange: true } state)
+        if (_safeArea is not { } state || !(state.RevealAfterArrange || (resized && !double.IsPositiveInfinity(state.KeyboardTop))))
             return;
         state.RevealAfterArrange = false;
         state.KeyboardFocus?.RevealFocusedField();
