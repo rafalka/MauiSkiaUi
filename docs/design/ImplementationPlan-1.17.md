@@ -112,7 +112,7 @@ The review plan's [F1 tables](ImplementationPlan-PerformanceAndControls.md#f1-se
 
 Steps S1 to S6 follow the review plan's [F1 steps](ImplementationPlan-PerformanceAndControls.md#f1-segmented-control-and-tab-view) 1 to 6 unchanged:
 
-- **S1** control pages (`docs/controls/SkUiSegmentedControl.md`, `SkUiTabView.md`), reviewed before S2.
+- **S1** control pages ([`SkUiSegmentedControl.md`](../controls/SkUiSegmentedControl.md), [`SkUiTabView.md`](../controls/SkUiTabView.md)), reviewed before S2. Drafts written 24 November 2026, each with its open questions at the end; the answers and any table changes are copied here.
 - **S2** `SkUiSegmentedEngine` (segment and selection rectangles, equal and content widths, right to left).
 - **S3** the look ([D9](#decisions)): `SkUiSegmentedPaint`, `MeasureSegmented`, `DrawSegmented`, and the tab strip's `DrawTabStrip`, in the default and platform looks; `PlatformLookShapeTests` entries.
 - **S4** `SkUiSegmentedControl`: tap selects through `WriteBack`, the selection animates with `SkUiTween` (snaps under reduce motion).

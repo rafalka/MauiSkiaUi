@@ -36,6 +36,7 @@ Shared pipelines: [Architecture.md](../design/Architecture.md) · [LayoutSystem.
 | `SkUiSwitch` | [SkUiSwitch.md](SkUiSwitch.md) | Switch |
 | `SkUiCheckBox` | [SkUiCheckBox.md](SkUiCheckBox.md) | CheckBox |
 | `SkUiRadioButton` | [SkUiRadioButton.md](SkUiRadioButton.md) | RadioButton (`Content`, `ControlTemplate`; MAUI's `RadioButtonGroup` works on drawn layouts) |
+| `SkUiSegmentedControl` / `SkUiCoreSegmentedControl` | [SkUiSegmentedControl.md](SkUiSegmentedControl.md) | None (design for review, 1.17): one of a few options in a drawn row, the selection marker by the look |
 | `SkUiSlider` | [SkUiSlider.md](SkUiSlider.md) | Slider (plus vertical) |
 | `SkUiProgressBar` | [SkUiProgressBar.md](SkUiProgressBar.md) | ProgressBar (plus indeterminate) |
 | `SkUiStepper` / `SkUiCoreStepper`, `SkUiStepper<T>` / `SkUiCoreStepper<T>` | [SkUiStepper.md](SkUiStepper.md) | Stepper (plus stacked buttons, `Orientation`, texts in place of − / +, corner radius and outline, and typed values) |
@@ -106,5 +107,6 @@ Shared pipelines: [Architecture.md](../design/Architecture.md) · [LayoutSystem.
 | `SkUiRefreshView` | [SkUiRefreshView.md](SkUiRefreshView.md) | RefreshView (pull-to-refresh around drawn content: through its scrollers, or the view itself) |
 | `SkUiCollectionView` | [SkUiCollectionView.md](SkUiCollectionView.md) | CollectionView (+ RefreshView): lists and grids, vertical or horizontal, single and multiple selection, item taps, groups (collapsible, sticky headers), sticky header / footer, empty view, load more, pull-to-refresh; SkiaUi's own API |
 | `SkUiCarouselView` | [SkUiCarouselView.md](SkUiCarouselView.md) | CarouselView: one card per swipe, looping without an end, peek insets, several cards in view, item effects drawn by the compositor (cover flow, scaling, your own), load more; the items layout as properties |
+| `SkUiTabView` | [SkUiTabView.md](SkUiTabView.md) | None inside a page (design for review, 1.17): a tab strip over swiped panes that are kept once created |
 | `SkUiIndicatorView` / `SkUiCoreIndicatorView` | [SkUiIndicatorView.md](SkUiIndicatorView.md) | IndicatorView, drawn by the look (dots, a pill, a painter of your own); the selection slides with a linked carousel |
 | `SkUiVirtualVerticalStackLayout` / `SkUiVirtualScrollView` / `SkUiVirtualVerticalStackLayoutBase` | [SkUiVirtualVerticalStackLayout.md](SkUiVirtualVerticalStackLayout.md) | — (virtualized lists: items created near the viewport, recycled; plain `CollectionView` lists; the abstract engine for list controls of your own) |
