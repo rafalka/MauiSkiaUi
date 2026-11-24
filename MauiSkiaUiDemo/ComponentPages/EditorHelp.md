@@ -648,3 +648,8 @@ Whether tapping a picture opens it, zoomable, through the app's popup presenter.
 ## MarkdownDemoPage.CodeFontSize
 
 `SkUiMarkdownStyle.CodeFontSize`, set by copying the style with `with`: the document is built again.
+
+## SegmentedControlDemoPage.Year segment enabled
+
+Whether the fourth segment (`SkUiSegment.IsEnabled`) can be chosen. A disabled segment is dimmed and ignores taps; the
+`SelectedIndex` editor can still select it, as code can.

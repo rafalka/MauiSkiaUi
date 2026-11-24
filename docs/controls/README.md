@@ -36,7 +36,7 @@ Shared pipelines: [Architecture.md](../design/Architecture.md) · [LayoutSystem.
 | `SkUiSwitch` | [SkUiSwitch.md](SkUiSwitch.md) | Switch |
 | `SkUiCheckBox` | [SkUiCheckBox.md](SkUiCheckBox.md) | CheckBox |
 | `SkUiRadioButton` | [SkUiRadioButton.md](SkUiRadioButton.md) | RadioButton (`Content`, `ControlTemplate`; MAUI's `RadioButtonGroup` works on drawn layouts) |
-| `SkUiSegmentedControl` / `SkUiCoreSegmentedControl` | [SkUiSegmentedControl.md](SkUiSegmentedControl.md) | None (design, 1.17): one of a few options in a drawn row, the selection marker by the look |
+| `SkUiSegmentedControl` / `SkUiCoreSegmentedControl` | [SkUiSegmentedControl.md](SkUiSegmentedControl.md) | None (1.17, in progress): one of a few options in a drawn row, the selection marker by the look |
 | `SkUiSlider` | [SkUiSlider.md](SkUiSlider.md) | Slider (plus vertical) |
 | `SkUiProgressBar` | [SkUiProgressBar.md](SkUiProgressBar.md) | ProgressBar (plus indeterminate) |
 | `SkUiStepper` / `SkUiCoreStepper`, `SkUiStepper<T>` / `SkUiCoreStepper<T>` | [SkUiStepper.md](SkUiStepper.md) | Stepper (plus stacked buttons, `Orientation`, texts in place of − / +, corner radius and outline, and typed values) |

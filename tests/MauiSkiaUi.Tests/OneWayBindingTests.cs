@@ -635,6 +635,28 @@ public sealed class OneWayBindingItemsTests : IDisposable
     }
 
     [Fact]
+    public void SegmentedControlSelectedIndexFollowsTheBindingAfterATap()
+    {
+        var control = new SkUiSegmentedControl().SetSegments("Day", "Week", "Month");
+        using var surface = new SkUiTestSurface(control, 300, 40);
+        surface.Frame(0);
+        var source = BindingSource<int>.Bind(control, SkUiSegmentedControl.SelectedIndexProperty, 0);
+
+        var week = control.SegmentBounds(1).Center;
+        control.Touch(new(++_pointer, SkUiTouchAction.Pressed, week, TimeSpan.Zero));
+        control.Touch(new(_pointer, SkUiTouchAction.Released, week, TimeSpan.FromMilliseconds(40)));
+        Assert.Equal(1, control.SelectedIndex);
+        Assert.Equal(0, source.Value);
+
+        source.Value = 2;
+        Assert.Equal(2, control.SelectedIndex); // the binding still applies
+        source.Value = 7;
+        Assert.Equal(2, control.SelectedIndex); // coerced to the last segment, and still bound
+        source.Value = 0;
+        Assert.Equal(0, control.SelectedIndex);
+    }
+
+    [Fact]
     public void RefreshViewFollowsTheBindingAfterAPull()
     {
         var refresh = new SkUiRefreshView

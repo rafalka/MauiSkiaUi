@@ -27,6 +27,8 @@ public static class ComponentDemos
         new(typeof(SkUiCheckBox), typeof(CheckBoxDemoPage), nameof(CheckBox), ComponentCategory.BasicControls, () => new CheckBoxDemoPage()),
         new(typeof(SkUiSlider), typeof(SliderDemoPage), nameof(Slider), ComponentCategory.BasicControls, () => new SliderDemoPage()),
         new(typeof(SkUiStepper), typeof(StepperDemoPage), nameof(Stepper), ComponentCategory.BasicControls, () => new StepperDemoPage()),
+        new(typeof(SkUiSegmentedControl), typeof(SegmentedControlDemoPage), ComponentDemo.SkUiOnlyCounterpart, ComponentCategory.BasicControls,
+            () => new SegmentedControlDemoPage()),
         new(typeof(SkUiStepper<decimal>), typeof(TypedStepperDemoPage), nameof(Stepper), ComponentCategory.BasicControls,
             () => new TypedStepperDemoPage(), Key: "SkUiStepperOfT", Scenario: "typed values"),
         new(typeof(SkUiProgressBar), typeof(ProgressBarDemoPage), nameof(ProgressBar), ComponentCategory.BasicControls, () => new ProgressBarDemoPage()),
