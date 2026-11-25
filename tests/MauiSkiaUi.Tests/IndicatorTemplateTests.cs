@@ -156,6 +156,19 @@ public class IndicatorTemplateTests
     }
 
     [Fact]
+    public void ACarouselWithSeveralItemsPerSnapPointBindsEachPagesFirstItem()
+    {
+        var indicator = new SkUiIndicatorView { IndicatorTemplate = new DataTemplate(() => new SkUiBox()) };
+        var carousel = new SkUiCarouselView { ItemsSource = Items(7), ItemsPerSnapPoint = 3, IndicatorView = indicator };
+        Assert.Equal(["Item 0", "Item 3", "Item 6"], Views(indicator).Select(view => ((BindableObject)view).BindingContext));
+        carousel.ItemsPerSnapPoint = 2;
+        Assert.Equal(["Item 0", "Item 2", "Item 4", "Item 6"], Views(indicator).Select(view => ((BindableObject)view).BindingContext));
+        carousel.ItemsPerSnapPoint = 4; // two pages again: the same count, bound again
+        carousel.ItemsPerSnapPoint = 5;
+        Assert.Equal(["Item 0", "Item 5"], Views(indicator).Select(view => ((BindableObject)view).BindingContext));
+    }
+
+    [Fact]
     public void ItemsMakeTheViewsOnceAndASourceThatIsNotAListBindsItsItems()
     {
         var created = 0;

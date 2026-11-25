@@ -116,6 +116,23 @@ public class SkUiLook
     public void DrawStepper(SKCanvas canvas, SkUiStepperPaint stepper) { … }
     public virtual Size StepperButtonSize => new(47, 32);  // and StepperRepeatDelay (400 ms), StepperRepeatInterval (100 ms)
     public virtual double DefaultStepperCornerRadius => 8; // until the stepper's CornerRadius is set
+    // Segmented control and tab strip (1.17 S3): the control draws the texts and icons, the look the chrome. The segments'
+    // rectangles come from SkUiSegmentedEngine. DefaultSkUiLook.SegmentedStyle: Pill (default), Thumb (iOS, Mac), Outlined
+    // (Material 3: a check before the selected label, the selection fades), Tinted (Material 2, fades), Bar (Fluent).
+    public void DrawSegmented(SKCanvas canvas, SkUiSegmentedPaint paint) { … } // track, dividers, marker, check, pressed /
+                                                           // hovered / disabled, focus; drawn per frame of a selection change
+    public virtual SkUiSegmentedMetrics SegmentedMetrics => new(36, 2, 0, 12, 8, 18, 6, 0); // height, inset, spacing, padding,
+                                                           // corner radius, icon size and gap, check size
+    public virtual SkUiSegmentedColors GetSegmentedColors(SkUiColorScheme scheme); // track, selection, text, selected text, border
+    public virtual float GetSegmentSelection(in SkUiSegmentedPaint paint, int index); // marker overlap, or the fade's progress
+    public virtual SKColor GetSegmentTextColor(in SkUiSegmentedPaint paint, int index);  // and GetSegmentLeadingWidth (the check)
+    // DefaultSkUiLook.TabStripStyle: HeaderUnderline (default, iOS, Mac), LabelUnderline (Material 3), Filled (Material 2),
+    // ShortBar (Fluent). The indicator is a node of its own, moved with the panes by a scroll link, so it draws apart.
+    public void DrawTabStrip(SKCanvas canvas, SkUiTabStripPaint paint) { … }        // background and divider
+    public void DrawTabIndicator(SKCanvas canvas, SkUiTabIndicatorPaint paint) { … } // a bar or a pill in its own bounds
+    public virtual Rect GetTabIndicatorBounds(Rect header, double labelWidth, SkUiTabIndicatorStyle style, bool stripAtBottom);
+    public virtual SkUiTabStripMetrics TabStripMetrics => new(44, 56, 16, 2, 20, 6, false); // and GetTabStripColors(scheme),
+                                                           // GetTabHeaderTextColor(text, selected, selection, enabled)
     // Popups of drawn controls (C6): where they go and what they look like; the app's presenter shows them.
     public virtual SkUiPopupPlacement DefaultPopupPlacement => SkUiPopupPlacement.Anchored; // DefaultSkUiLook: the device's
     public virtual Thickness PopupMargin => new(8);         // and PopupAnchorGap (4), PopupPreferredWidth (320),

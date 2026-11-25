@@ -523,6 +523,19 @@ public partial class SkUiCoreNode : ISkUiCoreNode, INotifyPropertyChanged, ISkUi
         }
     }
 
+    /// <summary>Whether the node is shown now: it and its Core ancestors are visible, and the drawn view hosting them is shown (read when it matters; Core nodes do not follow it).</summary>
+    internal bool IsShownNow()
+    {
+        for (ISkUiRenderable? node = this; node is not null; node = node.RenderParent)
+        {
+            if (node is SkUiView view)
+                return view.IsShown;
+            if (node is SkUiCoreNode { IsVisible: false })
+                return false;
+        }
+        return false;
+    }
+
     /// <summary>
     /// Returns <c>true</c> when attaching <paramref name="child"/> under this node would create a cycle
     /// (child is this node or an ancestor of this node).
@@ -693,6 +706,16 @@ public partial class SkUiCoreNode : ISkUiCoreNode, INotifyPropertyChanged, ISkUi
             throw new InvalidOperationException("No update batch is active.");
         if (--_updateDepth == 0)
             FlushInvalidation();
+    }
+
+    /// <summary>
+    /// Forgets the cached measure without asking any layout: for a parent that measures and arranges this node right after, in
+    /// its own measure or arrange, because something the constraint does not show changed.
+    /// </summary>
+    internal void ForgetMeasure()
+    {
+        _measureDirty = true;
+        _arrangeDirty = true;
     }
 
     /// <inheritdoc />

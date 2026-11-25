@@ -48,14 +48,25 @@ Parity with MAUI is the starting point. What drawn controls add on top of it:
 - **The same pixels on every platform, or the platform's own look.** The default look draws each control the same on Android, iOS, Mac Catalyst and Windows. The platform looks (iOS 26, Material 2 and Material 3, Mac Catalyst, Windows) are measured against MAUI's native controls. Shapes, sizes, state transitions and colors come from one `SkUiLook` and `SkUiColorScheme` you customise once for the whole app ([control look](docs/design/ControlLook.md), [color scheme](docs/design/ColorScheme.md)).
 - **Motion off the UI thread.** `AnimateAsync`, scroll flings, indeterminate progress and shimmer run on the render thread and keep going while the UI thread is busy. Moving, fading, scrolling or transforming a view with shadows and clips records and blurs nothing again ([rendering pipeline](docs/design/RenderingPipeline.md)).
 - **Text MAUI doesn't have:** shrink and grow to fit, tightening, custom line breaking, HTML parsed the same on every platform with tappable links, justified text and synthetic bold / italic everywhere, rounded backgrounds and borders on labels themselves ([SkUiLabel](docs/controls/SkUiLabel.md#differences-from-maui-label)).
-- **Controls MAUI doesn't have:** numeric entries with typed values, multi-column and date-and-time pickers, shimmer skeletons of your own views, wrap layouts for chips and tags, stacks whose children shrink to fit, a stack that keeps a bar's title centered, content switches with animations, virtualized stacks; the Community Toolkit's avatar, expander and state container built in, drawn.
-- **More from the controls MAUI has:** a collection view with collapsible groups, sticky group headers, sticky header and footer, load more and pull-to-refresh built in; a carousel that loops without an end, shows the next cards peeking and draws item effects (cover flow, scaling, your own) on the compositor; snap points and overscroll on scroll views; vertical sliders, indeterminate progress bars, steppers with stacked buttons and typed values; pickers whose lists open on your app's popup system ([all controls](docs/controls/README.md)).
+- **Controls MAUI doesn't have:** numeric entries with typed values, multi-column and date-and-time pickers, shimmer skeletons of your own views, segmented controls and tabs inside a page, wrap layouts for chips and tags, stacks whose children shrink to fit, a stack that keeps a bar's title centered, content switches with animations, virtualized stacks; the Community Toolkit's avatar, expander and state container built in, drawn.
+- **More from the controls MAUI has:** a collection view with collapsible groups, sticky group headers, sticky header and footer, load more and pull-to-refresh built in; a carousel that loops without an end, pages several cards per swipe, plays by itself, shows the next cards peeking and draws item effects (cover flow, scaling, your own) on the compositor; snap points and overscroll on scroll views; vertical sliders, indeterminate progress bars, steppers with stacked buttons and typed values; pickers whose lists open on your app's popup system ([all controls](docs/controls/README.md)).
 - **One gesture model.** A per-pointer gesture arena decides between nested taps, long presses, swipes and scrolls the same way on every platform; MAUI's `TapGestureRecognizer` works on drawn views ([event mechanism](docs/design/EventMechanism.md)).
 - **Fewer leaks to chase.** Drawn controls have no handler and no native peer to keep them alive, long-lived sources are listened to weakly, and leak scenarios run headless with every test run and on devices.
 
-## Install
+## Packages
 
-Package on nuget.org: **[SkiaUi.Maui](https://www.nuget.org/packages/SkiaUi.Maui/)**.
+SkiaUi is four NuGet packages, released together with one version and one [changelog](https://github.com/rafalka/MauiSkiaUi/blob/master/CHANGELOG.md). Only **SkiaUi.Maui** is required; the others are optional add-ons that depend on it, so an app pays only for what it uses.
+
+| Package | What it provides | Depends on |
+| --- | --- | --- |
+| **[SkiaUi.Maui](https://www.nuget.org/packages/SkiaUi.Maui/)** | The library: every `SkUi*` control and layout, the Core layer (`SkUiCore*`), the surface hosts, native overlays (`SkUiMauiContentView`), looks and color schemes, the text engine, gestures, accessibility and image loading | .NET MAUI, SkiaSharp |
+| **[SkiaUi.Maui.CommunityToolkit](https://www.nuget.org/packages/SkiaUi.Maui.CommunityToolkit/)** | [CommunityToolkit.Maui](https://github.com/CommunityToolkit/Maui) integration: drawn pickers (and other drawn controls with popups) open their lists in the toolkit's `Popup`, plus drawn counterparts of the toolkit's layouts, [`SkUiDockLayout`](docs/controls/SkUiDockLayout.md) and [`SkUiUniformItemsLayout`](docs/controls/SkUiUniformItemsLayout.md) | SkiaUi.Maui, CommunityToolkit.Maui |
+| **[SkiaUi.Maui.Markdown](https://www.nuget.org/packages/SkiaUi.Maui.Markdown/)** | A drawn Markdown view on both layers ([`SkUiMarkdownView`, `SkUiCoreMarkdown`](docs/controls/SkUiMarkdownView.md)): headings, lists, tables, code, quotes, alerts, footnotes and images, the same on every platform and safe with untrusted documents (nothing a document says happens by itself) | SkiaUi.Maui, [Markdig](https://github.com/xoofx/markdig) |
+| **[SkiaUi.Maui.Markdown.Math](https://www.nuget.org/packages/SkiaUi.Maui.Markdown.Math/)** | Formulas for the Markdown view: LaTeX in `$ … $` and `$$ … $$` drawn with [CSharpMath](https://github.com/verybadcat/CSharpMath), each one checked before it is drawn so a hostile formula cannot crash the app | SkiaUi.Maui.Markdown, CSharpMath |
+
+The [migration skills](plugins/skiaui-migration/README.md) and the [DevFlow skill](plugins/skiaui-devflow/README.md) for AI coding agents are Claude Code plugins in this repository, not NuGet packages.
+
+## Install
 
 **Requirements:** .NET 10 with .NET MAUI 10.0.130 or a later 10.x (SDK 10.0.402 or newer); Android 5.0 (API 21), iOS 15, Mac Catalyst 17 and Windows 10 1809 or newer. iOS and Mac Catalyst builds work with Xcode 26.6 (workload set 10.0.401), Xcode 27.1 (workload set 10.0.402.1) or Xcode 27.2 (workload set 10.0.404), macOS 26.6 or newer for Xcode 27; apps built with Xcode 27 must use the UIKit scene lifecycle ([migration guide](docs/Migration.md#ios-and-mac-catalyst-scene-lifecycle)). SkiaUi 1.0.x builds with MAUI 10.0.110, Mac Catalyst 15 and Xcode 26.
 
@@ -69,17 +80,28 @@ Register in `MauiProgram`:
 builder.UseSkiaUi();
 ```
 
-Using [CommunityToolkit.Maui](https://github.com/CommunityToolkit/Maui)? **[SkiaUi.Maui.CommunityToolkit](https://www.nuget.org/packages/SkiaUi.Maui.CommunityToolkit/)** opens drawn pickers' lists in the toolkit's `Popup` (without it, they open in MAUI's action sheet, or on any popup system through an `ISkUiPopupPresenter` of yours):
+Optional packages, each added the same way:
 
-```bash
-dotnet add package SkiaUi.Maui.CommunityToolkit
-```
+- **Using [CommunityToolkit.Maui](https://github.com/CommunityToolkit/Maui)?** Add **SkiaUi.Maui.CommunityToolkit** so drawn pickers open their lists in the toolkit's `Popup` (without it, they open in MAUI's action sheet, or on any popup system through an `ISkUiPopupPresenter` of yours), and for the drawn dock and uniform items layouts:
 
-```csharp
-builder.UseMauiCommunityToolkit().UseSkiaUi().UseSkiaUiCommunityToolkit();
-```
+  ```bash
+  dotnet add package SkiaUi.Maui.CommunityToolkit
+  ```
 
-Showing Markdown? **[SkiaUi.Maui.Markdown](https://www.nuget.org/packages/SkiaUi.Maui.Markdown/)** draws a document on both layers, and **[SkiaUi.Maui.Markdown.Math](https://www.nuget.org/packages/SkiaUi.Maui.Markdown.Math/)** adds formulas. Nothing a document says happens by itself: [SkUiMarkdownView](docs/controls/SkUiMarkdownView.md).
+  ```csharp
+  builder.UseMauiCommunityToolkit().UseSkiaUi().UseSkiaUiCommunityToolkit();
+  ```
+
+- **Showing Markdown?** Add **SkiaUi.Maui.Markdown**; it needs no registration ([SkUiMarkdownView](docs/controls/SkUiMarkdownView.md)). For formulas add **SkiaUi.Maui.Markdown.Math** too and turn it on for the whole app (or per view with `markdownView.UseMath()`):
+
+  ```bash
+  dotnet add package SkiaUi.Maui.Markdown
+  dotnet add package SkiaUi.Maui.Markdown.Math
+  ```
+
+  ```csharp
+  builder.UseSkiaUi().UseSkiaUiMarkdownMath();
+  ```
 
 ## Quick start
 
@@ -132,9 +154,9 @@ No second layout for the skeleton: while `IsLoading` is true, the still-empty li
 | Area | Types |
 | --- | --- |
 | Hosts & layout | `SkUiContentView`, `SkUiLayout`, `SkUiGrid`, stacks, `SkUiAbsoluteLayout`, `SkUiFlexLayout`, `SkUiBorder`; `SkUiDragger`, `SkUiGridSplitter`, `SkUiWrapLayout`, `SkUiTileLayout`, shrink stacks, `SkUiHorizontalAlignStackLayout` |
-| Scrolling & lists | `SkUiScrollView`, `SkUiRefreshView`, `SkUiCollectionView`, `SkUiCarouselView`, `SkUiIndicatorView`, `SkUiSwipeView`, virtual stacks |
+| Scrolling & lists | `SkUiScrollView`, `SkUiRefreshView`, `SkUiCollectionView`, `SkUiCarouselView`, `SkUiIndicatorView`, `SkUiTabView`, `SkUiSwipeView`, virtual stacks |
 | Text & chrome | `SkUiLabel`, `SkUiButton`, `SkUiImage`, `SkUiImageButton`, `SkUiAvatarView`, `SkUiActivityIndicator`, `SkUiProgressBar` |
-| Toggles & values | `SkUiSwitch`, `SkUiCheckBox`, `SkUiRadioButton`, `SkUiSlider`, `SkUiStepper` |
+| Toggles & values | `SkUiSwitch`, `SkUiCheckBox`, `SkUiRadioButton`, `SkUiSegmentedControl`, `SkUiSlider`, `SkUiStepper` |
 | Text input | `SkUiEntry`, `SkUiEditor`, `SkUiSearchBar`, `SkUiNumericEntry` / `SkUiNumericEntry<T>` |
 | Pickers | `SkUiPicker`, `SkUiMultiColumnPicker`, `SkUiDatePicker`, `SkUiTimePicker`, `SkUiDateTimePicker` |
 | Content & loading | `SkUiContentPresenter`, `SkUiAlternateContentView`, `SkUiExpander`, `SkUiStateContainer`, `SkUiShimmer` |
@@ -147,7 +169,7 @@ No second layout for the skeleton: while `IsLoading` is true, the still-empty li
 | --- | --- |
 | Bridge | `SkUiCoreHost` |
 | Layouts | `SkUiCoreAbsoluteLayout`, stacks, overlay, `SkUiCoreGrid` / `SkUiCoreTable`, wrap and shrink layouts, `SkUiCoreContentView` / `SkUiCoreBorder`, `SkUiCoreScrollView` |
-| Controls | `SkUiCoreLabel`, `SkUiCoreButton`, toggles, `SkUiCoreSlider`, `SkUiCoreProgressBar`, image / image button, `SkUiCoreAvatar`, activity indicator, shapes, `SkUiCoreShimmer`, `SkUiCoreIndicatorView` |
+| Controls | `SkUiCoreLabel`, `SkUiCoreButton`, toggles, `SkUiCoreSlider`, `SkUiCoreProgressBar`, image / image button, `SkUiCoreAvatar`, activity indicator, shapes, `SkUiCoreShimmer`, `SkUiCoreSegmentedControl`, `SkUiCoreTabView`, `SkUiCoreCarouselView`, `SkUiCoreIndicatorView` |
 | Text input & pickers | `SkUiCoreEntry` / `SkUiCoreEditor` / `SkUiCoreSearchBar` / `SkUiCoreNumericEntry` / `SkUiCoreStepper`; `SkUiCorePicker`, `SkUiCoreMultiColumnPicker`, `SkUiCoreDatePicker`, `SkUiCoreTimePicker`, `SkUiCoreDateTimePicker` |
 
 Per-control guides (behavior vs MAUI, XAML samples, limits): **[docs/controls/](docs/controls/README.md)** · Core overview: **[docs/controls/SkUiCore.md](docs/controls/SkUiCore.md)**.

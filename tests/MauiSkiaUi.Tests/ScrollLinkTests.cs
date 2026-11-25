@@ -232,8 +232,9 @@ public class ScrollLinkTests
     [Fact]
     public void AnOutlineShadowKeepsItsShapeWhereTheClipDoesNotCutIt()
     {
-        using var outline = new SKPath();
-        outline.AddRoundRect(new SKRect(0, 0, 100, 50), 16, 16);
+        using var builder = new SKPathBuilder();
+        builder.AddRoundRect(new SKRect(0, 0, 100, 50), 16, 16);
+        using var outline = builder.Detach();
         SkUiRenderLink[] links = [Clip(Node(), SkUiRenderLinkTarget.ClipHeight, 50, 20)];
         Assert.True(SkUiRenderLinkClip.TryGet(links, SkUiRenderLinkValues.Evaluate(links, 0, 0), 100, 50, out var whole));
         var own = SkUiRenderShadow.CornerRadiusOf(outline);

@@ -616,6 +616,47 @@ public sealed class OneWayBindingItemsTests : IDisposable
     }
 
     [Fact]
+    public void CarouselPositionInsideAPageGoesToThePagesFirstItemAndTheBindingStays()
+    {
+        var carousel = new SkUiCarouselView
+        {
+            ItemsSource = Items(10), Loop = false, ItemsPerSnapPoint = 3, IsScrollAnimated = false, ItemTemplate = Rows(200)
+        };
+        using var surface = new SkUiTestSurface(carousel, 300, 200);
+        surface.Frame(0);
+        var source = BindingSource<int>.Bind(carousel, SkUiCarouselView.PositionProperty, 0);
+
+        source.Value = 4;
+        Assert.Equal(3, carousel.Position);
+        Assert.Equal(300, carousel.ScrollView.ScrollX);
+        source.Value = 8;
+        Assert.Equal(6, carousel.Position); // the binding still applies
+        Assert.Equal(600, carousel.ScrollView.ScrollX);
+    }
+
+    [Fact]
+    public void SegmentedControlSelectedIndexFollowsTheBindingAfterATap()
+    {
+        var control = new SkUiSegmentedControl().SetSegments("Day", "Week", "Month");
+        using var surface = new SkUiTestSurface(control, 300, 40);
+        surface.Frame(0);
+        var source = BindingSource<int>.Bind(control, SkUiSegmentedControl.SelectedIndexProperty, 0);
+
+        var week = control.SegmentBounds(1).Center;
+        control.Touch(new(++_pointer, SkUiTouchAction.Pressed, week, TimeSpan.Zero));
+        control.Touch(new(_pointer, SkUiTouchAction.Released, week, TimeSpan.FromMilliseconds(40)));
+        Assert.Equal(1, control.SelectedIndex);
+        Assert.Equal(0, source.Value);
+
+        source.Value = 2;
+        Assert.Equal(2, control.SelectedIndex); // the binding still applies
+        source.Value = 7;
+        Assert.Equal(2, control.SelectedIndex); // coerced to the last segment, and still bound
+        source.Value = 0;
+        Assert.Equal(0, control.SelectedIndex);
+    }
+
+    [Fact]
     public void RefreshViewFollowsTheBindingAfterAPull()
     {
         var refresh = new SkUiRefreshView

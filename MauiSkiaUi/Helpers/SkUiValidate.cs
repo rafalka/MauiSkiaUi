@@ -15,6 +15,7 @@ internal static class SkUiValidate
     {
         double number => double.IsFinite(number) && number >= 0,
         int number => number >= 0,
+        TimeSpan time => time >= TimeSpan.Zero,
         _ => false
     };
 

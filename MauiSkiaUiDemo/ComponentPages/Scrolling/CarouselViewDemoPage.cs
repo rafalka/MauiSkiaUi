@@ -8,7 +8,9 @@ namespace MauiSkiaUiDemo;
 /// and <see cref="IndicatorView"/> on the same destinations: swipe the cards (one per swipe), tap the dots. Editors for MAUI's
 /// properties set both carousels (MAUI's get a new <see cref="LinearItemsLayout"/> for the items layout's settings: its handler
 /// does not follow changes of the one it has); SkiaUi-only editors show
-/// several cards at once (<see cref="SkUiCarouselView.ItemExtent"/>), item effects (cover flow, scaling) and loading more
+/// several cards at once (<see cref="SkUiCarouselView.ItemExtent"/>), several cards per swipe
+/// (<see cref="SkUiCarouselView.ItemsPerSnapPoint"/>: pages, with one dot per page), autoplay
+/// (<see cref="SkUiCarouselView.AutoPlayInterval"/>, with the pause), item effects (cover flow, scaling) and loading more
 /// cards as the end comes near. The indicator style is the look's (Look &amp; colors page).
 /// </summary>
 public sealed class CarouselViewDemoPage : ComponentDemoPage
@@ -104,6 +106,11 @@ public sealed class CarouselViewDemoPage : ComponentDemoPage
             () => _skiaIndicator.IndicatorsShape, () => _nativeIndicator.IndicatorsShape);
         // SkiaUi only.
         Number(nameof(SkUiCarouselView.ItemExtent), 0, 300, 0, value => _skia.ItemExtent = value, () => _skia.ItemExtent, whole: true);
+        Number(nameof(SkUiCarouselView.ItemsPerSnapPoint), 1, 4, 1, value => _skia.ItemsPerSnapPoint = (int)value, () => _skia.ItemsPerSnapPoint,
+            whole: true);
+        Number("AutoPlayInterval (seconds, 0: off)", 0, 8, 0, value => _skia.AutoPlayInterval = TimeSpan.FromSeconds(value),
+            () => _skia.AutoPlayInterval.TotalSeconds, whole: true);
+        Toggle(nameof(SkUiCarouselView.IsAutoPlayPaused), false, value => _skia.IsAutoPlayPaused = value, () => _skia.IsAutoPlayPaused);
         Choice(nameof(SkUiCarouselView.ItemEffect), [NoEffect, CoverFlow, ScaleEffect], NoEffect, value => _skia.ItemEffect = value switch
         {
             CoverFlow => _coverFlow,
@@ -143,8 +150,12 @@ public sealed class CarouselViewDemoPage : ComponentDemoPage
 
     private void Step(int delta)
     {
+        // A page of ItemsPerSnapPoint cards (one by default); looping, past the last page to the first and back.
         var count = _skiaItems.Count;
-        var target = _skia.Loop ? (_skia.Position + delta + count) % count : Math.Clamp(_skia.Position + delta, 0, count - 1);
+        var perPage = _skia.ItemsPerSnapPoint;
+        var last = (count - 1) / perPage * perPage;
+        var next = _skia.Position + delta * perPage;
+        var target = _skia.Loop ? next > last ? 0 : next < 0 ? last : next : Math.Clamp(next, 0, last);
         _ = _skia.ScrollToIndex(target);
         if (target < _nativeItems.Count)
             _native.Position = target;

@@ -13,6 +13,31 @@ Publishing (the NuGet publish workflow, [docs/Releasing.md](docs/Releasing.md)) 
 
 ## Unreleased
 
+### New features
+
+- **Carousel `VisibleViews`:** MAUI's `CarouselView.VisibleViews` (a read-only `ObservableCollection<View>`), the item views in view, in strip order, peeking neighbors included and the views created ahead left out; with an item effect, the views it draws. It follows the scrolling, render-thread flings included, and changes only when a view enters or leaves (never a reset); nothing is tracked until it is first read. Docs: [SkUiCarouselView](docs/controls/SkUiCarouselView.md).
+
+- **Several carousel items per snap point:** `SkUiCarouselView.ItemsPerSnapPoint` groups the items into pages, and swipes, flings, `Mandatory` snapping, the arrow keys and screen readers move page by page. With `ItemExtent` 0 a page fills the carousel minus the peek insets and the spacing between its items. A looping carousel starts each round again at its first item, so the pages stay the same (10 items, 3 per page: 1–3, 4–6, 7–9, 10, then 1–3); `Position` is always a page's first item (set to an item inside a page, it goes to that page without cutting a one-way binding), and a linked `SkUiIndicatorView` shows one indicator per page. Docs: [SkUiCarouselView](docs/controls/SkUiCarouselView.md).
+
+- **Carousel autoplay:** `SkUiCarouselView.AutoPlayInterval` moves the carousel by itself, one snap point (or page) per interval, animated, back to the first item at the end of a carousel that does not loop. It waits while the user drags, flings, hovers it or has keyboard focus inside it, a full interval after it comes to rest, while it is hidden and while the app is in the background; a running screen reader pauses it, and reduce motion makes the steps jump. `IsAutoPlayPaused` is the app's pause. Docs: [SkUiCarouselView](docs/controls/SkUiCarouselView.md#how-it-works).
+
+- **Core carousel:** `SkUiCoreCarouselView`, the carousel on Core nodes, on the same layout engine as `SkUiCarouselView`: an item factory (`SetItemFactory(create, bind, key)`) whose nodes are recycled per key, `Position` / `CurrentItem` with MAUI's events, looping, peek insets, several items in view or per snap point, item effects drawn by the compositor, autoplay, `VisibleNodes`, loading more and an empty view. `SkUiCoreIndicatorView.SetCarousel` links an indicator. Docs: [SkUiCarouselView](docs/controls/SkUiCarouselView.md#core-carousel).
+
+- **Segmented control:** `SkUiSegmentedControl`, a row of a few mutually exclusive options drawn by the look (a sliding pill, iOS's raised thumb, Material's outlined segments with a check or a tinted segment, Fluent's bar). Segments (`SkUiSegment`: text, icon, enabled) or `ItemsSource` with `ItemDisplayBinding`; `SelectedIndex` and `SelectedItem` (two-way, coerced without cutting a one-way binding, kept where the selected option moves); equal or content widths; colors, corner radius and font; `SelectionChanged` and a `Command` after the user's choice; the marker slides or fades (at once under reduce motion); one tab stop with arrow keys (mirrored right to left) and Home / End, and each segment an element for screen readers ("Week, Selected, 2 of 3"; the new `SkUiStrings.ItemPositionFormat`). On Core: `SkUiCoreSegmentedControl` with `SkUiCoreSegment`s (or `SetSegments`) and `ItemDisplay`, drawn the same. Docs: [SkUiSegmentedControl](docs/controls/SkUiSegmentedControl.md).
+
+- **Tab view:** `SkUiTabView`, tabbed content inside a page: a strip of headers drawn by the look (equal widths, or content widths in a strip that scrolls; at the top or bottom; icons and badges) over panes swiped sideways. Panes (`SkUiTabItem.Content`, or `ContentTemplate` made once) are created when they first come into view and kept, so their state survives. `SelectedIndex` (two-way) is the one source of truth for taps, swipes and keys; disabled tabs are dimmed and skipped by swipes and keys. The indicator (underline, pill or none) follows the panes on the render thread through scroll-linked channels. Arrow keys in the strip, Ctrl+Tab anywhere inside, and a tab list for screen readers, with the panes' container named by the selected tab. On Core: `SkUiCoreTabView` with `SkUiCoreTabItem`s (a `Content` node, or a `ContentFactory` called once), drawn the same. Docs: [SkUiTabView](docs/controls/SkUiTabView.md).
+
+### Fixes
+
+- **Carousel effects at the ends:** a centered carousel with an item effect that does not loop kept its first and last items off the middle, so cover flow drew them turned and to the side. It now has room at its ends for them. Switching an effect on keeps the current item there.
+- **Carousels while things change:** items added or removed during an animated scroll left the carousel between two items; changing the direction at runtime went back to the first item; a carousel that nothing bounds along its axis (in a stack or a scroll view) laid out without end; of equal items, the first became current; a `CurrentItem` that is not an item raised an event.
+- **`IsShownChanged`:** a view dropped with its handlers (a closed page) kept a count, so checking for shown views never became free again.
+
+### Other
+
+- **Dependencies:** SkiaSharp 4.157.0 (was 4.154.0), HarfBuzzSharp 14.4.0.200 (was 14.2.1.400).
+- **No allocation per frame of a scroll motion:** flings, snapping, animated scrolls and the spring-back from overscroll report to the UI thread without allocating (about 360 bytes per frame before), on both layers. Carousels and collection views gain the same; what they do themselves as items come into view or change position can still allocate.
+
 ## 1.16.0
 
 ### New features

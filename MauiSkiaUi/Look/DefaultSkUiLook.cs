@@ -10,7 +10,7 @@ namespace MauiSkiaUi;
 /// State changes animate (<see cref="GetTransitionCore"/>): switch thumbs slide, check marks draw in, radio dots grow,
 /// pressed buttons dim or ripple (<see cref="PressEffect"/>) and slider thumbs glide to tapped values.
 /// </summary>
-public class DefaultSkUiLook : SkUiLook
+public partial class DefaultSkUiLook : SkUiLook
 {
     /// <summary>Shared default look used as the process <see cref="SkUiLook.Current"/>.</summary>
     public static DefaultSkUiLook Instance { get; } = new();
@@ -376,6 +376,7 @@ public class DefaultSkUiLook : SkUiLook
         SkUiTransitionKind.ItemMove => SkUiTransition.FromMilliseconds(250, Easing.SinInOut),
         SkUiTransitionKind.ImageFadeIn => SkUiTransition.FromMilliseconds(200, Easing.CubicOut),
         SkUiTransitionKind.CalendarPage => SkUiTransition.FromMilliseconds(280, Easing.CubicOut),
+        SkUiTransitionKind.SegmentSelection => SkUiTransition.FromMilliseconds(250, Easing.CubicInOut),
         // Determinate progress follows Progress at once, as MAUI's ProgressBar (ProgressTo animates).
         _ => SkUiTransition.None
     };

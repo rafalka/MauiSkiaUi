@@ -797,6 +797,16 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
     }
 
     /// <summary>
+    /// Forgets the cached measure without asking any layout: for a parent that measures and arranges this node right after, in
+    /// its own measure or arrange, because something the constraint does not show changed.
+    /// </summary>
+    internal void ForgetMeasure()
+    {
+        _measureDirty = true;
+        _arrangeDirty = true;
+    }
+
+    /// <summary>
     /// Measures and arranges this node again without re-recording its own content (a size change re-records it when
     /// arranged; moved children are composite-time): a child's measure changed, or the node's size follows state it does
     /// not draw itself (an expander's reveal). A relayout every frame then records only views whose size changed and

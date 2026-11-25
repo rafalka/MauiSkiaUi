@@ -11,7 +11,7 @@ namespace MauiSkiaUi.Tests;
 /// vertical), virtual items and recycling, paging by swipes and flings (snap points from the panel), the position and current
 /// item (events, commands, two-way), looping (a strip of copies moved back to its middle by corrections, also during flings),
 /// collection changes keeping the current item, loading more, the empty view, the keyboard, and item effects placed by the
-/// compositor.
+/// compositor; 1.17 several items per snap point (C3) and <see cref="SkUiCarouselView.VisibleViews"/> (C2).
 /// </summary>
 public class CarouselViewTests
 {
@@ -551,6 +551,376 @@ public class CarouselViewTests
         Assert.Single(states, state => state.State == SkUiCarouselView.NextItemVisualState);
         Assert.Single(states, state => state.State == SkUiCarouselView.PreviousItemVisualState);
         Assert.Equal(0, states.Single(state => state.State == SkUiCarouselView.CurrentItemVisualState).Index);
+    }
+
+    #endregion
+
+    #region Several items per snap point
+
+    private static SkUiCarouselView PagedCarousel(bool loop, int perPage = 3) =>
+        new()
+        {
+            ItemsSource = Items(10), Loop = loop, ItemsPerSnapPoint = perPage,
+            ItemTemplate = new DataTemplate(() => new SkUiButton { Text = "Card" })
+        };
+
+    /// <summary>A slow drag along the axis by <paramref name="distance"/> (no fling), released after a pause.</summary>
+    private static void Drag(SkUiView root, double distance, double startMs)
+    {
+        var id = ++_pointer;
+        root.Touch(new(id, SkUiTouchAction.Pressed, new Point(250, 100), TimeSpan.FromMilliseconds(startMs)));
+        root.Touch(new(id, SkUiTouchAction.Moved, new Point(200, 100), TimeSpan.FromMilliseconds(startMs + 100)));
+        root.Touch(new(id, SkUiTouchAction.Moved, new Point(250 - distance, 100), TimeSpan.FromMilliseconds(startMs + 200)));
+        root.Touch(new(id, SkUiTouchAction.Released, new Point(250 - distance, 100), TimeSpan.FromMilliseconds(startMs + 500)));
+    }
+
+    [Fact]
+    public void PagesOfThreeFillTheCarouselAndSwipePageByPageToTheShortLastPage()
+    {
+        var carousel = PagedCarousel(loop: false);
+        using var surface = new SkUiTestSurface(carousel, 300, 200);
+        surface.Frame(0);
+        Assert.Equal(100, ((SkUiView)carousel.GetRealizedView(2)!).Width, 3);
+        var positions = new List<int>();
+        var scrolls = new List<double>();
+        carousel.PositionChanged += (_, args) => positions.Add(args.CurrentPosition);
+
+        for (var swipe = 0; swipe < 4; swipe++)
+        {
+            Swipe(carousel, new Point(250, 100), new Point(50, 100), startMs: swipe * 2000);
+            Run(surface, swipe * 2000 + 30, swipe * 2000 + 1900);
+            scrolls.Add(carousel.ScrollView.ScrollX);
+        }
+
+        Assert.Equal([300, 600, 700, 700], scrolls); // the last page (item 10) rests at the end
+        Assert.Equal([3, 6, 9], positions);
+        Assert.Equal("Item 9", carousel.CurrentItem);
+        Swipe(carousel, new Point(50, 100), new Point(250, 100), startMs: 8000);
+        Run(surface, 8030, 9900);
+        Assert.Equal(600, carousel.ScrollView.ScrollX);
+        Assert.Equal(6, carousel.Position);
+    }
+
+    [Fact]
+    public void ALoopingCarouselStartsEachRoundAgainAtItsFirstItem()
+    {
+        var carousel = PagedCarousel(loop: true);
+        using var surface = new SkUiTestSurface(carousel, 300, 200);
+        surface.Frame(0);
+        var positions = new List<double>();
+
+        for (var swipe = 0; swipe < 6; swipe++)
+        {
+            Swipe(carousel, new Point(250, 100), new Point(50, 100), startMs: swipe * 2000);
+            Run(surface, swipe * 2000 + 30, swipe * 2000 + 1900);
+            positions.Add(carousel.ScrollPosition);
+        }
+
+        // 1–3, 4–6, 7–9, 10 (a short step), then the same pages again.
+        Assert.Equal([3, 6, 9, 0, 3, 6], positions);
+        Assert.Equal(6, carousel.Position);
+    }
+
+    [Fact]
+    public void MandatorySnapsToTheNearestPageAndNoneIgnoresThePages()
+    {
+        var carousel = PagedCarousel(loop: false);
+        carousel.SnapPointsType = SnapPointsType.Mandatory;
+        using var surface = new SkUiTestSurface(carousel, 300, 200);
+        surface.Frame(0);
+
+        Drag(carousel, 140, startMs: 0); // less than half a page
+        Run(surface, 500, 2000);
+        Assert.Equal(0, carousel.ScrollView.ScrollX);
+        Drag(carousel, 200, startMs: 2000);
+        Run(surface, 2500, 4000);
+        Assert.Equal(300, carousel.ScrollView.ScrollX);
+        Assert.Equal(3, carousel.Position);
+
+        carousel.SnapPointsType = SnapPointsType.None;
+        Drag(carousel, 140, startMs: 4000);
+        Run(surface, 4500, 6000);
+        Assert.Equal(440, carousel.ScrollView.ScrollX, 1);
+        Assert.Equal(3, carousel.Position); // nearer to page 2's first item than to page 3's
+    }
+
+    [Fact]
+    public void APositionInsideAPageGoesToThePagesFirstItem()
+    {
+        var carousel = PagedCarousel(loop: false);
+        carousel.IsScrollAnimated = false;
+        using var surface = new SkUiTestSurface(carousel, 300, 200);
+        surface.Frame(0);
+        var positions = new List<(int, int)>();
+        carousel.PositionChanged += (_, args) => positions.Add((args.PreviousPosition, args.CurrentPosition));
+
+        carousel.Position = 4;
+        Assert.Equal(3, carousel.Position);
+        Assert.Equal("Item 3", carousel.CurrentItem);
+        Assert.Equal(300, carousel.ScrollView.ScrollX);
+        Assert.Equal([(0, 3)], positions); // once, from the position before
+        carousel.Position = 8;
+        Assert.Equal(6, carousel.Position);
+
+        carousel.CurrentItem = "Item 1";
+        Assert.Equal(0, carousel.Position);
+        Assert.Equal("Item 0", carousel.CurrentItem);
+        carousel.ScrollToIndex(9, animated: false);
+        Assert.Equal(9, carousel.Position);
+        Assert.Equal(700, carousel.ScrollView.ScrollX);
+    }
+
+    [Fact]
+    public void APositionSetBeforeTheItemsAndAChangedPageSizeGoToAPagesFirstItem()
+    {
+        var carousel = new SkUiCarouselView { Loop = false, Position = 5, ItemsPerSnapPoint = 3 };
+        using var surface = new SkUiTestSurface(carousel, 300, 200);
+        surface.Frame(0);
+        carousel.ItemsSource = Items(10);
+        surface.Frame(16);
+        Assert.Equal(3, carousel.Position);
+        Assert.Equal(300, carousel.ScrollView.ScrollX);
+
+        carousel.ItemsPerSnapPoint = 1;
+        surface.Frame(32);
+        Assert.Equal(3, carousel.Position);
+        Assert.Equal(900, carousel.ScrollView.ScrollX); // the same item, one per page now
+        carousel.Position = 5;
+        Run(surface, 1000, 2000);
+        carousel.ItemsPerSnapPoint = 2;
+        surface.Frame(2016);
+        Assert.Equal(4, carousel.Position);
+        Assert.Equal(600, carousel.ScrollView.ScrollX); // at once, not animated
+    }
+
+    [Fact]
+    public void ArrowKeysAndScreenReadersStepAPage()
+    {
+        var carousel = PagedCarousel(loop: false);
+        carousel.HeightRequest = 200;
+        var root = new SkUiVerticalStackLayout { Children = { carousel } };
+        using var surface = new SkUiTestSurface(root, 300, 300);
+        surface.Frame(0);
+        ((SkUiView)carousel.GetRealizedView(0)!).Focus();
+
+        root.FocusManager.KeyDown(SkUiKey.Right);
+        Assert.Equal(3, carousel.Position);
+        root.FocusManager.KeyDown(SkUiKey.Right);
+        root.FocusManager.KeyDown(SkUiKey.Right);
+        Assert.Equal(9, carousel.Position);
+        var stepper = (ISkUiScrollStepper)carousel;
+        Assert.False(stepper.CanStep(forward: true)); // the last page
+        Assert.True(stepper.Step(forward: false, page: false));
+        Assert.Equal(6, carousel.Position);
+        root.FocusManager.KeyDown(SkUiKey.Home);
+        Assert.Equal(0, carousel.Position);
+        root.FocusManager.KeyDown(SkUiKey.End);
+        Assert.Equal(9, carousel.Position);
+
+        carousel.Loop = true;
+        Assert.True(stepper.Step(forward: true, page: false));
+        Assert.Equal(0, carousel.Position); // past the last page to the first
+        Assert.True(stepper.Step(forward: false, page: false));
+        Assert.Equal(9, carousel.Position);
+    }
+
+    [Fact]
+    public void ALinkedIndicatorCountsPagesFollowsThemAndATapGoesToAPage()
+    {
+        var carousel = PagedCarousel(loop: false);
+        carousel.HeightRequest = 180;
+        var indicator = new SkUiIndicatorView { HeightRequest = 20 };
+        carousel.IndicatorView = indicator;
+        var column = new SkUiVerticalStackLayout { Children = { carousel, indicator } };
+        using var surface = new SkUiTestSurface(column, 300, 200);
+        surface.Frame(0);
+        Assert.Equal(4, indicator.Count);
+
+        // While dragging, the selection is that far into the pages.
+        var id = ++_pointer;
+        column.Touch(new(id, SkUiTouchAction.Pressed, new Point(250, 90), TimeSpan.FromMilliseconds(0)));
+        column.Touch(new(id, SkUiTouchAction.Moved, new Point(200, 90), TimeSpan.FromMilliseconds(100)));
+        column.Touch(new(id, SkUiTouchAction.Moved, new Point(90, 90), TimeSpan.FromMilliseconds(200)));
+        Assert.Equal(160 / 300d, indicator.DisplayedPosition, 3);
+        column.Touch(new(id, SkUiTouchAction.Released, new Point(90, 90), TimeSpan.FromMilliseconds(500)));
+        Run(surface, 500, 2500);
+        Assert.Equal(3, carousel.Position);
+        Assert.Equal(1, indicator.Position);
+
+        // A tap on the last indicator goes to the last page.
+        var id2 = ++_pointer;
+        var last = new Point(indicator.Bounds.Center.X + (6 + 8) * 1.5, 190);
+        column.Touch(new(id2, SkUiTouchAction.Pressed, last, TimeSpan.FromMilliseconds(2600)));
+        column.Touch(new(id2, SkUiTouchAction.Released, last, TimeSpan.FromMilliseconds(2650)));
+        Assert.Equal(9, carousel.Position);
+        Run(surface, 2700, 4000);
+        Assert.Equal(700, carousel.ScrollView.ScrollX);
+        Assert.Equal(3, indicator.Position);
+        Assert.Equal(3, indicator.DisplayedPosition, 3);
+
+        // Another page size: the count and the position follow, and the carousel stays on its item's page.
+        carousel.ItemsPerSnapPoint = 2;
+        Assert.Equal((5, 4), (indicator.Count, indicator.Position));
+        Assert.Equal(8, carousel.Position);
+        carousel.ItemsPerSnapPoint = 1;
+        Assert.Equal((10, 8), (indicator.Count, indicator.Position));
+        Assert.Equal(8, carousel.Position);
+    }
+
+    #endregion
+
+    #region VisibleViews
+
+    /// <summary>The items the views in <see cref="SkUiCarouselView.VisibleViews"/> show, in order.</summary>
+    private static List<object?> VisibleItems(SkUiCarouselView carousel) => [.. carousel.VisibleViews.Select(static view => view.BindingContext)];
+
+    [Fact]
+    public void VisibleViewsAreTheViewsInViewWithoutThoseCreatedAhead()
+    {
+        var carousel = Carousel(count: 20);
+        using var surface = new SkUiTestSurface(carousel, 300, 200);
+        surface.Frame(0);
+        Assert.Equal((0, 1), carousel.RealizedSlots); // the next item exists, touching the viewport
+        Assert.Equal(["Item 0"], VisibleItems(carousel));
+        Assert.Same(carousel.GetRealizedView(0), carousel.VisibleViews[0]);
+
+        carousel.ScrollToIndex(10, animated: false);
+        Assert.Equal(["Item 10"], VisibleItems(carousel));
+
+        // Between two items, both show.
+        Scroller(carousel).SetOffset(3100, 0);
+        Assert.Equal(["Item 10", "Item 11"], VisibleItems(carousel));
+    }
+
+    [Fact]
+    public void VisibleViewsIncludeNeighborsPeekingIntoTheInsets()
+    {
+        var carousel = Carousel(count: 5);
+        carousel.PeekAreaInsets = new Thickness(40, 0);
+        carousel.ItemSpacing = 10;
+        using var surface = new SkUiTestSurface(carousel, 300, 200);
+        surface.Frame(0);
+        Assert.Equal(["Item 0", "Item 1"], VisibleItems(carousel));
+        carousel.ScrollToIndex(1, animated: false);
+        Assert.Equal(["Item 0", "Item 1", "Item 2"], VisibleItems(carousel));
+    }
+
+    [Fact]
+    public void VisibleViewsReadLateAreCurrentAndRightToLeftKeepsTheStripOrder()
+    {
+        var carousel = Carousel(count: 10);
+        carousel.ItemExtent = 120;
+        carousel.SnapPointsAlignment = SnapPointsAlignment.Start;
+        carousel.FlowDirection = FlowDirection.RightToLeft;
+        using var surface = new SkUiTestSurface(carousel, 300, 200);
+        surface.Frame(0);
+        carousel.ScrollToIndex(4, animated: false);
+        // Read only now: filled from where the carousel is. Items 4 and 5 whole, 6 partly.
+        Assert.Equal(["Item 4", "Item 5", "Item 6"], VisibleItems(carousel));
+    }
+
+    [Fact]
+    public void VisibleViewsChangeOnceForEachViewEnteringOrLeavingDuringARenderThreadFling()
+    {
+        var carousel = Carousel(count: 50);
+        carousel.ItemExtent = 100;
+        carousel.SnapPointsType = SnapPointsType.None;
+        using var surface = new SkUiTestSurface(carousel, 300, 200);
+        surface.Frame(0);
+        var views = carousel.VisibleViews;
+        var changes = new List<System.Collections.Specialized.NotifyCollectionChangedEventArgs>();
+        views.CollectionChanged += (_, change) => changes.Add(change);
+        Assert.True(Scroller(carousel).StartFling(new Point(1500, 0)));
+        for (var ms = 0; ms < 3000; ms += 16)
+        {
+            surface.Frame(ms);
+            var x = carousel.ScrollView.ScrollX;
+            // Always the items whose bounds reach into [x, x + 300].
+            var first = (int)Math.Floor((x + 0.5) / 100);
+            var last = (int)Math.Ceiling((x + 300 - 0.5) / 100) - 1;
+            Assert.Equal([.. Enumerable.Range(first, last - first + 1).Select(index => (object?)$"Item {index}")], VisibleItems(carousel));
+        }
+        Assert.False(carousel.IsScrolling);
+        Assert.True(carousel.ScrollView.ScrollX > 500);
+        Assert.NotEmpty(changes);
+        Assert.All(changes, change =>
+        {
+            Assert.NotEqual(System.Collections.Specialized.NotifyCollectionChangedAction.Reset, change.Action);
+            Assert.Single((change.NewItems ?? change.OldItems)!);
+        });
+    }
+
+    [Fact]
+    public void ALoopingCarouselWithFewerItemsThanFitListsEachCopy()
+    {
+        var carousel = Carousel(count: 2, loop: true);
+        carousel.ItemExtent = 90;
+        carousel.SnapPointsAlignment = SnapPointsAlignment.Start;
+        using var surface = new SkUiTestSurface(carousel, 300, 200);
+        surface.Frame(0);
+        // 300 DIPs of 90 DIP items: three whole and a part of a fourth, the two items taking turns.
+        Assert.Equal(["Item 0", "Item 1", "Item 0", "Item 1"], VisibleItems(carousel));
+        Assert.Equal(4, carousel.VisibleViews.Distinct().Count());
+    }
+
+    [Fact]
+    public void WithAnItemEffectVisibleViewsAreTheViewsItDraws()
+    {
+        var carousel = Carousel(count: 20);
+        carousel.ItemExtent = 120;
+        carousel.ItemEffect = new SkUiCoverFlowEffect { VisibleSideItems = 2 };
+        using var surface = new SkUiTestSurface(carousel, 300, 200);
+        surface.Frame(0);
+        carousel.ScrollToIndex(10, animated: false);
+        // Cover flow stacks the side items close to the current one: two on either side draw, farther ones are transparent.
+        Assert.Equal(["Item 8", "Item 9", "Item 10", "Item 11", "Item 12"], VisibleItems(carousel));
+    }
+
+    [Fact]
+    public void VisibleViewsEmptyWithoutItemsAndFollowTheItems()
+    {
+        var items = Items(3);
+        var carousel = new SkUiCarouselView { ItemsSource = items, Loop = false, ItemTemplate = new DataTemplate(() => new SkUiBox()) };
+        using var surface = new SkUiTestSurface(carousel, 300, 200);
+        surface.Frame(0);
+        Assert.Single(carousel.VisibleViews);
+        items.Clear();
+        surface.Frame(16);
+        Assert.Empty(carousel.VisibleViews);
+        items.Add("Back");
+        surface.Frame(32);
+        Assert.Equal(["Back"], VisibleItems(carousel));
+    }
+
+    [Fact]
+    public void KeepingVisibleViewsCurrentAllocatesNothingWhileTheSetStaysTheSame()
+    {
+        static long PerStep(bool read)
+        {
+            var carousel = Carousel(count: 20);
+            using var surface = new SkUiTestSurface(carousel, 300, 200);
+            surface.Frame(0);
+            if (read)
+                _ = carousel.VisibleViews;
+            var scroller = Scroller(carousel);
+            var step = 0;
+            // Back and forth between items 0 and 1, so both stay in view.
+            void Step() => scroller.SetOffset(10 + step++ % 20 * 10, 0);
+            for (var i = 0; i < 40; i++)
+                Step();
+            Assert.True(!read || carousel.VisibleViews.Count == 2);
+            var fewest = long.MaxValue;
+            for (var batch = 0; batch < 3; batch++)
+            {
+                var allocated = GC.GetAllocatedBytesForCurrentThread();
+                for (var i = 0; i < 60; i++)
+                    Step();
+                fewest = Math.Min(fewest, GC.GetAllocatedBytesForCurrentThread() - allocated);
+            }
+            return fewest / 60;
+        }
+
+        Assert.Equal(PerStep(read: false), PerStep(read: true));
     }
 
     #endregion

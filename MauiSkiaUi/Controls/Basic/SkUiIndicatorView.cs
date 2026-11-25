@@ -486,6 +486,8 @@ public class SkUiIndicatorView : SkUiView, ISkUiKeyHandler
         // A linked carousel's items (MAUI binds the indicator's source to the carousel's), else its own; a source that is not
         // a list is enumerated once.
         var items = carousel is not null ? carousel.Items : ItemsSource as IList ?? ItemsSource?.Cast<object?>().Take(count).ToList();
+        // A carousel with several items per snap point shows pages: each view binds to its page's first item.
+        var stride = carousel?.ItemsPerSnapPoint ?? 1;
         while (children.Count > count)
             children.RemoveAt(children.Count - 1);
         // The template each view was made from: a selector may pick another one for the item now at its index.
@@ -494,7 +496,8 @@ public class SkUiIndicatorView : SkUiView, ISkUiKeyHandler
             _viewTemplates.Clear();
         for (var index = 0; index < count; index++)
         {
-            object? item = items is null ? index : index < items.Count ? items[index] : null;
+            var at = index * stride;
+            object? item = items is null ? index : at < items.Count ? items[at] : null;
             var selected = selector is not null ? selector.SelectTemplate(item, this) : template;
             // A new view gets its item before it is attached, so it never inherits the indicator's own context (issue #108).
             if (index >= children.Count)

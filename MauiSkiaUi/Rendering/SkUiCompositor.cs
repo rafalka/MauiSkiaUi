@@ -200,6 +200,9 @@ internal sealed class SkUiCompositor : IDisposable
     private readonly Lock _poolLock = new();
     private readonly SkUiRenderBatch?[] _pool = new SkUiRenderBatch?[MaxPooledBatches];
     private int _pooled;
+    // Delivered feedback batches for the render thread to fill again, under the same lock.
+    private readonly SkUiRenderReports?[] _reportsPool = new SkUiRenderReports?[MaxPooledBatches];
+    private int _pooledReports;
     private SkUiRenderNode? _root;
     private float _rootWidth;
     private float _rootHeight;
@@ -317,7 +320,10 @@ internal sealed class SkUiCompositor : IDisposable
         Interlocked.Exchange(ref _statMaxTicks, 0);
     }
 
-    /// <summary>Batches kept for reuse: one per frame in flight, and a few for frames committed before a render.</summary>
+    /// <summary>
+    /// Batches kept for reuse: one per frame in flight, and a few for frames committed before a render. Feedback batches
+    /// (<see cref="SkUiRenderReports"/>) too: a few for frames rendered before the UI thread takes their feedback.
+    /// </summary>
     internal const int MaxPooledBatches = 4;
 
     /// <summary>UI thread: an empty batch to record a frame into, from the pool when one was applied (A3).</summary>
@@ -344,6 +350,29 @@ internal sealed class SkUiCompositor : IDisposable
         {
             if (_pooled < MaxPooledBatches)
                 _pool[_pooled++] = batch;
+        }
+    }
+
+    /// <summary>Render thread: an empty batch of UI feedback, from the pool when one was delivered.</summary>
+    private SkUiRenderReports RentReports()
+    {
+        lock (_poolLock)
+        {
+            if (_pooledReports == 0)
+                return new SkUiRenderReports(this);
+            var reports = _reportsPool[--_pooledReports]!;
+            _reportsPool[_pooledReports] = null;
+            return reports;
+        }
+    }
+
+    /// <summary>UI thread: a delivered (empty) batch goes back to the pool.</summary>
+    internal void ReturnReports(SkUiRenderReports reports)
+    {
+        lock (_poolLock)
+        {
+            if (_pooledReports < MaxPooledBatches)
+                _reportsPool[_pooledReports++] = reports;
         }
     }
 
@@ -446,25 +475,16 @@ internal sealed class SkUiCompositor : IDisposable
             _continuous = _spinning || _animations.Count > 0 || _rasterizePending;
             if (_endedReveals.Count > 0)
             {
-                // Rare (the end of a show, hide, settle or trigger): one closure per ended reveal.
-                reports ??= [];
+                reports ??= RentReports();
                 foreach (var reveal in _endedReveals)
-                    reports.Add(reveal.ReportMoveEnded);
+                    reports.AddMoveEnded(reveal);
                 _endedReveals.Clear();
             }
             if (reports is not null)
-                PostReports(reports);
+                _postToUi(reports.Deliver);
             return NeedsFrame;
         }
     }
-
-    // Its own method: a lambda capturing `reports` in RenderCore made every frame allocate the closure, reports or not.
-    private void PostReports(List<Action> reports) =>
-        _postToUi(() =>
-        {
-            foreach (var report in reports)
-                report();
-        });
 
     /// <summary>
     /// The root's transform into a surface of <paramref name="pixelWidth"/>×<paramref name="pixelHeight"/>: the root fills it. While
@@ -622,7 +642,7 @@ internal sealed class SkUiCompositor : IDisposable
         {
             if (animation.Target is not { Disposed: false } target || animation.IsCancelled)
             {
-                Finish(animation, completed: false, reports: null);
+                PostCancelled(animation);
                 continue;
             }
             if ((target.AnimatedMask & animation.PropertyMask) != 0)
@@ -724,9 +744,9 @@ internal sealed class SkUiCompositor : IDisposable
                 animation.Cancel();
     }
 
-    private List<Action>? TickAnimations(TimeSpan now)
+    private SkUiRenderReports? TickAnimations(TimeSpan now)
     {
-        List<Action>? reports = null;
+        SkUiRenderReports? reports = null;
         var stamp = _animations.Count > 0 ? ++_touchStamp : 0;
         for (var index = 0; index < _animations.Count;)
         {
@@ -745,8 +765,8 @@ internal sealed class SkUiCompositor : IDisposable
             }
             var done = animation.Advance(now - animation.StartTime, ref target.Props);
             Touch((animation.PropertyMask & BodyAnimatedMask) != 0 ? target : target.Parent, stamp);
-            if (animation.TakeReport(target.Props) is { } report)
-                (reports ??= []).Add(report);
+            if (animation.TakeReport(target.Props, out var report))
+                (reports ??= RentReports()).AddReport(animation, report);
             if (done)
             {
                 RemoveAnimationAt(index, animation, completed: true, ref reports);
@@ -757,7 +777,7 @@ internal sealed class SkUiCompositor : IDisposable
         return reports;
     }
 
-    private void RemoveAnimationAt(int index, SkUiRenderAnimation animation, bool completed, ref List<Action>? reports)
+    private void RemoveAnimationAt(int index, SkUiRenderAnimation animation, bool completed, ref SkUiRenderReports? reports)
     {
         _animations.RemoveAt(index);
         Interlocked.Decrement(ref _activeAnimations);
@@ -768,20 +788,18 @@ internal sealed class SkUiCompositor : IDisposable
                 if (ReferenceEquals(other.Target, target) && !other.IsCancelled)
                     mask |= other.PropertyMask;
             target.AnimatedMask = mask;
-            if (!completed && !target.Disposed && animation.TakeReport(target.Props) is { } report)
-                (reports ??= []).Add(report);
+            if (!completed && !target.Disposed && animation.TakeReport(target.Props, out var report))
+                (reports ??= RentReports()).AddReport(animation, report);
         }
-        Finish(animation, completed, reports ??= []);
+        if (animation.Finished is not null)
+            (reports ??= RentReports()).AddFinished(animation, completed);
     }
 
-    private void Finish(SkUiRenderAnimation animation, bool completed, List<Action>? reports)
+    /// <summary>Posts the end of an animation that no rendered frame reports: one dropped before it ran, or with the compositor.</summary>
+    private void PostCancelled(SkUiRenderAnimation animation)
     {
-        if (animation.Finished is null)
-            return;
-        if (reports is not null)
-            reports.Add(() => animation.NotifyFinished(completed));
-        else
-            _postToUi(() => animation.NotifyFinished(completed));
+        if (animation.Finished is not null)
+            _postToUi(() => animation.NotifyFinished(completed: false));
     }
 
     /// <summary>Drops a batch that will never be applied: releases its pictures and finishes its animations as cancelled.</summary>
@@ -791,7 +809,7 @@ internal sealed class SkUiCompositor : IDisposable
         foreach (var animation in batch.Animations)
         {
             animation.Cancel();
-            Finish(animation, completed: false, reports: null);
+            PostCancelled(animation);
         }
         batch.Animations.Clear();
     }
@@ -1193,7 +1211,7 @@ internal sealed class SkUiCompositor : IDisposable
             foreach (var animation in _animations)
             {
                 animation.Cancel();
-                Finish(animation, completed: false, reports: null);
+                PostCancelled(animation);
             }
             _animations.Clear();
             Volatile.Write(ref _activeAnimations, 0);

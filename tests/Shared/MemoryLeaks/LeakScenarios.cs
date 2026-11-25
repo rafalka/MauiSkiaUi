@@ -56,6 +56,11 @@ public static class LeakScenarios
         new("CollectionViewItemsAnimated", Scrolling, "SkUiCollectionView over a long-lived collection with AnimatesItemChanges, as a list and as a grid of two columns with sticky collapsible group headers over long-lived groups: items inserted, removed (fading out over the items), moved and replaced, several changes while rows still glide, a group collapsed and expanded, the template replaced while removed rows fade; closed while rows glide and fade.", () => new CollectionViewItemsAnimatedRun()),
         new("RefreshPulled", Scrolling, "SkUiRefreshView (inline style, automatic completion) with a long-lived command around a header and a drawn scroller: pulled through the scroller and by the header (content held down while refreshing), each refresh ended by a deferral taken in Refreshing, a short pull released before the trigger (the indicator going back), the scroller replaced while still linked and the old one detached; closed mid-pull.", () => new RefreshRun()),
         new("CarouselSwiped", Scrolling, "SkUiCarouselView over a long-lived collection with a long-lived shared cover flow effect, a long-lived position command and a linked indicator view: swiped and flung forward past the middle of its looping strip (moved back by corrections), an indicator tapped, the position set by code, items added and removed, the effect switched, looping turned off and the end reached (load-more command); closed mid-fling.", () => new CarouselRun()),
+        new("CarouselAutoPlay", Scrolling, "SkUiCarouselView with autoplay (a short interval) over a long-lived collection, a linked indicator view and a long-lived position command: steps on its own a few times; closed while a step animates (its timer pending).", () => new CarouselAutoPlayRun()),
+        new("CoreCarouselSwiped", Scrolling, "SkUiCoreCarouselView over a long-lived collection with a long-lived shared cover flow effect, an item factory and a linked SkUiCoreIndicatorView: swiped forward past the middle of its looping strip, the indicator set (a tap), the position set, items added and removed, pages of two, the effect switched, looping turned off and the end reached; closed mid-fling.", () => new CoreCarouselRun()),
+        new("TabViewSwiped", Scrolling, "SkUiTabView with four tabs (a scrolled list, a template pane, a badge, a disabled tab with a long-lived icon) over a long-lived collection and command: swiped and flung across the panes, headers tapped, the selection set by code, a tab added and one removed, the strip moved to the bottom with content widths; closed mid-fling.", () => new TabViewRun()),
+        new("CoreTabViewSwiped", Scrolling, "SkUiCoreTabView with four tabs (a list of buttons with a long-lived command, a factory pane, a badge, a disabled tab with a long-lived icon): swiped and flung across the panes, the selection set by code, a tab added and one removed, the strip moved to the bottom with content widths; closed mid-fling.", () => new CoreTabViewRun()),
+        new("SegmentedControlShown", Controls, "SkUiSegmentedControl and SkUiCoreSegmentedControl with segments (one with a long-lived icon) and a long-lived command, and over a long-lived collection (a long-lived display binding / a display function): segments tapped (the marker sliding), the selection set by code, a segment added, disabled and removed, an item added and one removed, the items replaced; closed while a marker slides.", () => new SegmentedControlRun()),
         new("PickerOpened", Controls, "SkUiPicker and SkUiCorePicker over a long-lived collection (a display binding, an item template), opened on a long-lived presenter that keeps the last request (as a popup stack does): tapped open and an item chosen in the drawn list, dismissed, closed by IsOpen = false and by hiding the picker, opened by the keyboard, the Core picker chosen; closed with a popup open.", () => new PickerRun()),
         new("DisplayBindingChips", Controls, "Chips an app control builds from view-model items through a long-lived SkUiDisplayBinding over a long-lived binding (as one in app resources), fading on press: texts read from a list, from a sequence and one item alone, chips tapped, the items replaced and read again.", () => new DisplayBindingRun()),
         new("PickerWheelsOpened", Controls, "SkUiPicker with several choices and SkUiMultiColumnPicker, and their Core twins, over long-lived collections (columns' items, a long-lived presenter that keeps the last request): tapped open, rows toggled and wheels set through the request, completed with a selection, a draft accepted (UpdateMode WhenFinished), dismissed, closed by IsOpen = false and by hiding, columns removed while open; inline SkUiPickerWheels over the same items: chosen with a key, set by the app, built again when a column comes and goes; pickers of your own (a value picker and one on SkUiPickerBase) whose popup bodies hold their picker, completed through the request the presenter keeps; closed with a popup open.", () => new PickerWheelsRun()),
@@ -3260,6 +3265,271 @@ public static class LeakScenarios
             _positions >= 8 && _loads >= 1 ? null : $"Position changed {_positions} times (expected 8 or more), loaded {_loads} times (expected 1 or more).";
     }
 
+    private sealed class CarouselAutoPlayRun : LeakScenarioRun
+    {
+        private SkUiCarouselView? _carousel;
+        private int _positions;
+
+        public override View Build(LeakScenarioContext context)
+        {
+            LeakItems.Shared.Clear();
+            for (var index = 0; index < 5; index++)
+                LeakItems.Shared.Add($"Card {index}");
+            var indicator = context.Track(new SkUiIndicatorView { HeightRequest = 24 }, "autoplay indicator");
+            _carousel = context.Track(new SkUiCarouselView
+            {
+                ItemsSource = LeakItems.Shared,
+                PeekAreaInsets = new Thickness(40, 0),
+                ItemSpacing = 8,
+                AutoPlayInterval = TimeSpan.FromMilliseconds(400),
+                IndicatorView = indicator,
+                PositionChangedCommand = LeakCommands.Shared,
+                ItemTemplate = new DataTemplate(() => context.Track(Text("", 18), "autoplay card"))
+            }, "autoplay carousel");
+            _carousel.PositionChanged += (_, _) => _positions++;
+            var grid = new SkUiGrid { RowDefinitions = [new RowDefinition(GridLength.Star), new RowDefinition(GridLength.Auto)] };
+            Grid.SetRow(indicator, 1);
+            grid.Children.Add(_carousel);
+            grid.Children.Add(indicator);
+            return Root(grid);
+        }
+
+        public override async Task InteractAsync(LeakScenarioContext context)
+        {
+            // A few steps on its own, then close right as the next one starts (its scroll animating, the timer pending).
+            for (var wait = 0; wait < 200 && _positions < 3; wait++)
+                await context.WaitAsync(16);
+            var before = _positions;
+            for (var wait = 0; wait < 100 && _positions == before; wait++)
+                await context.WaitAsync(16);
+        }
+
+        public override string? CheckInteraction() =>
+            _positions >= 4 ? null : $"The carousel stepped {_positions} times on its own (expected 4 or more).";
+    }
+
+    private sealed class CoreCarouselRun : LeakScenarioRun
+    {
+        private SkUiCoreCarouselView? _carousel;
+        private SkUiCoreIndicatorView? _indicator;
+        private int _positions;
+        private int _loads;
+
+        public override View Build(LeakScenarioContext context)
+        {
+            LeakItems.Shared.Clear();
+            for (var index = 0; index < 6; index++)
+                LeakItems.Shared.Add($"Card {index}");
+            _carousel = context.Track(new SkUiCoreCarouselView(), "core carousel");
+            _carousel.SetItemsSource(LeakItems.Shared).SetItemExtent(160).SetItemEffect(LeakCarouselEffects.CoverFlow)
+                .SetItemFactory(_ => context.Track(new SkUiCoreLabel().SetHorizontalTextAlignment(TextAlignment.Center), "core carousel card"),
+                    static (node, item) => ((SkUiCoreLabel)node).SetText(item as string));
+            _carousel.SetHeight(200);
+            _carousel.PositionChanged += (_, _) => _positions++;
+            _carousel.RemainingItemsThresholdReached += (_, _) => _loads++;
+            _indicator = context.Track(new SkUiCoreIndicatorView(), "core carousel indicator").SetCarousel(_carousel);
+            _indicator.SetHeight(24);
+            var stack = new SkUiCoreVerticalStackLayout();
+            stack.Add(_carousel);
+            stack.Add(_indicator);
+            return Root(new SkUiCoreHost().SetContent(stack));
+        }
+
+        public override async Task InteractAsync(LeakScenarioContext context)
+        {
+            var carousel = _carousel!;
+            await context.SettleAsync();
+            for (var swipe = 0; swipe < 8; swipe++)
+            {
+                await context.DragAsync(carousel, -220, 0, durationMs: 60);
+                await context.WaitAsync(500);
+            }
+            _indicator!.SetPosition(2); // as a tap on the third indicator
+            await context.WaitAsync(400);
+            carousel.SetPosition(1);
+            await context.WaitAsync(400);
+            LeakItems.Shared.Add("Card added");
+            LeakItems.Shared.RemoveAt(0);
+            await context.SettleAsync();
+            carousel.SetItemsPerSnapPoint(2);
+            await context.SettleAsync();
+            carousel.SetItemsPerSnapPoint(1).SetItemEffect(new SkUiScaleEffect()).SetLoop(false).SetRemainingItemsThreshold(1).SetIsScrollAnimated(false);
+            carousel.SetPosition(LeakItems.Shared.Count - 1); // the end: the threshold asks for more
+            await context.SettleAsync();
+            carousel.SetItemEffect(LeakCarouselEffects.CoverFlow);
+            await context.DragAsync(carousel, 220, 0, durationMs: 60); // closes mid-fling
+        }
+
+        public override string? CheckInteraction() =>
+            _positions >= 8 && _loads >= 1 ? null : $"Position changed {_positions} times (expected 8 or more), loaded {_loads} times (expected 1 or more).";
+    }
+
+    private sealed class TabViewRun : LeakScenarioRun
+    {
+        private SkUiTabView? _tabs;
+        private int _changes;
+
+        public override View Build(LeakScenarioContext context)
+        {
+            LeakItems.Shared.Clear();
+            for (var index = 0; index < 30; index++)
+                LeakItems.Shared.Add($"Row {index}");
+            _tabs = context.Track(new SkUiTabView(), "tab view");
+            _tabs.SelectionChanged += (_, _) => _changes++;
+            var list = context.Track(new SkUiCollectionView { ItemsSource = LeakItems.Shared, SelectionChangedCommand = LeakCommands.Shared }, "tab list");
+            _tabs.AddTab(new SkUiTabItem("List", list));
+            _tabs.AddTab(new SkUiTabItem { Header = "Template", BadgeText = "3", ContentTemplate = new DataTemplate(() => context.Track(Text("Made once", 18), "template pane")) });
+            _tabs.AddTab(new SkUiTabItem("Off", Text("Disabled", 18)) { IsEnabled = false, Icon = LeakIcons.Shared });
+            _tabs.AddTab(new SkUiTabItem("Last", Text("Last pane", 18)));
+            return Root(_tabs);
+        }
+
+        public override async Task InteractAsync(LeakScenarioContext context)
+        {
+            var tabs = _tabs!;
+            await context.SettleAsync();
+            for (var swipe = 0; swipe < 3; swipe++)
+            {
+                await context.DragAsync(tabs, -220, 0, durationMs: 60);
+                await context.WaitAsync(500);
+            }
+            await context.DragAsync(tabs, 220, 0, durationMs: 60);
+            await context.WaitAsync(500);
+            tabs.SelectedIndex = 0;
+            await context.WaitAsync(400);
+            tabs.AddTab(new SkUiTabItem("Added", Text("Added pane", 18)));
+            tabs.Tabs.RemoveAt(3);
+            tabs.SelectedIndex = tabs.Tabs.Count - 1;
+            await context.WaitAsync(400);
+            tabs.TabStripPlacement = SkUiTabStripPlacement.Bottom;
+            tabs.TabWidthMode = SkUiSegmentWidthMode.Content;
+            await context.SettleAsync();
+            await context.DragAsync(tabs, 220, 0, durationMs: 60); // closes mid-fling
+        }
+
+        public override string? CheckInteraction() =>
+            _changes >= 4 ? null : $"The selection changed {_changes} times (expected 4 or more).";
+    }
+
+    private sealed class SegmentedControlRun : LeakScenarioRun
+    {
+        private readonly List<SkUiSegmentedControl> _drawn = [];
+        private readonly List<SkUiCoreSegmentedControl> _core = [];
+        private SkUiCoreHost? _host;
+        private int _changes;
+
+        public override View Build(LeakScenarioContext context)
+        {
+            LeakItems.Shared.Clear();
+            foreach (var item in new[] { "One", "Two", "Three" })
+                LeakItems.Shared.Add(item);
+            var stack = new SkUiVerticalStackLayout { Spacing = 12 };
+            var nodes = new SkUiCoreVerticalStackLayout().SetSpacing(12);
+            for (var bound = 0; bound < 2; bound++)
+            {
+                var drawn = context.Track(new SkUiSegmentedControl { Command = LeakCommands.Shared }, "segmented control");
+                var core = context.Track(new SkUiCoreSegmentedControl().SetCommand(LeakCommands.Shared), "core segmented control");
+                if (bound == 0)
+                {
+                    drawn.SetSegments("Day", "Week", "Month");
+                    core.SetSegments("Day", "Week", "Month");
+                    drawn.Segments[0].Icon = LeakIcons.Shared;
+                    core.Segments[0].SetIcon(LeakIcons.Shared);
+                }
+                else
+                {
+                    drawn.ItemDisplayBinding = LeakDisplayBindings.Name;
+                    drawn.ItemsSource = new[] { context.Track(new LeakDisplayItem("Red"), "segment item"), context.Track(new LeakDisplayItem("Blue"), "segment item") };
+                    core.SetItemDisplay(static item => $"Item {item}").SetItemsSource(LeakItems.Shared);
+                }
+                drawn.SelectedIndex = 0;
+                core.SetSelectedIndex(0);
+                drawn.SelectionChanged += (_, _) => _changes++;
+                core.SelectionChanged += (_, _) => _changes++;
+                _drawn.Add(drawn);
+                _core.Add(core);
+                stack.Children.Add(drawn);
+                nodes.Add(core);
+            }
+            _host = new SkUiCoreHost().SetContent(nodes);
+            stack.Children.Add(_host);
+            return Root(stack);
+        }
+
+        public override async Task InteractAsync(LeakScenarioContext context)
+        {
+            await context.SettleAsync();
+            foreach (var control in _drawn.Cast<object>().Concat(_core))
+            {
+                await context.TapAsync(control); // the middle of the control
+                await context.WaitAsync(60);
+            }
+            _drawn[0].SelectedIndex = 2;
+            _core[0].SetSelectedIndex(2);
+            _drawn[0].Segments.Add(new SkUiSegment("Year") { IsEnabled = false });
+            _core[0].Segments.Add(new SkUiCoreSegment("Year").SetIsEnabled(false));
+            await context.SettleAsync();
+            _drawn[0].Segments.RemoveAt(0);
+            _core[0].Segments.RemoveAt(0);
+            LeakItems.Shared.Add("Four");
+            LeakItems.Shared.RemoveAt(0);
+            _drawn[1].ItemDisplayBinding = null;
+            _drawn[1].ItemsSource = LeakItems.Shared;
+            await context.WaitAsync(400);
+            _drawn[0].SelectedIndex = 0; // closes while the markers slide
+            _core[0].SetSelectedIndex(0);
+            await context.SettleAsync();
+        }
+
+        public override string? CheckInteraction() =>
+            _changes >= 6 ? null : $"The selection changed {_changes} times (expected 6 or more).";
+    }
+
+    private sealed class CoreTabViewRun : LeakScenarioRun
+    {
+        private SkUiCoreTabView? _tabs;
+        private int _changes;
+
+        public override View Build(LeakScenarioContext context)
+        {
+            _tabs = context.Track(new SkUiCoreTabView(), "core tab view");
+            _tabs.SelectionChanged += (_, _) => _changes++;
+            var list = new SkUiCoreVerticalStackLayout();
+            for (var index = 0; index < 30; index++)
+                list.Add(context.Track(new SkUiCoreButton().SetCommand(LeakCommands.Shared).SetText($"Row {index}"), "core tab row"));
+            _tabs.AddTab(new SkUiCoreTabItem("List", context.Track(new SkUiCoreScrollView(), "core tab list").SetContent(list)));
+            _tabs.AddTab(new SkUiCoreTabItem("Factory", () => context.Track(new SkUiCoreLabel().SetText("Made once"), "factory pane")).SetBadgeText("3"));
+            _tabs.AddTab(new SkUiCoreTabItem("Off", new SkUiCoreLabel().SetText("Disabled")).SetIsEnabled(false).SetIcon(LeakIcons.Shared));
+            _tabs.AddTab(new SkUiCoreTabItem("Last", new SkUiCoreLabel().SetText("Last pane")));
+            return Root(new SkUiCoreHost().SetContent(_tabs));
+        }
+
+        public override async Task InteractAsync(LeakScenarioContext context)
+        {
+            var tabs = _tabs!;
+            await context.SettleAsync();
+            for (var swipe = 0; swipe < 3; swipe++)
+            {
+                await context.DragAsync(tabs, -220, 0, durationMs: 60);
+                await context.WaitAsync(500);
+            }
+            await context.DragAsync(tabs, 220, 0, durationMs: 60);
+            await context.WaitAsync(500);
+            tabs.SetSelectedIndex(0);
+            await context.WaitAsync(400);
+            tabs.AddTab(new SkUiCoreTabItem("Added", new SkUiCoreLabel().SetText("Added pane")));
+            tabs.Tabs.RemoveAt(3);
+            tabs.SetSelectedIndex(tabs.Tabs.Count - 1);
+            await context.WaitAsync(400);
+            tabs.SetTabStripPlacement(SkUiTabStripPlacement.Bottom).SetTabWidthMode(SkUiSegmentWidthMode.Content);
+            await context.SettleAsync();
+            await context.DragAsync(tabs, 220, 0, durationMs: 60); // closes mid-fling
+        }
+
+        public override string? CheckInteraction() =>
+            _changes >= 4 ? null : $"The selection changed {_changes} times (expected 4 or more).";
+    }
+
     private sealed class CollectionViewGroupedRun : LeakScenarioRun
     {
         private SkUiCollectionView? _list;
@@ -4206,6 +4476,12 @@ public static class LeakGroups
     {
         public string Name { get; } = name;
     }
+}
+
+/// <summary>An icon source that outlives every scenario, like one in app resources: controls listen to it weakly.</summary>
+public static class LeakIcons
+{
+    public static ImageSource Shared { get; } = LeakImages.Cached(SKColors.Teal);
 }
 
 /// <summary>Small in-memory PNG sources (no files or network, so they work headless too).</summary>

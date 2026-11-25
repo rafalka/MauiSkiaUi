@@ -16,6 +16,7 @@ Shared pipelines: [Architecture.md](../design/Architecture.md) · [LayoutSystem.
 | `SkUiCoreGridSplitter` | [SkUiGridSplitter.md](SkUiGridSplitter.md) | Resizes the rows or columns of a Core grid or table (column grips in a table header); same engine as `SkUiGridSplitter` |
 | `SkUiCoreWrapLayout` / `SkUiCoreTileLayout` / `SkUiCoreHorizontalShrinkLayout` / `SkUiCoreVerticalShrinkLayout` / `SkUiCoreHorizontalAlignStackLayout` | [SkUiWrapLayout.md](SkUiWrapLayout.md), [SkUiTileLayout.md](SkUiTileLayout.md), [SkUiShrinkLayout.md](SkUiShrinkLayout.md), [SkUiHorizontalAlignStackLayout.md](SkUiHorizontalAlignStackLayout.md) | Same engines as the SkUi* twins (no Core flex layout) |
 | `SkUiCoreLabel` / `Button` / toggles / `Slider` / `ProgressBar` / Image / shapes / … | [SkUiCore.md](SkUiCore.md) | Core primitives & basic controls |
+| `SkUiCoreCarouselView` | [SkUiCarouselView.md](SkUiCarouselView.md#core-carousel) | The carousel on Core (1.17): the same layout engine, an item factory instead of a template, a linked `SkUiCoreIndicatorView` |
 | `SkUiCoreHost` | [SkUiCore.md](SkUiCore.md) | `SkUiView` bridge for Core roots |
 | `SkUiWeakListener<T>` / `SkUiWeakEvent` | [SkUiCore.md](SkUiCore.md#listening-to-shared-sources-own-controls) | Weak listening to shared sources and weak app-wide events, for your own controls (both layers) |
 | `SkUiDisplayBinding` | [SkUiCore.md](SkUiCore.md#item-texts-through-a-binding-own-controls) | Item texts through an `ItemDisplayBinding`-style binding, without keeping the last item alive, for your own controls (both layers) |
@@ -35,6 +36,7 @@ Shared pipelines: [Architecture.md](../design/Architecture.md) · [LayoutSystem.
 | `SkUiSwitch` | [SkUiSwitch.md](SkUiSwitch.md) | Switch |
 | `SkUiCheckBox` | [SkUiCheckBox.md](SkUiCheckBox.md) | CheckBox |
 | `SkUiRadioButton` | [SkUiRadioButton.md](SkUiRadioButton.md) | RadioButton (`Content`, `ControlTemplate`; MAUI's `RadioButtonGroup` works on drawn layouts) |
+| `SkUiSegmentedControl` / `SkUiCoreSegmentedControl` | [SkUiSegmentedControl.md](SkUiSegmentedControl.md) | None (1.17; Core twin included): one of a few options in a drawn row, the selection marker by the look |
 | `SkUiSlider` | [SkUiSlider.md](SkUiSlider.md) | Slider (plus vertical) |
 | `SkUiProgressBar` | [SkUiProgressBar.md](SkUiProgressBar.md) | ProgressBar (plus indeterminate) |
 | `SkUiStepper` / `SkUiCoreStepper`, `SkUiStepper<T>` / `SkUiCoreStepper<T>` | [SkUiStepper.md](SkUiStepper.md) | Stepper (plus stacked buttons, `Orientation`, texts in place of − / +, corner radius and outline, and typed values) |
@@ -105,5 +107,6 @@ Shared pipelines: [Architecture.md](../design/Architecture.md) · [LayoutSystem.
 | `SkUiRefreshView` | [SkUiRefreshView.md](SkUiRefreshView.md) | RefreshView (pull-to-refresh around drawn content: through its scrollers, or the view itself) |
 | `SkUiCollectionView` | [SkUiCollectionView.md](SkUiCollectionView.md) | CollectionView (+ RefreshView): lists and grids, vertical or horizontal, single and multiple selection, item taps, groups (collapsible, sticky headers), sticky header / footer, empty view, load more, pull-to-refresh; SkiaUi's own API |
 | `SkUiCarouselView` | [SkUiCarouselView.md](SkUiCarouselView.md) | CarouselView: one card per swipe, looping without an end, peek insets, several cards in view, item effects drawn by the compositor (cover flow, scaling, your own), load more; the items layout as properties |
+| `SkUiTabView` / `SkUiCoreTabView` | [SkUiTabView.md](SkUiTabView.md) | None inside a page (1.17; Core twin included): a tab strip over swiped panes that are kept once created, its indicator following the panes on the render thread |
 | `SkUiIndicatorView` / `SkUiCoreIndicatorView` | [SkUiIndicatorView.md](SkUiIndicatorView.md) | IndicatorView, drawn by the look (dots, a pill, a painter of your own); the selection slides with a linked carousel |
 | `SkUiVirtualVerticalStackLayout` / `SkUiVirtualScrollView` / `SkUiVirtualVerticalStackLayoutBase` | [SkUiVirtualVerticalStackLayout.md](SkUiVirtualVerticalStackLayout.md) | — (virtualized lists: items created near the viewport, recycled; plain `CollectionView` lists; the abstract engine for list controls of your own) |

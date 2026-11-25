@@ -29,6 +29,8 @@ What the next releases bring, and the work after them. What has shipped is in th
 | **1.15.0** | As 1.11.0 | As 1.11.0 | 11.0.100 | As 1.11.0 | `master`, released 19 November 2026 |
 | **1.15.1** | As 1.11.0 | As 1.11.0 | 11.0.100 | As 1.11.0 | `master`, released 20 November 2026 |
 | **1.16.0** | As 1.11.0 | As 1.11.0 | 11.0.100 | As 1.11.0 | Proposed |
+| **1.17.0** | As 1.11.0 | As 1.11.0 | 11.0.100 | As 1.11.0 | Proposed |
+| **1.18.0** | As 1.11.0 | As 1.11.0 | 11.0.100 | As 1.11.0 | Proposed |
 
 SkiaUi up to 1.10 targets MAUI 10.x only; 1.11 adds net11 targets with MAUI 11 next to them ([1.11.0](#1110-net-11-and-maui-11-shipped)). Development happens on `devel`; `master` holds stable releases ([Releasing.md](../Releasing.md#branches-and-versions)).
 
@@ -168,6 +170,20 @@ Additive only. F2 of the [November 2026 review](ImplementationPlan-PerformanceAn
 - **Phase B, the API:** `SkUiScrollEffect` (source, orientation, input range, property, output range, easing) on `SkUiView.ScrollEffects` and `SkUiCoreNode.AddScrollEffect`, and `SkUiScrollReveal` (tracked or triggered show / hide by scroll direction, shown near the start, settling at rest, `Show` / `Hide`), with factories for parallax, fade-in, collapse and hide-on-scroll; reduce motion keeps fades and clips and stops parallax and zoom; snapping a collapsing header to its ends if time allows.
 - **Docs, demo and bench:** recipes (collapsing header with parallax and pull-to-stretch, a collection view's sticky header and footer by direction, a hiding floating button, an extended button shrinking to its icon, a fading toolbar), a gallery page, `skui-scroll-effects` / `core-scroll-effects` benches, device frame times on the S9 and the iPhone 8.
 
+### 1.17.0: carousel parity, segmented control and tab view (proposed)
+
+Additive only. The carousel item of [MAUI parity](#maui-parity) and F1 of the [November 2026 review](ImplementationPlan-PerformanceAndControls.md#f1-segmented-control-and-tab-view). The review's chips (F5) and range slider and rating (F6), planned here by the 1.16 plan, go back to the backlog after the sheet (24 November 2026). Built on `1.17-implementation`: step 0, phases C and S, the benches and docs; the device checks by hand are on the [verification backlog](#verification-backlog). Steps, decisions and verification: [ImplementationPlan-1.17.md](ImplementationPlan-1.17.md).
+
+- **Step 0:** SkiaSharp 4.157.0 (was 4.154.0) and HarfBuzzSharp 14.4.0.200, before the features.
+- **Phase C, the carousel:** its layout moves to an internal engine with no view types, shared by three users; MAUI's `VisibleViews`; several items per snap point (`ItemsPerSnapPoint`, pages stable on every round of a loop, the indicator counting pages); autoplay (`AutoPlayInterval`, waiting while the user scrolls, hovers or has focus inside, and while the carousel is not shown; `IsAutoPlayPaused`); `SkUiCoreCarouselView` with an item factory and a linked `SkUiCoreIndicatorView`.
+- **Phase S, F1:** `SkUiSegmentedControl` and `SkUiCoreSegmentedControl` (text and icon segments, a sliding selection, keys and screen readers, drawn by every look); `SkUiTabView`, a tab strip over panes created when first shown and kept, swiped on the carousel engine, its indicator following the panes on the render thread through 1.16's scroll links; `SkUiCoreTabView` on the same strip and engine.
+
+### 1.18.0: tab headers of your own (proposed)
+
+Initially placed here on 25 November 2026; the rest of the release is not planned yet. The [November 2026 review's order](ImplementationPlan-PerformanceAndControls.md#decisions) has the sheet (F3) for 1.18.
+
+- **Custom tab headers:** a view or a control template for a tab's header in `SkUiTabView` (1.17's headers are text, an icon and a badge drawn by the look, not views), for a whole strip or one tab, with the header's selected and disabled states; `SkUiCoreTabView` with a header node or a factory. To decide: how a header of one's own measures in equal and content widths, what it takes over from the look (the badge, the selected color), how the indicator and its scroll-linked channels use its bounds, and what screen readers read (the header stays one element of the tab list).
+
 ## Backlog (1.x)
 
 Taken up when a real app needs it, roughly in this order within each area. Items name the control or mechanism; their designs are in the linked docs.
@@ -176,8 +192,7 @@ Taken up when a real app needs it, roughly in this order within each area. Items
 
 - **Calendar:** built in [1.13](#1130-and-1131-calendar-shipped); non-Gregorian calendars, a calendar popup with time wheels for `SkUiDateTimePicker`, platform looks' calendars, image markers and a month view with event lines are [1.15](#1150-and-1151-the-calendar-finished-shipped). A scheduler stays out of scope; so do the Julian and East Asian lunisolar calendars.
 - **Full SVG** in an optional `SkiaUi.Maui.Svg` package on Svg.Skia, for what [1.7's icon reader](../archive/ImplementationPlan-1.7.md) leaves out: gradients, `<use>`, filters and CSS in downloaded files and rich illustrations. Needs a vector entry in the image cache and protection against hostile files (design and a spike's findings: [the full SVG plan](ImplementationPlan-FullSvg.md)).
-- **From the November 2026 review** (briefs, order and open decisions: [ImplementationPlan-PerformanceAndControls.md](ImplementationPlan-PerformanceAndControls.md#track-f-features)), scroll-linked effects in 1.16 and the rest from 1.17, roughly in this order. Each is the common pattern on SkiaUi's own API, not a copy of one vendor's control:
-  - **Segmented control and tab view** (F1): a tab strip over panes created when first shown, swiped on the carousel's engine.
+- **From the November 2026 review** (briefs, order and open decisions: [ImplementationPlan-PerformanceAndControls.md](ImplementationPlan-PerformanceAndControls.md#track-f-features)), scroll-linked effects in 1.16, the segmented control and tab view (F1) in [1.17](#1170-carousel-parity-segmented-control-and-tab-view-proposed) and the rest after it, roughly in this order. Each is the common pattern on SkiaUi's own API, not a copy of one vendor's control:
   - **Scroll-linked effects** (F2, [1.16](#1160-scroll-linked-effects-proposed)): a public link from a scroller's offset to translation, opacity, scale and a clipped height on the render thread (collapsing headers, parallax); takes in the overscroll-linked effects under [Lists and scrolling](#lists-and-scrolling).
   - **Sheet** (F3): a bottom or side sheet inside a surface, with detents, a scrim and a popup presenter for the pickers. A drawn container, not a window.
   - **Charts** (F4) in an optional `SkiaUi.Maui.Charts` package: sparkline, line, area and bar first; pie, donut, gauges, pan and zoom later.
@@ -188,7 +203,6 @@ Taken up when a real app needs it, roughly in this order within each area. Items
 
 ### MAUI parity
 
-- **CarouselView / IndicatorView:** `VisibleViews`; autoplay, several items per snap point, a Core carousel.
 - **MAUI 11 members** (net11 only; `BoxView.Fill` and `Editor.ReturnCommand` are known gaps in the parity test from 1.11): `LongPressGestureRecognizer` on drawn views, `BoxView.Fill`, `Editor.ReturnCommand` / `ReturnCommandParameter`, the `CancellationToken` overloads of `FadeToAsync` and the other animation extensions, `VisualElement.InvalidateStyle` / `VisualStateManager.InvalidateVisualStates`.
 - **Gesture recognizers on drawn views:** `PanGestureRecognizer` with `TouchPoints` other than 1 (reported and not run since 1.2).
 - **Labels:** span press feedback, HTML images, block indents; one fitted size for a group of labels.
@@ -236,6 +250,7 @@ Taken up when a real app needs it, roughly in this order within each area. Items
 Device runs that are still open. How to run them: [Testing.md](Testing.md#device-acceptance-checklists-still-open).
 
 - **Text input:** dictation, Google / iOS / third-party password managers on devices; drawn popups over a focused field. Password reveal (1.9): checked 9 November 2026 on the Galaxy S9 (Android 10, Samsung Keyboard, Samsung Pass) and the iPhone 8 (iOS 16.7) by the device tests' password reveal check, and on the S9 by hand on the samples' sign-in form (see [TextInput.md](TextInput.md#text-fields-d3)); still open: Google and third-party autofill services and iOS Passwords on a revealed field, TalkBack and VoiceOver themselves speaking it, Windows' masked box and Narrator. (CJK and Korean composition, Android autofill on devices, Windows runs, VoiceOver text navigation on a device and the Windows touch keyboard: verified, reported 29 October 2026.)
+- **Segmented control, tab view and carousels (1.17):** the feel of the swipes under a finger on the Galaxy S9 and the iPhone 8; TalkBack and VoiceOver on the segments, the tab list, the panes (paging with a swipe, the pane's texts read under its tab's name) and a carousel that autoplays; keyboards on Windows and Mac Catalyst (Ctrl+Tab); the looks against the platforms' own on each; the gallery pages on iOS. Done on 25 November 2026: the five leak scenarios with real handlers on the S9, the iPhone 8, Mac Catalyst and an Android API 37 emulator; the benches on both phones against 1.16.0 ([Benchmarks.md](Benchmarks.md#117-on-the-galaxy-s9-and-the-iphone-8-25-november-2026)); the gallery's two tab view pages on the S9 and the emulator with injected touches (the indicator in step with the panes mid-drag), the looks page on the emulator.
 - **Scroll-linked effects (1.16):** the feel of the gallery page's recipes under a finger (stretch, settle, triggered reveals) on both phones. The device benches ran on 23 November 2026 on the S9 and the iPhone 8: no regression without effects ([Benchmarks.md](Benchmarks.md#116-on-the-galaxy-s9-and-the-iphone-8-23-november-2026)).
 - **Accessibility:** TalkBack, VoiceOver (iOS) and Narrator on devices; keyboards on Android and Windows; an Appium run with `ExposeAutomationIds`.
 - **Hosted controls:** the manual checklist (soft keyboard, IME, WebView nesting) on devices and Windows.

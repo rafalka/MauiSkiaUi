@@ -284,6 +284,121 @@ public class PlatformLookShapeTests
         Assert.True(drawn.GetPixel(21, 21 - (int)(41.25f / 2 * 0.775f)).Alpha > 200);
     }
 
+    #region Segmented control and tab strip (1.17 S3)
+
+    [Fact]
+    public void LooksHaveTheirPlatformsSegmentedAndTabStripSizesAndStyles()
+    {
+        Assert.Equal((SkUiSegmentedStyle.Pill, 36d), (DefaultSkUiLook.Instance.SegmentedStyle, DefaultSkUiLook.Instance.SegmentedMetrics.Height));
+        Assert.Equal((SkUiSegmentedStyle.Thumb, 32d), (IosSkUiLook.Instance.SegmentedStyle, IosSkUiLook.Instance.SegmentedMetrics.Height));
+        Assert.Equal((SkUiSegmentedStyle.Thumb, 28d), (MacSkUiLook.Instance.SegmentedStyle, MacSkUiLook.Instance.SegmentedMetrics.Height));
+        Assert.Equal((SkUiSegmentedStyle.Tinted, 36d), (AndroidSkUiLook.Instance.SegmentedStyle, AndroidSkUiLook.Instance.SegmentedMetrics.Height));
+        Assert.Equal((SkUiSegmentedStyle.Outlined, 40d), (AndroidMaterial3SkUiLook.Instance.SegmentedStyle, AndroidMaterial3SkUiLook.Instance.SegmentedMetrics.Height));
+        Assert.Equal((SkUiSegmentedStyle.Bar, 32d), (WindowsSkUiLook.Instance.SegmentedStyle, WindowsSkUiLook.Instance.SegmentedMetrics.Height));
+        Assert.Equal(16, IosSkUiLook.Instance.SegmentedMetrics.CornerRadius); // a capsule
+        Assert.Equal(18, AndroidMaterial3SkUiLook.Instance.SegmentedMetrics.CheckSize);
+        Assert.True(AndroidSkUiLook.Instance.SegmentedSelectionFades);
+        Assert.False(IosSkUiLook.Instance.SegmentedSelectionFades);
+
+        Assert.Equal((SkUiTabStripStyle.HeaderUnderline, 44d, 56d), TabStrip(DefaultSkUiLook.Instance));
+        Assert.Equal((SkUiTabStripStyle.HeaderUnderline, 44d, 56d), TabStrip(IosSkUiLook.Instance));
+        Assert.Equal((SkUiTabStripStyle.HeaderUnderline, 32d, 48d), TabStrip(MacSkUiLook.Instance));
+        Assert.Equal((SkUiTabStripStyle.Filled, 48d, 72d), TabStrip(AndroidSkUiLook.Instance));
+        Assert.Equal((SkUiTabStripStyle.LabelUnderline, 48d, 64d), TabStrip(AndroidMaterial3SkUiLook.Instance));
+        Assert.Equal((SkUiTabStripStyle.ShortBar, 40d, 52d), TabStrip(WindowsSkUiLook.Instance));
+        Assert.True(AndroidMaterial3SkUiLook.Instance.TabStripMetrics.IconAbove);
+        Assert.False(WindowsSkUiLook.Instance.TabStripMetrics.IconAbove);
+
+        static (SkUiTabStripStyle, double, double) TabStrip(DefaultSkUiLook look) => (look.TabStripStyle, look.TabStripMetrics.Height, look.TabStripMetrics.IconHeight);
+    }
+
+    private static readonly SKRect[] ThreeSegments = [new(2, 2, 52, 34), new(52, 2, 102, 34), new(102, 2, 152, 34)];
+
+    private static SkUiSegmentedPaint Segmented(DefaultSkUiLook look, int selected = 1, int previous = -1, float progress = 1, bool enabled = true)
+    {
+        var colors = look.GetSegmentedColors(LightSkUiColorScheme.Instance);
+        static SKColor Sk(Color color) => new((byte)(color.Red * 255), (byte)(color.Green * 255), (byte)(color.Blue * 255), (byte)(color.Alpha * 255));
+        var selection = selected < 0 ? SKRect.Empty : ThreeSegments[selected];
+        if (previous >= 0 && selected >= 0 && !look.SegmentedSelectionFades)
+        {
+            var from = ThreeSegments[previous];
+            selection = new SKRect(from.Left + (selection.Left - from.Left) * progress, from.Top, from.Right + (selection.Right - from.Right) * progress, from.Bottom);
+        }
+        return new SkUiSegmentedPaint
+        {
+            Bounds = new SKRect(0, 0, 154, 36), Segments = ThreeSegments, ContentWidths = [30, 30, 30], Selection = selection,
+            SelectedIndex = selected, PreviousIndex = previous, Progress = progress, Track = Sk(colors.Track), SelectionColor = Sk(colors.Selection),
+            Text = Sk(colors.Text), SelectedText = Sk(colors.SelectedText), Border = Sk(colors.Border), Accent = SKColors.Blue,
+            CornerRadius = (float)look.SegmentedMetrics.CornerRadius, PressedIndex = -1, HoveredIndex = -1, IsEnabled = enabled
+        };
+    }
+
+    [Theory]
+    [MemberData(nameof(Looks))]
+    public void EveryLookMarksTheSelectedSegmentAndDrawsItsTabIndicator(DefaultSkUiLook look)
+    {
+        using var bitmap = new SKBitmap(154, 36);
+        using var canvas = new SKCanvas(bitmap);
+        canvas.Clear(SKColors.White);
+        look.DrawSegmented(canvas, Segmented(look));
+
+        // The selected (middle) segment looks different from the unselected first one.
+        var differs = false;
+        for (var y = 3; y < 33 && !differs; y++)
+            for (var x = 4; x < 50 && !differs; x++)
+                differs = bitmap.GetPixel(x, y) != bitmap.GetPixel(x + 50, y);
+        Assert.True(differs, $"{look.GetType().Name} marks the selected segment");
+
+        bitmap.Erase(SKColors.White);
+        look.DrawTabIndicator(canvas, new SkUiTabIndicatorPaint { Bounds = new SKRect(0, 0, 60, 3), Color = SKColors.Blue, Style = SkUiTabIndicatorStyle.Underline });
+        Assert.True(HasInk(bitmap), $"{look.GetType().Name} tab indicator");
+        bitmap.Erase(SKColors.White);
+        look.DrawTabIndicator(canvas, new SkUiTabIndicatorPaint { Bounds = new SKRect(0, 0, 60, 3), Color = SKColors.Blue, Style = SkUiTabIndicatorStyle.None });
+        Assert.False(HasInk(bitmap));
+        Assert.True(look.GetTransition(SkUiTransitionKind.SegmentSelection).Duration > TimeSpan.Zero, $"{look.GetType().Name} animates the selection");
+    }
+
+    [Fact]
+    public void SlidingSelectionsColorTheTextByOverlapAndFadingOnesByProgress()
+    {
+        var sliding = Segmented(DefaultSkUiLook.Instance, selected: 1, previous: 0, progress: 0.25f);
+        Assert.Equal(0.75f, DefaultSkUiLook.Instance.GetSegmentSelection(sliding, 0), 3);
+        Assert.Equal(0.25f, DefaultSkUiLook.Instance.GetSegmentSelection(sliding, 1), 3);
+        Assert.Equal(0, DefaultSkUiLook.Instance.GetSegmentSelection(sliding, 2));
+
+        var material = AndroidMaterial3SkUiLook.Instance;
+        var fading = Segmented(material, selected: 2, previous: 0, progress: 0.4f);
+        Assert.Equal(0.6f, material.GetSegmentSelection(fading, 0), 3);
+        Assert.Equal(0, material.GetSegmentSelection(fading, 1));
+        Assert.Equal(0.4f, material.GetSegmentSelection(fading, 2), 3);
+
+        var settled = Segmented(material, selected: 2);
+        Assert.Equal(settled.SelectedText, material.GetSegmentTextColor(settled, 2));
+        Assert.Equal(settled.Text, material.GetSegmentTextColor(settled, 0));
+        Assert.Equal(26, material.GetSegmentLeadingWidth(settled, 2)); // the check and the gap after it
+        Assert.Equal(0, material.GetSegmentLeadingWidth(settled, 0));
+        Assert.Equal(0, IosSkUiLook.Instance.GetSegmentLeadingWidth(Segmented(IosSkUiLook.Instance), 1));
+
+        var disabled = Segmented(DefaultSkUiLook.Instance, enabled: false) with { };
+        Assert.True(DefaultSkUiLook.Instance.GetSegmentTextColor(disabled, 0).Alpha < disabled.Text.Alpha);
+    }
+
+    [Fact]
+    public void TabIndicatorsAreSizedByTheStripStyleAndFaceThePanes()
+    {
+        var header = new Rect(100, 0, 120, 48);
+
+        Assert.Equal(new Rect(100, 46, 120, 2), DefaultSkUiLook.Instance.GetTabIndicatorBounds(header, 50, SkUiTabIndicatorStyle.Underline, stripAtBottom: false));
+        Assert.Equal(new Rect(100, 0, 120, 2), DefaultSkUiLook.Instance.GetTabIndicatorBounds(header, 50, SkUiTabIndicatorStyle.Underline, stripAtBottom: true));
+        Assert.Equal(new Rect(135, 45, 50, 3), AndroidMaterial3SkUiLook.Instance.GetTabIndicatorBounds(header, 50, SkUiTabIndicatorStyle.Underline, false));
+        Assert.Equal(new Rect(152, 41, 16, 3), WindowsSkUiLook.Instance.GetTabIndicatorBounds(header, 50, SkUiTabIndicatorStyle.Underline, false));
+        Assert.Equal(new Rect(104, 4, 112, 40), WindowsSkUiLook.Instance.GetTabIndicatorBounds(header, 50, SkUiTabIndicatorStyle.Pill, false));
+        Assert.Equal(Rect.Zero, IosSkUiLook.Instance.GetTabIndicatorBounds(header, 50, SkUiTabIndicatorStyle.None, false));
+        Assert.Equal(Colors.White, AndroidSkUiLook.Instance.GetTabStripColors(LightSkUiColorScheme.Instance).SelectedText);
+    }
+
+    #endregion
+
     private static bool HasInk(SKBitmap bitmap)
     {
         for (var y = 0; y < bitmap.Height; y++)

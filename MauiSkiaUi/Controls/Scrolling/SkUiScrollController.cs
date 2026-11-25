@@ -55,6 +55,16 @@ internal interface ISkUiScrollStepper
     bool StepToEdge(bool end);
 }
 
+/// <summary>Shows what takes focus inside a scroller where it belongs (a tab view's panes rest on tabs), in place of as little scrolling as it needs.</summary>
+internal interface ISkUiScrollRevealer
+{
+    /// <summary>
+    /// Shows <paramref name="node"/>, inside the scroller; returns the offset it ends at, or <c>null</c> to leave it to the
+    /// scroller. Not <paramref name="animated"/>, it is there at once: scrollers around it are computed next.
+    /// </summary>
+    Point? Reveal(ISkUiRenderable node, bool animated);
+}
+
 /// <summary>
 /// A node drawn over a scroller that is not inside it (a collection view's sticky header): wheel and trackpad input over it
 /// scrolls that scroller. Only the wheel uses it (focus, semantics and scrolling to targets do not treat it as a scroller).
@@ -510,6 +520,12 @@ internal sealed class SkUiScrollController(ISkUiRenderable owner, Action<SkUiRen
 
     /// <summary>Steps of the owner's own for the keyboard and screen readers (a carousel's items); <c>null</c>: lines and pages.</summary>
     public ISkUiScrollStepper? Stepper { get; set; }
+
+    /// <summary>Shows what takes focus inside, when set.</summary>
+    public ISkUiScrollRevealer? Revealer { get; set; }
+
+    /// <summary>Whether a press is stopping a running motion now (while <see cref="MovingChanged"/> tells of it): the finger holds the content.</summary>
+    public bool IsCatching { get; private set; }
 
     /// <summary>
     /// The start of the vertical axis can be pulled past also when the content does not overflow or overscroll is off
@@ -1211,7 +1227,9 @@ internal sealed class SkUiScrollController(ISkUiRenderable owner, Action<SkUiRen
     /// </summary>
     public void CatchMotion()
     {
-        StopMotion();
+        IsCatching = true;
+        try { StopMotion(); }
+        finally { IsCatching = false; }
         _pullX = SkUiOverscroll.InverseRubberBand(OverscrollX, Viewport.Width);
         _pullY = SkUiOverscroll.InverseRubberBand(OverscrollY, Viewport.Height);
     }
@@ -1383,8 +1401,11 @@ internal sealed class SkUiScrollController(ISkUiRenderable owner, Action<SkUiRen
     private void OnScrolled()
     {
         Scrolled?.Invoke();
-        var moving = _moving;
-        ForEachBar(bar => bar.OnScrolled(moving));
+        // Every frame of a motion: no closure over _moving.
+        if (_moving)
+            ForEachBar(static bar => bar.OnScrolled(moving: true));
+        else
+            ForEachBar(static bar => bar.OnScrolled(moving: false));
     }
 
     private void FadeBars() => ForEachBar(static bar => bar.OnScrollEnded());
