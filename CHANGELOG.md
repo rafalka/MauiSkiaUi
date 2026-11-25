@@ -15,13 +15,6 @@ Publishing (the NuGet publish workflow, [docs/Releasing.md](docs/Releasing.md)) 
 
 ### New features
 
-- **Scroll-linked effects:** `SkUiScrollEffect` ties a view's translation, scale, opacity or a clip to a scroller, evaluated on the render thread every frame: collapsing headers, parallax pictures, toolbar titles that fade in, headers that grow when the list is pulled past its top. Nothing is recorded again while the list scrolls, and the views follow render-thread flings.
-  - `SkUiView.ScrollEffects` (XAML) and `AddScrollEffect(s)` / `RemoveScrollEffect` on both layers (`SkUiCoreNode`); the scroller is a `SkUiScrollView`, `SkUiCoreScrollView`, `SkUiCollectionView` or `SkUiRefreshView` by `Source` (`x:Reference`), or the nearest scrolling ancestor (a collection view's sticky header and footer find their list).
-  - An offset range (overscroll included, bounce or stretch) maps onto `From` / `To` through an optional easing; clips keep the start, end or center with square, rounded or capsule corners, and the view's shadow follows the clip. Taps and screen readers see only what shows.
-  - `SkUiScrollReveal` hides views while the list scrolls down and brings them back on any scroll up: tracked (follows the scroll, settles at rest), triggered (a timed show or hide past a threshold) while scrolling (hidden in step with any scroll, back when the list comes to rest: a floating button out of the way) or manual (only `Show()` / `Hide()` move it, for the app's own rules), always shown at the start, `Show()` / `Hide()`, `IsShown`; one reveal can drive several views (a sticky header and footer, a floating button, an extended button shrinking to its icon).
-  - `SnapsToEnds` keeps a drag, fling or wheel scroll from stopping inside an effect's range: a collapsing header ends fully open or collapsed, with or without the list's snap points.
-  - Reduced motion keeps fades and clips and stops parallax and scaling (per effect: `ReducedMotion`). Factories: `Parallax`, `FadeIn`, `CollapseTo`, `HideOnScroll`. Docs: [SkUiScrollView](docs/controls/SkUiScrollView.md#scroll-linked-effects); demo: the gallery's Scroll effects page.
-
 - **Carousel `VisibleViews`:** MAUI's `CarouselView.VisibleViews` (a read-only `ObservableCollection<View>`), the item views in view, in strip order, peeking neighbors included and the views created ahead left out; with an item effect, the views it draws. It follows the scrolling, render-thread flings included, and changes only when a view enters or leaves (never a reset); nothing is tracked until it is first read. Docs: [SkUiCarouselView](docs/controls/SkUiCarouselView.md).
 
 - **Several carousel items per snap point:** `SkUiCarouselView.ItemsPerSnapPoint` groups the items into pages, and swipes, flings, `Mandatory` snapping, the arrow keys and screen readers move page by page. With `ItemExtent` 0 a page fills the carousel minus the peek insets and the spacing between its items. A looping carousel starts each round again at its first item, so the pages stay the same (10 items, 3 per page: 1–3, 4–6, 7–9, 10, then 1–3); `Position` is always a page's first item (set to an item inside a page, it goes to that page without cutting a one-way binding), and a linked `SkUiIndicatorView` shows one indicator per page. Docs: [SkUiCarouselView](docs/controls/SkUiCarouselView.md).
@@ -34,6 +27,22 @@ Publishing (the NuGet publish workflow, [docs/Releasing.md](docs/Releasing.md)) 
 
 - **Tab view:** `SkUiTabView`, tabbed content inside a page: a strip of headers drawn by the look (equal widths, or content widths in a strip that scrolls; at the top or bottom; icons and badges) over panes swiped sideways. Panes (`SkUiTabItem.Content`, or `ContentTemplate` made once) are created when they first come into view and kept, so their state survives. `SelectedIndex` (two-way) is the one source of truth for taps, swipes and keys; disabled tabs are dimmed and skipped by swipes and keys. The indicator (underline, pill or none) follows the panes on the render thread through scroll-linked channels. Arrow keys in the strip, Ctrl+Tab anywhere inside, and a tab list for screen readers with each pane named by its header. Docs: [SkUiTabView](docs/controls/SkUiTabView.md).
 
+### Other
+
+- **Dependencies:** SkiaSharp 4.157.0 (was 4.154.0), HarfBuzzSharp 14.4.0.200 (was 14.2.1.400).
+- **No allocation per frame of a scroll motion:** flings, snapping, animated scrolls and the spring-back from overscroll report to the UI thread without allocating (about 360 bytes per frame before), on both layers. Carousels and collection views gain the same; what they do themselves as items come into view or change position can still allocate.
+
+## 1.16.0
+
+### New features
+
+- **Scroll-linked effects:** `SkUiScrollEffect` ties a view's translation, scale, opacity or a clip to a scroller, evaluated on the render thread every frame: collapsing headers, parallax pictures, toolbar titles that fade in, headers that grow when the list is pulled past its top. Nothing is recorded again while the list scrolls, and the views follow render-thread flings.
+  - `SkUiView.ScrollEffects` (XAML) and `AddScrollEffect(s)` / `RemoveScrollEffect` on both layers (`SkUiCoreNode`); the scroller is a `SkUiScrollView`, `SkUiCoreScrollView`, `SkUiCollectionView` or `SkUiRefreshView` by `Source` (`x:Reference`), or the nearest scrolling ancestor (a collection view's sticky header and footer find their list).
+  - An offset range (overscroll included, bounce or stretch) maps onto `From` / `To` through an optional easing; clips keep the start, end or center with square, rounded or capsule corners, and the view's shadow follows the clip. Taps and screen readers see only what shows.
+  - `SkUiScrollReveal` hides views while the list scrolls down and brings them back on any scroll up: tracked (follows the scroll, settles at rest), triggered (a timed show or hide past a threshold) while scrolling (hidden in step with any scroll, back when the list comes to rest: a floating button out of the way) or manual (only `Show()` / `Hide()` move it, for the app's own rules), always shown at the start, `Show()` / `Hide()`, `IsShown`; one reveal can drive several views (a sticky header and footer, a floating button, an extended button shrinking to its icon).
+  - `SnapsToEnds` keeps a drag, fling or wheel scroll from stopping inside an effect's range: a collapsing header ends fully open or collapsed, with or without the list's snap points.
+  - Reduced motion keeps fades and clips and stops parallax and scaling (per effect: `ReducedMotion`). Factories: `Parallax`, `FadeIn`, `CollapseTo`, `HideOnScroll`. Docs: [SkUiScrollView](docs/controls/SkUiScrollView.md#scroll-linked-effects); demo: the gallery's Scroll effects page.
+
 ### Fixes
 
 - iOS: a drawn scroller no longer keeps the keyboard's room after the page that holds the surface shrinks to end at the keyboard's top (an app that resizes its pages for the keyboard itself). The keyboard's top is placed again when the surface moves or resizes, and a surface root that resizes measures its scrollers' room for the keyboard again, so a focused field is revealed within the content's own range instead of past its end ([#120](https://github.com/rafalka/MauiSkiaUi/issues/120)).
@@ -43,7 +52,6 @@ Publishing (the NuGet publish workflow, [docs/Releasing.md](docs/Releasing.md)) 
 
 - **Samples app:** a *Scroll effects* example, a trip's page built from scroll-linked effects: a landscape header in parallax layers that collapses into a toolbar (and grows when pulled), a title moving into the toolbar, a reading-progress line, section chips that stick under the toolbar, a carousel with parallax pictures, itinerary cards sliding in, and a price bar, an extended Book button and a back-to-top button that react to scrolling.
 - **DevFlow extension:** `dev.skiaui` has a `drag` tool that drags on the drawn content as a finger does (from an element or a window point, in real time, so a fast one flings): DevFlow's own scroll and gesture commands do not move drawn scrollers.
-- **Dependencies:** SkiaSharp 4.157.0 (was 4.154.0), HarfBuzzSharp 14.4.0.200 (was 14.2.1.400).
 
 ## 1.15.1
 
