@@ -52,8 +52,9 @@ internal sealed class SkUiTabStripModel(ISkUiTabStripOwner owner, ISkUiTransitio
     {
         public SkUiTextLayout? Layout;
         public SkUiTextLayout? BadgeLayout;
-        public SkUiImageSlot? IconSlot;
-        public ImageSource? Icon;
+        public SkUiIconSlot? Icon;
+
+        public bool HasIcon => Icon?.Source is not null;
         public Size TextSize = new(-1, -1); // negative: not measured yet
     }
 
@@ -137,7 +138,7 @@ internal sealed class SkUiTabStripModel(ISkUiTabStripOwner owner, ISkUiTransitio
             var header = _headers[^1];
             header.Layout?.Release();
             header.BadgeLayout?.Release();
-            header.IconSlot?.Dispose();
+            header.Icon?.Dispose();
             _headers.RemoveAt(_headers.Count - 1);
         }
         while (_headers.Count < count)
@@ -149,11 +150,8 @@ internal sealed class SkUiTabStripModel(ISkUiTabStripOwner owner, ISkUiTransitio
             header.Layout?.Invalidate();
             header.BadgeLayout?.Invalidate();
             var icon = owner.IconOf(index);
-            if (ReferenceEquals(header.Icon, icon))
-                continue;
-            header.Icon = icon;
-            if (icon is not null || header.IconSlot is not null)
-                (header.IconSlot ??= new SkUiImageSlot(host, iconChanged)).Load(SkUiImageSource.FromMaui(icon), default);
+            if (icon is not null || header.Icon is not null)
+                (header.Icon ??= new SkUiIconSlot(host, iconChanged)).Show(icon);
         }
         _prepared = false;
         _colors = null;
@@ -198,7 +196,7 @@ internal sealed class SkUiTabStripModel(ISkUiTabStripOwner owner, ISkUiTransitio
             for (var index = 0; index < _headers.Count; index++)
             {
                 tallest = Math.Max(tallest, TextSize(index, style).Height);
-                icons |= _headers[index].Icon is not null;
+                icons |= _headers[index].HasIcon;
             }
             // Larger text (a font size, the system's text size) makes the strip taller than the look's height.
             var content = !icons ? tallest
@@ -230,7 +228,7 @@ internal sealed class SkUiTabStripModel(ISkUiTabStripOwner owner, ISkUiTransitio
     private double ContentWidth(int index, in SkUiTextStyle style, in SkUiTabStripMetrics metrics)
     {
         var text = TextSize(index, style).Width;
-        if (_headers[index].Icon is null)
+        if (!_headers[index].HasIcon)
             return text;
         return metrics.IconAbove ? Math.Max(text, metrics.IconSize) : text + metrics.IconSize + (text > 0 ? metrics.IconSpacing : 0);
     }
@@ -291,7 +289,7 @@ internal sealed class SkUiTabStripModel(ISkUiTabStripOwner owner, ISkUiTransitio
     private Rect IndicatorBounds(int index, in SkUiTextStyle style)
     {
         var text = TextSize(index, style).Width;
-        var label = text > 0 ? text : _headers[index].Icon is null ? 0 : Metrics.IconSize;
+        var label = text > 0 ? text : !_headers[index].HasIcon ? 0 : Metrics.IconSize;
         return SkUiLook.Current.GetTabIndicatorBounds(HeaderBounds(index), label, owner.IndicatorStyle,
             owner.TabStripPlacement == SkUiTabStripPlacement.Bottom);
     }
@@ -434,7 +432,7 @@ internal sealed class SkUiTabStripModel(ISkUiTabStripOwner owner, ISkUiTransitio
     {
         var header = _headers[index];
         var textSize = TextSize(index, style);
-        var hasIcon = header.Icon is not null && header.IconSlot is not null;
+        var hasIcon = header.HasIcon;
         var icon = (float)metrics.IconSize;
         var room = Math.Max(0, rect.Width - 2 * (float)metrics.HeaderPadding);
         if (hasIcon && metrics.IconAbove)
@@ -475,7 +473,7 @@ internal sealed class SkUiTabStripModel(ISkUiTabStripOwner owner, ISkUiTransitio
     private static void DrawIcon(SKCanvas canvas, Header header, SKRect area, SKColor color)
     {
         var layer = color.Alpha < 255 ? canvas.SaveLayer(new SKRect(area.Left - 1, area.Top - 1, area.Right + 1, area.Bottom + 1), LayerPaint(color.Alpha)) : -1;
-        header.IconSlot!.Paint(canvas, area, Aspect.AspectFit);
+        header.Icon!.Slot?.Paint(canvas, area, Aspect.AspectFit);
         if (layer >= 0)
             canvas.RestoreToCount(layer);
     }

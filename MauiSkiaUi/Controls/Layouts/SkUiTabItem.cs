@@ -12,7 +12,8 @@ public class SkUiTabItem : Element
     public static readonly BindableProperty HeaderProperty = BindableProperty.Create(nameof(Header), typeof(string), typeof(SkUiTabItem), null);
 
     /// <summary>Bindable property for <see cref="Icon"/>.</summary>
-    public static readonly BindableProperty IconProperty = BindableProperty.Create(nameof(Icon), typeof(ImageSource), typeof(SkUiTabItem), null);
+    public static readonly BindableProperty IconProperty = BindableProperty.Create(nameof(Icon), typeof(ImageSource), typeof(SkUiTabItem), null,
+        propertyChanged: static (item, previous, value) => ((SkUiTabItem)item).OnIconChanged((ImageSource?)previous, (ImageSource?)value));
 
     /// <summary>Bindable property for <see cref="BadgeText"/>.</summary>
     public static readonly BindableProperty BadgeTextProperty = BindableProperty.Create(nameof(BadgeText), typeof(string), typeof(SkUiTabItem), null);
@@ -71,4 +72,21 @@ public class SkUiTabItem : Element
 
     /// <summary>Sets <see cref="ContentTemplate"/> (same as the property setter).</summary>
     public SkUiTabItem SetContentTemplate(DataTemplate? value) { ContentTemplate = value; return this; }
+
+    // Bindings and dynamic resources inside the icon (a color, a glyph) resolve against the item, as in MAUI.
+    private void OnIconChanged(ImageSource? previous, ImageSource? value)
+    {
+        if (previous is not null && ReferenceEquals(previous.Parent, this))
+            previous.Parent = null;
+        if (value is not null)
+            value.Parent = this;
+    }
+
+    /// <inheritdoc />
+    protected override void OnBindingContextChanged()
+    {
+        base.OnBindingContextChanged();
+        if (Icon is { } icon)
+            SetInheritedBindingContext(icon, BindingContext);
+    }
 }

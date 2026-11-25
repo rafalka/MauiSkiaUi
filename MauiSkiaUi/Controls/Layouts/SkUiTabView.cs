@@ -100,7 +100,7 @@ public partial class SkUiTabView : SkUiView, ISkUiFontElement, ISkUiKeyHandler, 
 
     #region Properties
 
-    /// <summary>The tabs (the XAML content): each <see cref="SkUiTabItem"/> has a header and a pane. They take the tab view's binding context.</summary>
+    /// <summary>The tabs (the XAML content): each <see cref="SkUiTabItem"/> has a header and a pane, and is in it once (adding it again throws). They take the tab view's binding context.</summary>
     public IList<SkUiTabItem> Tabs => _tabs ??= CreateTabs();
 
     /// <summary>
@@ -317,7 +317,7 @@ public partial class SkUiTabView : SkUiView, ISkUiFontElement, ISkUiKeyHandler, 
 
     private ObservableCollection<SkUiTabItem> CreateTabs()
     {
-        var tabs = new ObservableCollection<SkUiTabItem>();
+        var tabs = new SkUiTabList<SkUiTabItem>();
         tabs.CollectionChanged += OnTabsChanged;
         return tabs;
     }

@@ -21,6 +21,32 @@ internal static class SkUiShownTracker
         public bool IsShown;         // valid while Handlers is set
         public int Watchers;         // views with handlers in this subtree, this one included
         public SkUiView? WatchParent; // the drawn parent whose counts include this subtree
+
+        private bool _watched;
+
+        /// <summary>The view has handlers now, or no longer: it counts in <see cref="_watchedViews"/>.</summary>
+        public void SetWatched(bool value)
+        {
+            if (_watched == value)
+                return;
+            _watched = value;
+            if (value)
+            {
+                Interlocked.Increment(ref _watchedViews);
+                GC.ReRegisterForFinalize(this);
+            }
+            else
+            {
+                Interlocked.Decrement(ref _watchedViews);
+                GC.SuppressFinalize(this);
+            }
+        }
+
+        public State() => GC.SuppressFinalize(this); // only a watched view's counts
+
+        // A view dropped with its handlers (a page that closes does not remove them): it stops counting when it is collected,
+        // else the checks above would never be free again.
+        ~State() => SetWatched(false);
     }
 
     public static bool IsShown(SkUiView view) =>
@@ -35,7 +61,7 @@ internal static class SkUiShownTracker
         state.Handlers += handler;
         if (!first)
             return;
-        Interlocked.Increment(ref _watchedViews);
+        state.SetWatched(true);
         state.IsShown = Compute(view);
         AddWatchers(view, 1);
     }
@@ -48,7 +74,7 @@ internal static class SkUiShownTracker
         if (state.Handlers is not null)
             return;
         AddWatchers(view, -1);
-        Interlocked.Decrement(ref _watchedViews);
+        state.SetWatched(false);
     }
 
     /// <summary>The view's parent changed: its subtree's watchers move to the new ancestors.</summary>
@@ -79,6 +105,9 @@ internal static class SkUiShownTracker
 
     /// <summary>Views with handlers in <paramref name="view"/>'s subtree (tests).</summary>
     internal static int Watchers(SkUiView view) => _states.TryGetValue(view, out var state) ? state.Watchers : 0;
+
+    /// <summary>How many views count as having handlers (tests).</summary>
+    internal static int WatchedViews => Volatile.Read(ref _watchedViews);
 
     /// <summary>Whether the tracker keeps state for <paramref name="view"/> (tests).</summary>
     internal static bool HasState(SkUiView view) => _states.TryGetValue(view, out _);

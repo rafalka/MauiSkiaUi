@@ -502,6 +502,28 @@ public class TabViewChangesTests
 
     #region The strip and the tab items
 
+    [Fact]
+    public void ATabIsInTheTabViewOnce()
+    {
+        var tab = new SkUiTabItem("A", new SkUiBox());
+        var tabs = new SkUiTabView().AddTab(tab).AddTab(new SkUiTabItem("B", new SkUiBox()));
+        Assert.Throws<ArgumentException>(() => tabs.AddTab(tab));
+        Assert.Throws<ArgumentException>(() => tabs.Tabs.Insert(0, tab));
+        Assert.Throws<ArgumentException>(() => tabs.Tabs[1] = tab);
+        Assert.Throws<ArgumentNullException>(() => tabs.Tabs.Add(null!));
+        Assert.Equal(2, tabs.Tabs.Count);
+        tabs.Tabs[0] = tab; // the same place
+        tabs.Tabs.Remove(tab);
+        tabs.AddTab(tab); // it left, so it can come back
+        ((System.Collections.ObjectModel.ObservableCollection<SkUiTabItem>)tabs.Tabs).Move(1, 0);
+        Assert.Equal(["A", "B"], tabs.Tabs.Select(static item => item.Header));
+
+        var coreTab = new SkUiCoreTabItem("A", new SkUiCoreBox());
+        var core = new SkUiCoreTabView().AddTab(coreTab);
+        Assert.Throws<ArgumentException>(() => core.AddTab(coreTab));
+        Assert.Single(core.Tabs);
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]

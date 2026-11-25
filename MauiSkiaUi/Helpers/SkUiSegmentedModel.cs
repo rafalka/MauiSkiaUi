@@ -38,10 +38,9 @@ internal sealed class SkUiSegmentedModel
     private sealed class Segment
     {
         public string Text = string.Empty;
-        public ImageSource? Icon;
+        public SkUiIconSlot? Icon;
         public bool IsEnabled = true;
         public SkUiTextLayout? Layout;
-        public SkUiImageSlot? IconSlot;
         public Size TextSize = new(-1, -1); // measured with the current style; negative: not yet
     }
 
@@ -132,7 +131,7 @@ internal sealed class SkUiSegmentedModel
         {
             var removed = _segments[^1];
             removed.Layout?.Release();
-            removed.IconSlot?.Dispose();
+            removed.Icon?.Dispose();
             _segments.RemoveAt(_segments.Count - 1);
         }
         while (_segments.Count < count)
@@ -153,13 +152,8 @@ internal sealed class SkUiSegmentedModel
             segment.TextSize = new Size(-1, -1);
             changed = true;
         }
-        if (!ReferenceEquals(segment.Icon, icon))
-        {
-            segment.Icon = icon;
-            if (icon is not null || segment.IconSlot is not null)
-                (segment.IconSlot ??= new SkUiImageSlot(_owner, _owner.InvalidatePaint)).Load(SkUiImageSource.FromMaui(icon), default);
-            changed = true;
-        }
+        if (icon is not null || segment.Icon is not null)
+            changed |= (segment.Icon ??= new SkUiIconSlot(_owner, _owner.InvalidatePaint)).Show(icon);
         if (segment.IsEnabled != enabled)
         {
             segment.IsEnabled = enabled;
@@ -256,7 +250,7 @@ internal sealed class SkUiSegmentedModel
 
     /// <summary>The room an icon takes before the text (none without one).</summary>
     private static double IconPart(Segment segment, in SkUiSegmentedMetrics metrics) =>
-        segment.Icon is null ? 0 : metrics.IconSize + (segment.Text.Length > 0 ? metrics.IconSpacing : 0);
+        segment.Icon?.Source is null ? 0 : metrics.IconSize + (segment.Text.Length > 0 ? metrics.IconSpacing : 0);
 
     /// <summary>Gives the engine each segment's content width and the look's insets; returns the tallest text.</summary>
     private double PrepareEngine(in SkUiSegmentedMetrics metrics)
@@ -271,7 +265,7 @@ internal sealed class SkUiSegmentedModel
         {
             var segment = _segments[index];
             var text = TextSize(segment, style);
-            tallest = Math.Max(tallest, Math.Max(text.Height, segment.Icon is null ? 0 : metrics.IconSize));
+            tallest = Math.Max(tallest, Math.Max(text.Height, segment.Icon?.Source is null ? 0 : metrics.IconSize));
             _widths[index] = text.Width + IconPart(segment, metrics) + leading + 2 * metrics.SegmentPadding;
         }
         _engine.Mode = _widthMode;
@@ -420,7 +414,7 @@ internal sealed class SkUiSegmentedModel
             var content = icon + textWidth;
             // Centered together with the check's room; the check (and the icon) at the start side.
             var start = rtl ? rect.MidX + (content + leading) / 2 - leading : rect.MidX - (content + leading) / 2 + leading;
-            if (segment.IconSlot is { } slot && segment.Icon is not null)
+            if (segment.Icon?.Slot is { } slot)
             {
                 var size = (float)metrics.IconSize;
                 var left = rtl ? start - size : start;
