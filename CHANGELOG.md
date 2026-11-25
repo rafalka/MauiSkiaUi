@@ -13,6 +13,8 @@ Publishing (the NuGet publish workflow, [docs/Releasing.md](docs/Releasing.md)) 
 
 ## Unreleased
 
+## 1.17.0
+
 ### New features
 
 - **Carousel `VisibleViews`:** MAUI's `CarouselView.VisibleViews` (a read-only `ObservableCollection<View>`), the item views in view, in strip order, peeking neighbors included and the views created ahead left out; with an item effect, the views it draws. It follows the scrolling, render-thread flings included, and changes only when a view enters or leaves (never a reset); nothing is tracked until it is first read. Docs: [SkUiCarouselView](docs/controls/SkUiCarouselView.md).
