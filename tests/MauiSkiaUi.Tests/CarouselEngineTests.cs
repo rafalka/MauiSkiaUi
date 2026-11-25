@@ -24,6 +24,8 @@ public class CarouselEngineTests
 
         public int Probes { get; private set; }
 
+        public int Position { get; set; }
+
         public double ProbeExtent(double cross)
         {
             Probes++;

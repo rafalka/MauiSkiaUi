@@ -60,6 +60,8 @@ public partial class SkUiTabView
 
         bool ISkUiCarouselEngineHost.Mirrored => _owner.IsRightToLeft;
 
+        public int Position => Math.Clamp(_owner._requested, 0, Math.Max(0, _engine.Count - 1));
+
         /// <summary>Panes that fill an unbounded tab view are as wide as the first created one measures (else nothing).</summary>
         double ISkUiCarouselEngineHost.ProbeExtent(double cross) =>
             _children.Count > 0 ? ((IView)_children[0]).Measure(double.PositiveInfinity, cross).Width : 0;
@@ -231,8 +233,7 @@ public partial class SkUiTabView
         {
             if (_engine.NeedsLayout(heightConstraint))
             {
-                var position = Math.Max(0, Math.Min(_owner._requested, _engine.Count - 1));
-                _engine.UpdateGeometry(new SkUiCarouselLayout(default, 0, 0, SnapPointsAlignment.Start, null), heightConstraint, position);
+                _engine.UpdateGeometry(new SkUiCarouselLayout(default, 0, 0, SnapPointsAlignment.Start, null), heightConstraint, Position);
                 GeometryVersion++;
             }
             RealizeVisible();

@@ -14,6 +14,9 @@ internal interface ISkUiCarouselEngineHost
     /// <summary>Whether the strip runs from the right (horizontal and right to left).</summary>
     bool Mirrored { get; }
 
+    /// <summary>The current item (a page's first).</summary>
+    int Position { get; }
+
     /// <summary>The length along the axis of items that fill an unbounded carousel: the first item measured across <paramref name="cross"/>.</summary>
     double ProbeExtent(double cross);
 }
@@ -25,8 +28,11 @@ internal interface ISkUiCarouselEngineHost
 /// Every item's length along the axis when positive; 0: <paramref name="ItemsPerSnapPoint"/> items fill the viewport minus the
 /// insets and the spacing between them.
 /// </param>
-/// <param name="Alignment">Where the current page (the item at the snap point and the rest of its page) lines up.</param>
-/// <param name="Effect">The item effect, for the items it shows beyond the layout's.</param>
+/// <param name="Alignment">
+/// Where the current page (the item at the snap point and the rest of its page) lines up; with an <paramref name="Effect"/>,
+/// which places the other items around it, the current item alone.
+/// </param>
+/// <param name="Effect">The item effect: it places the items around the current one, some beyond those the layout shows.</param>
 /// <param name="ItemsPerSnapPoint">How many items a snap point moves past (a page), at least 1.</param>
 internal readonly record struct SkUiCarouselLayout(Thickness PeekAreaInsets, double ItemSpacing, double ItemExtent, SnapPointsAlignment Alignment,
     SkUiCarouselEffect? Effect, int ItemsPerSnapPoint = 1);
@@ -93,10 +99,10 @@ internal sealed class SkUiCarouselEngine(ISkUiCarouselEngineHost host)
     /// <summary>The gap between items.</summary>
     public double Spacing { get; private set; }
 
-    /// <summary>The peek inset before the first item.</summary>
+    /// <summary>The room before the first item: the peek inset, and what lets it reach the middle under an effect.</summary>
     public double PadStart { get; private set; }
 
-    /// <summary>The strip's length along the axis: insets, slots and the spacing between them.</summary>
+    /// <summary>The strip's length along the axis: the room at its ends, slots and the spacing between them.</summary>
     public double Length { get; private set; }
 
     /// <summary>The number of places in the strip (the items times <see cref="Copies"/>).</summary>
@@ -112,7 +118,9 @@ internal sealed class SkUiCarouselEngine(ISkUiCarouselEngineHost host)
     public int Pages => (Count + PerPage - 1) / PerPage;
 
     /// <summary>The first item of the page that holds the item at <paramref name="index"/>.</summary>
-    public int PageStart(int index) => index - index % PerPage;
+    public int PageStart(int index) => PageStartOf(index, PerPage);
+
+    private static int PageStartOf(int index, int perPage) => index - index % perPage;
 
     /// <summary>Whether slot <paramref name="slot"/> starts a page (a snap point).</summary>
     public bool IsPageStart(int slot) => IndexOfSlot(slot) % PerPage == 0;
@@ -204,14 +212,23 @@ internal sealed class SkUiCarouselEngine(ISkUiCarouselEngineHost host)
         _geometryValid = false;
     }
 
-    /// <summary>The items' layout changes next: the current place (the fractional item at the snap point) is kept.</summary>
+    /// <summary>
+    /// The items' layout changes next: the current place (the fractional item at the snap point) is kept. At an end that keeps
+    /// the current item from the snap point, the current item is.
+    /// </summary>
     public void KeepCurrentPlace(double logical, bool arranged)
     {
-        if (HasGeometry && arranged)
+        if (HasGeometry && arranged && !RestsShortOfSnapPoint(logical))
             _keep ??= Loops ? Mod(FractionalSlot(logical), Count) : FractionalSlot(logical);
         _placeRequested = true;
         _geometryValid = false;
     }
+
+    /// <summary>Whether the strip (not looping) rests at an end that keeps the current item short of the snap point.</summary>
+    private bool RestsShortOfSnapPoint(double logical) =>
+        !Loops && host.Position is var position && position >= 0 && position < Count
+        && Math.Abs(ClampedSnapOffset(position) - logical) <= VisibilityTolerance
+        && Math.Abs(SnapOffset(position) - logical) > VisibilityTolerance;
 
     /// <summary>The items are laid out again at the next layout, from where they are.</summary>
     public void Invalidate() => _geometryValid = false;
@@ -235,17 +252,26 @@ internal sealed class SkUiCarouselEngine(ISkUiCarouselEngineHost host)
         var extent = layout.ItemExtent > 0 ? layout.ItemExtent
             : double.IsFinite(_viewport) ? Math.Max(0, (_viewport - start - end - (perPage - 1) * spacing) / perPage)
             : Count > 0 ? host.ProbeExtent(cross) : 0;
-        // What lines up at the snap point: a page of items and the gaps between them.
         var page = perPage * extent + (perPage - 1) * spacing;
+        // What lines up at the snap point: a page of items and the gaps between them; with an effect the current item, as the
+        // effect places the rest of the page around it.
+        var aligned = layout.Effect is null ? page : extent;
         var viewport = double.IsFinite(_viewport) ? _viewport : page + start + end;
         var stride = extent + spacing;
         var inner = viewport - start - end;
         var align = layout.Alignment switch
         {
-            SnapPointsAlignment.Center => (inner - page) / 2,
-            SnapPointsAlignment.End => inner - page,
+            SnapPointsAlignment.Center => (inner - aligned) / 2,
+            SnapPointsAlignment.End => inner - aligned,
             _ => 0
         };
+        if (layout.Effect is not null && layout.Alignment == SnapPointsAlignment.Center && !Loops && align > 0 && Count > 0)
+        {
+            // A strip with ends has room there for the first item and the last page's first to reach the middle: an effect
+            // draws an item as the current one only at the snap point.
+            var afterLastPage = (Count - 1 - PageStartOf(Count - 1, perPage)) * stride;
+            (start, end, align) = (start + align, Math.Max(end, end + align - afterLastPage), 0);
+        }
         var copies = 1;
         if (Loops && stride > 0)
         {

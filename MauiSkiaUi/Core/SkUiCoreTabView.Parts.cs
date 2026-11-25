@@ -69,7 +69,7 @@ public partial class SkUiCoreTabView
 
         public int CurrentIndex(int keep) => Engine.CurrentIndex(LogicalOffset, keep);
 
-        private int Position => Math.Clamp(_owner._requested, 0, Math.Max(0, Engine.Count - 1));
+        public int Position => Math.Clamp(_owner._requested, 0, Math.Max(0, Engine.Count - 1));
 
         public void SetViewport(double viewport)
         {

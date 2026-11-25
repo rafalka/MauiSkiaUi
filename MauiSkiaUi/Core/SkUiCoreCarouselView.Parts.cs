@@ -96,6 +96,8 @@ public partial class SkUiCoreCarouselView
 
         bool ISkUiCarouselEngineHost.Mirrored => Mirrored;
 
+        int ISkUiCarouselEngineHost.Position => _owner._position;
+
         public int Count => _engine.Count;
 
         public bool Loops => _engine.Loops;

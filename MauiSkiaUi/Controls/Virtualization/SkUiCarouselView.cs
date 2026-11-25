@@ -848,6 +848,8 @@ public partial class SkUiCarouselView : SkUiView, ISkUiScrollStepper
     /// Where the current item lines up (MAUI's <c>LinearItemsLayout.SnapPointsAlignment</c>): <see cref="SnapPointsAlignment.Center"/>
     /// (default) in the middle, <see cref="SnapPointsAlignment.Start"/> or <see cref="SnapPointsAlignment.End"/> at the edges,
     /// inside <see cref="PeekAreaInsets"/>. A carousel that does not loop cannot scroll its first and last items past its ends.
+    /// With an <see cref="ItemEffect"/> it is the current item alone also with several <see cref="ItemsPerSnapPoint"/>, and a
+    /// centered carousel that does not loop has room at its ends for it.
     /// </summary>
     public SnapPointsAlignment SnapPointsAlignment { get => (SnapPointsAlignment)GetValue(SnapPointsAlignmentProperty); set => SetValue(SnapPointsAlignmentProperty, value); }
 

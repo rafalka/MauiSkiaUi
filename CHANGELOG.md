@@ -27,6 +27,10 @@ Publishing (the NuGet publish workflow, [docs/Releasing.md](docs/Releasing.md)) 
 
 - **Tab view:** `SkUiTabView`, tabbed content inside a page: a strip of headers drawn by the look (equal widths, or content widths in a strip that scrolls; at the top or bottom; icons and badges) over panes swiped sideways. Panes (`SkUiTabItem.Content`, or `ContentTemplate` made once) are created when they first come into view and kept, so their state survives. `SelectedIndex` (two-way) is the one source of truth for taps, swipes and keys; disabled tabs are dimmed and skipped by swipes and keys. The indicator (underline, pill or none) follows the panes on the render thread through scroll-linked channels. Arrow keys in the strip, Ctrl+Tab anywhere inside, and a tab list for screen readers, with the panes' container named by the selected tab. On Core: `SkUiCoreTabView` with `SkUiCoreTabItem`s (a `Content` node, or a `ContentFactory` called once), drawn the same. Docs: [SkUiTabView](docs/controls/SkUiTabView.md).
 
+### Fixes
+
+- **Carousel effects at the ends:** a centered carousel with an item effect that does not loop kept its first and last items off the middle, so cover flow drew them turned and to the side. It now has room at its ends for them. Switching an effect on keeps the current item there.
+
 ### Other
 
 - **Dependencies:** SkiaSharp 4.157.0 (was 4.154.0), HarfBuzzSharp 14.4.0.200 (was 14.2.1.400).

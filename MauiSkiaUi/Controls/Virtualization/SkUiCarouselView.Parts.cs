@@ -112,6 +112,8 @@ public partial class SkUiCarouselView
 
         bool ISkUiCarouselEngineHost.Mirrored => Mirrored;
 
+        int ISkUiCarouselEngineHost.Position => _owner._position;
+
         public int Count => _engine.Count;
 
         /// <summary>Whether the items repeat without an end.</summary>

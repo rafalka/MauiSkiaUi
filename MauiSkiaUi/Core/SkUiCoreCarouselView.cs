@@ -443,7 +443,7 @@ public partial class SkUiCoreCarouselView : SkUiCoreNode, ISkUiScrollStepper, IS
     /// <summary>How drags and flings end: one snap point per swipe (default), the nearest to where a fling would stop, or anywhere.</summary>
     public SnapPointsType SnapPointsType { get => _snapPointsType; set => SetSnapPointsType(value); }
 
-    /// <summary>Where the current item (or page) lines up: in the middle (default), or at the start or end inside the insets.</summary>
+    /// <summary>Where the current item (or page; with an <see cref="ItemEffect"/> the item) lines up: in the middle (default), or at the start or end inside the insets.</summary>
     public SnapPointsAlignment SnapPointsAlignment { get => _snapPointsAlignment; set => SetSnapPointsAlignment(value); }
 
     /// <summary>
