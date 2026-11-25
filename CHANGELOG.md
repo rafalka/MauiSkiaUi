@@ -32,6 +32,7 @@ Publishing (the NuGet publish workflow, [docs/Releasing.md](docs/Releasing.md)) 
 - **Carousel effects at the ends:** a centered carousel with an item effect that does not loop kept its first and last items off the middle, so cover flow drew them turned and to the side. It now has room at its ends for them. Switching an effect on keeps the current item there.
 - **Carousels while things change:** items added or removed during an animated scroll left the carousel between two items; changing the direction at runtime went back to the first item; a carousel that nothing bounds along its axis (in a stack or a scroll view) laid out without end; of equal items, the first became current; a `CurrentItem` that is not an item raised an event.
 - **`IsShownChanged`:** a view dropped with its handlers (a closed page) kept a count, so checking for shown views never became free again.
+- **Android: grey pages:** a drawn page in a Shell, `TabbedPage` or `FlyoutPage` could show all its colors at 92.5 % (white as #ECECEC), and stay so through redraws and taps (issue #125). The native view that holds the pages (the list of Shell's and `TabbedPage`'s `ViewPager2`, the `DrawerLayout`) had taken keyboard focus after a typed key (a keyboard that sends key events, a hardware key), and Android tinted it with its default focus highlight. Drawn surfaces now turn that highlight off on the page containers around them.
 
 ### Other
 

@@ -1542,6 +1542,49 @@ internal sealed class SkUiOverlayContainer : Android.Widget.FrameLayout
         TextInput?.Autofill(values);
     }
 
+    protected override void OnAttachedToWindow()
+    {
+        base.OnAttachedToWindow();
+        if (OperatingSystem.IsAndroidVersionAtLeast(26))
+            RemovePageFocusHighlights();
+    }
+
+    /// <summary>
+    /// Page containers around the surface lose Android's default focus highlight (as this container has none): the list a
+    /// ViewPager2 pages with (Shell, TabbedPage) and the DrawerLayout (Shell, FlyoutPage) take focus themselves, when a focused
+    /// field lets go or the window leaves touch mode (a typed key), and the highlight tints all they hold: 60 % of the theme's
+    /// <c>colorControlHighlight</c>, which shows white as #ECECEC (issue #125). Scrollers, cells and the app's own focusable
+    /// views keep it: there it marks one of several places focus can be.
+    /// </summary>
+    [System.Runtime.Versioning.SupportedOSPlatform("android26.0")]
+    private void RemovePageFocusHighlights()
+    {
+        for (var parent = Parent; parent is not null; parent = parent.Parent)
+        {
+            if (parent is not Android.Views.ViewGroup { DefaultFocusHighlightEnabled: true } group
+                || (group is not AndroidX.DrawerLayout.Widget.DrawerLayout && group.Parent is not AndroidX.ViewPager2.Widget.ViewPager2))
+                continue;
+            group.DefaultFocusHighlightEnabled = false;
+            // Android drops a highlight that already shows only when the view's focus changes (leaving it in touch mode too).
+            // After this pass: the surface can attach inside a layout.
+            if (group.IsFocused)
+                Post(() => Refocus(group));
+        }
+    }
+
+    /// <summary>Focus leaves <paramref name="group"/> and comes back to it, not to what it holds.</summary>
+    private static void Refocus(Android.Views.ViewGroup group)
+    {
+        if (!group.IsFocused)
+            return;
+        var focusability = group.DescendantFocusability;
+        group.DescendantFocusability = Android.Views.DescendantFocusability.BlockDescendants;
+        group.ClearFocus();
+        if (!group.IsFocused)
+            group.RequestFocus();
+        group.DescendantFocusability = focusability;
+    }
+
     /// <summary>Shown or hidden with its page: autofill learns it of the drawn fields, which it does not derive from this container.</summary>
     [System.Runtime.Versioning.SupportedOSPlatform("android24.0")]
     public override void OnVisibilityAggregated(bool isVisible)
