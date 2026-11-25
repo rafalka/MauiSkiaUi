@@ -333,7 +333,8 @@ public partial class SkUiTabView : SkUiView, ISkUiFontElement, ISkUiKeyHandler, 
                 _attached.Remove(tab);
                 if (ReferenceEquals(tab.Parent, this))
                     tab.Parent = null;
-                if (tab.Icon is { } icon && ReferenceEquals(icon.Parent, tab))
+                // Not one that is in another tab view already: its icon is there.
+                if (tab.Parent is null && tab.Icon is { } icon && ReferenceEquals(icon.Parent, tab))
                 {
                     icon.Parent = null;
                     ReadoptIcon(icon);

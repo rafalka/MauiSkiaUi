@@ -68,7 +68,11 @@ public class SkUiSegment : Element
     protected override void OnBindingContextChanged()
     {
         base.OnBindingContextChanged();
-        if (Icon is { } icon && ReferenceEquals(icon.Parent, this))
+        if (Icon is not { } icon)
+            return;
+        if (ReferenceEquals(icon.Parent, this))
             SetInheritedBindingContext(icon, BindingContext);
+        else if (icon.Parent is null && Parent is not null)
+            AdoptIcon(); // an item of another control had it, and left
     }
 }

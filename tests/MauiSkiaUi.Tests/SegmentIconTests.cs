@@ -266,19 +266,104 @@ public sealed class SegmentIconTests : IDisposable
         Assert.Equal(Colors.Magenta, icon.Color);
     }
 
-    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
-    private static WeakReference[] ShowAndRemove(ImageSource icon)
+    /// <summary>An item added to another control before it is removed from the first is the second one's, its icon too.</summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void AnItemMovedToAnotherControlTakesItsIconWithIt(bool tabs)
     {
-        var tab = new SkUiTabItem { Icon = icon, Content = new SkUiBox() };
-        var view = new SkUiTabView().AddTab(tab);
-        view.Tabs.Clear();
-        var segment = new SkUiSegment { Icon = icon };
-        var control = new SkUiSegmentedControl();
-        control.Segments.Add(segment);
-        control.Segments.Clear();
-        return [new(tab), new(tab.Content), new(view), new(segment), new(control)];
+        var icon = Icon(Colors.Lime);
+        icon.SetBinding(SkUiVectorImageSource.ColorProperty, static (Model model) => model.Accent);
+        Element item;
+        BindableObject second;
+        if (tabs)
+        {
+            var tab = new SkUiTabItem { Icon = icon };
+            var from = new SkUiTabView { BindingContext = new Model(Colors.Orange) }.AddTab(tab);
+            var to = new SkUiTabView { BindingContext = new Model(Colors.Magenta) }.AddTab(tab);
+            from.Tabs.Remove(tab);
+            (item, second) = (tab, to);
+        }
+        else
+        {
+            var segment = new SkUiSegment { Icon = icon };
+            var from = new SkUiSegmentedControl { BindingContext = new Model(Colors.Orange) };
+            from.Segments.Add(segment);
+            var to = new SkUiSegmentedControl { BindingContext = new Model(Colors.Magenta) };
+            to.Segments.Add(segment);
+            from.Segments.Remove(segment);
+            (item, second) = (segment, to);
+        }
+        Assert.Same(second, item.Parent);
+        Assert.Same(item, icon.Parent);
+        Assert.Equal(Colors.Magenta, icon.Color);
+        second.BindingContext = new Model(Colors.Lime);
+        Assert.Equal(Colors.Lime, icon.Color);
     }
 
+    /// <summary>An icon another control's item had, which left, is taken at the next context.</summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void AnIconNobodyHasIsTakenAtTheNextContext(bool tabs)
+    {
+        var icon = Icon(Colors.Lime);
+        icon.SetBinding(SkUiVectorImageSource.ColorProperty, static (Model model) => model.Accent);
+        BindableObject shows;
+        if (tabs)
+        {
+            shows = new SkUiTabView { BindingContext = new Model(Colors.Orange) }.AddTab(new SkUiTabItem { Icon = icon });
+            var other = new SkUiTabView().AddTab(new SkUiTabItem { Icon = icon });
+            other.Tabs.Clear();
+        }
+        else
+        {
+            var control = new SkUiSegmentedControl { BindingContext = new Model(Colors.Orange) };
+            control.Segments.Add(new SkUiSegment { Icon = icon });
+            shows = control;
+            var other = new SkUiSegmentedControl();
+            other.Segments.Add(new SkUiSegment { Icon = icon });
+            other.Segments.Clear();
+        }
+        shows.BindingContext = new Model(Colors.Magenta);
+        Assert.Equal(Colors.Magenta, icon.Color);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void AnItemThatOnlyMovesKeepsItsIconsContext(bool move)
+    {
+        var icon = Icon(Colors.Lime);
+        icon.SetBinding(SkUiVectorImageSource.ColorProperty, static (Model model) => model.Accent);
+        var control = new SkUiSegmentedControl { BindingContext = new Model(Colors.Magenta) };
+        control.Segments.Add(new SkUiSegment { Icon = icon });
+        control.Segments.Add(new SkUiSegment("B"));
+        var changes = 0;
+        icon.PropertyChanged += (_, args) => changes += args.PropertyName == nameof(SkUiVectorImageSource.Color) ? 1 : 0;
+        if (move)
+            ((System.Collections.ObjectModel.ObservableCollection<SkUiSegment>)control.Segments).Move(0, 1);
+        else
+            control.Segments[0] = control.Segments[0];
+        Assert.Equal((0, Colors.Magenta), (changes, icon.Color));
+    }
+
+    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
+    private static WeakReference[] ShowAndRemove(SkUiVectorImageSource icon)
+    {
+        icon.SetBinding(SkUiVectorImageSource.ColorProperty, static (Model model) => model.Accent);
+        var (tabModel, segmentModel) = (new Model(Colors.Magenta), new Model(Colors.Orange));
+        var tab = new SkUiTabItem { Icon = icon, Content = new SkUiBox() };
+        var view = new SkUiTabView { BindingContext = tabModel }.AddTab(tab);
+        view.Tabs.Clear();
+        var segment = new SkUiSegment { Icon = icon };
+        var control = new SkUiSegmentedControl { BindingContext = segmentModel };
+        control.Segments.Add(segment);
+        control.Segments.Clear();
+        return [new(tab), new(tab.Content), new(view), new(tabModel), new(segment), new(control), new(segmentModel)];
+    }
+
+    /// <summary>Holds also without the parent being cleared (MAUI's parents are weak): a guard for what an icon keeps.</summary>
     [Fact]
     public void ALongLivedIconKeepsNoItemThatLeft()
     {

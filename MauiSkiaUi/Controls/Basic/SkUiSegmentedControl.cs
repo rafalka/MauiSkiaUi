@@ -266,13 +266,10 @@ public class SkUiSegmentedControl : SkUiView, ISkUiFontElement, ISkUiSegmentedOw
 
     private void OnSegmentsChanged(object? sender, NotifyCollectionChangedEventArgs args)
     {
-        if (args.OldItems is { } removed)
-            foreach (SkUiSegment segment in removed)
+        // Not one that only moved.
+        foreach (var segment in _attached.ToArray())
+            if (!_segments!.Contains(segment))
                 Detach(segment);
-        if (args.Action == NotifyCollectionChangedAction.Reset)
-            foreach (var segment in _attached.ToArray())
-                if (!_segments!.Contains(segment))
-                    Detach(segment);
         foreach (var segment in _segments!)
             Attach(segment);
         Rebuild();
@@ -297,7 +294,8 @@ public class SkUiSegmentedControl : SkUiView, ISkUiFontElement, ISkUiSegmentedOw
         segment.PropertyChanged -= OnSegmentPropertyChanged;
         if (ReferenceEquals(segment.Parent, this))
             segment.Parent = null;
-        if (segment.Icon is { } icon && ReferenceEquals(icon.Parent, segment))
+        // Not one that is in another control already: its icon is there.
+        if (segment.Parent is null && segment.Icon is { } icon && ReferenceEquals(icon.Parent, segment))
         {
             icon.Parent = null;
             ReadoptIcon(icon);
