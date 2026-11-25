@@ -12,7 +12,7 @@ namespace MauiSkiaUi;
 /// a page; see <c>docs/controls/SkUiTabView.md</c>.
 /// </summary>
 [ContentProperty(nameof(Tabs))]
-public partial class SkUiTabView : SkUiView, ISkUiFontElement, ISkUiKeyHandler
+public partial class SkUiTabView : SkUiView, ISkUiFontElement, ISkUiKeyHandler, ISkUiScrollStepper
 {
     private ObservableCollection<SkUiTabItem>? _tabs;
     private readonly HashSet<SkUiTabItem> _attached = [];
@@ -276,6 +276,7 @@ public partial class SkUiTabView : SkUiView, ISkUiFontElement, ISkUiKeyHandler
             Content = _panes
         };
         _paneScroller.RegisterScrollListener(_panes);
+        ((ISkUiScrollHost)_paneScroller).Scroller.Stepper = this;
         ((ISkUiScrollHost)_paneScroller).Scroller.DraggingChanged += dragging =>
         {
             if (dragging)
@@ -354,7 +355,7 @@ public partial class SkUiTabView : SkUiView, ISkUiFontElement, ISkUiKeyHandler
                 break;
             case nameof(SkUiTabItem.Header) or nameof(SkUiTabItem.Icon) or nameof(SkUiTabItem.BadgeText):
                 Strip.TabsChanged();
-                Panes.HeaderChanged(tab);
+                PaneScrollView.SemanticsChanged();
                 break;
         }
     }
@@ -415,6 +416,7 @@ public partial class SkUiTabView : SkUiView, ISkUiFontElement, ISkUiKeyHandler
         var count = Tabs.Count;
         _selectedTab = value >= 0 && value < count ? Tabs[value] : null;
         Strip.SelectionChanged(value);
+        PaneScrollView.SemanticsChanged();
         if (scroll && value >= 0 && value < count)
         {
             _scrollingTo = value;
@@ -488,6 +490,18 @@ public partial class SkUiTabView : SkUiView, ISkUiFontElement, ISkUiKeyHandler
         return -1;
     }
 
+    // Screen readers page the panes tab by tab, never to a place between two. Arrow keys inside a pane do not move the panes
+    // (they are the strip's), and neither do Home / End.
+
+    /// <summary>The tab towards larger offsets (<paramref name="forward"/>) or smaller ones, skipping disabled ones, or -1.</summary>
+    private int PageTarget(bool forward) => NextEnabled(SelectedIndex, forward != IsRightToLeft ? 1 : -1, wrap: false);
+
+    bool ISkUiScrollStepper.CanStep(bool forward) => PageTarget(forward) >= 0;
+
+    bool ISkUiScrollStepper.Step(bool forward, bool page) => page && PageTarget(forward) is var target and >= 0 && SelectByUser(target);
+
+    bool ISkUiScrollStepper.StepToEdge(bool end) => false;
+
     /// <summary>Ctrl+Tab / Ctrl+Shift+Tab from anywhere inside the tab view: the next / previous enabled tab, around the ends.</summary>
     bool ISkUiKeyHandler.OnKeyDown(in SkUiKeyEvent key)
     {
@@ -505,6 +519,7 @@ public partial class SkUiTabView : SkUiView, ISkUiFontElement, ISkUiKeyHandler
 
     private void OnStripLayoutChanged()
     {
+        InvalidateRender(Rendering.SkUiRenderDirty.Children); // their order
         Strip.TabsChanged();
         InvalidateMeasureOverride();
     }
@@ -526,8 +541,10 @@ public partial class SkUiTabView : SkUiView, ISkUiFontElement, ISkUiKeyHandler
     {
         get
         {
-            yield return PaneScrollView;
-            yield return StripScroller;
+            // In reading order (they do not overlap): screen readers and Tab meet the strip first when it is on top.
+            var top = TabStripPlacement == SkUiTabStripPlacement.Top;
+            yield return top ? StripScroller : PaneScrollView;
+            yield return top ? PaneScrollView : StripScroller;
         }
     }
 
@@ -553,6 +570,7 @@ public partial class SkUiTabView : SkUiView, ISkUiFontElement, ISkUiKeyHandler
         Strip.ViewportWidth = size.Width;
         ((IView)StripScroller).Measure(stripBounds.Width, stripBounds.Height);
         ((IView)StripScroller).Arrange(stripBounds);
+        Strip.AfterArrange();
         Panes.SetViewport(size.Width);
         ((IView)PaneScrollView).Measure(paneBounds.Width, paneBounds.Height);
         ((IView)PaneScrollView).Arrange(paneBounds);

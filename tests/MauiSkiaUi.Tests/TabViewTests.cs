@@ -171,7 +171,7 @@ public class TabViewTests
     }
 
     [Fact]
-    public void TheStripIsATabListWithBadgesAndEachPaneIsNamedByItsHeader()
+    public void TheStripIsATabListWithBadges()
     {
         using var _ = SkUiTestHelpers.UseBundledFont();
         var tabs = TabView();
@@ -293,5 +293,189 @@ public class TabViewTests
 
         // The snap spring itself is the scroller's; the panes, the strip and the indicator add nothing per frame.
         Assert.Equal(FlingAllocations(scroll), FlingAllocations(tabs));
+    }
+
+    private static readonly Color[] PaneColors = [Colors.Red, Colors.Green, Colors.Blue, Colors.Yellow];
+
+    private static SkUiTabView ColoredTabs()
+    {
+        var tabs = new SkUiTabView { FontFamily = SkUiTestHelpers.BundledFontFamily };
+        for (var index = 0; index < PaneColors.Length; index++)
+            tabs.AddTab(new SkUiTabItem($"T{index}", new SkUiBox { Color = PaneColors[index] }));
+        return tabs;
+    }
+
+    private static SKColor Sk(Color color) => new((byte)(color.Red * 255), (byte)(color.Green * 255), (byte)(color.Blue * 255));
+
+    [Theory]
+    [InlineData("code")]
+    [InlineData("tap")]
+    [InlineData("swipe")]
+    [InlineData("jump")]
+    public void ATabSelectedForTheFirstTimeDrawsItsPaneHoweverItWasSelected(string how)
+    {
+        using var _ = SkUiTestHelpers.UseBundledFont();
+        var tabs = ColoredTabs();
+        using var surface = new SkUiTestSurface(tabs, 400, 200);
+        surface.Frame(0);
+        Assert.Equal(Sk(Colors.Red), surface.Bitmap.GetPixel(200, 120));
+        var target = how == "jump" ? 3 : 1;
+        switch (how)
+        {
+            case "tap": Tap(tabs, tabs.HeaderBounds(1).Center, 0); break;
+            case "swipe": Swipe(tabs, new Point(350, 120), new Point(50, 120), 0); break;
+            default: tabs.SelectedIndex = target; break; // "jump": past tabs never shown
+        }
+        Run(surface, 50, 1500);
+
+        Assert.Equal(target, tabs.SelectedIndex);
+        Assert.Equal(Sk(PaneColors[target]), surface.Bitmap.GetPixel(200, 120));
+    }
+
+    [Theory]
+    [InlineData(SkUiSegmentWidthMode.Equal, false)]
+    [InlineData(SkUiSegmentWidthMode.Content, false)]
+    [InlineData(SkUiSegmentWidthMode.Equal, true)]
+    [InlineData(SkUiSegmentWidthMode.Content, true)]
+    public void TheIndicatorIsDrawnUnderTheSelectedHeader(SkUiSegmentWidthMode mode, bool rightToLeft)
+    {
+        using var _ = SkUiTestHelpers.UseBundledFont();
+        var tabs = TabView("A", "Longer", "Mid");
+        tabs.TabWidthMode = mode;
+        tabs.IndicatorColor = Colors.Red;
+        tabs.FlowDirection = rightToLeft ? FlowDirection.RightToLeft : FlowDirection.LeftToRight;
+        using var surface = new SkUiTestSurface(new SkUiContentView { Content = tabs, Background = Colors.White }, 300, 200);
+        surface.Frame(0);
+        var time = 100d;
+        foreach (var selected in new[] { 0, 2, 1 })
+        {
+            tabs.SelectedIndex = selected;
+            Run(surface, time, time + 1400);
+            time += 2000;
+            var header = tabs.HeaderBounds(selected);
+            var (first, last) = (-1, -1);
+            for (var x = 0; x < 300; x++)
+                if (surface.Bitmap.GetPixel(x, (int)header.Bottom - 1) == SKColors.Red)
+                    (first, last) = (first < 0 ? x : first, x);
+            // Device pixels: fractional edges are blended.
+            Assert.InRange(first, header.Left - 1, header.Left + 1);
+            Assert.InRange(last + 1, header.Right - 1, header.Right + 1);
+        }
+    }
+
+    private static List<SkUiSemanticsNode> SemanticNodes(SkUiView root)
+    {
+        var nodes = new List<SkUiSemanticsNode>();
+        void Walk(SkUiSemanticsNode node)
+        {
+            nodes.Add(node);
+            foreach (var child in node.Children)
+                Walk(child);
+        }
+        Walk(SkUiSemanticsTree.Build(root).Root);
+        return nodes;
+    }
+
+    [Fact]
+    public void ScreenReadersReadTheStripThenTheSelectedPanesContentsUnderItsTabsName()
+    {
+        using var _ = SkUiTestHelpers.UseBundledFont();
+        SkUiLabel Text(string text) => new() { Text = text, FontFamily = SkUiTestHelpers.BundledFontFamily };
+        var tabs = new SkUiTabView { FontFamily = SkUiTestHelpers.BundledFontFamily };
+        tabs.AddTab(new SkUiTabItem("Posts", new SkUiVerticalStackLayout { Children = { Text("First text"), new SkUiButton { Text = "Press" } } }));
+        tabs.AddTab(new SkUiTabItem("Media", Text("Second text")));
+        using var surface = new SkUiTestSurface(tabs, 300, 200);
+        surface.Frame(0);
+
+        var nodes = SemanticNodes(tabs);
+        var labels = nodes.Select(static node => node.Label).Where(static label => !string.IsNullOrEmpty(label)).ToList();
+        Assert.Equal(["Posts", "Media", "Posts", "First text", "Press"], labels); // the two headers, the panes' container, its contents
+        Assert.Equal(SkUiSemanticsRole.ScrollView, nodes.Single(static node => node is { Label: "Posts", PartIndex: < 0 }).Role);
+
+        tabs.SelectedIndex = 1;
+        Run(surface, 50, 1500);
+        labels = SemanticNodes(tabs).Select(static node => node.Label).Where(static label => !string.IsNullOrEmpty(label)).ToList()!;
+        Assert.Equal(["Posts", "Media", "Media", "Second text"], labels); // the pane out of view is not read
+
+        tabs.TabStripPlacement = SkUiTabStripPlacement.Bottom;
+        surface.Frame(2000);
+        labels = SemanticNodes(tabs).Select(static node => node.Label).Where(static label => !string.IsNullOrEmpty(label)).ToList()!;
+        Assert.Equal(["Media", "Second text", "Posts", "Media"], labels);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ScreenReadersPageWholeTabsAndArrowKeysInsideAPaneLeaveThePanesInPlace(bool rightToLeft)
+    {
+        using var _ = SkUiTestHelpers.UseBundledFont();
+        var tabs = new SkUiTabView { FlowDirection = rightToLeft ? FlowDirection.RightToLeft : FlowDirection.LeftToRight };
+        var button = new SkUiButton { Text = "Press" };
+        tabs.AddTab(new SkUiTabItem("A", button));
+        tabs.AddTab(new SkUiTabItem("B", new SkUiBox()) { IsEnabled = false });
+        tabs.AddTab(new SkUiTabItem("C", new SkUiBox()));
+        using var surface = new SkUiTestSurface(tabs, 300, 200);
+        surface.Frame(0);
+        var scroll = tabs.PaneScrollViewForTests;
+        var start = scroll.ScrollX;
+        Assert.True(tabs.FocusManager.Focus(button));
+
+        var time = 50d;
+        foreach (var key in new[] { SkUiKey.Right, SkUiKey.Left, SkUiKey.Down, SkUiKey.Up, SkUiKey.Home, SkUiKey.End })
+        {
+            tabs.FocusManager.KeyDown(key);
+            Run(surface, time, time + 600);
+            time += 700;
+        }
+        Assert.Equal((0, start), (tabs.SelectedIndex, scroll.ScrollX));
+
+        var next = rightToLeft ? SkUiSemanticsActions.ScrollBackward : SkUiSemanticsActions.ScrollForward; // towards smaller offsets
+        var info = new SkUiSemanticsInfo();
+        ((ISkUiAccessibleNode)scroll).GetSemantics(info);
+        Assert.Equal(next, info.Actions & (SkUiSemanticsActions.ScrollForward | SkUiSemanticsActions.ScrollBackward)); // the first tab: one way only
+        Assert.True(((ISkUiAccessibleNode)scroll).PerformSemanticsAction(next));
+        Run(surface, time, time + 1500);
+        Assert.Equal(2, tabs.SelectedIndex); // past the disabled tab
+        Assert.Equal(rightToLeft ? 0 : 600, scroll.ScrollX, 1);
+    }
+
+    [Fact]
+    public void WithContentWidthsTheSelectedHeaderIsInViewFromTheFirstLayout()
+    {
+        using var _ = SkUiTestHelpers.UseBundledFont();
+        var tabs = TabView([.. Enumerable.Range(0, 12).Select(static index => $"Section {index}")]);
+        tabs.TabWidthMode = SkUiSegmentWidthMode.Content;
+        tabs.SelectedIndex = 9;
+        using var surface = new SkUiTestSurface(tabs, 300, 200);
+        surface.Frame(0);
+        surface.Frame(16);
+
+        var header = tabs.HeaderBounds(9);
+        Assert.True(header.Right > 300, "the strip overflows");
+        Assert.InRange(tabs.StripScrollViewForTests.ScrollX, header.Right - 300 - 0.5, header.Left + 0.5);
+        Assert.Equal(2700, tabs.PaneScrollViewForTests.ScrollX, 1);
+    }
+}
+
+/// <summary>1.17 S7: native views in a tab view's panes (with the other tests that create overlays).</summary>
+[Collection(nameof(OverlayScrollTests))]
+public class TabViewNativeViewTests
+{
+    [Fact]
+    public void ANativeViewInAPaneOutOfViewIsClippedAway()
+    {
+        var native = new SkUiMauiContentView { Content = new BoxView() };
+        var tabs = new SkUiTabView();
+        tabs.AddTab(new SkUiTabItem("Native", native));
+        tabs.AddTab(new SkUiTabItem("Other", new SkUiBox()));
+        using var surface = new SkUiTestSurface(tabs, 400, 200);
+        surface.Frame(0);
+        Rect Visible() => native.ComputeRootRelativeFrame().Intersect(native.ComputeRootRelativeClip());
+        Assert.Equal(400, Visible().Width);
+
+        tabs.SelectedIndex = 1;
+        for (var ms = 50d; ms < 1500; ms += 16)
+            surface.Frame(ms);
+        Assert.Equal(0, Visible().Width);
     }
 }

@@ -13,9 +13,21 @@ public partial class SkUiTabView
             base.ArrangeContent(size);
             owner.Panes.ApplyPendingOffset();
         }
+
+        /// <summary>
+        /// The panes' container is named by the selected tab. As its text, not its description: a description stands for what
+        /// is inside, and the pane's texts would no longer be elements.
+        /// </summary>
+        protected override void OnPopulateSemantics(SkUiSemanticsInfo info)
+        {
+            base.OnPopulateSemantics(info);
+            info.Text = owner._selectedTab?.Header;
+        }
+
+        public void SemanticsChanged() => InvalidateSemantics();
     }
 
-    /// <summary>Hosts one tab's pane: a semantics container named by the tab's header.</summary>
+    /// <summary>Hosts one tab's pane.</summary>
     private sealed class PaneCell(SkUiTabItem tab) : SkUiContentView
     {
         public SkUiTabItem Tab { get; } = tab;
@@ -128,7 +140,7 @@ public partial class SkUiTabView
             _updating = true;
             try
             {
-                RealizeVisible(arrange: true);
+                RealizeVisible();
             }
             finally
             {
@@ -136,34 +148,38 @@ public partial class SkUiTabView
             }
         }
 
-        private void RealizeVisible(bool arrange)
+        private void RealizeVisible()
         {
             if (!HasGeometry || _engine.Count == 0)
                 return;
             var (first, last) = _engine.VisibleSlots(LogicalOffset);
             for (var index = first; index <= last; index++)
-                if (EnsurePane(index) is { } cell && arrange)
-                    ArrangeCell(cell, index);
+                EnsurePane(index);
         }
 
-        /// <summary>Creates tab <paramref name="index"/>'s pane if it has none yet; returns it when it was just created.</summary>
-        private PaneCell? EnsurePane(int index)
+        /// <summary>
+        /// Creates tab <paramref name="index"/>'s pane if it has none yet, measured and arranged at its place (whoever asks: a
+        /// layout, the panes scrolling, a scroll to it that has not started).
+        /// </summary>
+        private void EnsurePane(int index)
         {
             var tabs = _owner.Tabs;
             if (index < 0 || index >= tabs.Count)
-                return null;
+                return;
             var tab = tabs[index];
             if (_cells.ContainsKey(tab))
-                return null;
-            var cell = new PaneCell(tab);
-            SemanticProperties.SetDescription(cell, tab.Header);
-            cell.Content = MakeContent(tab);
+                return;
+            var cell = new PaneCell(tab) { Content = MakeContent(tab) };
             _cells[tab] = cell;
             _children.Add(cell);
             AddLogicalChild(cell);
             MeasureCell(cell);
+            if (_arranged)
+                ArrangeCell(cell, index);
             InvalidateRender(SkUiRenderDirty.Children);
-            return cell;
+            // Panes as tall as their content: the new one may be taller than the others.
+            if (!double.IsFinite(_engine.CrossConstraint))
+                InvalidateMeasureOverride();
         }
 
         private static ISkUiView? MakeContent(SkUiTabItem tab)
@@ -192,12 +208,6 @@ public partial class SkUiTabView
         {
             if (_cells.TryGetValue(tab, out var cell))
                 cell.Content = MakeContent(tab);
-        }
-
-        public void HeaderChanged(SkUiTabItem tab)
-        {
-            if (_cells.TryGetValue(tab, out var cell))
-                SemanticProperties.SetDescription(cell, tab.Header);
         }
 
         private void MeasureCell(PaneCell cell)
@@ -234,12 +244,10 @@ public partial class SkUiTabView
             if (_engine.NeedsLayout(heightConstraint))
             {
                 var position = Math.Max(0, Math.Min(_owner._requested, _engine.Count - 1));
-                if (_engine.UpdateGeometry(new SkUiCarouselLayout(default, 0, 0, SnapPointsAlignment.Start, null), heightConstraint, position))
-                    GeometryVersion++;
-                else
-                    GeometryVersion++;
+                _engine.UpdateGeometry(new SkUiCarouselLayout(default, 0, 0, SnapPointsAlignment.Start, null), heightConstraint, position);
+                GeometryVersion++;
             }
-            RealizeVisible(arrange: false);
+            RealizeVisible();
             var across = 0d;
             foreach (var cell in _children)
             {
@@ -263,7 +271,7 @@ public partial class SkUiTabView
             _updating = true;
             try
             {
-                RealizeVisible(arrange: false);
+                RealizeVisible();
                 var tabs = _owner.Tabs;
                 foreach (var cell in _children)
                     ArrangeCell(cell, tabs.IndexOf(cell.Tab));
@@ -363,13 +371,25 @@ public partial class SkUiTabView
             Labels.InvalidatePaint();
             InvalidateSemantics();
             Indicator.GeometryChanged();
+            Indicator.InvalidatePaint(); // its style may have changed
         }
 
         public void SelectionChanged(int index)
         {
             Labels.InvalidatePaint(); // the selected header's color: only the labels re-record
             InvalidateSemantics();
-            KeepInView(index);
+            KeepInView(index, _owner.IsShown && !SkUiMotion.IsMotionReduced);
+        }
+
+        private bool _laidOut;
+
+        /// <summary>The strip's scroller was arranged: after a new layout of the headers, the selected one is brought into view.</summary>
+        public void AfterArrange()
+        {
+            if (!_laidOut)
+                return;
+            _laidOut = false;
+            KeepInView(_owner.SelectedIndex, animated: false);
         }
 
         public void ColorsChanged()
@@ -457,7 +477,12 @@ public partial class SkUiTabView
             var viewport = double.IsFinite(ViewportWidth) ? Math.Min(ViewportWidth, size.Width) : size.Width;
             _engine.Arrange(viewport, size.Height);
             GeometryVersion++;
+            _laidOut = true;
+            // At the strip's physical start in both directions, where the links' positions count from: the layout mirrors
+            // frames in right to left.
             var bounds = Indicator.MaxBounds(size.Height);
+            if (_owner.IsRightToLeft)
+                bounds.X = size.Width - bounds.Width;
             ((IView)Indicator).Measure(bounds.Width, bounds.Height);
             ((IView)Indicator).Arrange(bounds);
             Indicator.GeometryChanged();
@@ -599,7 +624,7 @@ public partial class SkUiTabView
         }
 
         /// <summary>With content widths, the strip scrolls so the selected header shows.</summary>
-        private void KeepInView(int index)
+        private void KeepInView(int index, bool animated)
         {
             if (index < 0 || index >= _engine.Count || _owner._stripScroller is not { } scroller || !double.IsFinite(ViewportWidth)
                 || _engine.Length <= ViewportWidth + 0.5)
@@ -608,7 +633,7 @@ public partial class SkUiTabView
             var x = scroller.ScrollX;
             var target = header.Left < x ? header.Left : header.Right > x + ViewportWidth ? header.Right - ViewportWidth : x;
             if (Math.Abs(target - x) > 0.5)
-                _ = scroller.ScrollToAsync(target, 0, _owner.IsShown && !SkUiMotion.IsMotionReduced);
+                _ = scroller.ScrollToAsync(target, 0, animated);
         }
 
         #region Input, keys and screen readers
