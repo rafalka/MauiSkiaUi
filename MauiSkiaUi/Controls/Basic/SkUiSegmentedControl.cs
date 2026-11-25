@@ -298,7 +298,10 @@ public class SkUiSegmentedControl : SkUiView, ISkUiFontElement, ISkUiSegmentedOw
         if (ReferenceEquals(segment.Parent, this))
             segment.Parent = null;
         if (segment.Icon is { } icon && ReferenceEquals(icon.Parent, segment))
+        {
+            icon.Parent = null;
             ReadoptIcon(icon);
+        }
     }
 
     /// <summary>A segment let <paramref name="icon"/> go: another one that shows it takes it, so its bindings go on.</summary>

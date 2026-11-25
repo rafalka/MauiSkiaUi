@@ -334,7 +334,10 @@ public partial class SkUiTabView : SkUiView, ISkUiFontElement, ISkUiKeyHandler, 
                 if (ReferenceEquals(tab.Parent, this))
                     tab.Parent = null;
                 if (tab.Icon is { } icon && ReferenceEquals(icon.Parent, tab))
+                {
+                    icon.Parent = null;
                     ReadoptIcon(icon);
+                }
                 Panes.Forget(tab);
             }
         foreach (var tab in tabs)

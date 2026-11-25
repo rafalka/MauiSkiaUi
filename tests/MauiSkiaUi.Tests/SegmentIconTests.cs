@@ -212,4 +212,84 @@ public sealed class SegmentIconTests : IDisposable
         }
         Assert.Equal(Colors.Magenta, icon.Color);
     }
+
+    /// <summary>A source nothing shows any more is nobody's child: its context goes with the item, and comes back with the next one.</summary>
+    [Theory]
+    [InlineData(true, "remove")]
+    [InlineData(true, "clear")]
+    [InlineData(true, "replace")]
+    [InlineData(false, "remove")]
+    [InlineData(false, "clear")]
+    [InlineData(false, "replace")]
+    public void AnIconWhoseLastItemLeavesIsLetGo(bool tabs, string how)
+    {
+        var icon = Icon(Colors.Lime);
+        icon.SetBinding(SkUiVectorImageSource.ColorProperty, static (Model model) => model.Accent);
+        var model = new Model(Colors.Magenta);
+        Element item;
+        Action leave, comeBack;
+        if (tabs)
+        {
+            var tab = new SkUiTabItem { Icon = icon };
+            var view = new SkUiTabView { BindingContext = model }.AddTab(tab);
+            item = tab;
+            leave = () =>
+            {
+                if (how == "remove") view.Tabs.Remove(tab);
+                else if (how == "clear") view.Tabs.Clear();
+                else view.Tabs[0] = new SkUiTabItem();
+            };
+            comeBack = () => view.Tabs.Add(tab);
+        }
+        else
+        {
+            var segment = new SkUiSegment { Icon = icon };
+            var control = new SkUiSegmentedControl { BindingContext = model };
+            control.Segments.Add(segment);
+            item = segment;
+            leave = () =>
+            {
+                if (how == "remove") control.Segments.Remove(segment);
+                else if (how == "clear") control.Segments.Clear();
+                else control.Segments[0] = new SkUiSegment();
+            };
+            comeBack = () => control.Segments.Add(segment);
+        }
+        Assert.Same(item, icon.Parent);
+        Assert.Equal(Colors.Magenta, icon.Color);
+
+        leave();
+        Assert.Null(icon.Parent);
+        Assert.Null(icon.BindingContext);
+        comeBack();
+        Assert.Same(item, icon.Parent);
+        Assert.Equal(Colors.Magenta, icon.Color);
+    }
+
+    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
+    private static WeakReference[] ShowAndRemove(ImageSource icon)
+    {
+        var tab = new SkUiTabItem { Icon = icon, Content = new SkUiBox() };
+        var view = new SkUiTabView().AddTab(tab);
+        view.Tabs.Clear();
+        var segment = new SkUiSegment { Icon = icon };
+        var control = new SkUiSegmentedControl();
+        control.Segments.Add(segment);
+        control.Segments.Clear();
+        return [new(tab), new(tab.Content), new(view), new(segment), new(control)];
+    }
+
+    [Fact]
+    public void ALongLivedIconKeepsNoItemThatLeft()
+    {
+        var icon = Icon(Colors.Lime);
+        var left = ShowAndRemove(icon);
+        for (var round = 0; round < 10 && left.Any(static reference => reference.IsAlive); round++)
+        {
+            GC.Collect();
+            GC.WaitForPendingFinalizers();
+        }
+        Assert.All(left, static reference => Assert.False(reference.IsAlive));
+        GC.KeepAlive(icon);
+    }
 }
