@@ -91,6 +91,18 @@ Override these in a `DefaultSkUiLook` subclass (or a stock platform look's). Siz
 | `FieldCornerRadius` | [5 / 5 / 4 / 4 / 4] |
 | `StepperButtonSize` (base), `DefaultStepperCornerRadius` (base) | iOS's segmented stepper matches. On Android and Windows SkiaUi keeps its segmented stepper on purpose (MAUI's is two separate buttons; Windows: 32 × 32 each, so the size matches): the Stepper row's shape differs there by design |
 
+## Segmented controls and tab views
+
+Nothing native to match in MAUI (iOS's `UISegmentedControl` and the platforms' own tab bars are the models).
+
+| Member | What |
+| --- | --- |
+| `SegmentedStyle` | `Pill` (default), `Thumb`, `Outlined`, `Tinted`, `Bar` [Thumb / Thumb / Tinted / Outlined / Bar] |
+| `SegmentedMetrics` (base) | Height, inset, spacing, segment padding, corner radius, icon size and spacing, check size [32 high / 28 / 36 / 40 / 32] |
+| `TabStripStyle` | `HeaderUnderline` (default), `LabelUnderline`, `Filled`, `ShortBar` [HeaderUnderline / HeaderUnderline / Filled / LabelUnderline / ShortBar] |
+| `TabStripMetrics` (base) | Height, height with icons, header padding, indicator thickness, icon size and spacing, icon above the text [44, 56 / 32, 48 / 48, 72 / 48, 64 / 40, 52] |
+| `GetSegmentedColors`, `GetTabStripColors`, `GetTabIndicatorBounds` (base) | Colors from the scheme; where the indicator sits under a header |
+
 ## Scrolling, focus, popups and motion
 
 `BaseOverscroll`, `BaseRefreshStyle`, `ScrollBarThickness`, `ScrollBarExpandedThickness` (base), `FocusRingStyle`, `FocusRingThickness`, `PopupItemHeight`, `PopupItemPadding`, `PopupHorizontalOptions`, `PopupVerticalOptions` (base), `BaseIndicatorStyle`, and `GetTransitionCore(kind)` for durations and easings (`SkUiEasings`).

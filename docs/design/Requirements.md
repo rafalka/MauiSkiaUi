@@ -98,11 +98,12 @@ Status: **Shipped** (in the current release line), **Partly** (shipped, with ope
 | FR-29 | Pickers on the app's popup system; their wheels inline, and pickers of the app's own on the same engine (1.12) | Shipped (1.12 parts on `1.12-implementation`) | [SkUiPicker](../controls/SkUiPicker.md), [Popups](Popups.md), [SkUiPickerWheels](../controls/SkUiPickerWheels.md), [CustomPickers](../controls/CustomPickers.md) |
 | FR-30 | Avatar view | Shipped | [SkUiAvatarView](../controls/SkUiAvatarView.md) |
 | FR-31 | Shimmer (skeleton loading) | Shipped | [SkUiShimmer](../controls/SkUiShimmer.md) |
-| FR-32 | Carousel and indicator view | Shipped | [SkUiCarouselView](../controls/SkUiCarouselView.md) |
+| FR-32 | Carousel and indicator view; `VisibleViews`, several items per snap point, autoplay and a Core carousel (1.17) | Shipped (1.17 parts built on `1.17-implementation`) | [SkUiCarouselView](../controls/SkUiCarouselView.md) |
 | FR-33 | Calendar | Built for 1.13, with the date pickers' calendar popup and a date range picker | [SkUiCalendar](../controls/SkUiCalendar.md), [SkUiDateRangePicker](../controls/SkUiDateRangePicker.md) |
 | FR-34 | Markdown view, safe with untrusted documents (optional packages) | Built for 1.8 | [SkUiMarkdownView](../controls/SkUiMarkdownView.md) |
 | FR-35 | Zoom view | Built for 1.8 | [SkUiZoomView](../controls/SkUiZoomView.md) |
 | FR-36 | Scroll-linked effects on the render thread: translation, scale, opacity and clips from a scroller's offset (overscroll included) or scroll direction, on both layers | Built for 1.16 | [SkUiScrollView](../controls/SkUiScrollView.md#scroll-linked-effects) |
+| FR-37 | Segmented control and tab view, on both layers | Built for 1.17 | [SkUiSegmentedControl](../controls/SkUiSegmentedControl.md), [SkUiTabView](../controls/SkUiTabView.md) |
 
 ### Core layer (FR-C)
 

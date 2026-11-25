@@ -48,8 +48,8 @@ Parity with MAUI is the starting point. What drawn controls add on top of it:
 - **The same pixels on every platform, or the platform's own look.** The default look draws each control the same on Android, iOS, Mac Catalyst and Windows. The platform looks (iOS 26, Material 2 and Material 3, Mac Catalyst, Windows) are measured against MAUI's native controls. Shapes, sizes, state transitions and colors come from one `SkUiLook` and `SkUiColorScheme` you customise once for the whole app ([control look](docs/design/ControlLook.md), [color scheme](docs/design/ColorScheme.md)).
 - **Motion off the UI thread.** `AnimateAsync`, scroll flings, indeterminate progress and shimmer run on the render thread and keep going while the UI thread is busy. Moving, fading, scrolling or transforming a view with shadows and clips records and blurs nothing again ([rendering pipeline](docs/design/RenderingPipeline.md)).
 - **Text MAUI doesn't have:** shrink and grow to fit, tightening, custom line breaking, HTML parsed the same on every platform with tappable links, justified text and synthetic bold / italic everywhere, rounded backgrounds and borders on labels themselves ([SkUiLabel](docs/controls/SkUiLabel.md#differences-from-maui-label)).
-- **Controls MAUI doesn't have:** numeric entries with typed values, multi-column and date-and-time pickers, shimmer skeletons of your own views, wrap layouts for chips and tags, stacks whose children shrink to fit, a stack that keeps a bar's title centered, content switches with animations, virtualized stacks; the Community Toolkit's avatar, expander and state container built in, drawn.
-- **More from the controls MAUI has:** a collection view with collapsible groups, sticky group headers, sticky header and footer, load more and pull-to-refresh built in; a carousel that loops without an end, shows the next cards peeking and draws item effects (cover flow, scaling, your own) on the compositor; snap points and overscroll on scroll views; vertical sliders, indeterminate progress bars, steppers with stacked buttons and typed values; pickers whose lists open on your app's popup system ([all controls](docs/controls/README.md)).
+- **Controls MAUI doesn't have:** numeric entries with typed values, multi-column and date-and-time pickers, shimmer skeletons of your own views, segmented controls and tabs inside a page, wrap layouts for chips and tags, stacks whose children shrink to fit, a stack that keeps a bar's title centered, content switches with animations, virtualized stacks; the Community Toolkit's avatar, expander and state container built in, drawn.
+- **More from the controls MAUI has:** a collection view with collapsible groups, sticky group headers, sticky header and footer, load more and pull-to-refresh built in; a carousel that loops without an end, pages several cards per swipe, plays by itself, shows the next cards peeking and draws item effects (cover flow, scaling, your own) on the compositor; snap points and overscroll on scroll views; vertical sliders, indeterminate progress bars, steppers with stacked buttons and typed values; pickers whose lists open on your app's popup system ([all controls](docs/controls/README.md)).
 - **One gesture model.** A per-pointer gesture arena decides between nested taps, long presses, swipes and scrolls the same way on every platform; MAUI's `TapGestureRecognizer` works on drawn views ([event mechanism](docs/design/EventMechanism.md)).
 - **Fewer leaks to chase.** Drawn controls have no handler and no native peer to keep them alive, long-lived sources are listened to weakly, and leak scenarios run headless with every test run and on devices.
 
@@ -154,9 +154,9 @@ No second layout for the skeleton: while `IsLoading` is true, the still-empty li
 | Area | Types |
 | --- | --- |
 | Hosts & layout | `SkUiContentView`, `SkUiLayout`, `SkUiGrid`, stacks, `SkUiAbsoluteLayout`, `SkUiFlexLayout`, `SkUiBorder`; `SkUiDragger`, `SkUiGridSplitter`, `SkUiWrapLayout`, `SkUiTileLayout`, shrink stacks, `SkUiHorizontalAlignStackLayout` |
-| Scrolling & lists | `SkUiScrollView`, `SkUiRefreshView`, `SkUiCollectionView`, `SkUiCarouselView`, `SkUiIndicatorView`, `SkUiSwipeView`, virtual stacks |
+| Scrolling & lists | `SkUiScrollView`, `SkUiRefreshView`, `SkUiCollectionView`, `SkUiCarouselView`, `SkUiIndicatorView`, `SkUiTabView`, `SkUiSwipeView`, virtual stacks |
 | Text & chrome | `SkUiLabel`, `SkUiButton`, `SkUiImage`, `SkUiImageButton`, `SkUiAvatarView`, `SkUiActivityIndicator`, `SkUiProgressBar` |
-| Toggles & values | `SkUiSwitch`, `SkUiCheckBox`, `SkUiRadioButton`, `SkUiSlider`, `SkUiStepper` |
+| Toggles & values | `SkUiSwitch`, `SkUiCheckBox`, `SkUiRadioButton`, `SkUiSegmentedControl`, `SkUiSlider`, `SkUiStepper` |
 | Text input | `SkUiEntry`, `SkUiEditor`, `SkUiSearchBar`, `SkUiNumericEntry` / `SkUiNumericEntry<T>` |
 | Pickers | `SkUiPicker`, `SkUiMultiColumnPicker`, `SkUiDatePicker`, `SkUiTimePicker`, `SkUiDateTimePicker` |
 | Content & loading | `SkUiContentPresenter`, `SkUiAlternateContentView`, `SkUiExpander`, `SkUiStateContainer`, `SkUiShimmer` |
@@ -169,7 +169,7 @@ No second layout for the skeleton: while `IsLoading` is true, the still-empty li
 | --- | --- |
 | Bridge | `SkUiCoreHost` |
 | Layouts | `SkUiCoreAbsoluteLayout`, stacks, overlay, `SkUiCoreGrid` / `SkUiCoreTable`, wrap and shrink layouts, `SkUiCoreContentView` / `SkUiCoreBorder`, `SkUiCoreScrollView` |
-| Controls | `SkUiCoreLabel`, `SkUiCoreButton`, toggles, `SkUiCoreSlider`, `SkUiCoreProgressBar`, image / image button, `SkUiCoreAvatar`, activity indicator, shapes, `SkUiCoreShimmer`, `SkUiCoreIndicatorView` |
+| Controls | `SkUiCoreLabel`, `SkUiCoreButton`, toggles, `SkUiCoreSlider`, `SkUiCoreProgressBar`, image / image button, `SkUiCoreAvatar`, activity indicator, shapes, `SkUiCoreShimmer`, `SkUiCoreSegmentedControl`, `SkUiCoreTabView`, `SkUiCoreCarouselView`, `SkUiCoreIndicatorView` |
 | Text input & pickers | `SkUiCoreEntry` / `SkUiCoreEditor` / `SkUiCoreSearchBar` / `SkUiCoreNumericEntry` / `SkUiCoreStepper`; `SkUiCorePicker`, `SkUiCoreMultiColumnPicker`, `SkUiCoreDatePicker`, `SkUiCoreTimePicker`, `SkUiCoreDateTimePicker` |
 
 Per-control guides (behavior vs MAUI, XAML samples, limits): **[docs/controls/](docs/controls/README.md)** · Core overview: **[docs/controls/SkUiCore.md](docs/controls/SkUiCore.md)**.

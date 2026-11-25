@@ -10,7 +10,7 @@ namespace MauiSkiaUiDemo;
 public sealed class TabViewDemoPage : ComponentDemoPage
 {
     public TabViewDemoPage()
-        : base(nameof(SkUiTabView), CreateSample(), native: null, heightRange: (240, 600, 420))
+        : base(nameof(SkUiTabView), CreateSample(), native: null, widthRange: (200, 380, 320), heightRange: (240, 600, 420))
     {
         var tabs = (SkUiTabView)SkiaControl;
         tabs.SelectionChanged += (_, args) => Feedback($"Selected {args.CurrentIndex} (was {args.PreviousIndex})");
@@ -22,7 +22,7 @@ public sealed class TabViewDemoPage : ComponentDemoPage
         Choice(nameof(SkUiTabView.IndicatorStyle), Enum.GetValues<SkUiTabIndicatorStyle>(), SkUiTabIndicatorStyle.Underline,
             value => tabs.IndicatorStyle = value, () => tabs.IndicatorStyle);
         Toggle(nameof(SkUiTabView.IsSwipeEnabled), true, value => tabs.IsSwipeEnabled = value, () => tabs.IsSwipeEnabled);
-        Toggle("Settings tab enabled", false, value => tabs.Tabs[2].IsEnabled = value, () => tabs.Tabs[2].IsEnabled);
+        Toggle("Info tab enabled", false, value => tabs.Tabs[2].IsEnabled = value, () => tabs.Tabs[2].IsEnabled);
     }
 
     internal static SkUiTabView CreateSample()
@@ -41,7 +41,7 @@ public sealed class TabViewDemoPage : ComponentDemoPage
                 HorizontalTextAlignment = TextAlignment.Center, VerticalTextAlignment = TextAlignment.Center
             })
         });
-        tabs.AddTab(new SkUiTabItem("Settings", new SkUiLabel { Text = "Disabled: swipes and keys skip it" }) { IsEnabled = false });
+        tabs.AddTab(new SkUiTabItem("Info", new SkUiLabel { Text = "Disabled: swipes and keys skip it" }) { IsEnabled = false });
         tabs.AddTab(new SkUiTabItem("About", new SkUiLabel { Text = "The last tab", HorizontalTextAlignment = TextAlignment.Center, VerticalTextAlignment = TextAlignment.Center }));
         return tabs;
     }

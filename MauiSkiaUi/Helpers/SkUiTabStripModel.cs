@@ -65,6 +65,9 @@ internal sealed class SkUiTabStripModel(ISkUiTabStripOwner owner, ISkUiTransitio
 
     private static SkUiTabStripMetrics Metrics => SkUiLook.Current.TabStripMetrics;
 
+    /// <summary>Makes the tree's look current outside measuring and recording (arranging, links), where nothing else does.</summary>
+    private SkUiLookScope EnterLook() => SkUiLookScope.Enter((ISkUiRenderable)host);
+
     #region Tabs
 
     /// <summary>Whether the user can select tab <paramref name="index"/>.</summary>
@@ -166,6 +169,7 @@ internal sealed class SkUiTabStripModel(ISkUiTabStripOwner owner, ISkUiTransitio
     {
         get
         {
+            using var lookScope = EnterLook();
             for (var index = 0; index < owner.TabCount; index++)
                 if (owner.IconOf(index) is not null)
                     return Metrics.IconHeight;
@@ -230,6 +234,7 @@ internal sealed class SkUiTabStripModel(ISkUiTabStripOwner owner, ISkUiTransitio
     /// <summary>Lays the headers out in a strip arranged <paramref name="width"/> × <paramref name="height"/> in a tab view <paramref name="viewport"/> wide.</summary>
     public void Arrange(double viewport, double width, double height)
     {
+        using var lookScope = EnterLook();
         if (!_prepared || _engine.Mirrored != owner.IsRightToLeft)
             Prepare();
         _engine.Arrange(double.IsFinite(viewport) ? Math.Min(viewport, width) : width, height);
@@ -270,6 +275,7 @@ internal sealed class SkUiTabStripModel(ISkUiTabStripOwner owner, ISkUiTransitio
     {
         if (!HasIndicator)
             return Rect.Zero;
+        using var lookScope = EnterLook();
         var style = TextStyle;
         var frame = IndicatorBounds(0, style);
         var width = frame.Width;
@@ -298,6 +304,7 @@ internal sealed class SkUiTabStripModel(ISkUiTabStripOwner owner, ISkUiTransitio
     {
         if (!HasIndicator || !panes.HasGeometry || panes.Count != _headers.Count || _engine.Count != _headers.Count)
             return;
+        using var lookScope = EnterLook();
         var key = (source, _geometryVersion, panesVersion);
         if (_links is not { } links || _linked != key)
         {

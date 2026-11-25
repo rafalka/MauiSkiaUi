@@ -71,6 +71,38 @@ public class CoreCarouselViewTests
         Assert.False(carousel.IsScrolling);
     }
 
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public void ASwipeRecordsAndAllocatesNothingPerFrame(bool loop, bool effect)
+    {
+        var carousel = new SkUiCoreCarouselView().SetLoop(loop).SetItemsSource(Enumerable.Range(0, 6).ToList())
+            .SetItemFactory(static _ => new SkUiCoreBox().SetColor(Colors.Gray), static (_, _) => { });
+        if (effect)
+            carousel.SetItemEffect(new SkUiCoverFlowEffect());
+        var host = Host(carousel);
+        using var surface = new SkUiTestSurface(host, 300, 200);
+        surface.Frame(0);
+        for (var round = 0; round < 4; round++) // there and back, twice: the items in view exist
+        {
+            var (from, to) = round % 2 == 0 ? (250, 50) : (50, 250);
+            Swipe(host, new Point(from, 100), new Point(to, 100), round * 2000);
+            Run(surface, round * 2000 + 30, round * 2000 + 1900);
+        }
+        Swipe(host, new Point(250, 100), new Point(50, 100), 9000);
+        surface.Frame(9030);
+        surface.Frame(9046);
+        var (pictures, offset, allocated) = (surface.RecordedPictures, carousel.ScrollView.ScrollX, GC.GetAllocatedBytesForCurrentThread());
+        for (var ms = 9062d; ms <= 9250; ms += 16)
+            surface.Frame(ms);
+        allocated = GC.GetAllocatedBytesForCurrentThread() - allocated;
+
+        Assert.NotEqual(offset, carousel.ScrollView.ScrollX); // it moved
+        Assert.Equal(pictures, surface.RecordedPictures);
+        Assert.Equal(0, allocated);
+    }
+
     [Fact]
     public void SwipingCanBeTurnedOff()
     {

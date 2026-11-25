@@ -1,3 +1,4 @@
+using MauiSkiaUi.Rendering;
 using SkiaSharp;
 
 namespace MauiSkiaUi;
@@ -295,7 +296,10 @@ internal sealed class SkUiSegmentedModel
     private void Arrange(float width, float height)
     {
         if (!_measured || _engine.Mirrored != _owner.IsRightToLeft)
+        {
+            using var lookScope = SkUiLookScope.Enter((ISkUiRenderable)_owner); // also outside measuring and recording
             PrepareEngine(SkUiLook.Current.SegmentedMetrics);
+        }
         _engine.Arrange(width, height);
     }
 

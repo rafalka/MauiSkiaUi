@@ -701,6 +701,48 @@ public class TabViewLookChangeTests
         Assert.Equal(Pixels(fresh), after);
     }
 
+    public static TheoryData<bool, string> TreeLooks()
+    {
+        var data = new TheoryData<bool, string>();
+        foreach (var core in new[] { false, true })
+            foreach (var name in new[] { nameof(AndroidSkUiLook), nameof(AndroidMaterial3SkUiLook), nameof(MacSkUiLook), nameof(WindowsSkUiLook) })
+                data.Add(core, name);
+        return data;
+    }
+
+    /// <summary>A subtree's own look draws and measures the tab view as the same look app-wide does: strip height, indicator, fonts.</summary>
+    [Theory]
+    [MemberData(nameof(TreeLooks))]
+    public void ASubtreesLookDrawsAsTheSameLookAppWide(bool core, string name)
+    {
+        using var _ = SkUiTestHelpers.UseBundledFont();
+        DefaultSkUiLook look = name switch
+        {
+            nameof(AndroidSkUiLook) => new AndroidSkUiLook(),
+            nameof(AndroidMaterial3SkUiLook) => new AndroidMaterial3SkUiLook(),
+            nameof(MacSkUiLook) => new MacSkUiLook(),
+            _ => new WindowsSkUiLook()
+        };
+        var root = Build(core, SkUiTabIndicatorStyle.Underline);
+        root.Look = look;
+        using var surface = new SkUiTestSurface(root, 300, 160);
+        surface.Frame(0);
+        var subtree = Pixels(surface);
+
+        var app = SkUiLook.Current;
+        try
+        {
+            SkUiLook.Current = look;
+            using var appWide = new SkUiTestSurface(Build(core, SkUiTabIndicatorStyle.Underline), 300, 160);
+            appWide.Frame(0);
+            Assert.Equal(Pixels(appWide), subtree);
+        }
+        finally
+        {
+            SkUiLook.Current = app;
+        }
+    }
+
     [Theory]
     [InlineData(false, SkUiTabIndicatorStyle.Underline)]
     [InlineData(false, SkUiTabIndicatorStyle.Pill)]

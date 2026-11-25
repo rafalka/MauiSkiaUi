@@ -10,7 +10,7 @@ namespace MauiSkiaUiDemo;
 public sealed class CoreTabViewDemoPage : ComponentDemoPage
 {
     public CoreTabViewDemoPage()
-        : base(nameof(SkUiCoreTabView), CreateSample(out var tabs), native: null, heightRange: (240, 600, 420))
+        : base(nameof(SkUiCoreTabView), CreateSample(out var tabs), native: null, widthRange: (200, 380, 320), heightRange: (240, 600, 420))
     {
         tabs.SelectionChanged += (_, args) => Feedback($"Selected {args.CurrentIndex} (was {args.PreviousIndex})");
         Number(nameof(SkUiCoreTabView.SelectedIndex), 0, 3, 0, value => tabs.SetSelectedIndex((int)value), () => tabs.SelectedIndex, whole: true);
@@ -21,7 +21,7 @@ public sealed class CoreTabViewDemoPage : ComponentDemoPage
         Choice(nameof(SkUiCoreTabView.IndicatorStyle), Enum.GetValues<SkUiTabIndicatorStyle>(), SkUiTabIndicatorStyle.Underline,
             value => tabs.SetIndicatorStyle(value), () => tabs.IndicatorStyle);
         Toggle(nameof(SkUiCoreTabView.IsSwipeEnabled), true, value => tabs.SetIsSwipeEnabled(value), () => tabs.IsSwipeEnabled);
-        Toggle("Settings tab enabled", false, value => tabs.Tabs[2].SetIsEnabled(value), () => tabs.Tabs[2].IsEnabled);
+        Toggle("Info tab enabled", false, value => tabs.Tabs[2].SetIsEnabled(value), () => tabs.Tabs[2].IsEnabled);
     }
 
     internal static SkUiCoreHost CreateSample(out SkUiCoreTabView tabs)
@@ -32,7 +32,7 @@ public sealed class CoreTabViewDemoPage : ComponentDemoPage
         tabs = new SkUiCoreTabView()
             .AddTab(new SkUiCoreTabItem("Posts", new SkUiCoreScrollView().SetContent(list)))
             .AddTab(new SkUiCoreTabItem("Media", static () => Text($"Made by a factory the first time it showed ({DateTime.Now:T})")).SetBadgeText("3"))
-            .AddTab(new SkUiCoreTabItem("Settings", Text("Disabled: swipes and keys skip it")).SetIsEnabled(false))
+            .AddTab(new SkUiCoreTabItem("Info", Text("Disabled: swipes and keys skip it")).SetIsEnabled(false))
             .AddTab(new SkUiCoreTabItem("About", Text("The last tab")));
         return new SkUiCoreHost().SetContent(tabs);
 

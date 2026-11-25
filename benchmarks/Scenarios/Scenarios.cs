@@ -81,6 +81,11 @@ public static class Scenarios
         new CollectionFling(),
         new VirtualStackFling(),
         new CarouselSwipe(),
+        new CoreCarouselSwipe(),
+        new TabViewSwipe(core: false),
+        new TabViewSwipe(core: true),
+        new SegmentedControls(core: false),
+        new SegmentedControls(core: true),
         new Carousels(),
         new CoreCarousels(),
         new SwipeRows(),
@@ -1502,7 +1507,7 @@ public sealed class CoreCarousels : BenchScenario
         return Scenarios.Scroll(new SkUiCoreHost().SetContent(stack));
     }
 
-    private static SkUiCoreNode Card()
+    internal static SkUiCoreNode Card()
     {
         var card = new SkUiCoreBorder().SetBackgroundColor(Colors.White).SetCornerRadius(8);
         card.SetMargin(new Thickness(8, 2));
@@ -1514,7 +1519,7 @@ public sealed class CoreCarousels : BenchScenario
         return card;
     }
 
-    private static void Bind(SkUiCoreNode node, object? item)
+    internal static void Bind(SkUiCoreNode node, object? item)
     {
         if (node is SkUiCoreBorder { Content: SkUiCorePanel { Children: [_, SkUiCoreLabel label] } })
             label.SetText($"Card {item}");

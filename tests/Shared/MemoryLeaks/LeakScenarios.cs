@@ -60,6 +60,7 @@ public static class LeakScenarios
         new("CoreCarouselSwiped", Scrolling, "SkUiCoreCarouselView over a long-lived collection with a long-lived shared cover flow effect, an item factory and a linked SkUiCoreIndicatorView: swiped forward past the middle of its looping strip, the indicator set (a tap), the position set, items added and removed, pages of two, the effect switched, looping turned off and the end reached; closed mid-fling.", () => new CoreCarouselRun()),
         new("TabViewSwiped", Scrolling, "SkUiTabView with four tabs (a scrolled list, a template pane, a badge, a disabled tab) over a long-lived collection and command: swiped and flung across the panes, headers tapped, the selection set by code, a tab added and one removed, the strip moved to the bottom with content widths; closed mid-fling.", () => new TabViewRun()),
         new("CoreTabViewSwiped", Scrolling, "SkUiCoreTabView with four tabs (a list of buttons with a long-lived command, a factory pane, a badge, a disabled tab): swiped and flung across the panes, the selection set by code, a tab added and one removed, the strip moved to the bottom with content widths; closed mid-fling.", () => new CoreTabViewRun()),
+        new("SegmentedControlShown", Controls, "SkUiSegmentedControl and SkUiCoreSegmentedControl with segments and a long-lived command, and over a long-lived collection (a long-lived display binding / a display function): segments tapped (the marker sliding), the selection set by code, a segment added, disabled and removed, an item added and one removed, the items replaced; closed while a marker slides.", () => new SegmentedControlRun()),
         new("PickerOpened", Controls, "SkUiPicker and SkUiCorePicker over a long-lived collection (a display binding, an item template), opened on a long-lived presenter that keeps the last request (as a popup stack does): tapped open and an item chosen in the drawn list, dismissed, closed by IsOpen = false and by hiding the picker, opened by the keyboard, the Core picker chosen; closed with a popup open.", () => new PickerRun()),
         new("DisplayBindingChips", Controls, "Chips an app control builds from view-model items through a long-lived SkUiDisplayBinding over a long-lived binding (as one in app resources), fading on press: texts read from a list, from a sequence and one item alone, chips tapped, the items replaced and read again.", () => new DisplayBindingRun()),
         new("PickerWheelsOpened", Controls, "SkUiPicker with several choices and SkUiMultiColumnPicker, and their Core twins, over long-lived collections (columns' items, a long-lived presenter that keeps the last request): tapped open, rows toggled and wheels set through the request, completed with a selection, a draft accepted (UpdateMode WhenFinished), dismissed, closed by IsOpen = false and by hiding, columns removed while open; inline SkUiPickerWheels over the same items: chosen with a key, set by the app, built again when a column comes and goes; pickers of your own (a value picker and one on SkUiPickerBase) whose popup bodies hold their picker, completed through the request the presenter keeps; closed with a popup open.", () => new PickerWheelsRun()),
@@ -3408,6 +3409,78 @@ public static class LeakScenarios
 
         public override string? CheckInteraction() =>
             _changes >= 4 ? null : $"The selection changed {_changes} times (expected 4 or more).";
+    }
+
+    private sealed class SegmentedControlRun : LeakScenarioRun
+    {
+        private readonly List<SkUiSegmentedControl> _drawn = [];
+        private readonly List<SkUiCoreSegmentedControl> _core = [];
+        private SkUiCoreHost? _host;
+        private int _changes;
+
+        public override View Build(LeakScenarioContext context)
+        {
+            LeakItems.Shared.Clear();
+            foreach (var item in new[] { "One", "Two", "Three" })
+                LeakItems.Shared.Add(item);
+            var stack = new SkUiVerticalStackLayout { Spacing = 12 };
+            var nodes = new SkUiCoreVerticalStackLayout().SetSpacing(12);
+            for (var bound = 0; bound < 2; bound++)
+            {
+                var drawn = context.Track(new SkUiSegmentedControl { Command = LeakCommands.Shared }, "segmented control");
+                var core = context.Track(new SkUiCoreSegmentedControl().SetCommand(LeakCommands.Shared), "core segmented control");
+                if (bound == 0)
+                {
+                    drawn.SetSegments("Day", "Week", "Month");
+                    core.SetSegments("Day", "Week", "Month");
+                }
+                else
+                {
+                    drawn.ItemDisplayBinding = LeakDisplayBindings.Name;
+                    drawn.ItemsSource = new[] { context.Track(new LeakDisplayItem("Red"), "segment item"), context.Track(new LeakDisplayItem("Blue"), "segment item") };
+                    core.SetItemDisplay(static item => $"Item {item}").SetItemsSource(LeakItems.Shared);
+                }
+                drawn.SelectedIndex = 0;
+                core.SetSelectedIndex(0);
+                drawn.SelectionChanged += (_, _) => _changes++;
+                core.SelectionChanged += (_, _) => _changes++;
+                _drawn.Add(drawn);
+                _core.Add(core);
+                stack.Children.Add(drawn);
+                nodes.Add(core);
+            }
+            _host = new SkUiCoreHost().SetContent(nodes);
+            stack.Children.Add(_host);
+            return Root(stack);
+        }
+
+        public override async Task InteractAsync(LeakScenarioContext context)
+        {
+            await context.SettleAsync();
+            foreach (var control in _drawn.Cast<object>().Concat(_core))
+            {
+                await context.TapAsync(control); // the middle of the control
+                await context.WaitAsync(60);
+            }
+            _drawn[0].SelectedIndex = 2;
+            _core[0].SetSelectedIndex(2);
+            _drawn[0].Segments.Add(new SkUiSegment("Year") { IsEnabled = false });
+            _core[0].Segments.Add(new SkUiCoreSegment("Year").SetIsEnabled(false));
+            await context.SettleAsync();
+            _drawn[0].Segments.RemoveAt(0);
+            _core[0].Segments.RemoveAt(0);
+            LeakItems.Shared.Add("Four");
+            LeakItems.Shared.RemoveAt(0);
+            _drawn[1].ItemDisplayBinding = null;
+            _drawn[1].ItemsSource = LeakItems.Shared;
+            await context.WaitAsync(400);
+            _drawn[0].SelectedIndex = 0; // closes while the markers slide
+            _core[0].SetSelectedIndex(0);
+            await context.SettleAsync();
+        }
+
+        public override string? CheckInteraction() =>
+            _changes >= 6 ? null : $"The selection changed {_changes} times (expected 6 or more).";
     }
 
     private sealed class CoreTabViewRun : LeakScenarioRun

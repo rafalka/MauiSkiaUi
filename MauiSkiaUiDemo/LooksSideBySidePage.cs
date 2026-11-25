@@ -54,9 +54,24 @@ public sealed class LooksSideBySidePage : ContentPage
                 new SkUiRadioButton { Content = "Radio button", IsChecked = true, TextColor = scheme.DefaultForeground },
                 new SkUiSlider { Value = 0.4, Maximum = 1, MinimumTrackColor = scheme.Accent, ThumbColor = scheme.Accent },
                 new SkUiProgressBar { Progress = 0.6, ProgressColor = scheme.Accent },
-                new SkUiActivityIndicator { IsRunning = true, Color = scheme.Accent, HorizontalOptions = LayoutOptions.Start }
+                new SkUiActivityIndicator { IsRunning = true, Color = scheme.Accent, HorizontalOptions = LayoutOptions.Start },
+                new SkUiSegmentedControl { SelectedIndex = 1 }.SetSegments("Day", "Week", "Month"),
+                Tabs(scheme)
             }
         };
+    }
+
+    private static SkUiTabView Tabs(SkUiColorScheme scheme)
+    {
+        var tabs = new SkUiTabView { HeightRequest = 120 };
+        foreach (var header in new[] { "Posts", "Media", "About" })
+            tabs.AddTab(new SkUiTabItem(header, new SkUiLabel
+            {
+                Text = $"The {header.ToLowerInvariant()} pane", TextColor = scheme.DefaultForeground,
+                HorizontalTextAlignment = TextAlignment.Center, VerticalTextAlignment = TextAlignment.Center
+            }));
+        tabs.Tabs[1].BadgeText = "3";
+        return tabs;
     }
 
     /// <summary>
