@@ -45,7 +45,11 @@ internal sealed class SkUiIconSlot(ISkUiTransitionHost host, Action changed) : I
 
     public void Dispose()
     {
+        // A change being told now may still reach the listener: there is nothing to load any more.
         _listener?.Listen(null);
-        _slot?.Dispose();
+        Source = null;
+        var slot = _slot;
+        _slot = null;
+        slot?.Dispose();
     }
 }

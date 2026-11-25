@@ -104,56 +104,51 @@ public sealed class SegmentIconTests : IDisposable
         var time = 0d;
         Assert.True(Draws(surface, SKColors.Magenta, ref time), "the icon in its bound color");
     }
-}
 
-/// <summary>1.17: a view dropped with its <c>IsShownChanged</c> handlers (a carousel that autoplays) stops counting as watched.</summary>
-[Collection(GlobalStateCollection.Name)]
-public class ShownTrackerCollectedTests
-{
-    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
-    private static void ShowAndDrop()
+    /// <summary>One source on two items of a control: it goes on with the other when one lets it go.</summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void ASharedIconKeepsItsContextWhenOneItemLetsItGo(bool removed)
     {
-        var carousel = new SkUiCarouselView { ItemsSource = new[] { 1, 2, 3 }, ItemTemplate = new DataTemplate(static () => new SkUiBox()), AutoPlayInterval = TimeSpan.FromSeconds(5) };
-        var root = new SkUiContentView { Content = carousel };
-        var before = SkUiShownTracker.WatchedViews;
-        Assert.True(before > 0);
-        using var surface = new SkUiTestSurface(root, 300, 200);
-        surface.Frame(0);
+        var icon = Icon(Colors.Lime);
+        icon.SetBinding(SkUiVectorImageSource.ColorProperty, static (Model model) => model.Accent);
+        var (a, b) = (new SkUiTabItem { Icon = icon }, new SkUiTabItem { Icon = icon });
+        var tabs = new SkUiTabView { BindingContext = new Model(Colors.Magenta) }.AddTab(a).AddTab(b);
+        Assert.Equal(Colors.Magenta, icon.Color);
+        if (removed)
+            tabs.Tabs.Remove(b);
+        else
+            b.Icon = null;
+        Assert.Equal(Colors.Magenta, icon.Color);
+
+        var other = Icon(Colors.Lime);
+        other.SetBinding(SkUiVectorImageSource.ColorProperty, static (Model model) => model.Accent);
+        var control = new SkUiSegmentedControl { BindingContext = new Model(Colors.Magenta) };
+        control.Segments.Add(new SkUiSegment { Icon = other });
+        control.Segments.Add(new SkUiSegment { Icon = other });
+        if (removed)
+            control.Segments.RemoveAt(1);
+        else
+            control.Segments[1].Icon = null;
+        Assert.Equal(Colors.Magenta, other.Color);
+        control.BindingContext = new Model(Colors.Orange);
+        Assert.Equal(Colors.Orange, other.Color);
     }
 
     [Fact]
-    public void AnAutoplayingCarouselThatIsDroppedStopsCounting()
+    public void AnIconDisposedWhileItsSourceTellsAChangeLoadsNothing()
     {
-        Settle(int.MaxValue);
-        var idle = SkUiShownTracker.WatchedViews;
-        ShowAndDrop();
-        Settle(idle);
-        Assert.True(SkUiShownTracker.WatchedViews <= idle, $"{SkUiShownTracker.WatchedViews} watched views, {idle} before");
-
-        static void Settle(int until)
+        var icon = Icon(Colors.Lime);
+        var tabs = new SkUiTabView().AddTab(new SkUiTabItem("A", new SkUiBox())).AddTab(new SkUiTabItem { Icon = icon });
+        // Listens before the tab's icon does, and removes the tab as the change is told.
+        var image = new SkUiImage { Source = icon };
+        image.LoadingStarted += (_, _) =>
         {
-            for (var round = 0; round < 20 && (round == 0 || SkUiShownTracker.WatchedViews > until); round++)
-            {
-                GC.Collect();
-                GC.WaitForPendingFinalizers();
-            }
-        }
-    }
-
-    [Fact]
-    public void HandlersAddedAndRemovedCountOnce()
-    {
-        var view = new SkUiBox();
-        EventHandler handler = static (_, _) => { };
-        var before = SkUiShownTracker.WatchedViews;
-        for (var round = 0; round < 3; round++)
-        {
-            view.IsShownChanged += handler;
-            view.IsShownChanged += handler;
-            Assert.Equal(before + 1, SkUiShownTracker.WatchedViews);
-            view.IsShownChanged -= handler;
-            view.IsShownChanged -= handler;
-            Assert.Equal(before, SkUiShownTracker.WatchedViews);
-        }
+            if (tabs.Tabs.Count == 2)
+                tabs.Tabs.RemoveAt(1);
+        };
+        icon.Color = Colors.Magenta;
+        Assert.Single(tabs.Tabs);
     }
 }

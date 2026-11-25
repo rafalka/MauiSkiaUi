@@ -72,7 +72,7 @@ public partial class SkUiCoreTabView : SkUiCoreNode, ISkUiFontElement, ISkUiKeyH
 
     #region Properties
 
-    /// <summary>The tabs: each <see cref="SkUiCoreTabItem"/> has a header and a pane, and is in it once (adding it again throws).</summary>
+    /// <summary>The tabs: each <see cref="SkUiCoreTabItem"/> has a header and a pane, and is in it once (adding it again throws; to reorder, remove and insert).</summary>
     public IList<SkUiCoreTabItem> Tabs => _tabs;
 
     /// <summary>The selected tab's index (default 0); coerced to the tabs (kept as set while there are none). See <see cref="SkUiTabView.SelectedIndex"/>.</summary>

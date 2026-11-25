@@ -12,7 +12,7 @@ public class SkUiSegment : Element
 
     /// <summary>Bindable property for <see cref="Icon"/>.</summary>
     public static readonly BindableProperty IconProperty = BindableProperty.Create(nameof(Icon), typeof(ImageSource), typeof(SkUiSegment), null,
-        propertyChanged: static (item, previous, value) => ((SkUiSegment)item).OnIconChanged((ImageSource?)previous, (ImageSource?)value));
+        propertyChanged: static (item, previous, _) => ((SkUiSegment)item).OnIconChanged((ImageSource?)previous));
 
     /// <summary>Bindable property for <see cref="IsEnabled"/>.</summary>
     public static readonly BindableProperty IsEnabledProperty = BindableProperty.Create(nameof(IsEnabled), typeof(bool), typeof(SkUiSegment), true);
@@ -41,20 +41,33 @@ public class SkUiSegment : Element
     /// <summary>Sets <see cref="IsEnabled"/> (same as the property setter).</summary>
     public SkUiSegment SetIsEnabled(bool value) { IsEnabled = value; return this; }
 
-    // Bindings and dynamic resources inside the icon (a color, a glyph) resolve against the item, as in MAUI.
-    private void OnIconChanged(ImageSource? previous, ImageSource? value)
+    private void OnIconChanged(ImageSource? previous)
     {
         if (previous is not null && ReferenceEquals(previous.Parent, this))
+        {
             previous.Parent = null;
-        if (value is not null)
-            value.Parent = this;
+            (Parent as SkUiSegmentedControl)?.ReadoptIcon(previous);
+        }
+        AdoptIcon();
+    }
+
+    /// <summary>
+    /// The icon becomes the item's child, as in MAUI: bindings and dynamic resources inside it (a color, a glyph) resolve against
+    /// the item. One that several items share belongs to the last of them, and to another when that one lets it go.
+    /// </summary>
+    internal void AdoptIcon()
+    {
+        if (Icon is not { } icon)
+            return;
+        icon.Parent = this;
+        SetInheritedBindingContext(icon, BindingContext);
     }
 
     /// <inheritdoc />
     protected override void OnBindingContextChanged()
     {
         base.OnBindingContextChanged();
-        if (Icon is { } icon)
+        if (Icon is { } icon && ReferenceEquals(icon.Parent, this))
             SetInheritedBindingContext(icon, BindingContext);
     }
 }

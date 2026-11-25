@@ -296,6 +296,19 @@ public class SkUiSegmentedControl : SkUiView, ISkUiFontElement, ISkUiSegmentedOw
         segment.PropertyChanged -= OnSegmentPropertyChanged;
         if (ReferenceEquals(segment.Parent, this))
             segment.Parent = null;
+        if (segment.Icon is { } icon)
+            ReadoptIcon(icon);
+    }
+
+    /// <summary>A segment let <paramref name="icon"/> go: another one that shows it takes it, so its bindings go on.</summary>
+    internal void ReadoptIcon(ImageSource icon)
+    {
+        foreach (var segment in _attached)
+            if (ReferenceEquals(segment.Icon, icon))
+            {
+                segment.AdoptIcon();
+                return;
+            }
     }
 
     private void OnSegmentPropertyChanged(object? sender, PropertyChangedEventArgs args)

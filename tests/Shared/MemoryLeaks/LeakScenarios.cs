@@ -58,9 +58,9 @@ public static class LeakScenarios
         new("CarouselSwiped", Scrolling, "SkUiCarouselView over a long-lived collection with a long-lived shared cover flow effect, a long-lived position command and a linked indicator view: swiped and flung forward past the middle of its looping strip (moved back by corrections), an indicator tapped, the position set by code, items added and removed, the effect switched, looping turned off and the end reached (load-more command); closed mid-fling.", () => new CarouselRun()),
         new("CarouselAutoPlay", Scrolling, "SkUiCarouselView with autoplay (a short interval) over a long-lived collection, a linked indicator view and a long-lived position command: steps on its own a few times; closed while a step animates (its timer pending).", () => new CarouselAutoPlayRun()),
         new("CoreCarouselSwiped", Scrolling, "SkUiCoreCarouselView over a long-lived collection with a long-lived shared cover flow effect, an item factory and a linked SkUiCoreIndicatorView: swiped forward past the middle of its looping strip, the indicator set (a tap), the position set, items added and removed, pages of two, the effect switched, looping turned off and the end reached; closed mid-fling.", () => new CoreCarouselRun()),
-        new("TabViewSwiped", Scrolling, "SkUiTabView with four tabs (a scrolled list, a template pane, a badge, a disabled tab) over a long-lived collection and command: swiped and flung across the panes, headers tapped, the selection set by code, a tab added and one removed, the strip moved to the bottom with content widths; closed mid-fling.", () => new TabViewRun()),
-        new("CoreTabViewSwiped", Scrolling, "SkUiCoreTabView with four tabs (a list of buttons with a long-lived command, a factory pane, a badge, a disabled tab): swiped and flung across the panes, the selection set by code, a tab added and one removed, the strip moved to the bottom with content widths; closed mid-fling.", () => new CoreTabViewRun()),
-        new("SegmentedControlShown", Controls, "SkUiSegmentedControl and SkUiCoreSegmentedControl with segments and a long-lived command, and over a long-lived collection (a long-lived display binding / a display function): segments tapped (the marker sliding), the selection set by code, a segment added, disabled and removed, an item added and one removed, the items replaced; closed while a marker slides.", () => new SegmentedControlRun()),
+        new("TabViewSwiped", Scrolling, "SkUiTabView with four tabs (a scrolled list, a template pane, a badge, a disabled tab with a long-lived icon) over a long-lived collection and command: swiped and flung across the panes, headers tapped, the selection set by code, a tab added and one removed, the strip moved to the bottom with content widths; closed mid-fling.", () => new TabViewRun()),
+        new("CoreTabViewSwiped", Scrolling, "SkUiCoreTabView with four tabs (a list of buttons with a long-lived command, a factory pane, a badge, a disabled tab with a long-lived icon): swiped and flung across the panes, the selection set by code, a tab added and one removed, the strip moved to the bottom with content widths; closed mid-fling.", () => new CoreTabViewRun()),
+        new("SegmentedControlShown", Controls, "SkUiSegmentedControl and SkUiCoreSegmentedControl with segments (one with a long-lived icon) and a long-lived command, and over a long-lived collection (a long-lived display binding / a display function): segments tapped (the marker sliding), the selection set by code, a segment added, disabled and removed, an item added and one removed, the items replaced; closed while a marker slides.", () => new SegmentedControlRun()),
         new("PickerOpened", Controls, "SkUiPicker and SkUiCorePicker over a long-lived collection (a display binding, an item template), opened on a long-lived presenter that keeps the last request (as a popup stack does): tapped open and an item chosen in the drawn list, dismissed, closed by IsOpen = false and by hiding the picker, opened by the keyboard, the Core picker chosen; closed with a popup open.", () => new PickerRun()),
         new("DisplayBindingChips", Controls, "Chips an app control builds from view-model items through a long-lived SkUiDisplayBinding over a long-lived binding (as one in app resources), fading on press: texts read from a list, from a sequence and one item alone, chips tapped, the items replaced and read again.", () => new DisplayBindingRun()),
         new("PickerWheelsOpened", Controls, "SkUiPicker with several choices and SkUiMultiColumnPicker, and their Core twins, over long-lived collections (columns' items, a long-lived presenter that keeps the last request): tapped open, rows toggled and wheels set through the request, completed with a selection, a draft accepted (UpdateMode WhenFinished), dismissed, closed by IsOpen = false and by hiding, columns removed while open; inline SkUiPickerWheels over the same items: chosen with a key, set by the app, built again when a column comes and goes; pickers of your own (a value picker and one on SkUiPickerBase) whose popup bodies hold their picker, completed through the request the presenter keeps; closed with a popup open.", () => new PickerWheelsRun()),
@@ -3379,7 +3379,7 @@ public static class LeakScenarios
             var list = context.Track(new SkUiCollectionView { ItemsSource = LeakItems.Shared, SelectionChangedCommand = LeakCommands.Shared }, "tab list");
             _tabs.AddTab(new SkUiTabItem("List", list));
             _tabs.AddTab(new SkUiTabItem { Header = "Template", BadgeText = "3", ContentTemplate = new DataTemplate(() => context.Track(Text("Made once", 18), "template pane")) });
-            _tabs.AddTab(new SkUiTabItem("Off", Text("Disabled", 18)) { IsEnabled = false });
+            _tabs.AddTab(new SkUiTabItem("Off", Text("Disabled", 18)) { IsEnabled = false, Icon = LeakIcons.Shared });
             _tabs.AddTab(new SkUiTabItem("Last", Text("Last pane", 18)));
             return Root(_tabs);
         }
@@ -3433,6 +3433,8 @@ public static class LeakScenarios
                 {
                     drawn.SetSegments("Day", "Week", "Month");
                     core.SetSegments("Day", "Week", "Month");
+                    drawn.Segments[0].Icon = LeakIcons.Shared;
+                    core.Segments[0].SetIcon(LeakIcons.Shared);
                 }
                 else
                 {
@@ -3497,7 +3499,7 @@ public static class LeakScenarios
                 list.Add(context.Track(new SkUiCoreButton().SetCommand(LeakCommands.Shared).SetText($"Row {index}"), "core tab row"));
             _tabs.AddTab(new SkUiCoreTabItem("List", context.Track(new SkUiCoreScrollView(), "core tab list").SetContent(list)));
             _tabs.AddTab(new SkUiCoreTabItem("Factory", () => context.Track(new SkUiCoreLabel().SetText("Made once"), "factory pane")).SetBadgeText("3"));
-            _tabs.AddTab(new SkUiCoreTabItem("Off", new SkUiCoreLabel().SetText("Disabled")).SetIsEnabled(false));
+            _tabs.AddTab(new SkUiCoreTabItem("Off", new SkUiCoreLabel().SetText("Disabled")).SetIsEnabled(false).SetIcon(LeakIcons.Shared));
             _tabs.AddTab(new SkUiCoreTabItem("Last", new SkUiCoreLabel().SetText("Last pane")));
             return Root(new SkUiCoreHost().SetContent(_tabs));
         }
@@ -4474,6 +4476,12 @@ public static class LeakGroups
     {
         public string Name { get; } = name;
     }
+}
+
+/// <summary>An icon source that outlives every scenario, like one in app resources: controls listen to it weakly.</summary>
+public static class LeakIcons
+{
+    public static ImageSource Shared { get; } = LeakImages.Cached(SKColors.Teal);
 }
 
 /// <summary>Small in-memory PNG sources (no files or network, so they work headless too).</summary>

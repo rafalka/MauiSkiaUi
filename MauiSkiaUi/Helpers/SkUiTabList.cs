@@ -2,7 +2,7 @@ using System.Collections.ObjectModel;
 
 namespace MauiSkiaUi;
 
-/// <summary>A tab view's tabs: each item once (its pane is in one place).</summary>
+/// <summary>A tab view's tabs: each item once, as it has one pane.</summary>
 internal sealed class SkUiTabList<T> : ObservableCollection<T> where T : class
 {
     protected override void InsertItem(int index, T item)

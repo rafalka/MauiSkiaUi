@@ -100,7 +100,7 @@ public partial class SkUiTabView : SkUiView, ISkUiFontElement, ISkUiKeyHandler, 
 
     #region Properties
 
-    /// <summary>The tabs (the XAML content): each <see cref="SkUiTabItem"/> has a header and a pane, and is in it once (adding it again throws). They take the tab view's binding context.</summary>
+    /// <summary>The tabs (the XAML content): each <see cref="SkUiTabItem"/> has a header and a pane, and is in it once (adding it again throws; to reorder, remove and insert). They take the tab view's binding context.</summary>
     public IList<SkUiTabItem> Tabs => _tabs ??= CreateTabs();
 
     /// <summary>
@@ -333,6 +333,8 @@ public partial class SkUiTabView : SkUiView, ISkUiFontElement, ISkUiKeyHandler, 
                 _attached.Remove(tab);
                 if (ReferenceEquals(tab.Parent, this))
                     tab.Parent = null;
+                if (tab.Icon is { } icon)
+                    ReadoptIcon(icon);
                 Panes.Forget(tab);
             }
         foreach (var tab in tabs)
@@ -344,6 +346,17 @@ public partial class SkUiTabView : SkUiView, ISkUiFontElement, ISkUiKeyHandler, 
                 tab.BindingContextChanged += OnTabBindingContextChanged;
             }
         Rebuild();
+    }
+
+    /// <summary>A tab let <paramref name="icon"/> go: another one that shows it takes it, so its bindings go on.</summary>
+    internal void ReadoptIcon(ImageSource icon)
+    {
+        foreach (var tab in _attached)
+            if (ReferenceEquals(tab.Icon, icon))
+            {
+                tab.AdoptIcon();
+                return;
+            }
     }
 
     private void OnTabBindingContextChanged(object? sender, EventArgs args)
