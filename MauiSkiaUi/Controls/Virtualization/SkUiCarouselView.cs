@@ -448,6 +448,7 @@ public partial class SkUiCarouselView : SkUiView, ISkUiScrollStepper
     /// <summary>Stops a running scroll; the position is not taken from where it stopped.</summary>
     private void StopScrolling()
     {
+        _targetIndex = -1;
         _requestingScroll = true;
         try { Controller.StopMotion(); }
         finally { _requestingScroll = false; }
@@ -518,6 +519,8 @@ public partial class SkUiCarouselView : SkUiView, ISkUiScrollStepper
             return;
         }
         AnnounceCurrentItem(value);
+        if (!Equals(_announcedItem, value))
+            return; // a handler moved on
         if (index != Position)
             WriteBack(PositionProperty, index);
     }
@@ -791,7 +794,7 @@ public partial class SkUiCarouselView : SkUiView, ISkUiScrollStepper
         RestartAutoPlay();
         if (Panel.HasGeometry && ItemCount > 0)
         {
-            var disturbed = Panel.TakeDisturbed();
+            var disturbed = Panel.TakeDisturbed() && !Controller.IsCatching; // a finger that stops it holds it
             var current = asked && disturbed ? _position : Panel.CurrentIndex(_position);
             if (current != _position)
                 ApplyPosition(_position, current, fromScroll: true);
@@ -1390,12 +1393,12 @@ public partial class SkUiCarouselView : SkUiView, ISkUiScrollStepper
     {
         UpdateEmpty();
         var empty = _isEmpty ? ((IView)_emptyHost).Measure(widthConstraint, heightConstraint) : Size.Zero;
-        var offered = _horizontal ? widthConstraint : heightConstraint;
-        Panel.SetViewport(offered, arranging: false);
+        var length = _horizontal ? Panel.Offer(widthConstraint, heightConstraint) : Panel.Offer(heightConstraint, widthConstraint);
         var size = ((IView)Scroller).Measure(widthConstraint, heightConstraint);
         // Unbounded along the axis, the carousel is as long as its viewport (an item and the peek insets), not its strip.
-        var length = Panel.MeasuredViewport(offered);
-        size = _horizontal ? new Size(Math.Min(size.Width, length), size.Height) : new Size(size.Width, Math.Min(size.Height, length));
+        size = _horizontal
+            ? new Size(double.IsFinite(widthConstraint) ? Math.Min(size.Width, length) : length, size.Height)
+            : new Size(size.Width, double.IsFinite(heightConstraint) ? Math.Min(size.Height, length) : length);
         return new Size(Math.Max(size.Width, empty.Width), Math.Max(size.Height, empty.Height));
     }
 
@@ -1404,7 +1407,7 @@ public partial class SkUiCarouselView : SkUiView, ISkUiScrollStepper
     {
         var bounds = new Rect(0, 0, size.Width, size.Height);
         // Items that fill the carousel are as long as its arranged viewport, which the measure may not have known.
-        Panel.SetViewport(_horizontal ? size.Width : size.Height, arranging: true);
+        Panel.SetViewport(_horizontal ? size.Width : size.Height);
         ((IView)Scroller).Measure(size.Width, size.Height);
         ((IView)Scroller).Arrange(bounds);
         if (_isEmpty)
@@ -1418,8 +1421,10 @@ public partial class SkUiCarouselView : SkUiView, ISkUiScrollStepper
     internal override void OnEffectiveFlowDirectionChanged()
     {
         base.OnEffectiveFlowDirectionChanged();
-        if (_panel is null)
-            return; // an implicit style in the base constructor
+        // A vertical strip's offset does not depend on the direction (and an implicit style can run in the base constructor).
+        if (_panel is null || !_horizontal)
+            return;
+        _targetIndex = -1;
         _requestingScroll = true;
         try { Panel.Place(_position); } // the offset is the other direction's: only the position says where the strip is
         finally { _requestingScroll = false; }

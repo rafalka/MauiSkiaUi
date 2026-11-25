@@ -305,6 +305,7 @@ public partial class SkUiCoreCarouselView : SkUiCoreNode, ISkUiScrollStepper, IS
     /// <summary>Stops a running scroll; the position is not taken from where it stopped.</summary>
     private void StopScrolling()
     {
+        _targetIndex = -1;
         _requestingScroll = true;
         try { Controller.StopMotion(); }
         finally { _requestingScroll = false; }
@@ -339,7 +340,9 @@ public partial class SkUiCoreCarouselView : SkUiCoreNode, ISkUiScrollStepper, IS
         }
         if (_position != value)
             return;
-        if (previous != value && PositionChanged is { } handler && SkUiCarouselView.TryCreatePositionArgs(previous, value) is { } args)
+        var told = _announcedPosition;
+        _announcedPosition = value;
+        if (told != value && PositionChanged is { } handler && SkUiCarouselView.TryCreatePositionArgs(told, value) is { } args)
             handler(this, args);
         if (_position != value)
             return;
@@ -351,6 +354,8 @@ public partial class SkUiCoreCarouselView : SkUiCoreNode, ISkUiScrollStepper, IS
         CheckThreshold();
         InvalidateSemantics();
     }
+
+    private int _announcedPosition; // the position the last event told of
 
     private void SyncCurrentItem(object? item)
     {
@@ -425,7 +430,7 @@ public partial class SkUiCoreCarouselView : SkUiCoreNode, ISkUiScrollStepper, IS
         _autoPlay?.Restart();
         if (_panel.HasGeometry && ItemCount > 0)
         {
-            var disturbed = _panel.TakeDisturbed();
+            var disturbed = _panel.TakeDisturbed() && !Controller.IsCatching; // a finger that stops it holds it
             var current = asked && disturbed ? _position : _panel.CurrentIndex(_position);
             if (current != _position)
                 ApplyPosition(current, fromScroll: true);
@@ -836,12 +841,12 @@ public partial class SkUiCoreCarouselView : SkUiCoreNode, ISkUiScrollStepper, IS
     {
         UpdateEmpty();
         var empty = _isEmpty && _emptyView is { } view ? view.Measure(widthConstraint, heightConstraint) : Size.Zero;
-        var offered = _horizontal ? widthConstraint : heightConstraint;
-        _panel.SetViewport(offered, arranging: false);
+        var length = _horizontal ? _panel.Offer(widthConstraint, heightConstraint) : _panel.Offer(heightConstraint, widthConstraint);
         var size = _scroller.Measure(widthConstraint, heightConstraint);
         // Unbounded along the axis, the carousel is as long as its viewport (an item and the peek insets), not its strip.
-        var length = _panel.MeasuredViewport(offered);
-        size = _horizontal ? new Size(Math.Min(size.Width, length), size.Height) : new Size(size.Width, Math.Min(size.Height, length));
+        size = _horizontal
+            ? new Size(double.IsFinite(widthConstraint) ? Math.Min(size.Width, length) : length, size.Height)
+            : new Size(size.Width, double.IsFinite(heightConstraint) ? Math.Min(size.Height, length) : length);
         return new Size(Math.Max(size.Width, empty.Width), Math.Max(size.Height, empty.Height));
     }
 
@@ -850,7 +855,7 @@ public partial class SkUiCoreCarouselView : SkUiCoreNode, ISkUiScrollStepper, IS
     {
         var bounds = new Rect(0, 0, size.Width, size.Height);
         // Items that fill the carousel are as long as its arranged viewport, which the measure may not have known.
-        _panel.SetViewport(_horizontal ? size.Width : size.Height, arranging: true);
+        _panel.SetViewport(_horizontal ? size.Width : size.Height);
         _scroller.Measure(size.Width, size.Height);
         _scroller.Arrange(bounds);
         if (_isEmpty && _emptyView is { } empty)
@@ -864,6 +869,9 @@ public partial class SkUiCoreCarouselView : SkUiCoreNode, ISkUiScrollStepper, IS
     internal override void OnEffectiveFlowDirectionChanged()
     {
         base.OnEffectiveFlowDirectionChanged();
+        if (!_horizontal)
+            return; // a vertical strip's offset does not depend on the direction
+        _targetIndex = -1;
         _requestingScroll = true;
         try { _panel.Place(_position); } // the offset is the other direction's: only the position says where the strip is
         finally { _requestingScroll = false; }

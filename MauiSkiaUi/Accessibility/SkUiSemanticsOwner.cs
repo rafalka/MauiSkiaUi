@@ -222,7 +222,7 @@ internal static class SkUiSemantics
             if (SkUiScrollController.GetContentBounds(host, node) is not { } bounds)
                 continue;
             var from = new Point(scroller.X, scroller.Y);
-            if (scroller.Stepper?.Reveal(node) is { } revealed)
+            if (scroller.Revealer?.Reveal(node, animated: !HasScrollHostAbove(current)) is { } revealed)
             {
                 inRoot = inRoot.Offset(from.X - revealed.X, from.Y - revealed.Y);
                 continue;

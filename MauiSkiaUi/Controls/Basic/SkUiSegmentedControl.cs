@@ -383,6 +383,8 @@ public class SkUiSegmentedControl : SkUiView, ISkUiFontElement, ISkUiSegmentedOw
         else if (!waiting && _selectedSource is not null && count > 0)
             _requested = Math.Min(_applied, count - 1); // the selected option went: the one in its place
         var selected = count == 0 ? SelectedIndex : Math.Min(_requested, count - 1);
+        if (count > 0 && selected >= 0)
+            _pendingItem = null; // another option is selected: an item that comes later does not take over
         if (selected != SelectedIndex)
         {
             _coercing = true;

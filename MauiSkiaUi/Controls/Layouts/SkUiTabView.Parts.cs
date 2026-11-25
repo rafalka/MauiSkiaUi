@@ -70,7 +70,18 @@ public partial class SkUiTabView
 
         public bool HasGeometry => _engine.HasGeometry;
 
-        public double MeasuredViewport(double viewport) => _engine.MeasuredViewport(viewport);
+        /// <summary>How wide the panes are when nothing bounds them: as the first created (the selected one's, to begin with) asks for.</summary>
+        public double UnboundedWidth(double cross)
+        {
+            if (_children.Count == 0)
+                EnsurePane(Position);
+            var width = _engine.UnboundedViewport(default, cross);
+            if (_children.Count > 0 && _engine.HasGeometry)
+                MeasureCell(_children[0]); // probed unbounded: as laid out again
+            return width;
+        }
+
+        public bool IsArranged => _arranged;
 
         /// <summary>A version bumped when the panes' geometry changes (the indicator rebuilds its links).</summary>
         public int GeometryVersion { get; private set; }
@@ -83,9 +94,9 @@ public partial class SkUiTabView
 
         public SkUiCarouselEngine Engine => _engine;
 
-        public void SetViewport(double viewport, bool arranging)
+        public void SetViewport(double viewport)
         {
-            if (!(arranging ? _engine.SetViewport(viewport, LogicalOffset, _arranged) : _engine.OfferViewport(viewport, LogicalOffset, _arranged)))
+            if (!_engine.SetViewport(viewport, LogicalOffset, _arranged))
                 return;
             _disturbed |= Controller.IsMotionRunning;
             // The tab view measures (and arranges) the scroller right after: see the carousel's panel.
@@ -277,9 +288,6 @@ public partial class SkUiTabView
 
         protected override Size MeasureContent(double widthConstraint, double heightConstraint)
         {
-            // Nothing bounding the width, the panes are as wide as the first created: the selected one's, to begin with.
-            if (_children.Count == 0 && !double.IsFinite(_owner.MeasuredWidth))
-                EnsurePane(Position);
             if (_engine.NeedsLayout(heightConstraint))
             {
                 _engine.UpdateGeometry(new SkUiCarouselLayout(default, 0, 0, SnapPointsAlignment.Start, null), heightConstraint, Position);
@@ -381,6 +389,17 @@ public partial class SkUiTabView
                 return;
             _laidOut = false;
             KeepInView(_owner.SelectedIndex, animated: false);
+        }
+
+        /// <summary>The strip took focus: its selected header shows; returns where its scroller ends.</summary>
+        public Point? Reveal(bool animated)
+        {
+            if (_owner._stripScroller is not { } scroller)
+                return null;
+            if (Model.KeepInView(_owner.SelectedIndex, scroller.ScrollX, ViewportWidth) is not { } target)
+                return new Point(scroller.ScrollX, scroller.ScrollY);
+            _ = scroller.ScrollToAsync(target, 0, animated);
+            return new Point(target, scroller.ScrollY);
         }
 
         private void KeepInView(int index, bool animated)

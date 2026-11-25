@@ -196,6 +196,141 @@ public class TabViewChangesTests
 
     #endregion
 
+    #region The second look: what the fixes must not break
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void AnUnboundedTabViewFollowsItsPanesSize(bool core)
+    {
+        using var _ = SkUiTestHelpers.UseBundledFont();
+        var drawn = new SkUiBox { WidthRequest = 260, HeightRequest = 90 };
+        var node = new SkUiCoreBox();
+        node.SetWidth(260).SetHeight(90);
+        var tabs = Make(core, drawnPane: index => index == 0 ? drawn : new SkUiBox(), corePane: index => index == 0 ? node : new SkUiCoreBox());
+        using var surface = new SkUiTestSurface(LayoutSettling.Place(tabs.Root, "horizontal stack"), 600, 300);
+        LayoutSettling.AssertSettles(surface, "at first");
+        Assert.Equal(260, tabs.Root.Width, 0.5);
+        if (core)
+            node.SetWidth(400).SetHeight(140);
+        else
+            (drawn.WidthRequest, drawn.HeightRequest) = (400, 140);
+        LayoutSettling.AssertSettles(surface, "larger", 2000);
+        Assert.Equal(400, tabs.Root.Width, 0.5);
+        Assert.Equal(140 + SkUiLook.Current.TabStripMetrics.Height, ((IView)tabs.Root).DesiredSize.Height, 0.5);
+    }
+
+    [Theory]
+    [InlineData(false, 1)]
+    [InlineData(false, 2)]
+    [InlineData(true, 1)]
+    [InlineData(true, 2)]
+    public void SeveralTabsAddedInOneTurnDoNotMakeThePanesJump(bool core, int added)
+    {
+        using var _ = SkUiTestHelpers.UseBundledFont();
+        var tabs = Make(core);
+        using var surface = new SkUiTestSurface(tabs.Root, 300, 200);
+        surface.Frame(0);
+        tabs.Select(2);
+        Run(surface, 16, 130);
+        var before = tabs.Offset();
+        Assert.InRange(before, 60, 560);
+        for (var index = 0; index < added; index++)
+            tabs.Insert(4, "New");
+        surface.Frame(146);
+        Assert.InRange(tabs.Offset(), before, before + 120); // one frame on
+        var highest = 0d;
+        for (var ms = 162; ms < 1500; ms += 16)
+        {
+            surface.Frame(ms);
+            highest = Math.Max(highest, tabs.Offset());
+        }
+        Assert.InRange(highest, 599.5, 600.5); // never past the tab asked for
+        Assert.Equal(2, tabs.Selected());
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void FocusInAnotherPaneLeavesAScrollViewAroundTheTabViewInPlace(bool core)
+    {
+        using var _ = SkUiTestHelpers.UseBundledFont();
+        var (tabs, buttons, _) = WithButtons(core);
+        tabs.Root.WidthRequest = 300;
+        tabs.Root.HeightRequest = 200;
+        var outer = new SkUiScrollView
+        {
+            Orientation = ScrollOrientation.Horizontal,
+            Content = new SkUiHorizontalStackLayout { Children = { (ISkUiView)tabs.Root, new SkUiBox { WidthRequest = 900, HeightRequest = 200 } } }
+        };
+        using var surface = new SkUiTestSurface(outer, 300, 200);
+        surface.Frame(0);
+        foreach (var index in new[] { 2, 0 })
+        {
+            tabs.Select(index);
+            Run(surface, index == 2 ? 16 : 1000, index == 2 ? 900 : 1900);
+        }
+        Assert.True(outer.FocusManager.Focus(buttons[2]));
+        Run(surface, 2000, 3000);
+        Assert.Equal((2, 600, 0), (tabs.Selected(), (int)Math.Round(tabs.Offset()), (int)Math.Round(outer.ScrollX)));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void MovingFocusToAWideStripKeepsItsSelectedHeaderInView(bool core)
+    {
+        using var _ = SkUiTestHelpers.UseBundledFont();
+        var buttons = new List<ISkUiAccessibleNode>();
+        var tabs = Make(core, count: 12, drawnPane: _ => { var button = new SkUiButton { Text = "B" }; buttons.Add(button); return button; },
+            corePane: _ => { var button = new SkUiCoreButton().SetText("B"); buttons.Add(button); return button; });
+        for (var index = 0; index < 12; index++)
+            if (core)
+                tabs.Core!.Tabs[index].SetHeader($"Section {index}");
+            else
+                ((SkUiTabView)tabs.Drawn!).Tabs[index].Header = $"Section {index}";
+        if (core)
+            tabs.Core!.SetTabWidthMode(SkUiSegmentWidthMode.Content);
+        else
+            ((SkUiTabView)tabs.Drawn!).TabWidthMode = SkUiSegmentWidthMode.Content;
+        using var surface = new SkUiTestSurface(tabs.Root, 300, 200);
+        surface.Frame(0);
+        tabs.Select(7);
+        Run(surface, 16, 1000);
+        Assert.True(tabs.Root.FocusManager.Focus(buttons[7]));
+        Assert.True(tabs.Root.FocusManager.KeyDown(SkUiKey.Tab, SkUiKeyModifiers.Control));
+        Run(surface, 1100, 2200);
+        Assert.Equal(8, tabs.Selected());
+        var header = core ? tabs.Core!.HeaderBounds(8) : ((SkUiTabView)tabs.Drawn!).HeaderBounds(8);
+        var scroll = core ? tabs.Core!.StripScrollViewForTests.ScrollX : ((SkUiTabView)tabs.Drawn!).StripScrollViewForTests.ScrollX;
+        Assert.InRange(scroll, header.Right - 300 - 0.5, header.Left + 0.5);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void AFingerThatCatchesThePanesHoldsThem(bool core)
+    {
+        using var _ = SkUiTestHelpers.UseBundledFont();
+        var tabs = Make(core);
+        using var surface = new SkUiTestSurface(tabs.Root, 300, 200);
+        surface.Frame(0);
+        tabs.Select(2);
+        Run(surface, 16, 130);
+        tabs.Insert(4, "New");
+        Run(surface, 146, 162);
+        tabs.Root.Touch(new(480_001, SkUiTouchAction.Pressed, new Point(150, 120), TimeSpan.FromMilliseconds(170)));
+        surface.Frame(178);
+        var held = tabs.Offset();
+        Run(surface, 194, 900);
+        Assert.Equal(held, tabs.Offset(), 0.5);
+        tabs.Root.Touch(new(480_001, SkUiTouchAction.Released, new Point(150, 120), TimeSpan.FromMilliseconds(910)));
+        Run(surface, 920, 2500);
+        AssertRestsOnTheSelectedTab(tabs, 5, false, "after the release");
+    }
+
+    #endregion
+
     #region The selection set again inside its event
 
     [Theory]
@@ -471,13 +606,13 @@ internal static class LayoutSettling
         }
     }
 
-    public static void AssertSettles(SkUiTestSurface surface, string when)
+    public static void AssertSettles(SkUiTestSurface surface, string when, double startMs = 0)
     {
         for (var frame = 0; frame < 10; frame++)
-            surface.Frame(frame * 16);
+            surface.Frame(startMs + frame * 16);
         var before = surface.RenderRequests;
         for (var frame = 10; frame < 40; frame++)
-            surface.Frame(frame * 16);
+            surface.Frame(startMs + frame * 16);
         Assert.True(surface.RenderRequests == before, $"{when}: {surface.RenderRequests - before} frames asked for in 30 idle ones");
     }
 }

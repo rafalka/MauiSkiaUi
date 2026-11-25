@@ -326,6 +326,8 @@ public class SkUiCoreSegmentedControl : SkUiCoreNode, ISkUiFontElement, ISkUiSeg
         else if (!waiting && _selectedSource is not null && count > 0)
             _requested = Math.Min(_applied, count - 1); // the selected option went: the one in its place
         var selected = count == 0 ? _selectedIndex : Math.Min(_requested, count - 1);
+        if (count > 0 && selected >= 0)
+            _pendingItem = null; // another option is selected: an item that comes later does not take over
         Select(selected, animate: false);
     }
 

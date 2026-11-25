@@ -12,7 +12,7 @@ namespace MauiSkiaUi;
 /// a page; see <c>docs/controls/SkUiTabView.md</c>.
 /// </summary>
 [ContentProperty(nameof(Tabs))]
-public partial class SkUiTabView : SkUiView, ISkUiFontElement, ISkUiKeyHandler, ISkUiScrollStepper, ISkUiTabStripOwner
+public partial class SkUiTabView : SkUiView, ISkUiFontElement, ISkUiKeyHandler, ISkUiScrollStepper, ISkUiScrollRevealer, ISkUiTabStripOwner
 {
     private ObservableCollection<SkUiTabItem>? _tabs;
     private readonly HashSet<SkUiTabItem> _attached = [];
@@ -25,6 +25,7 @@ public partial class SkUiTabView : SkUiView, ISkUiFontElement, ISkUiKeyHandler, 
     private int _applied = -1;
     private bool _coercing;
     private bool _keepsPlace;
+    private bool _jumps; // a selection that shows focus inside other scrollers: at once
     private bool _requestingScroll; // starting a scroll stops a running one, which reports a rest: not a swipe's
     private int _scrollingTo = -1;   // the tab a scroll goes to: the selection stays there until it ends or a drag takes over
 
@@ -278,6 +279,8 @@ public partial class SkUiTabView : SkUiView, ISkUiFontElement, ISkUiKeyHandler, 
         };
         _paneScroller.RegisterScrollListener(_panes);
         ((ISkUiScrollHost)_paneScroller).Scroller.Stepper = this;
+        ((ISkUiScrollHost)_paneScroller).Scroller.Revealer = this;
+        ((ISkUiScrollHost)_stripScroller).Scroller.Revealer = this;
         ((ISkUiScrollHost)_paneScroller).Scroller.DraggingChanged += dragging =>
         {
             if (dragging)
@@ -407,6 +410,7 @@ public partial class SkUiTabView : SkUiView, ISkUiFontElement, ISkUiKeyHandler, 
     /// <summary>Stops the panes where they are; the selection is not taken from there.</summary>
     private void StopScrolling()
     {
+        _scrollingTo = -1;
         _requestingScroll = true;
         try { PaneController.StopMotion(); }
         finally { _requestingScroll = false; }
@@ -485,13 +489,28 @@ public partial class SkUiTabView : SkUiView, ISkUiFontElement, ISkUiKeyHandler, 
             SkUiSemantics.RootOf(this)?.FocusManager.Focus(Strip);
     }
 
-    /// <summary>A node inside a pane took focus: its tab is selected, so the panes rest on it and not where it just shows.</summary>
-    Point? ISkUiScrollStepper.Reveal(Rendering.ISkUiRenderable node)
+    /// <summary>
+    /// A node inside a pane took focus: its tab is selected, so the panes rest on it and not where it just shows. The strip shows
+    /// its selected header (it can be wider than its scroller).
+    /// </summary>
+    Point? ISkUiScrollRevealer.Reveal(Rendering.ISkUiRenderable node, bool animated)
     {
+        if (ReferenceEquals(node, Strip))
+            return Strip.Reveal(animated);
         if (Panes.TabOf(node) is not { } tab || Tabs.IndexOf(tab) is not (>= 0 and var index))
             return null;
-        if (index != SelectedIndex)
-            WriteBack(SelectedIndexProperty, index);
+        _jumps = !animated;
+        try
+        {
+            if (index != SelectedIndex)
+                WriteBack(SelectedIndexProperty, index);
+            else if (!animated && !Panes.RestsOn(index))
+                ScrollToTab(index, animate: false); // an animated scroll to it would leave it on the way
+        }
+        finally
+        {
+            _jumps = false;
+        }
         return new Point(Panes.OffsetOf(index), PaneController.Y);
     }
 
@@ -522,7 +541,7 @@ public partial class SkUiTabView : SkUiView, ISkUiFontElement, ISkUiKeyHandler, 
             try { WriteBack(SelectedIndexProperty, target); }
             finally { _keepsPlace = false; }
         }
-        if (Panes.TakeDisturbed() && _applied == target && !PaneController.IsMoving && !Panes.RestsOn(target))
+        if (Panes.TakeDisturbed() && _applied == target && !PaneController.IsMoving && !PaneController.IsCatching && !Panes.RestsOn(target))
             ScrollToTab(target, animate: true);
     }
 
@@ -532,7 +551,7 @@ public partial class SkUiTabView : SkUiView, ISkUiFontElement, ISkUiKeyHandler, 
         _requestingScroll = true;
         try
         {
-            if (Panes.ScrollToIndex(index, animate && IsShown && !SkUiMotion.IsMotionReduced).IsCompleted)
+            if (Panes.ScrollToIndex(index, animate && !_jumps && IsShown && !SkUiMotion.IsMotionReduced).IsCompleted)
                 _scrollingTo = -1;
         }
         finally
@@ -593,20 +612,18 @@ public partial class SkUiTabView : SkUiView, ISkUiFontElement, ISkUiKeyHandler, 
     {
         var strip = StripHeight;
         var bounded = double.IsFinite(widthConstraint);
-        MeasuredWidth = widthConstraint;
-        if (bounded)
+        var paneHeight = Math.Max(0, heightConstraint - strip);
+        var width = bounded ? widthConstraint : Math.Max(Strip.Model.DesiredWidth, Panes.UnboundedWidth(paneHeight));
+        // Nothing bounding the width, what is arranged stays laid out for the width it has.
+        if (bounded || !Panes.IsArranged)
         {
-            SetStripViewport(widthConstraint);
-            ((IView)StripScroller).Measure(widthConstraint, strip);
+            SetStripViewport(width);
+            ((IView)StripScroller).Measure(width, strip);
+            Panes.SetViewport(width);
         }
-        Panes.SetViewport(widthConstraint, arranging: false);
-        var panes = ((IView)PaneScrollView).Measure(widthConstraint, Math.Max(0, heightConstraint - strip));
-        var width = bounded ? widthConstraint : Math.Max(Strip.Model.DesiredWidth, Panes.MeasuredViewport(widthConstraint));
+        var panes = ((IView)PaneScrollView).Measure(width, paneHeight);
         return new Size(width, strip + panes.Height);
     }
-
-    /// <summary>The width offered to the last measure.</summary>
-    private double MeasuredWidth { get; set; } = double.NaN;
 
     /// <summary>The strip is laid out again for <paramref name="width"/> (it and its scroller are measured right after).</summary>
     private void SetStripViewport(double width)
@@ -629,7 +646,7 @@ public partial class SkUiTabView : SkUiView, ISkUiFontElement, ISkUiKeyHandler, 
         ((IView)StripScroller).Measure(stripBounds.Width, stripBounds.Height);
         ((IView)StripScroller).Arrange(stripBounds);
         Strip.AfterArrange();
-        Panes.SetViewport(size.Width, arranging: true);
+        Panes.SetViewport(size.Width);
         ((IView)PaneScrollView).Measure(paneBounds.Width, paneBounds.Height);
         ((IView)PaneScrollView).Arrange(paneBounds);
     }

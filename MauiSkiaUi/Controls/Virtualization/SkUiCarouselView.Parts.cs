@@ -146,9 +146,9 @@ public partial class SkUiCarouselView
         private SkUiCarouselItemMetrics Metrics => _engine.Metrics(_arrangedCross);
 
         /// <summary>The viewport along the axis offered by the carousel's layout.</summary>
-        public void SetViewport(double viewport, bool arranging)
+        public void SetViewport(double viewport)
         {
-            if (!(arranging ? _engine.SetViewport(viewport, LogicalOffset, _arranged) : _engine.OfferViewport(viewport, LogicalOffset, _arranged)))
+            if (!_engine.SetViewport(viewport, LogicalOffset, _arranged))
                 return;
             _disturbed |= _owner.Controller.IsMotionRunning;
             // The carousel measures (and arranges) its scroller right after: asking for another layout here would never settle
@@ -157,8 +157,22 @@ public partial class SkUiCarouselView
             _owner.Scroller.ForgetMeasure();
         }
 
-        /// <summary>How long the carousel asks to be along the axis when offered <paramref name="viewport"/>.</summary>
-        public double MeasuredViewport(double viewport) => _engine.MeasuredViewport(viewport);
+        /// <summary>
+        /// A measure offers <paramref name="viewport"/> along the axis; returns the length to ask for: that, or what the items take
+        /// when nothing bounds it (the strip stays laid out for the viewport it is arranged in).
+        /// </summary>
+        public double Offer(double viewport, double cross)
+        {
+            if (double.IsFinite(viewport))
+            {
+                SetViewport(viewport);
+                return viewport;
+            }
+            var asked = _engine.UnboundedViewport(CurrentLayout, cross);
+            if (!_arranged)
+                SetViewport(asked);
+            return asked;
+        }
 
         /// <summary>The direction changed: the item at <paramref name="position"/> is placed again.</summary>
         public void Place(int position)
@@ -210,21 +224,33 @@ public partial class SkUiCarouselView
             InvalidateMeasureOverride();
         }
 
+        private SkUiCarouselLayout CurrentLayout => new(_owner.PeekAreaInsets, _owner.LayoutItemSpacing, _owner.ItemExtent, _owner.LayoutSnapPointsAlignment,
+            _owner._effect, _owner._perPage);
+
         private void UpdateGeometry(double crossConstraint)
         {
-            var layout = new SkUiCarouselLayout(_owner.PeekAreaInsets, _owner.LayoutItemSpacing, _owner.ItemExtent, _owner.LayoutSnapPointsAlignment, _owner._effect,
-                _owner._perPage);
-            if (_engine.UpdateGeometry(layout, crossConstraint, _owner._position))
+            if (_engine.UpdateGeometry(CurrentLayout, crossConstraint, _owner._position))
                 _version++; // cells show other slots now: placed again from scratch
         }
 
         /// <summary>Items that fill an unbounded carousel are as long as the first one measures.</summary>
         double ISkUiCarouselEngineHost.ProbeExtent(double cross)
         {
+            // The first item's own view while it shows (it may have changed since), else one of its kind.
+            foreach (var shown in _realized)
+                if (shown.Index == 0)
+                {
+                    var length = Probe(shown);
+                    MeasureCell(shown);
+                    return length;
+                }
             var cell = TakeCell(0);
-            var size = Horizontal ? ((IView)cell).Measure(double.PositiveInfinity, cross) : ((IView)cell).Measure(cross, double.PositiveInfinity);
+            var probed = Probe(cell);
             ReturnCell(cell);
-            return Horizontal ? size.Width : size.Height;
+            return probed;
+
+            double Probe(IView item) =>
+                Horizontal ? item.Measure(double.PositiveInfinity, cross).Width : item.Measure(cross, double.PositiveInfinity).Height;
         }
 
         #endregion

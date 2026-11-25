@@ -265,7 +265,7 @@ internal sealed class SkUiSegmentedModel
         if (_widths.Length < _segments.Count)
             _widths = new double[_segments.Count];
         // What the look draws before the selected segment's content (a check): any segment may be selected.
-        var leading = SkUiLook.Current.GetSegmentLeadingWidth(new SkUiSegmentedPaint { SelectedIndex = 0, PreviousIndex = -1, Progress = 1 }, 0);
+        var leading = _segments.Count == 0 ? 0 : SkUiLook.Current.GetSegmentLeadingWidth(MeasuringPaint(), 0);
         var tallest = 0d;
         for (var index = 0; index < _segments.Count; index++)
         {
@@ -281,6 +281,25 @@ internal sealed class SkUiSegmentedModel
         _engine.SetContentWidths(_widths.AsSpan(0, _segments.Count));
         _measured = true;
         return tallest;
+    }
+
+    /// <summary>What the look is asked its leading width with before there are rectangles: the first segment selected, the rest of it empty.</summary>
+    private SkUiSegmentedPaint MeasuringPaint()
+    {
+        _rects.Clear();
+        _contents.Clear();
+        _enabled.Clear();
+        for (var index = 0; index < _segments.Count; index++)
+        {
+            _rects.Add(SKRect.Empty);
+            _contents.Add(0);
+            _enabled.Add(_segments[index].IsEnabled);
+        }
+        return new SkUiSegmentedPaint
+        {
+            Segments = _rects, ContentWidths = _contents, EnabledSegments = _enabled, SelectedIndex = 0, PreviousIndex = -1, Progress = 1,
+            PressedIndex = -1, HoveredIndex = -1, IsEnabled = IsEnabled, IsRightToLeft = _owner.IsRightToLeft
+        };
     }
 
     /// <summary>The control's size: its segments' content (each as wide as the widest in equal mode), at least the look's height.</summary>

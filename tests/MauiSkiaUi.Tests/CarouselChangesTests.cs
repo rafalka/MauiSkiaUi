@@ -289,6 +289,188 @@ public class CarouselChangesTests
         Assert.Equal("I3", carousel.CurrentItem());
     }
 
+    #region The second look: what the fixes must not break
+
+    /// <summary>Wrapping content: a vertical carousel's length follows the width it is given, and its first item's own size.</summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void AnUnboundedCarouselFollowsItsWidthAndItsItemsSize(bool core)
+    {
+        var items = Enumerable.Range(0, 4).ToList();
+        SkUiView view;
+        Func<double> first;
+        Action grow;
+        if (core)
+        {
+            var nodes = new List<Squeezed>();
+            var carousel = new SkUiCoreCarouselView().SetItemsSource(items).SetItemFactory(_ => { var node = new Squeezed(); nodes.Add(node); return node; }, static (_, _) => { });
+            carousel.SetOrientation(ItemsLayoutOrientation.Vertical);
+            carousel.SetLoop(false);
+            view = new SkUiCoreHost().SetContent(carousel);
+            grow = () => { foreach (var node in nodes) node.Area = 60_000; };
+        }
+        else
+        {
+            var views = new List<SqueezedView>();
+            view = new SkUiCarouselView
+            {
+                Loop = false, ItemsSource = items, Orientation = ItemsLayoutOrientation.Vertical,
+                ItemTemplate = new DataTemplate(() => { var item = new SqueezedView(); views.Add(item); return item; })
+            };
+            grow = () => { foreach (var item in views) item.Area = 60_000; };
+        }
+        first = () => ((IView)view).DesiredSize.Height;
+        var stack = new SkUiVerticalStackLayout { Children = { (ISkUiView)view } };
+        using var surface = new SkUiTestSurface(new SkUiScrollView { Content = stack }, 600, 300);
+        stack.WidthRequest = 200;
+        LayoutSettling.AssertSettles(surface, "200 wide");
+        Assert.Equal(200, first(), 0.5); // 40,000 / 200
+        stack.WidthRequest = 400;
+        LayoutSettling.AssertSettles(surface, "400 wide", 1000);
+        Assert.Equal(100, first(), 0.5);
+        stack.WidthRequest = 100;
+        LayoutSettling.AssertSettles(surface, "100 wide", 2000);
+        Assert.Equal(400, first(), 0.5);
+        grow();
+        LayoutSettling.AssertSettles(surface, "larger items", 3000);
+        Assert.Equal(600, first(), 0.5);
+    }
+
+    /// <summary>As wrapping text: the narrower, the taller.</summary>
+    private sealed class SqueezedView : SkUiView
+    {
+        public double Area { get; set { field = value; InvalidateMeasureOverride(); } } = 40_000;
+
+        protected override Size MeasureContent(double widthConstraint, double heightConstraint) =>
+            new(double.IsFinite(widthConstraint) ? widthConstraint : 100, Area / (double.IsFinite(widthConstraint) ? widthConstraint : 100));
+    }
+
+    private sealed class Squeezed : SkUiCoreNode
+    {
+        public double Area { get; set { field = value; InvalidateMeasure(); } } = 40_000;
+
+        protected override Size MeasureContent(double widthConstraint, double heightConstraint) =>
+            new(double.IsFinite(widthConstraint) ? widthConstraint : 100, Area / (double.IsFinite(widthConstraint) ? widthConstraint : 100));
+    }
+
+    [Theory]
+    [InlineData(false, 1)]
+    [InlineData(false, 3)]
+    [InlineData(true, 1)]
+    [InlineData(true, 3)]
+    public void SeveralItemsAddedInOneTurnDoNotMakeTheStripJump(bool core, int added)
+    {
+        var carousel = Make(core, count: 8);
+        using var surface = new SkUiTestSurface(carousel.Root, 300, 200);
+        surface.Frame(0);
+        carousel.SetPosition(4);
+        Run(surface, 16, 130);
+        var before = carousel.ScrollPosition();
+        for (var index = 0; index < added; index++)
+            carousel.Items.Add("New");
+        surface.Frame(146);
+        Assert.InRange(carousel.ScrollPosition(), before, before + 1);
+        var highest = 0d;
+        for (var ms = 162; ms < 1500; ms += 16)
+        {
+            surface.Frame(ms);
+            highest = Math.Max(highest, carousel.ScrollPosition());
+        }
+        Assert.InRange(highest, 3.99, 4.01);
+        Assert.Equal(4, carousel.Position());
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void AFingerThatCatchesTheStripHoldsIt(bool core)
+    {
+        var carousel = Make(core, count: 8);
+        using var surface = new SkUiTestSurface(carousel.Root, 300, 200);
+        surface.Frame(0);
+        carousel.SetPosition(4);
+        Run(surface, 16, 130);
+        carousel.Items.Add("New");
+        Run(surface, 146, 162);
+        carousel.Root.Touch(new(481_001, SkUiTouchAction.Pressed, new Point(150, 100), TimeSpan.FromMilliseconds(170)));
+        surface.Frame(178);
+        var held = carousel.Offset();
+        Run(surface, 194, 900);
+        Assert.Equal(held, carousel.Offset(), 0.5);
+        carousel.Root.Touch(new(481_001, SkUiTouchAction.Released, new Point(150, 100), TimeSpan.FromMilliseconds(910)));
+        Run(surface, 920, 2500);
+        Assert.Equal(carousel.Position(), carousel.ScrollPosition(), 2);
+    }
+
+    public static TheoryData<bool, bool> Stops() => new() { { false, false }, { false, true }, { true, false }, { true, true } };
+
+    /// <summary>A scroll the items or the direction ended is over: the position follows what scrolls next.</summary>
+    [Theory]
+    [MemberData(nameof(Stops))]
+    public void AfterAScrollWasReplacedThePositionFollowsTheWheel(bool core, bool direction)
+    {
+        var carousel = Make(core, count: 20);
+        if (core)
+            carousel.Core!.SetSnapPointsType(SnapPointsType.None).SetItemsUpdatingScrollMode(ItemsUpdatingScrollMode.KeepLastItemInView);
+        else
+            (carousel.Drawn!.SnapPointsType, carousel.Drawn.ItemsUpdatingScrollMode) = (SnapPointsType.None, ItemsUpdatingScrollMode.KeepLastItemInView);
+        using var surface = new SkUiTestSurface(carousel.Root, 300, 200);
+        surface.Frame(0);
+        carousel.SetPosition(4);
+        Run(surface, 16, 130);
+        if (direction)
+            carousel.Root.FlowDirection = FlowDirection.RightToLeft;
+        else
+            carousel.Items.Add("New");
+        Run(surface, 146, 900);
+        var position = carousel.Position();
+        var controller = ((ISkUiScrollHost)(core ? carousel.Core!.ScrollView : (ISkUiScrollHost)carousel.Drawn!.ScrollView)).Scroller;
+        controller.Wheel(direction ? -600 : 600, 0); // two items back
+        Run(surface, 916, 1000);
+        Assert.Equal(position - 2, carousel.ScrollPosition(), 1);
+        Assert.Equal(position - 2, carousel.Position());
+    }
+
+    [Fact]
+    public void APositionSetAgainInTheCurrentItemsEventIsToldOnce()
+    {
+        var carousel = Make(core: false);
+        using var surface = new SkUiTestSurface(carousel.Root, 300, 200);
+        surface.Frame(0);
+        var positions = new List<(int, int)>();
+        carousel.Drawn!.PositionChanged += (_, args) => positions.Add((args.PreviousPosition, args.CurrentPosition));
+        carousel.Drawn.CurrentItemChanged += (_, args) =>
+        {
+            if (args.CurrentItem is "I1")
+                carousel.Drawn.Position = 3;
+        };
+        carousel.Drawn.CurrentItem = "I1";
+        Run(surface, 16, 1500);
+        Assert.Equal((3, "I3"), (carousel.Position(), carousel.CurrentItem()));
+        Assert.Equal([(0, 3)], positions);
+    }
+
+    [Fact]
+    public void TheCoreCarouselTellsThePositionItLastTold()
+    {
+        var carousel = Make(core: true);
+        using var surface = new SkUiTestSurface(carousel.Root, 300, 200);
+        surface.Frame(0);
+        var positions = new List<(int, int)>();
+        carousel.Core!.PositionChanged += (_, args) => positions.Add((args.PreviousPosition, args.CurrentPosition));
+        carousel.Core.PropertyChanged += (_, args) =>
+        {
+            if (args.PropertyName == "Position" && carousel.Position() == 1)
+                carousel.SetPosition(3);
+        };
+        carousel.SetPosition(1);
+        Run(surface, 16, 1500);
+        Assert.Equal([(0, 3)], positions);
+    }
+
+    #endregion
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]

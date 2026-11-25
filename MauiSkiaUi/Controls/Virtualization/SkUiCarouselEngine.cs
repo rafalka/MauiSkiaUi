@@ -67,7 +67,6 @@ internal sealed class SkUiCarouselEngine(ISkUiCarouselEngineHost host)
     private const double DistanceTolerance = 1e-6;
 
     private double _viewport = double.NaN; // offered along the axis (infinite: unbounded)
-    private double _unboundedViewport = double.NaN; // what the items take when nothing bounds them, from the last such layout
     private double _align;
     private double _padEnd;
     private bool _geometryValid;
@@ -175,9 +174,10 @@ internal sealed class SkUiCarouselEngine(ISkUiCarouselEngineHost host)
     /// </summary>
     public double PastItem(int index, double logical)
     {
-        if (!HasGeometry || index < 0 || index >= Count || IsClampedAt(index, logical))
+        if (index < 0 || index >= Count)
             return 0;
-        var past = FractionalSlot(logical) - index;
+        // Another change since the last layout: from the place it already keeps.
+        var past = HasGeometry ? IsClampedAt(index, logical) ? 0 : FractionalSlot(logical) - index : (_keep ?? index) - index;
         if (!Loops)
             return past;
         past = Mod(past, Count);
@@ -217,16 +217,24 @@ internal sealed class SkUiCarouselEngine(ISkUiCarouselEngineHost host)
     }
 
     /// <summary>
-    /// The viewport a measure offers (<see cref="SetViewport"/>). Nothing bounding the axis, the items stay laid out in the
-    /// viewport they were arranged in while the layout they ask for is known (<see cref="MeasuredViewport"/>): a measure and an
-    /// arrange that alternate would otherwise lay them out twice in every pass.
+    /// The viewport the items ask for when nothing bounds the axis: a page of them and the insets, across <paramref name="cross"/>
+    /// (their size is measured each time, so it follows them). The layout in use is left as it is: the strip is laid out for the
+    /// viewport it is arranged in.
     /// </summary>
-    public bool OfferViewport(double viewport, double logical, bool arranged) =>
-        !(double.IsInfinity(viewport) && _geometryValid && !double.IsNaN(_unboundedViewport)) && SetViewport(viewport, logical, arranged);
+    public double UnboundedViewport(in SkUiCarouselLayout layout, double cross)
+    {
+        var (start, end) = Insets(layout);
+        var perPage = Math.Max(1, layout.ItemsPerSnapPoint);
+        var extent = layout.ItemExtent > 0 ? layout.ItemExtent : Count > 0 ? host.ProbeExtent(cross) : 0;
+        return start + end + perPage * extent + (perPage - 1) * layout.ItemSpacing;
+    }
 
-    /// <summary>The viewport a measure asks for along the axis when offered <paramref name="viewport"/>: that, or what the items take when unbounded.</summary>
-    public double MeasuredViewport(double viewport) =>
-        double.IsFinite(viewport) ? ViewportLength : double.IsNaN(_unboundedViewport) ? ViewportLength : _unboundedViewport;
+    /// <summary>The peek insets at the strip's logical start and end.</summary>
+    private (double Start, double End) Insets(in SkUiCarouselLayout layout)
+    {
+        var insets = layout.PeekAreaInsets;
+        return !host.Horizontal ? (insets.Top, insets.Bottom) : host.Mirrored ? (insets.Right, insets.Left) : (insets.Left, insets.Right);
+    }
 
     /// <summary>The number of items changed (or the items did): the item position <paramref name="keep"/> shows once laid out.</summary>
     public void SetCount(int count, double keep)
@@ -282,8 +290,7 @@ internal sealed class SkUiCarouselEngine(ISkUiCarouselEngineHost host)
     {
         CrossConstraint = cross;
         var horizontal = host.Horizontal;
-        var insets = layout.PeekAreaInsets;
-        var (start, end) = horizontal ? (host.Mirrored ? (insets.Right, insets.Left) : (insets.Left, insets.Right)) : (insets.Top, insets.Bottom);
+        var (start, end) = Insets(layout);
         var spacing = layout.ItemSpacing;
         var perPage = Math.Max(1, layout.ItemsPerSnapPoint);
         var extent = layout.ItemExtent > 0 ? layout.ItemExtent
@@ -294,8 +301,6 @@ internal sealed class SkUiCarouselEngine(ISkUiCarouselEngineHost host)
         // effect places the rest of the page around it.
         var aligned = layout.Effect is null ? page : extent;
         var viewport = double.IsFinite(_viewport) ? _viewport : page + start + end;
-        if (double.IsInfinity(_viewport))
-            _unboundedViewport = viewport;
         var stride = extent + spacing;
         var inner = viewport - start - end;
         var align = layout.Alignment switch
