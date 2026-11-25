@@ -1,6 +1,6 @@
 # SkUiTabView
 
-> **Status: built for 1.17** (step S7: `SkUiTabView`); `SkUiCoreTabView` is the release's cut line ([S8](../design/ImplementationPlan-1.17.md#s8-core-tab-view-cut-line)). The [review's decisions](#review-decisions) are at the end.
+> **Status: built for 1.17** (steps S7: `SkUiTabView`, and S8: `SkUiCoreTabView`). The [review's decisions](#review-decisions) are at the end.
 
 Tabbed content inside a page: a strip of tab headers and, below (or above) it, one pane per tab, swiped sideways or chosen by a tap on its header. Settings sections, a product's "Details · Reviews · Shipping", a profile's "Posts · Media · Likes".
 
@@ -66,7 +66,16 @@ tabs.SelectionChanged += (_, args) => Analytics.Track(args.CurrentIndex);
 
 ## Core
 
-`SkUiCoreTabView` (1.17's cut line: it ships if the rest of 1.17 is done, otherwise it goes to the backlog) is the tab view on Core nodes, on the same engine and strip: `SkUiCoreTabItem` takes a `Content` node or a `ContentFactory` (`Func<SkUiCoreNode>`, called once, when the pane is first shown), with the same selection, swiping, keys and semantics.
+`SkUiCoreTabView` is the tab view on Core nodes, on the same strip and the same layout engine, drawn the same pixel for pixel. Its tabs are `SkUiCoreTabItem`s (plain objects with change notification): `Header`, `Icon`, `BadgeText`, `IsEnabled`, `AutomationId`, and the pane as a `Content` node or a `ContentFactory` (`Func<SkUiCoreNode>`, called once, when the pane is first shown). The properties are the ones [below](#key-properties) with `Set*` methods, and selection, swiping, disabled tabs, keys and screen readers work the same.
+
+```csharp
+var tabs = new SkUiCoreTabView()
+    .AddTab(new SkUiCoreTabItem("Posts", postsScroller))
+    .AddTab(new SkUiCoreTabItem("Media", () => new SkUiCoreLabel().SetText("Made when first shown")).SetBadgeText("3"))
+    .SetIndicatorStyle(SkUiTabIndicatorStyle.Pill);
+tabs.SelectionChanged += (_, args) => Analytics.Track(args.CurrentIndex);
+page.Content = new SkUiCoreHost().SetContent(tabs);
+```
 
 ## Key properties
 

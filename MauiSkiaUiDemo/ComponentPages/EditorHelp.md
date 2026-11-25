@@ -663,3 +663,8 @@ Whether the third segment (`SkUiCoreSegment.IsEnabled`) can be chosen. A disable
 
 Whether the third tab (`SkUiTabItem.IsEnabled`) can be selected by the user. A disabled tab's header is dimmed, ignores taps,
 and swipes and arrow keys pass it; the `SelectedIndex` editor can still select it, as code can.
+
+## CoreTabViewDemoPage.Settings tab enabled
+
+Whether the third tab (`SkUiCoreTabItem.IsEnabled`) can be selected by the user. A disabled tab's header is dimmed, ignores taps,
+and swipes and arrow keys pass it; the `SelectedIndex` editor can still select it, as code can.

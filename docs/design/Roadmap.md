@@ -175,7 +175,7 @@ Additive only. The carousel item of [MAUI parity](#maui-parity) and F1 of the [N
 
 - **Step 0:** SkiaSharp 4.157.0 (was 4.154.0) and HarfBuzzSharp 14.4.0.200, before the features.
 - **Phase C, the carousel:** its layout moves to an internal engine with no view types, shared by three users; MAUI's `VisibleViews`; several items per snap point (`ItemsPerSnapPoint`, pages stable on every round of a loop, the indicator counting pages); autoplay (`AutoPlayInterval`, waiting while the user scrolls, hovers or has focus inside, and while the carousel is not shown; `IsAutoPlayPaused`); `SkUiCoreCarouselView` with an item factory and a linked `SkUiCoreIndicatorView`.
-- **Phase S, F1:** `SkUiSegmentedControl` and `SkUiCoreSegmentedControl` (text and icon segments, a sliding selection, keys and screen readers, drawn by every look); `SkUiTabView`, a tab strip over panes created when first shown and kept, swiped on the carousel engine, its indicator following the panes on the render thread through 1.16's scroll links; `SkUiCoreTabView` at the cut line.
+- **Phase S, F1:** `SkUiSegmentedControl` and `SkUiCoreSegmentedControl` (text and icon segments, a sliding selection, keys and screen readers, drawn by every look); `SkUiTabView`, a tab strip over panes created when first shown and kept, swiped on the carousel engine, its indicator following the panes on the render thread through 1.16's scroll links; `SkUiCoreTabView` on the same strip and engine.
 
 ## Backlog (1.x)
 

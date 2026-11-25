@@ -77,8 +77,7 @@ public partial class SkUiTabView
 
         public bool IsCreated(SkUiTabItem tab) => _cells.ContainsKey(tab);
 
-        /// <summary>The physical scroll offset at which tab <paramref name="index"/>'s pane is in place.</summary>
-        public double PhysicalOffsetOf(int index) => _engine.Physical(_engine.ClampedSnapOffset(index));
+        public SkUiCarouselEngine Engine => _engine;
 
         public void SetViewport(double viewport)
         {
@@ -222,19 +221,8 @@ public partial class SkUiTabView
 
         void ISkUiSnapPointSource.GetSnapOffsets(bool horizontal, double from, double to, List<double> points)
         {
-            if (!horizontal || !HasGeometry)
-                return;
-            // Disabled tabs are no snap points: a swipe passes them (the selected one stays one, set by code).
-            var selected = _owner.SelectedIndex;
-            for (var index = 0; index < _engine.Count; index++)
-            {
-                if (!_owner.IsTabEnabled(index) && index != selected)
-                    continue;
-                var offset = PhysicalOffsetOf(index);
-                if (offset >= from - 0.5 && offset <= to + 0.5)
-                    points.Add(offset);
-            }
-            points.Sort();
+            if (horizontal)
+                _owner.Strip.Model.AddSnapOffsets(_engine, from, to, points);
         }
 
         internal override IEnumerable<ISkUiView> SkiaChildren => _children;
@@ -283,33 +271,23 @@ public partial class SkUiTabView
         }
     }
 
-    /// <summary>The strip of headers, drawn by the look on the segmented engine; it hosts the indicator.</summary>
+    /// <summary>The strip of headers (<see cref="SkUiTabStripModel"/>): its background, the indicator over it, and the labels over that.</summary>
     private sealed class TabStrip : SkUiView, ISkUiKeyHandler
     {
-        private sealed class Header
-        {
-            public SkUiTextLayout? Layout;
-            public SkUiImageSlot? IconSlot;
-            public ImageSource? Icon;
-            public Size TextSize = new(-1, -1);
-        }
-
         private readonly SkUiTabView _owner;
-        private readonly SkUiSegmentedEngine _engine = new();
-        private readonly List<Header> _headers = [];
-        private double[] _widths = [];
-        private int[] _partIds = [];
-        private bool _prepared;
-        private (SkUiLook Look, SkUiColorScheme Scheme, SkUiTabStripColors Colors)? _colors;
+        private bool _laidOut;
 
         public TabStrip(SkUiTabView owner)
         {
             _owner = owner;
-            Indicator = new TabIndicator(owner, this);
-            Labels = new TabLabels(this);
+            Model = new SkUiTabStripModel(owner, this, () => Labels!.InvalidatePaint());
+            Indicator = new TabIndicator(owner, Model);
+            Labels = new TabLabels(Model);
             AttachChild(Indicator);
             AttachChild(Labels);
         }
+
+        public SkUiTabStripModel Model { get; }
 
         public TabIndicator Indicator { get; }
 
@@ -319,58 +297,14 @@ public partial class SkUiTabView
         /// <summary>The tab view's width (the strip fills it, or scrolls past it with content widths).</summary>
         public double ViewportWidth { get; set; } = double.NaN;
 
-        /// <summary>A version bumped when the headers' geometry changes (the indicator rebuilds its links).</summary>
-        public int GeometryVersion { get; private set; }
-
-        private SkUiTabStripMetrics Metrics => SkUiLook.Current.TabStripMetrics;
-
-        private bool HasIcons
-        {
-            get
-            {
-                foreach (var tab in _owner.Tabs)
-                    if (tab.Icon is not null)
-                        return true;
-                return false;
-            }
-        }
-
-        public double DesiredHeight => HasIcons ? Metrics.IconHeight : Metrics.Height;
-
-        public Rect HeaderBounds(int index) => index >= 0 && index < _engine.Count ? _engine.Segment(index) : Rect.Zero;
-
         public void TabsChanged()
         {
-            var tabs = _owner.Tabs;
-            while (_headers.Count > tabs.Count)
-            {
-                var header = _headers[^1];
-                header.Layout?.Release();
-                header.IconSlot?.Dispose();
-                _headers.RemoveAt(_headers.Count - 1);
-            }
-            while (_headers.Count < tabs.Count)
-                _headers.Add(new Header());
-            for (var index = 0; index < tabs.Count; index++)
-            {
-                var header = _headers[index];
-                header.TextSize = new Size(-1, -1);
-                header.Layout?.Invalidate();
-                var icon = tabs[index].Icon;
-                if (!ReferenceEquals(header.Icon, icon))
-                {
-                    header.Icon = icon;
-                    if (icon is not null || header.IconSlot is not null)
-                        (header.IconSlot ??= new SkUiImageSlot(this, InvalidatePaint)).Load(SkUiImageSource.FromMaui(icon), default);
-                }
-            }
-            _prepared = false;
-            _colors = null;
+            Model.Invalidate();
             InvalidateMeasureOverride();
             InvalidatePaint();
             Labels.InvalidatePaint();
             InvalidateSemantics();
-            Indicator.GeometryChanged();
+            Indicator.InvalidateRender(SkUiRenderDirty.Props);
             Indicator.InvalidatePaint(); // its style may have changed
         }
 
@@ -381,7 +315,12 @@ public partial class SkUiTabView
             KeepInView(index, _owner.IsShown && !SkUiMotion.IsMotionReduced);
         }
 
-        private bool _laidOut;
+        public void ColorsChanged()
+        {
+            InvalidatePaint();
+            Labels.InvalidatePaint();
+            Indicator.InvalidatePaint();
+        }
 
         /// <summary>The strip's scroller was arranged: after a new layout of the headers, the selected one is brought into view.</summary>
         public void AfterArrange()
@@ -392,110 +331,10 @@ public partial class SkUiTabView
             KeepInView(_owner.SelectedIndex, animated: false);
         }
 
-        public void ColorsChanged()
+        private void KeepInView(int index, bool animated)
         {
-            InvalidatePaint();
-            Labels.InvalidatePaint();
-            Indicator.InvalidatePaint();
-        }
-
-        public SkUiTabStripColors LookColors(SkUiLook look)
-        {
-            var scheme = SkUiColorScheme.Current;
-            if (_colors is { } cached && ReferenceEquals(cached.Look, look) && ReferenceEquals(cached.Scheme, scheme))
-                return cached.Colors;
-            var colors = look.GetTabStripColors(scheme);
-            _colors = (look, scheme, colors);
-            return colors;
-        }
-
-        private SkUiTextStyle TextStyle => new(SkUiTypefaces.Resolve(_owner.FontFamily, _owner.FontAttributes),
-            SkUiFontScaling.ScaleFontSize(_owner.FontSize, _owner.FontAutoScalingEnabled), LineBreakMode.TailTruncation, null, 1, -1, 0,
-            _owner.IsRightToLeft ? SkUiTextDirection.RightToLeft : SkUiTextDirection.Auto, SkUiTextRendering.Default, _owner.FontAttributes);
-
-        private Size TextSize(int index, in SkUiTextStyle style)
-        {
-            var header = _headers[index];
-            if (header.TextSize.Width >= 0)
-                return header.TextSize;
-            var text = _owner.Tabs[index].Header ?? string.Empty;
-            if (text.Length == 0)
-                return header.TextSize = Size.Zero;
-            var size = (header.Layout ??= new SkUiTextLayout(this)).Measure(text, style, default, double.PositiveInfinity);
-            return header.TextSize = new Size(Math.Ceiling(size.Width), Math.Ceiling(size.Height));
-        }
-
-        /// <summary>A header's content width without padding: its text and icon, side by side or stacked.</summary>
-        private double ContentWidth(int index, in SkUiTextStyle style, in SkUiTabStripMetrics metrics)
-        {
-            var text = TextSize(index, style).Width;
-            if (_headers[index].Icon is null)
-                return text;
-            return metrics.IconAbove ? Math.Max(text, metrics.IconSize) : text + metrics.IconSize + (text > 0 ? metrics.IconSpacing : 0);
-        }
-
-        private void Prepare()
-        {
-            var style = TextStyle;
-            var metrics = Metrics;
-            var count = _headers.Count;
-            if (_widths.Length < count)
-                _widths = new double[count];
-            for (var index = 0; index < count; index++)
-                _widths[index] = ContentWidth(index, style, metrics) + 2 * metrics.HeaderPadding;
-            _engine.Mode = _owner.TabWidthMode;
-            _engine.Overflows = _owner.TabWidthMode == SkUiSegmentWidthMode.Content;
-            _engine.Inset = 0;
-            _engine.Spacing = 0;
-            _engine.Mirrored = _owner.IsRightToLeft;
-            _engine.SetContentWidths(_widths.AsSpan(0, count));
-            _prepared = true;
-        }
-
-        /// <summary>The strip's length for the tab view's width: that width, or the headers' when they overflow it.</summary>
-        private double LengthFor(double viewport)
-        {
-            if (!_prepared)
-                Prepare();
-            if (!double.IsFinite(viewport))
-                return _engine.DesiredWidth();
-            _engine.Arrange(viewport, DesiredHeight);
-            return _engine.Length;
-        }
-
-        protected override Size MeasureContent(double widthConstraint, double heightConstraint)
-        {
-            Prepare();
-            var length = LengthFor(ViewportWidth);
-            return new Size(length, Math.Min(heightConstraint, DesiredHeight));
-        }
-
-        protected override void ArrangeContent(Size size)
-        {
-            if (!_prepared || _engine.Mirrored != _owner.IsRightToLeft)
-                Prepare();
-            var viewport = double.IsFinite(ViewportWidth) ? Math.Min(ViewportWidth, size.Width) : size.Width;
-            _engine.Arrange(viewport, size.Height);
-            GeometryVersion++;
-            _laidOut = true;
-            // At the strip's physical start in both directions, where the links' positions count from: the layout mirrors
-            // frames in right to left.
-            var bounds = Indicator.MaxBounds(size.Height);
-            if (_owner.IsRightToLeft)
-                bounds.X = size.Width - bounds.Width;
-            ((IView)Indicator).Measure(bounds.Width, bounds.Height);
-            ((IView)Indicator).Arrange(bounds);
-            Indicator.GeometryChanged();
-            ((IView)Labels).Measure(size.Width, size.Height);
-            ((IView)Labels).Arrange(new Rect(0, 0, size.Width, size.Height));
-            Labels.InvalidatePaint();
-        }
-
-        /// <summary>The label's width of header <paramref name="index"/> (its text, or its icon alone).</summary>
-        public double LabelWidth(int index)
-        {
-            var text = TextSize(index, TextStyle).Width;
-            return text > 0 ? text : _headers[index].Icon is null ? 0 : Metrics.IconSize;
+            if (_owner._stripScroller is { } scroller && Model.KeepInView(index, scroller.ScrollX, ViewportWidth) is { } target)
+                _ = scroller.ScrollToAsync(target, 0, animated);
         }
 
         internal override IEnumerable<ISkUiView> SkiaChildren
@@ -507,346 +346,92 @@ public partial class SkUiTabView
             }
         }
 
-        /// <summary>The strip's background and divider (the headers are the labels layer's, over the indicator).</summary>
-        protected override void OnPaintContent(SKCanvas canvas)
+        protected override Size MeasureContent(double widthConstraint, double heightConstraint) =>
+            new(Model.Measure(ViewportWidth), Math.Min(heightConstraint, Model.DesiredHeight));
+
+        protected override void ArrangeContent(Size size)
         {
-            var look = SkUiLook.Current;
-            var colors = LookColors(look);
-            look.DrawTabStrip(canvas, new SkUiTabStripPaint
-            {
-                Bounds = new SKRect(0, 0, (float)Width, (float)Height),
-                Background = ToSk(_owner.StripBackgroundColor ?? colors.Background),
-                Divider = ToSk(colors.Divider),
-                IsBottom = _owner.TabStripPlacement == SkUiTabStripPlacement.Bottom,
-                IsEnabled = _owner.IsEnabled
-            });
+            Model.Arrange(ViewportWidth, size.Width, size.Height);
+            _laidOut = true;
+            var bounds = Model.IndicatorFrame(size.Width);
+            ((IView)Indicator).Measure(bounds.Width, bounds.Height);
+            ((IView)Indicator).Arrange(bounds);
+            Indicator.InvalidateRender(SkUiRenderDirty.Props);
+            ((IView)Labels).Measure(size.Width, size.Height);
+            ((IView)Labels).Arrange(new Rect(0, 0, size.Width, size.Height));
+            Labels.InvalidatePaint();
         }
 
-        /// <summary>Each header's icon and text, in the look's color for whether it is selected, and its badge.</summary>
-        public void DrawHeaders(SKCanvas canvas)
-        {
-            var look = SkUiLook.Current;
-            var colors = LookColors(look);
-            var metrics = Metrics;
-            var style = TextStyle;
-            var text = ToSk(_owner.HeaderTextColor ?? colors.Text);
-            var selectedText = ToSk(_owner.SelectedHeaderTextColor ?? colors.SelectedText);
-            var rtl = _owner.IsRightToLeft;
-            var selected = _owner.SelectedIndex;
-            for (var index = 0; index < _headers.Count && index < _engine.Count; index++)
-            {
-                var rect = ToSk(_engine.Segment(index));
-                var color = look.GetTabHeaderTextColor(text, selectedText, index == selected ? 1 : 0, _owner.IsTabEnabled(index));
-                DrawHeader(canvas, index, rect, color, style, metrics, rtl);
-                if (_owner.Tabs[index].BadgeText is { } badge)
-                    DrawBadge(canvas, rect, badge, rtl);
-            }
-        }
+        protected override void OnPaintContent(SKCanvas canvas) => Model.DrawBackground(canvas, (float)Width, (float)Height);
 
-        private void DrawHeader(SKCanvas canvas, int index, SKRect rect, SKColor color, in SkUiTextStyle style, in SkUiTabStripMetrics metrics, bool rtl)
-        {
-            var header = _headers[index];
-            var textSize = TextSize(index, style);
-            var hasIcon = header.Icon is not null && header.IconSlot is not null;
-            var icon = (float)metrics.IconSize;
-            var room = Math.Max(0, rect.Width - 2 * (float)metrics.HeaderPadding);
-            if (hasIcon && metrics.IconAbove)
-            {
-                var gap = (float)metrics.IconSpacing;
-                var total = icon + (textSize.Height > 0 ? gap + (float)textSize.Height : 0);
-                var top = rect.MidY - total / 2;
-                DrawIcon(canvas, header, new SKRect(rect.MidX - icon / 2, top, rect.MidX + icon / 2, top + icon), color);
-                if (header.Layout is { } stacked && textSize.Width > 0)
-                    DrawText(canvas, stacked, index, style, color, rect.MidX - Math.Min((float)textSize.Width, room) / 2, top + icon + gap,
-                        Math.Min((float)textSize.Width, room), (float)textSize.Height);
-                return;
-            }
-            var iconPart = hasIcon ? icon + (textSize.Width > 0 ? (float)metrics.IconSpacing : 0) : 0;
-            var textWidth = Math.Min((float)textSize.Width, Math.Max(0, room - iconPart));
-            var content = iconPart + textWidth;
-            var start = rtl ? rect.MidX + content / 2 : rect.MidX - content / 2;
-            if (hasIcon)
-            {
-                var left = rtl ? start - icon : start;
-                DrawIcon(canvas, header, new SKRect(left, rect.MidY - icon / 2, left + icon, rect.MidY + icon / 2), color);
-            }
-            if (header.Layout is { } layout && textWidth > 0)
-                DrawText(canvas, layout, index, style, color, rtl ? start - iconPart - textWidth : start + iconPart, rect.Top, textWidth, rect.Height);
-        }
-
-        private void DrawText(SKCanvas canvas, SkUiTextLayout layout, int index, in SkUiTextStyle style, SKColor color, float left, float top, float width,
-            float height)
-        {
-            var paint = SkUiTextResources.TextPaint;
-            paint.Color = color;
-            var save = canvas.Save();
-            canvas.Translate(left, top);
-            layout.Draw(canvas, _owner.Tabs[index].Header ?? string.Empty, style, default, width, height, TextAlignment.Center, TextAlignment.Center, paint);
-            canvas.RestoreToCount(save);
-        }
-
-        private static void DrawIcon(SKCanvas canvas, Header header, SKRect area, SKColor color)
-        {
-            var layer = color.Alpha < 255 ? canvas.SaveLayer(new SKRect(area.Left - 1, area.Top - 1, area.Right + 1, area.Bottom + 1), LayerPaint(color.Alpha)) : -1;
-            header.IconSlot!.Paint(canvas, area, Aspect.AspectFit);
-            if (layer >= 0)
-                canvas.RestoreToCount(layer);
-        }
-
-        [ThreadStatic] private static SKPaint? _layerPaint;
-
-        private static SKPaint LayerPaint(byte alpha)
-        {
-            var paint = _layerPaint ??= new SKPaint();
-            paint.Color = SKColors.Black.WithAlpha(alpha);
-            return paint;
-        }
-
-        /// <summary>A badge at the header's top end: a dot for an empty text, else the text in a small pill.</summary>
-        private static void DrawBadge(SKCanvas canvas, SKRect header, string text, bool rtl)
-        {
-            using var scratch = SkUiScratchPaint.Rent();
-            var fill = scratch.Paint;
-            fill.IsAntialias = true;
-            fill.Color = ToSk(SkUiColors.Error);
-            var edge = rtl ? header.Left + 8 : header.Right - 8;
-            if (text.Length == 0)
-            {
-                canvas.DrawCircle(edge, header.Top + 8, 4, fill);
-                return;
-            }
-            using var font = new SKFont(SkUiTypefaces.Resolve(null, FontAttributes.Bold), 11);
-            var width = Math.Max(16, font.MeasureText(text) + 8);
-            var pill = rtl ? new SKRect(edge, header.Top + 2, edge + width, header.Top + 18) : new SKRect(edge - width, header.Top + 2, edge, header.Top + 18);
-            canvas.DrawRoundRect(pill, 8, 8, fill);
-            fill.Color = SKColors.White;
-            canvas.DrawText(text, pill.MidX, pill.MidY + 4, SKTextAlign.Center, font, fill);
-        }
-
-        /// <summary>With content widths, the strip scrolls so the selected header shows.</summary>
-        private void KeepInView(int index, bool animated)
-        {
-            if (index < 0 || index >= _engine.Count || _owner._stripScroller is not { } scroller || !double.IsFinite(ViewportWidth)
-                || _engine.Length <= ViewportWidth + 0.5)
-                return;
-            var header = _engine.Segment(index);
-            var x = scroller.ScrollX;
-            var target = header.Left < x ? header.Left : header.Right > x + ViewportWidth ? header.Right - ViewportWidth : x;
-            if (Math.Abs(target - x) > 0.5)
-                _ = scroller.ScrollToAsync(target, 0, animated);
-        }
-
-        #region Input, keys and screen readers
-
-        protected override bool HandlesTap => _owner.IsEnabled && _engine.Count > 0;
+        protected override bool HandlesTap => Model.TakesInput;
 
         protected override void OnTapped(SkUiTappedEventArgs args)
         {
             RaiseTapped(args);
-            if (args.Position.Y >= 0 && args.Position.Y <= Height)
-                _owner.SelectByUser(_engine.HitTest(args.Position.X));
+            Model.Tap(args.Position);
         }
 
-        internal override bool TakesKeyboardFocus => _engine.Count > 0;
+        internal override bool TakesKeyboardFocus => Model.TakesInput;
 
-        /// <summary>Left / Right the previous / next enabled tab (mirrored right to left), Home / End the first / last; no wrap.</summary>
-        bool ISkUiKeyHandler.OnKeyDown(in SkUiKeyEvent key)
-        {
-            if (!_owner.IsEnabled || _engine.Count == 0 || key.HasCommandModifier)
-                return false;
-            var rtl = _owner.IsRightToLeft;
-            var selected = _owner.SelectedIndex;
-            var target = key.Key switch
-            {
-                SkUiKey.Right => _owner.NextEnabled(selected, rtl ? -1 : 1, wrap: false),
-                SkUiKey.Left => _owner.NextEnabled(selected, rtl ? 1 : -1, wrap: false),
-                SkUiKey.Home => _owner.FirstEnabled(0, 1),
-                SkUiKey.End => _owner.FirstEnabled(_engine.Count - 1, -1),
-                _ => -2
-            };
-            if (target == -2)
-                return false;
-            if (target >= 0)
-                _owner.SelectByUser(target);
-            return true;
-        }
+        bool ISkUiKeyHandler.OnKeyDown(in SkUiKeyEvent key) => Model.OnKeyDown(key);
 
-        private int PartId(int index)
-        {
-            if (_partIds.Length <= index)
-                Array.Resize(ref _partIds, Math.Max(index + 1, _partIds.Length * 2));
-            ref var id = ref _partIds[index];
-            if (id == 0)
-                id = SkUiSemanticsTree.NewId();
-            return id;
-        }
-
-        /// <summary>The strip is a tab list: each header an element ("Reviews, 3, Selected, 2 of 3"), activated to select it.</summary>
         protected override void OnPopulateSemantics(SkUiSemanticsInfo info)
         {
             base.OnPopulateSemantics(info);
-            var tabs = _owner.Tabs;
-            if (tabs.Count == 0)
-                return;
-            info.IsEnabled &= _owner.IsEnabled;
-            info.IsHorizontal = true;
-            var selected = _owner.SelectedIndex;
-            info.Value = selected >= 0 && selected < tabs.Count ? tabs[selected].Header : null;
-            if (_owner.IsEnabled)
-                info.Actions |= SkUiSemanticsActions.Increment | SkUiSemanticsActions.Decrement;
-            var strings = SkUiStrings.Current;
-            var culture = System.Globalization.CultureInfo.CurrentCulture;
-            for (var index = 0; index < tabs.Count && index < _engine.Count; index++)
-            {
-                var tab = tabs[index];
-                var label = tab.BadgeText is { Length: > 0 } badge ? string.Concat(tab.Header, ", ", badge) : tab.Header ?? string.Empty;
-                var place = string.Format(culture, strings.ItemPositionFormat, index + 1, tabs.Count);
-                info.AddPart(new SkUiSemanticsPart(PartId(index), index, _engine.Segment(index), label,
-                    "_" + (tab.AutomationId is { Length: > 0 } id ? id : index.ToString(System.Globalization.CultureInfo.InvariantCulture)),
-                    tab.IsEnabled, index == selected ? string.Concat(strings.SelectedStateText, ", ", place) : place));
-            }
+            Model.PopulateSemantics(info);
         }
 
-        protected override bool OnSemanticsAction(SkUiSemanticsActions action)
-        {
-            var target = action switch
-            {
-                SkUiSemanticsActions.Increment => _owner.NextEnabled(_owner.SelectedIndex, 1, wrap: false),
-                SkUiSemanticsActions.Decrement => _owner.NextEnabled(_owner.SelectedIndex, -1, wrap: false),
-                _ => -1
-            };
-            return target >= 0 && _owner.SelectByUser(target) || base.OnSemanticsAction(action);
-        }
+        protected override bool OnSemanticsAction(SkUiSemanticsActions action) => Model.PerformSemanticsAction(action) || base.OnSemanticsAction(action);
 
-        internal override bool OnSemanticsPartAction(int part, SkUiSemanticsActions action) =>
-            action == SkUiSemanticsActions.Activate && _owner.IsTabEnabled(part) && (_owner.SelectByUser(part) || part == _owner.SelectedIndex);
-
-        #endregion
-
-        internal override void OnEffectiveFlowDirectionChanged()
-        {
-            base.OnEffectiveFlowDirectionChanged();
-            _prepared = false;
-            InvalidateMeasureOverride();
-        }
+        internal override bool OnSemanticsPartAction(int part, SkUiSemanticsActions action) => Model.PerformSemanticsPartAction(part, action);
 
         internal override void ReleaseDrawingResources()
         {
             base.ReleaseDrawingResources();
-            foreach (var header in _headers)
-                header.Layout?.Release();
+            Model.ReleaseDrawingResources();
         }
     }
 
     /// <summary>The strip's headers, a layer of their own over the indicator; taps go through to the strip.</summary>
     private sealed class TabLabels : SkUiView
     {
-        private readonly TabStrip _strip;
+        private readonly SkUiTabStripModel _model;
 
-        public TabLabels(TabStrip strip)
+        public TabLabels(SkUiTabStripModel model)
         {
-            _strip = strip;
+            _model = model;
             InputTransparent = true;
         }
 
-        protected override void OnPaintContent(SKCanvas canvas) => _strip.DrawHeaders(canvas);
+        protected override void OnPaintContent(SKCanvas canvas) => _model.DrawHeaders(canvas);
     }
 
-    /// <summary>
-    /// The indicator: drawn once in its own bounds, and placed (and, with headers of different widths, clipped to each one's
-    /// width) by piecewise scroll-linked channels from the pane scroller's offset, so it moves with the panes on the render
-    /// thread with no UI-thread work per frame (D8).
-    /// </summary>
-    private sealed class TabIndicator(SkUiTabView owner, TabStrip strip) : SkUiView
+    /// <summary>The indicator: drawn once in its own bounds and moved with the panes on the render thread by its links (D8).</summary>
+    private sealed class TabIndicator : SkUiView
     {
-        private SkUiRenderLink[]? _links;
-        private (SkUiRenderNode? Source, int Strip, int Panes, SkUiTabIndicatorStyle IndicatorStyle, bool Rtl) _linked;
+        private readonly SkUiTabView _owner;
+        private readonly SkUiTabStripModel _model;
 
-        private SkUiTabIndicatorStyle IndicatorStyle => owner.IndicatorStyle;
-
-        /// <summary>The indicator's rectangle for tab <paramref name="index"/> in the strip.</summary>
-        public Rect BoundsFor(int index) =>
-            SkUiLook.Current.GetTabIndicatorBounds(strip.HeaderBounds(index), strip.LabelWidth(index), IndicatorStyle,
-                owner.TabStripPlacement == SkUiTabStripPlacement.Bottom);
-
-        /// <summary>Where the node is arranged: at the strip's start, as wide as the widest tab's indicator; the links move it.</summary>
-        public Rect MaxBounds(double stripHeight)
+        public TabIndicator(SkUiTabView owner, SkUiTabStripModel model)
         {
-            var count = owner.Tabs.Count;
-            if (count == 0 || IndicatorStyle == SkUiTabIndicatorStyle.None)
-                return Rect.Zero;
-            var first = BoundsFor(0);
-            var width = first.Width;
-            for (var index = 1; index < count; index++)
-                width = Math.Max(width, BoundsFor(index).Width);
-            return new Rect(0, first.Y, width, first.Height);
+            _owner = owner;
+            _model = model;
+            InputTransparent = true;
         }
 
-        public void GeometryChanged() => InvalidateRender(SkUiRenderDirty.Props);
-
-        protected override void OnPaintContent(SKCanvas canvas)
-        {
-            if (IndicatorStyle == SkUiTabIndicatorStyle.None || Width <= 0 || Height <= 0)
-                return;
-            var look = SkUiLook.Current;
-            // A pill sits behind the selected header's text: by default a light tint of the look's color, so the text shows.
-            var color = owner.IndicatorColor
-                ?? (IndicatorStyle == SkUiTabIndicatorStyle.Pill ? strip.LookColors(look).Indicator.WithAlpha(0.16f) : strip.LookColors(look).Indicator);
-            var paint = new SkUiTabIndicatorPaint { Bounds = new SKRect(0, 0, (float)Width, (float)Height), Color = ToSk(color), Style = IndicatorStyle };
-            look.DrawTabIndicator(canvas, paint);
-        }
+        protected override void OnPaintContent(SKCanvas canvas) => _model.DrawIndicator(canvas, (float)Width, (float)Height);
 
         internal override void OnGetRenderProps(ref SkUiRenderProps props)
         {
-            var count = owner.Tabs.Count;
-            if (count == 0 || IndicatorStyle == SkUiTabIndicatorStyle.None || owner._paneScroller is not { } scroller || !owner.Panes.HasGeometry)
-                return;
-            var source = ((ISkUiRenderable)scroller).RenderState.Node;
-            var key = (source, strip.GeometryVersion, owner.Panes.GeometryVersion, IndicatorStyle, owner.IsRightToLeft);
-            if (_links is not { } links || _linked != key)
-            {
-                links = _links = BuildLinks(source, count);
-                _linked = key;
-            }
-            props.Links = links;
-            var input = owner.PaneController.LinkInput;
-            props.LinkValues = SkUiRenderLinkValues.Evaluate(links, input.X, input.Y);
+            if (_owner._paneScroller is { } scroller)
+                _model.ApplyLinks(ref props, ((ISkUiRenderable)scroller).RenderState.Node, _owner.PaneController, _owner.Panes.Engine, _owner.Panes.GeometryVersion);
         }
 
-        /// <summary>Each tab's pane offset mapped onto its indicator's position (and width, when they differ), in ascending offsets.</summary>
-        private SkUiRenderLink[] BuildLinks(SkUiRenderNode source, int count)
+        internal override void ReleaseDrawingResources()
         {
-            var inputs = new float[count];
-            var positions = new float[count];
-            var widths = new float[count];
-            var sameWidth = true;
-            for (var index = 0; index < count; index++)
-            {
-                var bounds = BoundsFor(index);
-                inputs[index] = (float)owner.Panes.PhysicalOffsetOf(index);
-                positions[index] = (float)bounds.X;
-                widths[index] = (float)bounds.Width;
-                sameWidth &= Math.Abs(widths[index] - widths[0]) < 0.01f;
-            }
-            if (count > 1 && inputs[0] > inputs[^1])
-            {
-                // Right to left: the first pane is at the largest offset.
-                Array.Reverse(inputs);
-                Array.Reverse(positions);
-                Array.Reverse(widths);
-            }
-            var move = new SkUiRenderLink(source, horizontal: true, SkUiRenderLinkTarget.TranslationX, inputs, positions);
-            if (sameWidth)
-                return [move];
-            var rounded = IndicatorStyle == SkUiTabIndicatorStyle.Pill
-                || SkUiLook.Current is DefaultSkUiLook { TabStripStyle: SkUiTabStripStyle.LabelUnderline or SkUiTabStripStyle.ShortBar };
-            var clip = new SkUiRenderLink(source, horizontal: true, SkUiRenderLinkTarget.ClipWidth, inputs, widths, SkUiRenderLinkClipEdge.Start,
-                rounded ? SkUiRenderLinkClipShape.Capsule : SkUiRenderLinkClipShape.Rectangle);
-            return [move, clip];
+            base.ReleaseDrawingResources();
+            _model.ForgetLinks();
         }
     }
-
-    private static SKRect ToSk(Rect rect) => new((float)rect.Left, (float)rect.Top, (float)rect.Right, (float)rect.Bottom);
-
-    private static SKColor ToSk(Color color) => SkUiToggleDrawing.ToSkColor(color);
 }

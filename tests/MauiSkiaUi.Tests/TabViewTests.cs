@@ -76,14 +76,14 @@ public class TabViewTests
     }
 
     [Fact]
-    public void APanesStateSurvivesGoingOutOfViewAndBack()
+    public async Task APanesStateSurvivesGoingOutOfViewAndBack()
     {
         using var _ = SkUiTestHelpers.UseBundledFont();
         var tabs = TabView();
         var first = (SkUiScrollView)tabs.Tabs[0].Content!;
         using var surface = new SkUiTestSurface(tabs, 300, 400);
         surface.Frame(0);
-        first.ScrollToAsync(0, 250, animated: false).Wait();
+        await first.ScrollToAsync(0, 250, animated: false);
 
         tabs.SelectedIndex = 2;
         Run(surface, 16, 1000);

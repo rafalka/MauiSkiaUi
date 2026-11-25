@@ -13,6 +13,12 @@ public partial class SkUiCoreCarouselView
             owner._panel.ApplyPendingOffset();
         }
 
+        private protected override void OnScrolled()
+        {
+            owner._panel.Update();
+            owner.OnScrolled();
+        }
+
         internal override void OnPointerOverChanged(bool isOver)
         {
             base.OnPointerOverChanged(isOver);

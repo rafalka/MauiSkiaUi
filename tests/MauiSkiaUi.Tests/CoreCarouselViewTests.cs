@@ -72,6 +72,21 @@ public class CoreCarouselViewTests
     }
 
     [Fact]
+    public void SwipingCanBeTurnedOff()
+    {
+        var carousel = Carousel().SetIsSwipeEnabled(false);
+        var host = Host(carousel);
+        using var surface = new SkUiTestSurface(host, 300, 200);
+        surface.Frame(0);
+        SwipeForward(host, surface, 0);
+        Assert.Equal((0, 0d), (carousel.Position, carousel.ScrollView.ScrollX));
+
+        carousel.SetIsSwipeEnabled(true);
+        SwipeForward(host, surface, 3000);
+        Assert.Equal(1, carousel.Position);
+    }
+
+    [Fact]
     public void PeekInsetsAndSpacingShortenTheItemsAndShowTheNeighbors()
     {
         var carousel = Carousel().SetPeekAreaInsets(new Thickness(40, 0)).SetItemSpacing(10);

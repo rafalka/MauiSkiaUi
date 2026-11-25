@@ -148,6 +148,7 @@ public static class ComponentDemos
             Scenario: "scrolling with gestures"),
         new(typeof(SkUiCoreSegmentedControl), typeof(CoreSegmentedControlDemoPage), ComponentDemo.SkUiOnlyCounterpart, ComponentCategory.Core,
             () => new CoreSegmentedControlDemoPage()),
+        new(typeof(SkUiCoreTabView), typeof(CoreTabViewDemoPage), ComponentDemo.SkUiOnlyCounterpart, ComponentCategory.Core, () => new CoreTabViewDemoPage()),
         new(typeof(SkUiCoreCarouselView), typeof(CoreCarouselViewDemoPage), ComponentDemo.SkUiOnlyCounterpart, ComponentCategory.Core, () => new CoreCarouselViewDemoPage(),
             Scenario: "carousel with an item factory and indicator"),
         new(typeof(SkUiCoreBorder), typeof(CorePressEffectDemoPage), ComponentDemo.SkUiOnlyCounterpart, ComponentCategory.Core,

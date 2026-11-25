@@ -349,7 +349,7 @@ public class SkUiCoreScrollView : SkUiCoreContentView, ISkUiScrollHost, ISkUiVie
     internal override void CollectGestureRecognizers(List<SkUiGestureRecognizer> recognizers)
     {
         base.CollectGestureRecognizers(recognizers);
-        if (_scroller.Orientation != ScrollOrientation.Neither)
+        if (_scroller.Orientation != ScrollOrientation.Neither && _scroller.IsUserScrollEnabled)
             recognizers.Add(_scroller.Gesture);
     }
 
@@ -375,8 +375,12 @@ public class SkUiCoreScrollView : SkUiCoreContentView, ISkUiScrollHost, ISkUiVie
     {
         OnPropertyChanged(nameof(ScrollX));
         OnPropertyChanged(nameof(ScrollY));
+        OnScrolled();
         Scrolled?.Invoke(this, new ScrolledEventArgs(ScrollX, ScrollY));
     }
+
+    /// <summary>The offset changed (as <see cref="Scrolled"/>, without its event arguments: controls built on a scroll view follow it each frame).</summary>
+    private protected virtual void OnScrolled() { }
 
     /// <inheritdoc />
     protected override void OnPopulateSemantics(SkUiSemanticsInfo info)

@@ -71,11 +71,6 @@ public partial class SkUiCoreCarouselView : SkUiCoreNode, ISkUiScrollStepper, IS
         _controller.Stepper = this;
         _controller.DraggingChanged += _ => UpdateDragging();
         _controller.MovingChanged += _ => OnMovingChanged();
-        _scroller.Scrolled += (_, _) =>
-        {
-            _panel.Update();
-            OnScrolled();
-        };
         UpdateOverscroll();
     }
 
@@ -835,19 +830,6 @@ public partial class SkUiCoreCarouselView : SkUiCoreNode, ISkUiScrollStepper, IS
     {
         base.OnEffectiveFlowDirectionChanged();
         OnLayoutChanged(static () => { });
-    }
-
-    /// <summary>Whether the carousel is shown now: it and its Core ancestors are visible, and the drawn view hosting them is shown.</summary>
-    private bool IsShownNow()
-    {
-        for (ISkUiRenderable? node = this; node is not null; node = node.RenderParent)
-        {
-            if (node is SkUiView view)
-                return view.IsShown;
-            if (node is SkUiCoreNode { IsVisible: false })
-                return false;
-        }
-        return false;
     }
 
     #endregion

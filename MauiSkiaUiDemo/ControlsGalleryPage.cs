@@ -286,6 +286,7 @@ public sealed class ControlsGalleryPage : ContentPage
         _ when type == typeof(SkUiCoreHorizontalAlignStackLayout) => Framed(CoreHorizontalAlignStackLayoutDemoPage.CreateHost(out _, out _, out _, out _), 300, AlignStackDemo.AreaHeight),
         _ when type == typeof(SkUiCoreScrollView) => Framed(CoreScrollViewDemoPage.CreateHost(out _, out _, out _, out _, out _), 300, 200),
         _ when type == typeof(SkUiCoreCarouselView) => Framed(CoreCarouselViewDemoPage.CreateSample(), 300, 200),
+        _ when type == typeof(SkUiCoreTabView) => Framed(CoreTabViewDemoPage.CreateSample(out _), 300, 220),
         _ when type == typeof(SkUiCoreSegmentedControl) => CoreSegmentedControlDemoPage.CreateSample(out _),
         _ when type == typeof(SkUiCoreBorder) => Framed(CorePressEffectDemoPage.CreateHost(out _, out _, out _), 300, 200),
         _ when type == typeof(SkUiCoreStateContainer) => Framed(CoreStateContainerDemoPage.CreateHost(out _), 260, 160),

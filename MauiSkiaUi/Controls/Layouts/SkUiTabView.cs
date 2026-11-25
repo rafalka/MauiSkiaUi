@@ -12,7 +12,7 @@ namespace MauiSkiaUi;
 /// a page; see <c>docs/controls/SkUiTabView.md</c>.
 /// </summary>
 [ContentProperty(nameof(Tabs))]
-public partial class SkUiTabView : SkUiView, ISkUiFontElement, ISkUiKeyHandler, ISkUiScrollStepper
+public partial class SkUiTabView : SkUiView, ISkUiFontElement, ISkUiKeyHandler, ISkUiScrollStepper, ISkUiTabStripOwner
 {
     private ObservableCollection<SkUiTabItem>? _tabs;
     private readonly HashSet<SkUiTabItem> _attached = [];
@@ -296,7 +296,7 @@ public partial class SkUiTabView : SkUiView, ISkUiFontElement, ISkUiKeyHandler, 
     internal SkUiScrollView StripScrollViewForTests => StripScroller;
 
     /// <summary>The header's rectangle in the strip (tests).</summary>
-    internal Rect HeaderBounds(int index) => Strip.HeaderBounds(index);
+    internal Rect HeaderBounds(int index) => Strip.Model.HeaderBounds(index);
 
     /// <summary>Whether the pane of tab <paramref name="index"/> has been created (tests).</summary>
     internal bool IsPaneCreated(int index) => index >= 0 && index < Tabs.Count && Panes.IsCreated(Tabs[index]);
@@ -382,8 +382,28 @@ public partial class SkUiTabView : SkUiView, ISkUiFontElement, ISkUiKeyHandler, 
         }
     }
 
-    /// <summary>Whether the user can select tab <paramref name="index"/>.</summary>
-    internal bool IsTabEnabled(int index) => IsEnabled && index >= 0 && index < Tabs.Count && Tabs[index].IsEnabled;
+    #region Strip owner
+
+    int ISkUiTabStripOwner.TabCount => _tabs?.Count ?? 0;
+
+    string? ISkUiTabStripOwner.HeaderOf(int index) => Tabs[index].Header;
+
+    ImageSource? ISkUiTabStripOwner.IconOf(int index) => Tabs[index].Icon;
+
+    string? ISkUiTabStripOwner.BadgeOf(int index) => Tabs[index].BadgeText;
+
+    string? ISkUiTabStripOwner.AutomationIdOf(int index) => Tabs[index].AutomationId;
+
+    bool ISkUiTabStripOwner.IsTabItemEnabled(int index) => Tabs[index].IsEnabled;
+
+    bool ISkUiTabStripOwner.IsRightToLeft => IsRightToLeft;
+
+    // The current look's default, not the first one read (the store keeps that).
+    double ISkUiTabStripOwner.FontSize => IsSet(FontSizeProperty) ? FontSize : SkUiLook.Current.DefaultFontSize;
+
+    bool ISkUiTabStripOwner.SelectByUser(int index) => SelectByUser(index);
+
+    #endregion
 
     #endregion
 
@@ -439,7 +459,7 @@ public partial class SkUiTabView : SkUiView, ISkUiFontElement, ISkUiKeyHandler, 
     /// <summary>The user chose tab <paramref name="index"/> (a tap, a key, a screen reader): it is selected; returns whether it changed.</summary>
     internal bool SelectByUser(int index)
     {
-        if (!IsTabEnabled(index) || index == SelectedIndex)
+        if (!Strip.Model.IsTabEnabled(index) || index == SelectedIndex)
             return false;
         WriteBack(SelectedIndexProperty, index);
         return true;
@@ -464,54 +484,17 @@ public partial class SkUiTabView : SkUiView, ISkUiFontElement, ISkUiKeyHandler, 
         finally { _fromSwipe = false; }
     }
 
-    /// <summary>The next enabled tab from <paramref name="from"/> in <paramref name="direction"/>, around the ends when <paramref name="wrap"/>; -1 when none.</summary>
-    internal int NextEnabled(int from, int direction, bool wrap)
-    {
-        var count = Tabs.Count;
-        for (var step = 1; step <= count; step++)
-        {
-            var index = from + direction * step;
-            if (wrap)
-                index = ((index % count) + count) % count;
-            else if (index < 0 || index >= count)
-                return -1;
-            if (IsTabEnabled(index))
-                return index;
-        }
-        return -1;
-    }
-
-    /// <summary>The first enabled tab from <paramref name="from"/> in <paramref name="direction"/> (including it), or -1.</summary>
-    internal int FirstEnabled(int from, int direction)
-    {
-        for (var index = from; index >= 0 && index < Tabs.Count; index += direction)
-            if (IsTabEnabled(index))
-                return index;
-        return -1;
-    }
-
     // Screen readers page the panes tab by tab, never to a place between two. Arrow keys inside a pane do not move the panes
     // (they are the strip's), and neither do Home / End.
 
-    /// <summary>The tab towards larger offsets (<paramref name="forward"/>) or smaller ones, skipping disabled ones, or -1.</summary>
-    private int PageTarget(bool forward) => NextEnabled(SelectedIndex, forward != IsRightToLeft ? 1 : -1, wrap: false);
+    bool ISkUiScrollStepper.CanStep(bool forward) => Strip.Model.PageTarget(forward) >= 0;
 
-    bool ISkUiScrollStepper.CanStep(bool forward) => PageTarget(forward) >= 0;
-
-    bool ISkUiScrollStepper.Step(bool forward, bool page) => page && PageTarget(forward) is var target and >= 0 && SelectByUser(target);
+    bool ISkUiScrollStepper.Step(bool forward, bool page) => page && Strip.Model.PageTarget(forward) is var target and >= 0 && SelectByUser(target);
 
     bool ISkUiScrollStepper.StepToEdge(bool end) => false;
 
     /// <summary>Ctrl+Tab / Ctrl+Shift+Tab from anywhere inside the tab view: the next / previous enabled tab, around the ends.</summary>
-    bool ISkUiKeyHandler.OnKeyDown(in SkUiKeyEvent key)
-    {
-        if (key.Key != SkUiKey.Tab || (key.Modifiers & SkUiKeyModifiers.Control) == 0 || !IsEnabled || Tabs.Count == 0)
-            return false;
-        var target = NextEnabled(SelectedIndex, (key.Modifiers & SkUiKeyModifiers.Shift) != 0 ? -1 : 1, wrap: true);
-        if (target >= 0)
-            SelectByUser(target);
-        return true;
-    }
+    bool ISkUiKeyHandler.OnKeyDown(in SkUiKeyEvent key) => Strip.Model.OnTabViewKeyDown(key);
 
     #endregion
 
@@ -534,7 +517,7 @@ public partial class SkUiTabView : SkUiView, ISkUiFontElement, ISkUiKeyHandler, 
     }
 
     /// <summary>The strip's height: the look's, taller with icons.</summary>
-    private double StripHeight => Strip.DesiredHeight;
+    private double StripHeight => Strip.Model.DesiredHeight;
 
     /// <inheritdoc />
     internal override IEnumerable<ISkUiView> SkiaChildren
