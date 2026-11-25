@@ -12,6 +12,9 @@ internal interface ISkUiTabStripOwner
     string? BadgeOf(int index);
     string? AutomationIdOf(int index);
 
+    /// <summary>What screen readers call tab <paramref name="index"/> without a header text.</summary>
+    string? DescriptionOf(int index);
+
     /// <summary>The tab's own <c>IsEnabled</c> (the tab view's applies on top).</summary>
     bool IsTabItemEnabled(int index);
 
@@ -48,6 +51,7 @@ internal sealed class SkUiTabStripModel(ISkUiTabStripOwner owner, ISkUiTransitio
     private sealed class Header
     {
         public SkUiTextLayout? Layout;
+        public SkUiTextLayout? BadgeLayout;
         public SkUiImageSlot? IconSlot;
         public ImageSource? Icon;
         public Size TextSize = new(-1, -1); // negative: not measured yet
@@ -132,6 +136,7 @@ internal sealed class SkUiTabStripModel(ISkUiTabStripOwner owner, ISkUiTransitio
         {
             var header = _headers[^1];
             header.Layout?.Release();
+            header.BadgeLayout?.Release();
             header.IconSlot?.Dispose();
             _headers.RemoveAt(_headers.Count - 1);
         }
@@ -142,6 +147,7 @@ internal sealed class SkUiTabStripModel(ISkUiTabStripOwner owner, ISkUiTransitio
             var header = _headers[index];
             header.TextSize = new Size(-1, -1);
             header.Layout?.Invalidate();
+            header.BadgeLayout?.Invalidate();
             var icon = owner.IconOf(index);
             if (ReferenceEquals(header.Icon, icon))
                 continue;
@@ -157,12 +163,28 @@ internal sealed class SkUiTabStripModel(ISkUiTabStripOwner owner, ISkUiTransitio
     public void ReleaseDrawingResources()
     {
         foreach (var header in _headers)
+        {
             header.Layout?.Release();
+            header.BadgeLayout?.Release();
+        }
     }
 
     #endregion
 
     #region Layout
+
+    private const double HeaderInset = 4; // around a header's content that is taller than the look's strip
+
+    /// <summary>The headers' widths by their content (in equal widths, each as wide as the widest): what the strip asks for unbounded.</summary>
+    public double DesiredWidth
+    {
+        get
+        {
+            using var lookScope = EnterLook();
+            Prepare();
+            return _engine.DesiredWidth();
+        }
+    }
 
     /// <summary>The strip's height: the look's, taller with icons.</summary>
     public double DesiredHeight
@@ -170,10 +192,18 @@ internal sealed class SkUiTabStripModel(ISkUiTabStripOwner owner, ISkUiTransitio
         get
         {
             using var lookScope = EnterLook();
-            for (var index = 0; index < owner.TabCount; index++)
-                if (owner.IconOf(index) is not null)
-                    return Metrics.IconHeight;
-            return Metrics.Height;
+            var metrics = Metrics;
+            var style = TextStyle;
+            var (tallest, icons) = (0d, false);
+            for (var index = 0; index < _headers.Count; index++)
+            {
+                tallest = Math.Max(tallest, TextSize(index, style).Height);
+                icons |= _headers[index].Icon is not null;
+            }
+            // Larger text (a font size, the system's text size) makes the strip taller than the look's height.
+            var content = !icons ? tallest
+                : metrics.IconAbove ? metrics.IconSize + (tallest > 0 ? metrics.IconSpacing + tallest : 0) : Math.Max(tallest, metrics.IconSize);
+            return Math.Max(icons ? metrics.IconHeight : metrics.Height, Math.Ceiling(content + 2 * HeaderInset));
         }
     }
 
@@ -396,7 +426,7 @@ internal sealed class SkUiTabStripModel(ISkUiTabStripOwner owner, ISkUiTransitio
             var rect = new SKRect((float)bounds.Left, (float)bounds.Top, (float)bounds.Right, (float)bounds.Bottom);
             DrawHeader(canvas, index, rect, look.GetTabHeaderTextColor(text, selectedText, index == selected ? 1 : 0, IsTabEnabled(index)), style, metrics);
             if (owner.BadgeOf(index) is { } badge)
-                DrawBadge(canvas, rect, badge);
+                DrawBadge(canvas, _headers[index], rect, badge);
         }
     }
 
@@ -460,7 +490,7 @@ internal sealed class SkUiTabStripModel(ISkUiTabStripOwner owner, ISkUiTransitio
     }
 
     /// <summary>A badge at the header's top end: a dot for an empty text, else the text in a small pill.</summary>
-    private void DrawBadge(SKCanvas canvas, SKRect header, string text)
+    private void DrawBadge(SKCanvas canvas, Header item, SKRect header, string text)
     {
         using var scratch = SkUiScratchPaint.Rent();
         var fill = scratch.Paint;
@@ -473,13 +503,23 @@ internal sealed class SkUiTabStripModel(ISkUiTabStripOwner owner, ISkUiTransitio
             canvas.DrawCircle(edge, header.Top + 8, 4, fill);
             return;
         }
-        using var font = new SKFont(SkUiTypefaces.Resolve(null, FontAttributes.Bold), 11);
-        var width = Math.Max(16, font.MeasureText(text) + 8);
-        var pill = rtl ? new SKRect(edge, header.Top + 2, edge + width, header.Top + 18) : new SKRect(edge - width, header.Top + 2, edge, header.Top + 18);
-        canvas.DrawRoundRect(pill, 8, 8, fill);
-        fill.Color = SKColors.White;
-        canvas.DrawText(text, pill.MidX, pill.MidY + 4, SKTextAlign.Center, font, fill);
+        var style = new SkUiTextStyle(SkUiTypefaces.Resolve(null, FontAttributes.Bold), SkUiFontScaling.ScaleFontSize(BadgeFontSize, owner.FontAutoScalingEnabled),
+            LineBreakMode.NoWrap, null, 1, -1, 0, SkUiTextDirection.Auto, SkUiTextRendering.Default, FontAttributes.Bold);
+        var layout = item.BadgeLayout ??= new SkUiTextLayout(host);
+        var size = layout.Measure(text, style, default, double.PositiveInfinity);
+        var height = Math.Max(16, (float)Math.Ceiling(size.Height) + 2);
+        var width = Math.Max(height, (float)Math.Ceiling(size.Width) + 8);
+        var pill = rtl ? new SKRect(edge, header.Top + 2, edge + width, header.Top + 2 + height) : new SKRect(edge - width, header.Top + 2, edge, header.Top + 2 + height);
+        canvas.DrawRoundRect(pill, height / 2, height / 2, fill);
+        var textPaint = SkUiTextResources.TextPaint;
+        textPaint.Color = SKColors.White;
+        var save = canvas.Save();
+        canvas.Translate(pill.Left, pill.Top);
+        layout.Draw(canvas, text, style, default, width, height, TextAlignment.Center, TextAlignment.Center, textPaint);
+        canvas.RestoreToCount(save);
     }
+
+    private const double BadgeFontSize = 11;
 
     private static SKColor ToSk(Color color) => SkUiToggleDrawing.ToSkColor(color);
 
@@ -497,6 +537,8 @@ internal sealed class SkUiTabStripModel(ISkUiTabStripOwner owner, ISkUiTransitio
     {
         if (!TakesInput || key.HasCommandModifier)
             return false;
+        if (key.Key is SkUiKey.Enter or SkUiKey.Space)
+            return true; // the selected tab is the focused one: activating it changes nothing (and is no tap in the middle)
         var rtl = owner.IsRightToLeft;
         var target = key.Key switch
         {
@@ -542,15 +584,16 @@ internal sealed class SkUiTabStripModel(ISkUiTabStripOwner owner, ISkUiTransitio
             return;
         info.IsEnabled &= owner.IsEnabled;
         info.IsHorizontal = true;
+        info.Actions &= ~SkUiSemanticsActions.Activate; // the headers are activated, not the strip
         var selected = owner.SelectedIndex;
-        info.Value = selected >= 0 && selected < count ? owner.HeaderOf(selected) : null;
+        info.Value = selected >= 0 && selected < count ? HeaderLabel(selected) : null;
         if (owner.IsEnabled)
             info.Actions |= SkUiSemanticsActions.Increment | SkUiSemanticsActions.Decrement;
         var strings = SkUiStrings.Current;
         var culture = System.Globalization.CultureInfo.CurrentCulture;
         for (var index = 0; index < count && index < _engine.Count; index++)
         {
-            var header = owner.HeaderOf(index) ?? string.Empty;
+            var header = HeaderLabel(index);
             var label = owner.BadgeOf(index) is { Length: > 0 } badge ? string.Concat(header, ", ", badge) : header;
             var place = string.Format(culture, strings.ItemPositionFormat, index + 1, count);
             var id = owner.AutomationIdOf(index) is { Length: > 0 } own ? own : index.ToString(System.Globalization.CultureInfo.InvariantCulture);
@@ -559,9 +602,13 @@ internal sealed class SkUiTabStripModel(ISkUiTabStripOwner owner, ISkUiTransitio
         }
     }
 
+    private string HeaderLabel(int index) => owner.HeaderOf(index) is { Length: > 0 } header ? header : owner.DescriptionOf(index) ?? string.Empty;
+
     /// <summary>A screen reader's increment / decrement on the strip: the next / previous enabled tab.</summary>
     public bool PerformSemanticsAction(SkUiSemanticsActions action)
     {
+        if (action == SkUiSemanticsActions.Activate)
+            return true; // not a tap in the middle
         var target = action switch
         {
             SkUiSemanticsActions.Increment => NextEnabled(owner.SelectedIndex, 1, wrap: false),

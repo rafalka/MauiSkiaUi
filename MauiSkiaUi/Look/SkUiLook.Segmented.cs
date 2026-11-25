@@ -64,7 +64,7 @@ public partial class SkUiLook
     }
 
     /// <summary>
-    /// The color of segment <paramref name="index"/>'s text and icon: the text color blended towards the selected one by
+    /// The color of segment <paramref name="index"/>'s text (icons draw as they are, as opaque as it): the text color blended towards the selected one by
     /// <see cref="GetSegmentSelection"/>, dimmed while the segment or the control is disabled.
     /// </summary>
     public virtual SKColor GetSegmentTextColor(in SkUiSegmentedPaint paint, int index)

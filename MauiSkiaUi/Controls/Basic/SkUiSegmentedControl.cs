@@ -25,7 +25,7 @@ public class SkUiSegmentedControl : SkUiView, ISkUiFontElement, ISkUiSegmentedOw
     private SkUiDisplayBinding? _itemDisplay;
     private IList? _items;
     private object? _selectedSource; // the segment or item selected, found again when the options change
-    private int _requested = -1;     // the index the app or the user asked for last: it comes back when the options grow again
+    private int _requested = -1;     // the index the app or the user asked for last: it waits while there are too few options
     private int _applied = -1;       // the index applied last (the previous index of the next change)
     private bool _syncing;
     private bool _coercing;
@@ -144,7 +144,7 @@ public class SkUiSegmentedControl : SkUiView, ISkUiFontElement, ISkUiSegmentedOw
     /// </summary>
     public SkUiSegmentWidthMode SegmentWidthMode { get => (SkUiSegmentWidthMode)GetValue(SegmentWidthModeProperty); set => SetValue(SegmentWidthModeProperty, value); }
 
-    /// <summary>An unselected segment's text and icon color; <c>null</c> (default): the look's.</summary>
+    /// <summary>An unselected segment's text color; <c>null</c> (default): the look's. Icons draw as they are, as opaque as the text.</summary>
     public Color? TextColor { get => (Color?)GetValue(TextColorProperty); set => SetValue(TextColorProperty, value); }
 
     /// <summary>The selected segment's text color; <c>null</c> (default): the look's.</summary>
@@ -300,6 +300,11 @@ public class SkUiSegmentedControl : SkUiView, ISkUiFontElement, ISkUiSegmentedOw
 
     private void OnSegmentPropertyChanged(object? sender, PropertyChangedEventArgs args)
     {
+        if (args.PropertyName is nameof(AutomationId) or SkUiSemantics.DescriptionProperty)
+        {
+            InvalidateSemantics();
+            return;
+        }
         if (args.PropertyName is not (nameof(SkUiSegment.Text) or nameof(SkUiSegment.Icon) or nameof(SkUiSegment.IsEnabled))
             || sender is not SkUiSegment segment || _segments is not { } segments)
             return;
@@ -363,12 +368,21 @@ public class SkUiSegmentedControl : SkUiView, ISkUiFontElement, ISkUiSegmentedOw
                     model.SetSegment(index, segments[index].Text, segments[index].Icon, segments[index].IsEnabled);
         }
         var count = model.Count;
-        // The option the app or user chose stays selected where it moved; else the index asked for, within the options (it
-        // comes back as options are added: XAML adds segments one by one after setting SelectedIndex).
-        var found = _applied == _requested ? IndexOfOption(_selectedSource) : -1;
+        // An index asked for beyond the options waits for them to come (XAML adds segments one by one after setting
+        // SelectedIndex); once reached, the option is what stays selected: where it is while that place still shows it (equal
+        // items), else where it moved. An item selected before the options came waits too.
+        var waiting = _applied != _requested;
+        if (_pendingItem is not null && IndexOfOption(_pendingItem) is >= 0 and var pending)
+        {
+            _pendingItem = null;
+            (_requested, waiting) = (pending, true);
+        }
+        var found = waiting || _selectedSource is null ? -1 : Equals(OptionAt(_applied), _selectedSource) ? _applied : IndexOfOption(_selectedSource);
         if (found >= 0)
             _requested = found;
-        var selected = found >= 0 ? found : count == 0 ? SelectedIndex : Math.Min(_requested, count - 1);
+        else if (!waiting && _selectedSource is not null && count > 0)
+            _requested = Math.Min(_applied, count - 1); // the selected option went: the one in its place
+        var selected = count == 0 ? SelectedIndex : Math.Min(_requested, count - 1);
         if (selected != SelectedIndex)
         {
             _coercing = true;
@@ -381,6 +395,8 @@ public class SkUiSegmentedControl : SkUiView, ISkUiFontElement, ISkUiSegmentedOw
         }
     }
 
+    private object? _pendingItem; // selected before there were options
+
     #endregion
 
     #region Selection
@@ -389,18 +405,18 @@ public class SkUiSegmentedControl : SkUiView, ISkUiFontElement, ISkUiSegmentedOw
     {
         if (_syncing)
             return;
-        if (!_coercing)
-            _requested = value;
+        // Read once: a handler that sets the index again asks for itself (MAUI sets it after this callback).
+        var coerced = _coercing;
+        _coercing = false;
+        if (!coerced)
+            (_requested, _pendingItem) = (value, null);
         var count = Model.Count;
         if (count > 0 && value >= count)
         {
-            // Coerced before the write: a one-way binding is not cut.
-            _coercing = true;
-            try { WriteBack(SelectedIndexProperty, count - 1); }
-            finally { _coercing = false; }
+            WriteBack(SelectedIndexProperty, count - 1); // a one-way binding is not cut
             return;
         }
-        Apply(value, animate: true);
+        Apply(value, animate: !coerced); // the options changed: the marker is at its new place at once
     }
 
     /// <summary>
@@ -416,7 +432,8 @@ public class SkUiSegmentedControl : SkUiView, ISkUiFontElement, ISkUiSegmentedOw
         var shown = count > 0 && value < count ? value : -1;
         Model.Select(shown, animate);
         _selectedSource = OptionAt(shown);
-        if (count > 0 && !Equals(SelectedItem, _selectedSource))
+        // An item waiting for its option is not cleared meanwhile.
+        if (count > 0 && !Equals(SelectedItem, _selectedSource) && (_pendingItem is null || _selectedSource is not null))
         {
             _syncing = true;
             try { WriteBack(SelectedItemProperty, _selectedSource); }
@@ -429,8 +446,14 @@ public class SkUiSegmentedControl : SkUiView, ISkUiFontElement, ISkUiSegmentedOw
 
     private void OnSelectedItemChanged(object? value)
     {
-        if (_syncing || Model.Count == 0)
+        if (_syncing)
             return;
+        if (Model.Count == 0)
+        {
+            _pendingItem = value; // until the options come
+            return;
+        }
+        _pendingItem = null;
         var index = IndexOfOption(value);
         if (value is not null && index < 0)
         {

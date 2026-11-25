@@ -246,7 +246,7 @@ internal sealed class SkUiFocusManager(SkUiView root)
 
     private bool AnyFocusable(ISkUiRenderable node)
     {
-        if (IsBlocked(node))
+        if (IsBlocked(node) || node is ISkUiKeyboardScope { TakesTabStops: false })
             return false;
         if (node is ISkUiAccessibleNode { IsKeyboardFocusable: true })
             return true;
@@ -701,7 +701,7 @@ internal sealed class SkUiFocusManager(SkUiView root)
 
     private void Collect(ISkUiRenderable node)
     {
-        if (IsBlocked(node))
+        if (IsBlocked(node) || node is ISkUiKeyboardScope { TakesTabStops: false })
             return;
         if (node is ISkUiAccessibleNode accessible && accessible.IsKeyboardFocusable)
             _order.Add(accessible);

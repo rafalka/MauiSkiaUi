@@ -122,9 +122,6 @@ public partial class SkUiCarouselView
         /// <summary>Whether the items are laid out (positions and offsets are known).</summary>
         public bool HasGeometry => _engine.HasGeometry;
 
-        /// <summary>The viewport along the axis (the offered one, or an item and the peek insets when unbounded).</summary>
-        public double ViewportLength => _engine.ViewportLength;
-
         public (int First, int Last) RealizedSlots => _realized.Count == 0 ? (-1, -1) : (_realized[0].Slot, _realized[^1].Slot);
 
         public (double Extent, double Stride, int Slots, int Copies) GeometryInfo => (_engine.Extent, _engine.Stride, _engine.Slots, _engine.Copies);
@@ -143,21 +140,37 @@ public partial class SkUiCarouselView
         /// <summary>The page at the snap point, fractional (the indicator's position with several items per snap point).</summary>
         public double PagePosition => _engine.PagePosition(LogicalOffset);
 
-        /// <summary>How far the strip is past the nearest snap point, in items (-0.5 to 0.5).</summary>
-        public double WithinItem => _engine.WithinItem(LogicalOffset);
+        /// <summary>How far the strip is past the item at <paramref name="index"/>, in items (see <see cref="SkUiCarouselEngine.PastItem"/>).</summary>
+        public double PastItem(int index) => _arranged ? _engine.PastItem(index, LogicalOffset) : 0;
 
         private SkUiCarouselItemMetrics Metrics => _engine.Metrics(_arrangedCross);
 
         /// <summary>The viewport along the axis offered by the carousel's layout.</summary>
-        public void SetViewport(double viewport)
+        public void SetViewport(double viewport, bool arranging)
         {
-            if (_engine.SetViewport(viewport, LogicalOffset, _arranged))
-                InvalidateMeasureOverride();
+            if (!(arranging ? _engine.SetViewport(viewport, LogicalOffset, _arranged) : _engine.OfferViewport(viewport, LogicalOffset, _arranged)))
+                return;
+            _disturbed |= _owner.Controller.IsMotionRunning;
+            // The carousel measures (and arranges) its scroller right after: asking for another layout here would never settle
+            // where nothing bounds the axis, as the measure and the arrange offer different viewports.
+            ForgetMeasure();
+            _owner.Scroller.ForgetMeasure();
+        }
+
+        /// <summary>How long the carousel asks to be along the axis when offered <paramref name="viewport"/>.</summary>
+        public double MeasuredViewport(double viewport) => _engine.MeasuredViewport(viewport);
+
+        /// <summary>The direction changed: the item at <paramref name="position"/> is placed again.</summary>
+        public void Place(int position)
+        {
+            _owner.Controller.StopMotion();
+            SetCount(_engine.Count, position);
         }
 
         /// <summary>The number of items changed (or the items did): the item position <paramref name="keep"/> shows once laid out.</summary>
         public void SetCount(int count, double keep)
         {
+            _disturbed |= _owner.Controller.IsMotionRunning;
             _engine.SetCount(count, keep);
             _version++;
             if (count == 0)
@@ -166,7 +179,28 @@ public partial class SkUiCarouselView
         }
 
         /// <summary>The items' layout changes next: the current place (the fractional item at the snap point) is kept.</summary>
-        public void KeepCurrentPlace() => _engine.KeepCurrentPlace(LogicalOffset, _arranged);
+        public void KeepCurrentPlace()
+        {
+            _disturbed |= _owner.Controller.IsMotionRunning;
+            _engine.KeepCurrentPlace(LogicalOffset, _arranged);
+        }
+
+        /// <summary>
+        /// Whether the layout changed under a running motion since the last rest (read once): it may stop short of a snap point
+        /// then (the offset clamped, the items' lengths changed), and the strip goes on to one.
+        /// </summary>
+        public bool TakeDisturbed()
+        {
+            var disturbed = _disturbed;
+            _disturbed = false;
+            return disturbed;
+        }
+
+        private bool _disturbed;
+
+        /// <summary>Whether the item at <paramref name="index"/> is at the snap point (or will be, once laid out).</summary>
+        public bool RestsOn(int index) => _engine.HasPendingOffset
+            || Math.Abs(_engine.TargetOffset(index, LogicalOffset) - LogicalOffset) < SkUiCarouselEngine.VisibilityTolerance;
 
         /// <summary>Lays the items out again (a setting or the template changed); their views are rebound.</summary>
         public void Refresh()
@@ -470,15 +504,16 @@ public partial class SkUiCarouselView
         public int LastVisibleIndex => _engine.LastVisibleIndex(LogicalOffset);
 
         /// <summary>Scrolls so the item at <paramref name="index"/> is at the snap point; before the layout, the layout places it.</summary>
-        public Task ScrollToIndex(int index, bool animated)
+        public Task ScrollToIndex(int index, bool animated, (int From, int To, bool Forward)? step)
         {
             var logical = LogicalOffset;
             if (_engine.DeferPlacement(index, logical, _arranged))
             {
+                _owner.Controller.StopMotion(); // it would go on from the placement
                 InvalidateMeasureOverride();
                 return Task.CompletedTask;
             }
-            var target = _engine.Physical(_engine.TargetOffset(index, logical));
+            var target = _engine.Physical(step is var (from, to, forward) && to == index ? _engine.StepOffset(from, to, forward, logical) : _engine.TargetOffset(index, logical));
             var controller = _owner.Controller;
             return Horizontal ? controller.ScrollToAsync(target, controller.Y, animated) : controller.ScrollToAsync(controller.X, target, animated);
         }

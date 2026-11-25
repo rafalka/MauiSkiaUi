@@ -17,6 +17,7 @@ public sealed class SkUiCoreTabItem : INotifyPropertyChanged
     private SkUiCoreNode? _content;
     private Func<SkUiCoreNode>? _contentFactory;
     private string? _automationId;
+    private string? _semanticDescription;
 
     /// <summary>Creates an empty tab.</summary>
     public SkUiCoreTabItem() { }
@@ -48,6 +49,9 @@ public sealed class SkUiCoreTabItem : INotifyPropertyChanged
     /// <summary>An identifier for UI automation: the header's element id is the tab view's with <c>_</c> and this (else its index).</summary>
     public string? AutomationId { get => _automationId; set => SetAutomationId(value); }
 
+    /// <summary>What screen readers call the tab when it has no <see cref="Header"/> (an icon alone).</summary>
+    public string? SemanticDescription { get => _semanticDescription; set => SetSemanticDescription(value); }
+
     /// <inheritdoc />
     public event PropertyChangedEventHandler? PropertyChanged;
 
@@ -71,6 +75,9 @@ public sealed class SkUiCoreTabItem : INotifyPropertyChanged
 
     /// <summary>Sets <see cref="AutomationId"/>.</summary>
     public SkUiCoreTabItem SetAutomationId(string? value) => Set(ref _automationId, value);
+
+    /// <summary>Sets <see cref="SemanticDescription"/>.</summary>
+    public SkUiCoreTabItem SetSemanticDescription(string? value) => Set(ref _semanticDescription, value);
 
     private SkUiCoreTabItem Set<T>(ref T field, T value, [CallerMemberName] string? setter = null)
     {

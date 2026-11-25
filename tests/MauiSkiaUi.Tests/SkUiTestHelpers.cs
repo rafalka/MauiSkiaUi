@@ -168,9 +168,16 @@ internal sealed class SkUiTestSurface : IDisposable
     /// <summary>Runs queued UI work (frame commits, render-thread feedback).</summary>
     public void PumpUi()
     {
-        while (_ui.Count > 0)
+        // A layout that never settles queues work from its own work: it fails instead of hanging.
+        for (var done = 0; _ui.Count > 0; done++)
+        {
+            if (done == MaxUiWork)
+                throw new InvalidOperationException($"The UI work did not settle: {MaxUiWork} pieces ran, each queuing more.");
             _ui.Dequeue()();
+        }
     }
+
+    private const int MaxUiWork = 10_000;
 
     /// <summary>UI pass, then one render at <paramref name="time"/>, then delivers feedback to the UI.</summary>
     public SKBitmap Frame(TimeSpan time)

@@ -47,11 +47,10 @@ internal readonly record struct SkUiCarouselLayout(Thickness PeekAreaInsets, dou
 /// With several items per snap point the items form pages of <see cref="PerPage"/> from the first; each cycle of a looping
 /// strip starts again at its first item, so a short last page is a short step and the pages are the same on every round.
 /// Only page starts are snap points, and the item at the snap point is always a page's first.
-/// </remarks>
-/// <remarks>
-/// Offsets are logical (from the start of the items; mirrored from the physical scroll offset in right-to-left layouts) unless a
+/// <para>Offsets are logical (from the start of the items; mirrored from the physical scroll offset in right-to-left layouts) unless a
 /// member says physical. Callers pass the current logical offset in (<see cref="LogicalOffset"/> of the scroller's): the offset
 /// a pending placement will take wins over the scroller's until <see cref="TakePendingOffset"/> hands it over.
+/// </para>
 /// </remarks>
 internal sealed class SkUiCarouselEngine(ISkUiCarouselEngineHost host)
 {
@@ -68,6 +67,7 @@ internal sealed class SkUiCarouselEngine(ISkUiCarouselEngineHost host)
     private const double DistanceTolerance = 1e-6;
 
     private double _viewport = double.NaN; // offered along the axis (infinite: unbounded)
+    private double _unboundedViewport = double.NaN; // what the items take when nothing bounds them, from the last such layout
     private double _align;
     private double _padEnd;
     private bool _geometryValid;
@@ -168,8 +168,21 @@ internal sealed class SkUiCarouselEngine(ISkUiCarouselEngineHost host)
     public double ScrollPosition(double logical) =>
         Loops ? Mod(FractionalSlot(logical), Count) : Math.Clamp(FractionalSlot(logical), 0, Count - 1);
 
-    /// <summary>How far the strip is past the nearest snap point, in items (-0.5 to 0.5).</summary>
-    public double WithinItem(double logical) => HasGeometry ? FractionalSlot(logical) - NearestSlot(logical) : 0;
+    /// <summary>
+    /// How far the strip is past the item at <paramref name="index"/>, in items (negative before it; the shorter way round when
+    /// looping): what stays when the items change, so a drag, fling or animated scroll goes on from where it is. 0 where an end
+    /// keeps the item short of the snap point.
+    /// </summary>
+    public double PastItem(int index, double logical)
+    {
+        if (!HasGeometry || index < 0 || index >= Count || IsClampedAt(index, logical))
+            return 0;
+        var past = FractionalSlot(logical) - index;
+        if (!Loops)
+            return past;
+        past = Mod(past, Count);
+        return past > Count / 2d ? past - Count : past;
+    }
 
     /// <summary>The item shown in slot <paramref name="slot"/>.</summary>
     public int IndexOfSlot(int slot) => Loops ? (int)Mod(slot, Count) : slot;
@@ -203,6 +216,18 @@ internal sealed class SkUiCarouselEngine(ISkUiCarouselEngineHost host)
         return true;
     }
 
+    /// <summary>
+    /// The viewport a measure offers (<see cref="SetViewport"/>). Nothing bounding the axis, the items stay laid out in the
+    /// viewport they were arranged in while the layout they ask for is known (<see cref="MeasuredViewport"/>): a measure and an
+    /// arrange that alternate would otherwise lay them out twice in every pass.
+    /// </summary>
+    public bool OfferViewport(double viewport, double logical, bool arranged) =>
+        !(double.IsInfinity(viewport) && _geometryValid && !double.IsNaN(_unboundedViewport)) && SetViewport(viewport, logical, arranged);
+
+    /// <summary>The viewport a measure asks for along the axis when offered <paramref name="viewport"/>: that, or what the items take when unbounded.</summary>
+    public double MeasuredViewport(double viewport) =>
+        double.IsFinite(viewport) ? ViewportLength : double.IsNaN(_unboundedViewport) ? ViewportLength : _unboundedViewport;
+
     /// <summary>The number of items changed (or the items did): the item position <paramref name="keep"/> shows once laid out.</summary>
     public void SetCount(int count, double keep)
     {
@@ -218,20 +243,32 @@ internal sealed class SkUiCarouselEngine(ISkUiCarouselEngineHost host)
     /// </summary>
     public void KeepCurrentPlace(double logical, bool arranged)
     {
-        if (HasGeometry && arranged && !RestsShortOfSnapPoint(logical))
+        if (HasGeometry && arranged && !IsClampedAt(host.Position, logical))
             _keep ??= Loops ? Mod(FractionalSlot(logical), Count) : FractionalSlot(logical);
         _placeRequested = true;
         _geometryValid = false;
     }
 
-    /// <summary>Whether the strip (not looping) rests at an end that keeps the current item short of the snap point.</summary>
-    private bool RestsShortOfSnapPoint(double logical) =>
-        !Loops && host.Position is var position && position >= 0 && position < Count
-        && Math.Abs(ClampedSnapOffset(position) - logical) <= VisibilityTolerance
-        && Math.Abs(SnapOffset(position) - logical) > VisibilityTolerance;
+    /// <summary>Whether the strip (not looping) is where an end keeps the item at <paramref name="index"/> short of the snap point.</summary>
+    private bool IsClampedAt(int index, double logical) =>
+        !Loops && index >= 0 && index < Count
+        && Math.Abs(ClampedSnapOffset(index) - logical) <= VisibilityTolerance
+        && Math.Abs(SnapOffset(index) - logical) > VisibilityTolerance;
 
     /// <summary>The items are laid out again at the next layout, from where they are.</summary>
     public void Invalidate() => _geometryValid = false;
+
+    /// <summary>
+    /// The logical offset one step towards <paramref name="index"/> from the item at <paramref name="from"/>, forward or back:
+    /// looping, the way asked for, also when the other way round is shorter (two pages, a short last one).
+    /// </summary>
+    public double StepOffset(int from, int index, bool forward, double logical)
+    {
+        if (!Loops)
+            return ClampedSnapOffset(index);
+        var slots = (int)Mod(forward ? index - from : from - index, Count);
+        return SnapOffset(NearestSlotOf(from, logical) + (forward ? slots : -slots));
+    }
 
     /// <summary>Whether a layout across <paramref name="cross"/> has to lay the items out (<see cref="UpdateGeometry"/>).</summary>
     public bool NeedsLayout(double cross) => !_geometryValid || cross != CrossConstraint; // exact: a constraint, compared as given
@@ -257,6 +294,8 @@ internal sealed class SkUiCarouselEngine(ISkUiCarouselEngineHost host)
         // effect places the rest of the page around it.
         var aligned = layout.Effect is null ? page : extent;
         var viewport = double.IsFinite(_viewport) ? _viewport : page + start + end;
+        if (double.IsInfinity(_viewport))
+            _unboundedViewport = viewport;
         var stride = extent + spacing;
         var inner = viewport - start - end;
         var align = layout.Alignment switch

@@ -24,7 +24,7 @@ public partial class SkUiTabView : SkUiView, ISkUiFontElement, ISkUiKeyHandler, 
     private int _requested;
     private int _applied = -1;
     private bool _coercing;
-    private bool _fromSwipe;
+    private bool _keepsPlace;
     private bool _requestingScroll; // starting a scroll stops a running one, which reports a rest: not a swipe's
     private int _scrollingTo = -1;   // the tab a scroll goes to: the selection stays there until it ends or a drag takes over
 
@@ -123,10 +123,10 @@ public partial class SkUiTabView : SkUiView, ISkUiFontElement, ISkUiKeyHandler, 
     /// <summary>Whether drags swipe between the panes (default <c>true</c>); taps and keys always select.</summary>
     public bool IsSwipeEnabled { get => (bool)GetValue(IsSwipeEnabledProperty); set => SetValue(IsSwipeEnabledProperty, value); }
 
-    /// <summary>An unselected header's text and icon color; <c>null</c> (default): the look's.</summary>
+    /// <summary>An unselected header's text color; <c>null</c> (default): the look's. Icons draw as they are, as opaque as the text.</summary>
     public Color? HeaderTextColor { get => (Color?)GetValue(HeaderTextColorProperty); set => SetValue(HeaderTextColorProperty, value); }
 
-    /// <summary>The selected header's text and icon color; <c>null</c> (default): the look's.</summary>
+    /// <summary>The selected header's text color; <c>null</c> (default): the look's.</summary>
     public Color? SelectedHeaderTextColor { get => (Color?)GetValue(SelectedHeaderTextColorProperty); set => SetValue(SelectedHeaderTextColorProperty, value); }
 
     /// <summary>The indicator's color; <c>null</c> (default): the look's.</summary>
@@ -326,6 +326,7 @@ public partial class SkUiTabView : SkUiView, ISkUiFontElement, ISkUiKeyHandler, 
             if (!tabs.Contains(tab))
             {
                 tab.PropertyChanged -= OnTabPropertyChanged;
+                tab.BindingContextChanged -= OnTabBindingContextChanged;
                 _attached.Remove(tab);
                 if (ReferenceEquals(tab.Parent, this))
                     tab.Parent = null;
@@ -337,8 +338,15 @@ public partial class SkUiTabView : SkUiView, ISkUiFontElement, ISkUiKeyHandler, 
                 tab.Parent = this;
                 SetInheritedBindingContext(tab, BindingContext);
                 tab.PropertyChanged += OnTabPropertyChanged;
+                tab.BindingContextChanged += OnTabBindingContextChanged;
             }
         Rebuild();
+    }
+
+    private void OnTabBindingContextChanged(object? sender, EventArgs args)
+    {
+        if (sender is SkUiTabItem tab)
+            Panes.BindPane(tab);
     }
 
     private void OnTabPropertyChanged(object? sender, PropertyChangedEventArgs args)
@@ -354,6 +362,9 @@ public partial class SkUiTabView : SkUiView, ISkUiFontElement, ISkUiKeyHandler, 
                 Strip.TabsChanged();
                 InvalidateSemantics();
                 break;
+            case nameof(AutomationId) or SkUiSemantics.DescriptionProperty:
+                Strip.SemanticsChanged();
+                break;
             case nameof(SkUiTabItem.Header) or nameof(SkUiTabItem.Icon) or nameof(SkUiTabItem.BadgeText):
                 Strip.TabsChanged();
                 PaneScrollView.SemanticsChanged();
@@ -366,21 +377,39 @@ public partial class SkUiTabView : SkUiView, ISkUiFontElement, ISkUiKeyHandler, 
     {
         var count = Tabs.Count;
         Strip.TabsChanged();
-        Panes.SetCount(count);
-        var found = _applied == _requested && _selectedTab is not null ? Tabs.IndexOf(_selectedTab) : -1;
+        // An index asked for beyond the tabs waits for them to come; once reached, the tab is what stays selected.
+        var waiting = _applied != _requested;
+        var found = waiting || _selectedTab is null ? -1 : Tabs.IndexOf(_selectedTab);
+        // Panes that move with their tab go on from where they are: a swipe or a scroll ends on a tab.
+        var past = found >= 0 ? Panes.PastTab(_applied) : 0;
         if (found >= 0)
             _requested = found;
-        var selected = found >= 0 ? found : count == 0 ? SelectedIndex : Math.Clamp(_requested, 0, count - 1);
+        else if (!waiting && _selectedTab is not null && count > 0)
+            _requested = Math.Min(_applied, count - 1); // the selected tab went: the one in its place
+        var selected = count == 0 ? SelectedIndex : Math.Clamp(_requested, 0, count - 1);
+        if (found < 0)
+            StopScrolling();
+        else if (_scrollingTo >= 0)
+            _scrollingTo = selected;
+        Panes.SetCount(count, selected + past);
         if (selected != SelectedIndex)
         {
-            _coercing = true;
+            (_coercing, _keepsPlace) = (true, found >= 0);
             try { WriteBack(SelectedIndexProperty, selected); }
-            finally { _coercing = false; }
+            finally { (_coercing, _keepsPlace) = (false, false); }
         }
         else
         {
-            Apply(selected, scroll: true, animate: false);
+            Apply(selected, scroll: found < 0, animate: false);
         }
+    }
+
+    /// <summary>Stops the panes where they are; the selection is not taken from there.</summary>
+    private void StopScrolling()
+    {
+        _requestingScroll = true;
+        try { PaneController.StopMotion(); }
+        finally { _requestingScroll = false; }
     }
 
     #region Strip owner
@@ -392,6 +421,8 @@ public partial class SkUiTabView : SkUiView, ISkUiFontElement, ISkUiKeyHandler, 
     ImageSource? ISkUiTabStripOwner.IconOf(int index) => Tabs[index].Icon;
 
     string? ISkUiTabStripOwner.BadgeOf(int index) => Tabs[index].BadgeText;
+
+    string? ISkUiTabStripOwner.DescriptionOf(int index) => SemanticProperties.GetDescription(Tabs[index]);
 
     string? ISkUiTabStripOwner.AutomationIdOf(int index) => Tabs[index].AutomationId;
 
@@ -412,18 +443,18 @@ public partial class SkUiTabView : SkUiView, ISkUiFontElement, ISkUiKeyHandler, 
 
     private void OnSelectedIndexChanged(int value)
     {
-        if (!_coercing)
+        // Read once: a handler that sets the index again asks for itself (MAUI sets it after this callback).
+        var (coerced, keepsPlace) = (_coercing, _keepsPlace);
+        (_coercing, _keepsPlace) = (false, false);
+        if (!coerced)
             _requested = value;
         var count = Tabs.Count;
         if (count > 0 && (value < 0 || value >= count))
         {
-            // Coerced before the write: a one-way binding is not cut.
-            _coercing = true;
-            try { WriteBack(SelectedIndexProperty, Math.Clamp(value, 0, count - 1)); }
-            finally { _coercing = false; }
+            WriteBack(SelectedIndexProperty, Math.Clamp(value, 0, count - 1)); // a one-way binding is not cut
             return;
         }
-        Apply(value, scroll: !_fromSwipe, animate: true);
+        Apply(value, scroll: !keepsPlace, animate: true);
     }
 
     /// <summary>
@@ -439,22 +470,29 @@ public partial class SkUiTabView : SkUiView, ISkUiFontElement, ISkUiKeyHandler, 
         Strip.SelectionChanged(value);
         PaneScrollView.SemanticsChanged();
         if (scroll && value >= 0 && value < count)
-        {
-            _scrollingTo = value;
-            _requestingScroll = true;
-            try
-            {
-                if (Panes.ScrollToIndex(value, animate && IsShown && !SkUiMotion.IsMotionReduced).IsCompleted)
-                    _scrollingTo = -1;
-            }
-            finally
-            {
-                _requestingScroll = false;
-            }
-        }
+            ScrollToTab(value, animate);
+        if (previous != value)
+            MoveFocusFromPanes();
         if (previous != value)
             SelectionChanged?.Invoke(this, new SkUiSelectedIndexChangedEventArgs(previous, value));
         InvalidateSemantics();
+    }
+
+    /// <summary>Keyboard focus in a pane that is no longer selected goes to the strip: it would stay on something out of view.</summary>
+    private void MoveFocusFromPanes()
+    {
+        if (_selectedTab is { } tab && SkUiSemantics.FocusedInside(Panes) is { } focused && !ReferenceEquals(Panes.TabOf(focused), tab))
+            SkUiSemantics.RootOf(this)?.FocusManager.Focus(Strip);
+    }
+
+    /// <summary>A node inside a pane took focus: its tab is selected, so the panes rest on it and not where it just shows.</summary>
+    Point? ISkUiScrollStepper.Reveal(Rendering.ISkUiRenderable node)
+    {
+        if (Panes.TabOf(node) is not { } tab || Tabs.IndexOf(tab) is not (>= 0 and var index))
+            return null;
+        if (index != SelectedIndex)
+            WriteBack(SelectedIndexProperty, index);
+        return new Point(Panes.OffsetOf(index), PaneController.Y);
     }
 
     /// <summary>The user chose tab <paramref name="index"/> (a tap, a key, a screen reader): it is selected; returns whether it changed.</summary>
@@ -466,23 +504,41 @@ public partial class SkUiTabView : SkUiView, ISkUiFontElement, ISkUiKeyHandler, 
         return true;
     }
 
-    /// <summary>The panes came to rest after a swipe (or a scroll): the tab at the snap point is selected.</summary>
+    /// <summary>
+    /// The panes came to rest: after a swipe, the tab at the snap point is selected. Where a change of the tabs or the layout
+    /// stopped them on the way, they go on to the tab.
+    /// </summary>
     private void OnPanesMovingChanged()
     {
         if (_requestingScroll || PaneController.IsMoving || !Panes.HasGeometry || Tabs.Count == 0)
             return;
-        if (_scrollingTo >= 0)
+        var target = _scrollingTo >= 0 ? _scrollingTo : Panes.CurrentIndex(_applied); // a scroll to a tab: it is selected already
+        _scrollingTo = -1;
+        if (target < 0 || target >= Tabs.Count)
+            return;
+        if (target != SelectedIndex)
         {
-            // A scroll to a tab ended: the selection is already that tab.
-            _scrollingTo = -1;
-            return;
+            _keepsPlace = true;
+            try { WriteBack(SelectedIndexProperty, target); }
+            finally { _keepsPlace = false; }
         }
-        var current = Panes.CurrentIndex(_applied);
-        if (current == SelectedIndex || current < 0)
-            return;
-        _fromSwipe = true;
-        try { WriteBack(SelectedIndexProperty, current); }
-        finally { _fromSwipe = false; }
+        if (Panes.TakeDisturbed() && _applied == target && !PaneController.IsMoving && !Panes.RestsOn(target))
+            ScrollToTab(target, animate: true);
+    }
+
+    private void ScrollToTab(int index, bool animate)
+    {
+        _scrollingTo = index;
+        _requestingScroll = true;
+        try
+        {
+            if (Panes.ScrollToIndex(index, animate && IsShown && !SkUiMotion.IsMotionReduced).IsCompleted)
+                _scrollingTo = -1;
+        }
+        finally
+        {
+            _requestingScroll = false;
+        }
     }
 
     // Screen readers page the panes tab by tab, never to a place between two. Arrow keys inside a pane do not move the panes
@@ -536,12 +592,30 @@ public partial class SkUiTabView : SkUiView, ISkUiFontElement, ISkUiKeyHandler, 
     protected override Size MeasureContent(double widthConstraint, double heightConstraint)
     {
         var strip = StripHeight;
-        Strip.ViewportWidth = double.IsFinite(widthConstraint) ? widthConstraint : double.NaN;
-        var stripSize = ((IView)StripScroller).Measure(widthConstraint, strip);
-        Panes.SetViewport(widthConstraint);
+        var bounded = double.IsFinite(widthConstraint);
+        MeasuredWidth = widthConstraint;
+        if (bounded)
+        {
+            SetStripViewport(widthConstraint);
+            ((IView)StripScroller).Measure(widthConstraint, strip);
+        }
+        Panes.SetViewport(widthConstraint, arranging: false);
         var panes = ((IView)PaneScrollView).Measure(widthConstraint, Math.Max(0, heightConstraint - strip));
-        var width = double.IsFinite(widthConstraint) ? widthConstraint : Math.Max(stripSize.Width, Math.Min(panes.Width, Panes.ViewportLength));
+        var width = bounded ? widthConstraint : Math.Max(Strip.Model.DesiredWidth, Panes.MeasuredViewport(widthConstraint));
         return new Size(width, strip + panes.Height);
+    }
+
+    /// <summary>The width offered to the last measure.</summary>
+    private double MeasuredWidth { get; set; } = double.NaN;
+
+    /// <summary>The strip is laid out again for <paramref name="width"/> (it and its scroller are measured right after).</summary>
+    private void SetStripViewport(double width)
+    {
+        if (width == Strip.ViewportWidth) // exact: a layout offering the same width needs nothing
+            return;
+        Strip.ViewportWidth = width;
+        Strip.ForgetMeasure();
+        StripScroller.ForgetMeasure();
     }
 
     /// <inheritdoc />
@@ -551,11 +625,11 @@ public partial class SkUiTabView : SkUiView, ISkUiFontElement, ISkUiKeyHandler, 
         var top = TabStripPlacement == SkUiTabStripPlacement.Top;
         var stripBounds = new Rect(0, top ? 0 : size.Height - strip, size.Width, strip);
         var paneBounds = new Rect(0, top ? strip : 0, size.Width, Math.Max(0, size.Height - strip));
-        Strip.ViewportWidth = size.Width;
+        SetStripViewport(size.Width);
         ((IView)StripScroller).Measure(stripBounds.Width, stripBounds.Height);
         ((IView)StripScroller).Arrange(stripBounds);
         Strip.AfterArrange();
-        Panes.SetViewport(size.Width);
+        Panes.SetViewport(size.Width, arranging: true);
         ((IView)PaneScrollView).Measure(paneBounds.Width, paneBounds.Height);
         ((IView)PaneScrollView).Arrange(paneBounds);
     }
@@ -584,7 +658,8 @@ public partial class SkUiTabView : SkUiView, ISkUiFontElement, ISkUiKeyHandler, 
     {
         base.OnEffectiveFlowDirectionChanged();
         Strip.TabsChanged();
-        Panes.KeepPlace();
+        StopScrolling();
+        Panes.SetCount(Tabs.Count, Panes.Position); // the offset is the other direction's: only the selection says where the panes are
     }
 
     /// <inheritdoc />

@@ -30,6 +30,7 @@ Publishing (the NuGet publish workflow, [docs/Releasing.md](docs/Releasing.md)) 
 ### Fixes
 
 - **Carousel effects at the ends:** a centered carousel with an item effect that does not loop kept its first and last items off the middle, so cover flow drew them turned and to the side. It now has room at its ends for them. Switching an effect on keeps the current item there.
+- **Carousels while things change:** items added or removed during an animated scroll left the carousel between two items; changing the direction at runtime went back to the first item; a carousel that nothing bounds along its axis (in a stack or a scroll view) laid out without end; of equal items, the first became current; a `CurrentItem` that is not an item raised an event.
 
 ### Other
 

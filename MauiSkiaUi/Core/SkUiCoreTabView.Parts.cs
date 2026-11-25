@@ -27,9 +27,11 @@ public partial class SkUiCoreTabView
     }
 
     /// <summary>Hosts one tab's pane.</summary>
-    private sealed class PaneCell(SkUiCoreTabItem tab) : SkUiCoreContentView
+    private sealed class PaneCell(SkUiCoreTabView owner, SkUiCoreTabItem tab) : SkUiCoreContentView, ISkUiKeyboardScope
     {
         public SkUiCoreTabItem Tab { get; } = tab;
+
+        bool ISkUiKeyboardScope.TakesTabStops => ReferenceEquals(owner._selectedTab, Tab);
     }
 
     /// <summary>The strip of panes inside the pane scroller (as <see cref="SkUiTabView"/>'s): panes are created when they first come into view and kept at their places.</summary>
@@ -71,23 +73,53 @@ public partial class SkUiCoreTabView
 
         public int Position => Math.Clamp(_owner._requested, 0, Math.Max(0, Engine.Count - 1));
 
-        public void SetViewport(double viewport)
+        public void SetViewport(double viewport, bool arranging)
         {
-            if (Engine.SetViewport(viewport, LogicalOffset, _arranged))
-                InvalidateMeasure();
+            if (!(arranging ? Engine.SetViewport(viewport, LogicalOffset, _arranged) : Engine.OfferViewport(viewport, LogicalOffset, _arranged)))
+                return;
+            _disturbed |= Controller.IsMotionRunning;
+            // The tab view measures (and arranges) the scroller right after: see the carousel's panel.
+            ForgetMeasure();
+            _owner._paneScroller.ForgetMeasure();
         }
 
-        public void SetCount(int count)
+        /// <summary>The tabs changed (or the direction): tab <paramref name="place"/>, fractional while the panes move, shows once laid out.</summary>
+        public void SetCount(int count, double place)
         {
-            Engine.SetCount(count, Math.Clamp(_owner._requested, 0, Math.Max(0, count - 1)));
+            _disturbed |= Controller.IsMotionRunning;
+            Engine.SetCount(count, place);
             InvalidateMeasure();
         }
 
-        /// <summary>The layout changes next (the direction): the current place is kept.</summary>
-        public void KeepPlace()
+        /// <summary>How far the panes are past tab <paramref name="index"/>, in panes.</summary>
+        public double PastTab(int index) => _arranged ? Engine.PastItem(index, LogicalOffset) : 0;
+
+        /// <summary>
+        /// Whether the layout changed under a running motion since the last rest (read once): it may stop short of a snap point
+        /// then (the offset clamped, the items' lengths changed), and the panes go on to one.
+        /// </summary>
+        public bool TakeDisturbed()
         {
-            Engine.KeepCurrentPlace(LogicalOffset, _arranged);
-            InvalidateMeasure();
+            var disturbed = _disturbed;
+            _disturbed = false;
+            return disturbed;
+        }
+
+        private bool _disturbed;
+
+        /// <summary>Whether tab <paramref name="index"/>'s pane is in place (or will be, once laid out).</summary>
+        public bool RestsOn(int index) => Engine.HasPendingOffset || Math.Abs(OffsetOf(index) - Controller.X) < SkUiCarouselEngine.VisibilityTolerance;
+
+        /// <summary>The scroll offset that shows tab <paramref name="index"/>'s pane.</summary>
+        public double OffsetOf(int index) => Engine.HasGeometry ? Engine.Physical(Engine.ClampedSnapOffset(index)) : 0;
+
+        /// <summary>The tab whose pane <paramref name="node"/> is in, or <c>null</c>.</summary>
+        public SkUiCoreTabItem? TabOf(ISkUiRenderable node)
+        {
+            for (var current = node; current is not null; current = current.RenderParent)
+                if (current is PaneCell cell && _children.Contains(cell))
+                    return cell.Tab;
+            return null;
         }
 
         public Task ScrollToIndex(int index, bool animated)
@@ -95,6 +127,7 @@ public partial class SkUiCoreTabView
             var logical = LogicalOffset;
             if (Engine.DeferPlacement(index, logical, _arranged))
             {
+                Controller.StopMotion(); // it would go on from the placement
                 InvalidateMeasure();
                 return Task.CompletedTask;
             }
@@ -110,9 +143,14 @@ public partial class SkUiCoreTabView
             if (Math.Abs(delta) < 0.01)
                 Update();
             else if (Controller.IsMotionRunning || Controller.Dragging)
+            {
                 Controller.CorrectOffset(delta, 0);
+                InvalidateMeasure(); // the scroller's extent comes back with the next measure
+            }
             else
+            {
                 Controller.SetOffset(target, Controller.Y);
+            }
         }
 
         /// <summary>The panes moved: panes coming into view for the first time are created (nothing else changes per frame).</summary>
@@ -140,7 +178,7 @@ public partial class SkUiCoreTabView
             if (index < 0 || index >= _owner._tabs.Count || _owner._tabs[index] is var tab && _cells.ContainsKey(tab))
                 return;
             tab = _owner._tabs[index];
-            var cell = new PaneCell(tab);
+            var cell = new PaneCell(_owner, tab);
             cell.SetContent(MakeContent(tab));
             _cells[tab] = cell;
             _children.Add(cell);
@@ -194,6 +232,9 @@ public partial class SkUiCoreTabView
 
         protected override Size MeasureContent(double widthConstraint, double heightConstraint)
         {
+            // Nothing bounding the width, the panes are as wide as the first created: the selected one's, to begin with.
+            if (_children.Count == 0 && !double.IsFinite(_owner.MeasuredWidth))
+                EnsurePane(Position);
             if (Engine.NeedsLayout(heightConstraint))
             {
                 Engine.UpdateGeometry(new SkUiCarouselLayout(default, 0, 0, SnapPointsAlignment.Start, null), heightConstraint, Position);
@@ -268,6 +309,8 @@ public partial class SkUiCoreTabView
             _indicator.InvalidatePaint(); // its style may have changed
         }
 
+        public void SemanticsChanged() => InvalidateSemantics();
+
         public void SelectionChanged(int index)
         {
             _labels.InvalidatePaint(); // the selected header's color: only the labels re-record
@@ -334,7 +377,6 @@ public partial class SkUiCoreTabView
         protected override void OnPopulateSemantics(SkUiSemanticsInfo info)
         {
             base.OnPopulateSemantics(info);
-            info.Actions &= ~SkUiSemanticsActions.Activate; // the headers are activated, not the strip
             Model.PopulateSemantics(info);
         }
 

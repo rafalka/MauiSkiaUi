@@ -171,6 +171,9 @@ internal sealed class SkUiSemanticsOwner
 /// <summary>Semantics plumbing shared by both layers.</summary>
 internal static class SkUiSemantics
 {
+    /// <summary>The name property changes of <see cref="SemanticProperties.DescriptionProperty"/> report.</summary>
+    public const string DescriptionProperty = "Description";
+
     /// <summary>The surface root above <paramref name="node"/> (the node itself at the top), or <c>null</c>.</summary>
     public static SkUiView? RootOf(ISkUiRenderable node)
     {
@@ -218,6 +221,12 @@ internal static class SkUiSemantics
             var scroller = host.Scroller;
             if (SkUiScrollController.GetContentBounds(host, node) is not { } bounds)
                 continue;
+            var from = new Point(scroller.X, scroller.Y);
+            if (scroller.Stepper?.Reveal(node) is { } revealed)
+            {
+                inRoot = inRoot.Offset(from.X - revealed.X, from.Y - revealed.Y);
+                continue;
+            }
             var target = scroller.GetOffsetFor(bounds, ScrollToPosition.MakeVisible);
             var x = Math.Clamp(target.X, 0, scroller.MaxX);
             var y = Math.Clamp(target.Y, 0, scroller.MaxY);
@@ -228,6 +237,32 @@ internal static class SkUiSemantics
             _ = scroller.ScrollToAsync(x, y, animated: !HasScrollHostAbove(current));
         }
         return inRoot;
+    }
+
+    /// <summary>The focused node of the surface when it is <paramref name="node"/> or inside it; else <c>null</c>.</summary>
+    public static ISkUiRenderable? FocusedInside(ISkUiRenderable node)
+    {
+        if (RootOf(node)?.FocusManagerIfCreated?.Focused is not ISkUiRenderable focused)
+            return null;
+        for (var current = focused; current is not null; current = current.RenderParent)
+            if (ReferenceEquals(current, node))
+                return focused;
+        return null;
+    }
+
+    /// <summary>Whether <paramref name="node"/> is scrolled out of every part of a drawn scroller around it.</summary>
+    public static bool IsScrolledOut(ISkUiRenderable node)
+    {
+        for (var current = node.RenderParent; current is not null; current = current.RenderParent)
+        {
+            if (current is not ISkUiScrollHost host || SkUiScrollController.GetContentBounds(host, node) is not { } bounds)
+                continue;
+            var scroller = host.Scroller;
+            if (bounds.Right <= scroller.X || bounds.Left >= scroller.X + scroller.Viewport.Width
+                || bounds.Bottom <= scroller.Y || bounds.Top >= scroller.Y + scroller.Viewport.Height)
+                return true;
+        }
+        return false;
     }
 
     private static bool HasScrollHostAbove(ISkUiRenderable node)

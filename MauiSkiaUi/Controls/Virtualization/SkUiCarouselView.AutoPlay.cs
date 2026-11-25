@@ -79,26 +79,13 @@ public partial class SkUiCarouselView : ISkUiAutoPlayHost
     private void RestartAutoPlay() => _autoPlay?.Restart();
 
     bool ISkUiAutoPlayHost.IsAutoPlayHeld =>
-        PageCount <= 1 || Controller.IsMoving || Controller.Dragging || IsPointerOver || Scroller.IsPointerOver || HasKeyboardFocusInside();
+        PageCount <= 1 || Controller.IsMoving || Controller.Dragging || IsPointerOver || Scroller.IsPointerOver 
+        || SkUiSemantics.FocusedInside(this) is not null || SkUiSemantics.IsScrolledOut(this);
 
     void ISkUiAutoPlayHost.AutoPlayStep(bool animated)
     {
         // The next page in the reading direction; past the last page the first (a loop takes it as the next one).
         var next = _position + _perPage;
-        _ = ScrollToIndex(next > PageStart(ItemCount - 1) ? 0 : next, animated);
-    }
-
-    /// <summary>Whether the surface's keyboard focus is on a node inside the carousel.</summary>
-    private bool HasKeyboardFocusInside()
-    {
-        var root = (SkUiView)this;
-        while (root.SkiaParent is { } parent)
-            root = parent;
-        if (root.FocusManagerIfCreated?.Focused is not ISkUiRenderable focused)
-            return false;
-        for (var node = focused; node is not null; node = node.RenderParent)
-            if (ReferenceEquals(node, this))
-                return true;
-        return false;
+        StepTo(next > PageStart(ItemCount - 1) ? 0 : next, forward: true, animated);
     }
 }

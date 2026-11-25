@@ -28,9 +28,11 @@ public partial class SkUiTabView
     }
 
     /// <summary>Hosts one tab's pane.</summary>
-    private sealed class PaneCell(SkUiTabItem tab) : SkUiContentView
+    private sealed class PaneCell(SkUiTabView owner, SkUiTabItem tab) : SkUiContentView, ISkUiKeyboardScope
     {
         public SkUiTabItem Tab { get; } = tab;
+
+        bool ISkUiKeyboardScope.TakesTabStops => ReferenceEquals(owner._selectedTab, Tab);
     }
 
     /// <summary>
@@ -68,7 +70,7 @@ public partial class SkUiTabView
 
         public bool HasGeometry => _engine.HasGeometry;
 
-        public double ViewportLength => _engine.ViewportLength;
+        public double MeasuredViewport(double viewport) => _engine.MeasuredViewport(viewport);
 
         /// <summary>A version bumped when the panes' geometry changes (the indicator rebuilds its links).</summary>
         public int GeometryVersion { get; private set; }
@@ -81,23 +83,53 @@ public partial class SkUiTabView
 
         public SkUiCarouselEngine Engine => _engine;
 
-        public void SetViewport(double viewport)
+        public void SetViewport(double viewport, bool arranging)
         {
-            if (_engine.SetViewport(viewport, LogicalOffset, _arranged))
-                InvalidateMeasureOverride();
+            if (!(arranging ? _engine.SetViewport(viewport, LogicalOffset, _arranged) : _engine.OfferViewport(viewport, LogicalOffset, _arranged)))
+                return;
+            _disturbed |= Controller.IsMotionRunning;
+            // The tab view measures (and arranges) the scroller right after: see the carousel's panel.
+            ForgetMeasure();
+            _owner.PaneScrollView.ForgetMeasure();
         }
 
-        public void SetCount(int count)
+        /// <summary>The tabs changed (or the direction): tab <paramref name="place"/>, fractional while the panes move, shows once laid out.</summary>
+        public void SetCount(int count, double place)
         {
-            _engine.SetCount(count, Math.Max(0, Math.Min(_owner._requested, count - 1)));
+            _disturbed |= Controller.IsMotionRunning;
+            _engine.SetCount(count, place);
             InvalidateMeasureOverride();
         }
 
-        /// <summary>The layout changes next (the direction): the current place is kept.</summary>
-        public void KeepPlace()
+        /// <summary>How far the panes are past tab <paramref name="index"/>, in panes.</summary>
+        public double PastTab(int index) => _arranged ? _engine.PastItem(index, LogicalOffset) : 0;
+
+        /// <summary>
+        /// Whether the layout changed under a running motion since the last rest (read once): it may stop short of a snap point
+        /// then (the offset clamped, the items' lengths changed), and the panes go on to one.
+        /// </summary>
+        public bool TakeDisturbed()
         {
-            _engine.KeepCurrentPlace(LogicalOffset, _arranged);
-            InvalidateMeasureOverride();
+            var disturbed = _disturbed;
+            _disturbed = false;
+            return disturbed;
+        }
+
+        private bool _disturbed;
+
+        /// <summary>Whether tab <paramref name="index"/>'s pane is in place (or will be, once laid out).</summary>
+        public bool RestsOn(int index) => _engine.HasPendingOffset || Math.Abs(OffsetOf(index) - Controller.X) < SkUiCarouselEngine.VisibilityTolerance;
+
+        /// <summary>The scroll offset that shows tab <paramref name="index"/>'s pane.</summary>
+        public double OffsetOf(int index) => _engine.HasGeometry ? _engine.Physical(_engine.ClampedSnapOffset(index)) : 0;
+
+        /// <summary>The tab whose pane <paramref name="node"/> is in, or <c>null</c>.</summary>
+        public SkUiTabItem? TabOf(ISkUiRenderable node)
+        {
+            for (var current = node; current is not null; current = current.RenderParent)
+                if (current is PaneCell cell && _children.Contains(cell))
+                    return cell.Tab;
+            return null;
         }
 
         public int CurrentIndex(int keep) => _engine.CurrentIndex(LogicalOffset, keep);
@@ -107,6 +139,7 @@ public partial class SkUiTabView
             var logical = LogicalOffset;
             if (_engine.DeferPlacement(index, logical, _arranged))
             {
+                Controller.StopMotion(); // it would go on from the placement
                 InvalidateMeasureOverride();
                 return Task.CompletedTask;
             }
@@ -126,9 +159,14 @@ public partial class SkUiTabView
                 return;
             }
             if (Controller.IsMotionRunning || Controller.Dragging)
+            {
                 Controller.CorrectOffset(delta, 0);
+                InvalidateMeasureFromChild(); // the scroller's extent comes back with the next measure
+            }
             else
+            {
                 Controller.SetOffset(target, Controller.Y);
+            }
         }
 
         void ISkUiScrollListener.OnAncestorScrollChanged() => Update();
@@ -170,7 +208,7 @@ public partial class SkUiTabView
             var tab = tabs[index];
             if (_cells.ContainsKey(tab))
                 return;
-            var cell = new PaneCell(tab) { Content = MakeContent(tab) };
+            var cell = new PaneCell(_owner, tab) { BindingContext = tab.BindingContext, Content = MakeContent(tab) };
             _cells[tab] = cell;
             _children.Add(cell);
             AddLogicalChild(cell);
@@ -183,9 +221,17 @@ public partial class SkUiTabView
                 InvalidateMeasureOverride();
         }
 
-        private static ISkUiView? MakeContent(SkUiTabItem tab)
+        /// <summary>The tab's binding context changed: its pane binds to it (which is the tab view's unless the tab has its own).</summary>
+        public void BindPane(SkUiTabItem tab)
         {
-            var view = tab.Content ?? tab.ContentTemplate?.CreateContent() as View;
+            if (_cells.TryGetValue(tab, out var cell))
+                cell.BindingContext = tab.BindingContext;
+        }
+
+        private ISkUiView? MakeContent(SkUiTabItem tab)
+        {
+            var template = tab.ContentTemplate is DataTemplateSelector selector ? selector.SelectTemplate(tab.BindingContext, _owner) : tab.ContentTemplate;
+            var view = tab.Content ?? template?.CreateContent() as View;
             if (view is null)
                 return null;
             return view as ISkUiView
@@ -231,6 +277,9 @@ public partial class SkUiTabView
 
         protected override Size MeasureContent(double widthConstraint, double heightConstraint)
         {
+            // Nothing bounding the width, the panes are as wide as the first created: the selected one's, to begin with.
+            if (_children.Count == 0 && !double.IsFinite(_owner.MeasuredWidth))
+                EnsurePane(Position);
             if (_engine.NeedsLayout(heightConstraint))
             {
                 _engine.UpdateGeometry(new SkUiCarouselLayout(default, 0, 0, SnapPointsAlignment.Start, null), heightConstraint, Position);
@@ -308,6 +357,8 @@ public partial class SkUiTabView
             Indicator.InvalidateRender(SkUiRenderDirty.Props);
             Indicator.InvalidatePaint(); // its style may have changed
         }
+
+        public void SemanticsChanged() => InvalidateSemantics();
 
         public void SelectionChanged(int index)
         {

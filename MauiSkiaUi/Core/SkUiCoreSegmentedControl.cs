@@ -62,7 +62,7 @@ public class SkUiCoreSegmentedControl : SkUiCoreNode, ISkUiFontElement, ISkUiSeg
     /// <summary>How the segments share the width (default <see cref="SkUiSegmentWidthMode.Equal"/>).</summary>
     public SkUiSegmentWidthMode SegmentWidthMode { get => _widthMode; set => SetSegmentWidthMode(value); }
 
-    /// <summary>An unselected segment's text and icon color; <c>null</c> (default): the look's.</summary>
+    /// <summary>An unselected segment's text color; <c>null</c> (default): the look's. Icons draw as they are, as opaque as the text.</summary>
     public Color? TextColor { get => Model.TextColor; set => SetTextColor(value); }
 
     /// <summary>The selected segment's text color; <c>null</c> (default): the look's.</summary>
@@ -142,17 +142,23 @@ public class SkUiCoreSegmentedControl : SkUiCoreNode, ISkUiFontElement, ISkUiSeg
     public SkUiCoreSegmentedControl SetSelectedIndex(int value)
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(value, -1);
-        _requested = value;
         var count = Model.Count;
-        Select(count > 0 ? Math.Min(value, count - 1) : value, animate: true);
+        if (count > 0)
+            value = Math.Min(value, count - 1);
+        (_requested, _pendingItem) = (value, null);
+        Select(value, animate: true);
         return this;
     }
 
-    /// <summary>Sets <see cref="SelectedItem"/>; a value that is not an option is ignored, <c>null</c> selects none.</summary>
+    /// <summary>Sets <see cref="SelectedItem"/>; a value that is not an option is ignored, <c>null</c> selects none. Before there are options it waits for them.</summary>
     public SkUiCoreSegmentedControl SetSelectedItem(object? value)
     {
         if (Model.Count == 0)
+        {
+            _pendingItem = value; // until the options come
             return this;
+        }
+        _pendingItem = null;
         var index = IndexOfOption(value);
         if (value is not null && index < 0)
             return this;
@@ -306,10 +312,20 @@ public class SkUiCoreSegmentedControl : SkUiCoreNode, ISkUiFontElement, ISkUiSeg
                 Model.SetSegment(index, _segments[index].Text, _segments[index].Icon, _segments[index].IsEnabled);
         }
         var count = Model.Count;
-        var found = _applied == _requested ? IndexOfOption(_selectedSource) : -1;
+        // An index asked for beyond the options waits for them to come; once reached, the option is what stays selected: where
+        // it is while that place still shows it (equal items), else where it moved. An item selected before the options waits too.
+        var waiting = _applied != _requested;
+        if (_pendingItem is not null && IndexOfOption(_pendingItem) is >= 0 and var pending)
+        {
+            _pendingItem = null;
+            (_requested, waiting) = (pending, true);
+        }
+        var found = waiting || _selectedSource is null ? -1 : Equals(OptionAt(_applied), _selectedSource) ? _applied : IndexOfOption(_selectedSource);
         if (found >= 0)
             _requested = found;
-        var selected = found >= 0 ? found : count == 0 ? _selectedIndex : Math.Min(_requested, count - 1);
+        else if (!waiting && _selectedSource is not null && count > 0)
+            _requested = Math.Min(_applied, count - 1); // the selected option went: the one in its place
+        var selected = count == 0 ? _selectedIndex : Math.Min(_requested, count - 1);
         Select(selected, animate: false);
     }
 
@@ -327,15 +343,27 @@ public class SkUiCoreSegmentedControl : SkUiCoreNode, ISkUiFontElement, ISkUiSeg
         var shown = count > 0 && value < count ? value : -1;
         Model.Select(shown, animate);
         _selectedSource = OptionAt(shown);
-        var previous = _applied;
         _applied = value;
-        SetProperty(ref _selectedIndex, value, nameof(SelectedIndex));
-        if (count > 0)
-            SetProperty(ref _selectedItem, _selectedSource, nameof(SelectedItem));
-        if (previous != value)
-            SelectionChanged?.Invoke(this, new SkUiSelectedIndexChangedEventArgs(previous, value));
+        var indexChanged = _selectedIndex != value;
+        _selectedIndex = value;
+        var itemChanged = count > 0 && !Equals(_selectedItem, _selectedSource);
+        if (itemChanged)
+            _selectedItem = _selectedSource;
         InvalidateSemantics();
+        // Everything is in place: a handler may select again, and what it selected then is what is told.
+        if (indexChanged)
+            OnPropertyChanged(nameof(SelectedIndex));
+        if (itemChanged && _applied == value)
+            OnPropertyChanged(nameof(SelectedItem));
+        var previous = _announced;
+        if (_applied != value || previous == value)
+            return;
+        _announced = value;
+        SelectionChanged?.Invoke(this, new SkUiSelectedIndexChangedEventArgs(previous, value));
     }
+
+    private object? _pendingItem; // selected before there were options
+    private int _announced = -1;  // the index the last event told of
 
     /// <summary>The user chose segment <paramref name="index"/>: it is selected, then <see cref="Command"/> runs.</summary>
     internal bool SelectByUser(int index)

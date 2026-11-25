@@ -264,13 +264,15 @@ internal sealed class SkUiSegmentedModel
         var style = TextStyle;
         if (_widths.Length < _segments.Count)
             _widths = new double[_segments.Count];
+        // What the look draws before the selected segment's content (a check): any segment may be selected.
+        var leading = SkUiLook.Current.GetSegmentLeadingWidth(new SkUiSegmentedPaint { SelectedIndex = 0, PreviousIndex = -1, Progress = 1 }, 0);
         var tallest = 0d;
         for (var index = 0; index < _segments.Count; index++)
         {
             var segment = _segments[index];
             var text = TextSize(segment, style);
             tallest = Math.Max(tallest, Math.Max(text.Height, segment.Icon is null ? 0 : metrics.IconSize));
-            _widths[index] = text.Width + IconPart(segment, metrics) + 2 * metrics.SegmentPadding;
+            _widths[index] = text.Width + IconPart(segment, metrics) + leading + 2 * metrics.SegmentPadding;
         }
         _engine.Mode = _widthMode;
         _engine.Inset = metrics.Inset;
@@ -379,6 +381,9 @@ internal sealed class SkUiSegmentedModel
             IsEnabled = IsEnabled,
             IsRightToLeft = _owner.IsRightToLeft
         };
+        // As wide as they show: the text is truncated where its segment is too narrow, with the room the look takes before it.
+        for (var index = 0; index < _segments.Count; index++)
+            _contents[index] = Math.Min(_contents[index], Math.Max(0, _rects[index].Width - 2 * (float)metrics.SegmentPadding - look.GetSegmentLeadingWidth(paint, index)));
         look.DrawSegmented(canvas, paint);
         var style = TextStyle;
         var rtl = _owner.IsRightToLeft;
@@ -481,6 +486,8 @@ internal sealed class SkUiSegmentedModel
     {
         if (!IsEnabled || _segments.Count == 0 || key.HasCommandModifier)
             return false;
+        if (key.Key is SkUiKey.Enter or SkUiKey.Space)
+            return true; // the selected segment is the focused one: activating it changes nothing (and is no tap in the middle)
         var rtl = _owner.IsRightToLeft;
         var target = key.Key switch
         {
@@ -537,6 +544,7 @@ internal sealed class SkUiSegmentedModel
         var culture = System.Globalization.CultureInfo.CurrentCulture;
         info.Value = Selected >= 0 && Selected < _segments.Count ? Label(Selected) : null;
         info.IsHorizontal = true;
+        info.Actions &= ~SkUiSemanticsActions.Activate; // the segments are activated, not the group
         if (IsEnabled)
             info.Actions |= SkUiSemanticsActions.Increment | SkUiSemanticsActions.Decrement;
         var size = _owner.ControlSize;
@@ -556,6 +564,8 @@ internal sealed class SkUiSegmentedModel
     {
         if (!IsEnabled)
             return false;
+        if (action == SkUiSemanticsActions.Activate)
+            return true; // not a tap in the middle
         var target = action switch
         {
             SkUiSemanticsActions.Increment => Next(1),

@@ -708,6 +708,16 @@ public partial class SkUiCoreNode : ISkUiCoreNode, INotifyPropertyChanged, ISkUi
             FlushInvalidation();
     }
 
+    /// <summary>
+    /// Forgets the cached measure without asking any layout: for a parent that measures and arranges this node right after, in
+    /// its own measure or arrange, because something the constraint does not show changed.
+    /// </summary>
+    internal void ForgetMeasure()
+    {
+        _measureDirty = true;
+        _arrangeDirty = true;
+    }
+
     /// <inheritdoc />
     public void InvalidateMeasure()
     {

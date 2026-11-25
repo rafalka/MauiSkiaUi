@@ -252,8 +252,8 @@ public partial class SkUiCarouselView : SkUiView, ISkUiScrollStepper
     {
         var previousItem = CurrentItem;
         var previousCount = Panel.Count;
-        // Between two items (a fling, a drag): the strip stays that far past the current item.
-        var within = Panel.HasGeometry && Panel.CurrentIndex(_position) == _position ? Panel.WithinItem : 0;
+        // A fling, a drag or an animated scroll goes on from where it is: the strip stays that far past the current item.
+        var past = Panel.PastItem(_position);
         _source = value switch
         {
             null => null,
@@ -266,15 +266,19 @@ public partial class SkUiCarouselView : SkUiView, ISkUiScrollStepper
         if (count > 0 && mode == ItemsUpdatingScrollMode.KeepLastItemInView)
         {
             position = PageStart(count - 1);
-            within = 0;
+            past = 0;
+            StopScrolling(); // to the last item, not on from it
         }
         else if (count > 0)
         {
             var keep = keepCurrentItem && mode == ItemsUpdatingScrollMode.KeepItemsInView;
-            var index = keep && previousItem is not null ? _source!.IndexOf(previousItem) : -1;
+            // Where it is while the item there equals it (equal items), else where it moved.
+            var index = !keep || previousItem is null ? -1 : Equals(ItemAt(_position), previousItem) ? _position : _source!.IndexOf(previousItem);
             position = PageStart(index >= 0 ? index : Math.Clamp(Position, 0, count - 1));
         }
-        Panel.SetCount(count, position + within);
+        Panel.SetCount(count, position + past);
+        if (_targetIndex >= 0)
+            _targetIndex = position;
         UpdateOverscroll();
         _indicator?.CarouselItemsChanged(PageCount);
         if (count > 0)
@@ -431,6 +435,24 @@ public partial class SkUiCarouselView : SkUiView, ISkUiScrollStepper
         return _lastScroll;
     }
 
+    private (int From, int To, bool Forward)? _step;
+
+    /// <summary>Steps to the page from <paramref name="index"/>, the way asked for also when a loop's other way round is shorter.</summary>
+    private void StepTo(int index, bool forward, bool animated)
+    {
+        _step = (_position, index, forward);
+        try { _ = ScrollToIndex(index, animated); }
+        finally { _step = null; }
+    }
+
+    /// <summary>Stops a running scroll; the position is not taken from where it stopped.</summary>
+    private void StopScrolling()
+    {
+        _requestingScroll = true;
+        try { Controller.StopMotion(); }
+        finally { _requestingScroll = false; }
+    }
+
     /// <summary>Scrolls to <paramref name="item"/> (found with <see cref="object.Equals(object?)"/>); see <see cref="ScrollToIndex"/>. An item that is not in the list is ignored.</summary>
     public Task ScrollToItem(object? item, bool animated = true)
     {
@@ -489,7 +511,13 @@ public partial class SkUiCarouselView : SkUiView, ISkUiScrollStepper
             SyncCurrentItem(previous);
             return;
         }
-        RaiseCurrentItemChanged(previous, value);
+        // Within a page: its first item is current (MAUI sets a property changed in its own callback after it).
+        if (PageStart(index) is var start && start != index)
+        {
+            WriteBack(CurrentItemProperty, ItemAt(start));
+            return;
+        }
+        AnnounceCurrentItem(value);
         if (index != Position)
             WriteBack(PositionProperty, index);
     }
@@ -508,15 +536,15 @@ public partial class SkUiCarouselView : SkUiView, ISkUiScrollStepper
             try { WriteBack(PositionProperty, value); }
             finally { _syncing = false; }
         }
-        var previousItem = CurrentItem;
         var item = ItemAt(value);
-        if (!Equals(previousItem, item))
-        {
-            SyncCurrentItem(item);
-            RaiseCurrentItemChanged(previousItem, item);
-        }
+        SyncCurrentItem(item);
+        AnnounceCurrentItem(item);
+        if (_position != value)
+            return; // a handler moved on
         if (previous != value)
             RaisePositionChanged(previous, value);
+        if (_position != value)
+            return; // a handler moved on
         _indicator?.FollowCarousel(value / _perPage);
         Panel.UpdateVisualStates();
         if (!fromScroll)
@@ -550,7 +578,7 @@ public partial class SkUiCarouselView : SkUiView, ISkUiScrollStepper
         _requestingScroll = true;
         try
         {
-            _lastScroll = Panel.ScrollToIndex(_position, animated && IsShown);
+            _lastScroll = Panel.ScrollToIndex(_position, animated && IsShown, _step);
         }
         finally
         {
@@ -568,8 +596,15 @@ public partial class SkUiCarouselView : SkUiView, ISkUiScrollStepper
             command.Execute(PositionChangedCommandParameter);
     }
 
-    private void RaiseCurrentItemChanged(object? previous, object? value)
+    private object? _announcedItem; // the current item the last event told of
+
+    /// <summary>Raises the current item's event and command once per change (the property can pass through other values on the way).</summary>
+    private void AnnounceCurrentItem(object? value)
     {
+        var previous = _announcedItem;
+        if (Equals(previous, value))
+            return;
+        _announcedItem = value;
         if (CurrentItemChanged is { } handler && TryCreateCurrentItemArgs(previous, value) is { } args)
             handler(this, args);
         if (CurrentItemChangedCommand is { } command && command.CanExecute(CurrentItemChangedCommandParameter))
@@ -751,13 +786,18 @@ public partial class SkUiCarouselView : SkUiView, ISkUiScrollStepper
         if (Controller.IsMoving || _requestingScroll)
             return;
         // Settled: on the snap point of the position reached (or asked for); autoplay waits a full interval from here.
+        var asked = _targetIndex >= 0;
         _targetIndex = -1;
         RestartAutoPlay();
         if (Panel.HasGeometry && ItemCount > 0)
         {
-            var current = Panel.CurrentIndex(_position);
+            var disturbed = Panel.TakeDisturbed();
+            var current = asked && disturbed ? _position : Panel.CurrentIndex(_position);
             if (current != _position)
                 ApplyPosition(_position, current, fromScroll: true);
+            // A change of the items or the layout stopped it on the way: it goes on.
+            if (disturbed && (asked || Scroller.SnapPointsType != SnapPointsType.None) && !Controller.IsMoving && !Panel.RestsOn(_position))
+                ScrollToCurrent(_scrollAnimated);
         }
         FollowWithIndicator();
     }
@@ -1230,7 +1270,7 @@ public partial class SkUiCarouselView : SkUiView, ISkUiScrollStepper
         var count = ItemCount;
         if (_remainingItemsThreshold < 0 || count == 0 || _thresholdCount == count || !Panel.HasGeometry)
             return;
-        var last = Panel.Loops ? _position : Panel.LastVisibleIndex;
+        var last = Panel.Loops ? _position + _perPage - 1 : Panel.LastVisibleIndex;
         if (last < count - 1 - _remainingItemsThreshold)
             return;
         _thresholdCount = count;
@@ -1350,10 +1390,12 @@ public partial class SkUiCarouselView : SkUiView, ISkUiScrollStepper
     {
         UpdateEmpty();
         var empty = _isEmpty ? ((IView)_emptyHost).Measure(widthConstraint, heightConstraint) : Size.Zero;
-        Panel.SetViewport(_horizontal ? widthConstraint : heightConstraint);
+        var offered = _horizontal ? widthConstraint : heightConstraint;
+        Panel.SetViewport(offered, arranging: false);
         var size = ((IView)Scroller).Measure(widthConstraint, heightConstraint);
         // Unbounded along the axis, the carousel is as long as its viewport (an item and the peek insets), not its strip.
-        size = _horizontal ? new Size(Math.Min(size.Width, Panel.ViewportLength), size.Height) : new Size(size.Width, Math.Min(size.Height, Panel.ViewportLength));
+        var length = Panel.MeasuredViewport(offered);
+        size = _horizontal ? new Size(Math.Min(size.Width, length), size.Height) : new Size(size.Width, Math.Min(size.Height, length));
         return new Size(Math.Max(size.Width, empty.Width), Math.Max(size.Height, empty.Height));
     }
 
@@ -1362,7 +1404,7 @@ public partial class SkUiCarouselView : SkUiView, ISkUiScrollStepper
     {
         var bounds = new Rect(0, 0, size.Width, size.Height);
         // Items that fill the carousel are as long as its arranged viewport, which the measure may not have known.
-        Panel.SetViewport(_horizontal ? size.Width : size.Height);
+        Panel.SetViewport(_horizontal ? size.Width : size.Height, arranging: true);
         ((IView)Scroller).Measure(size.Width, size.Height);
         ((IView)Scroller).Arrange(bounds);
         if (_isEmpty)
@@ -1370,6 +1412,17 @@ public partial class SkUiCarouselView : SkUiView, ISkUiScrollStepper
             ((IView)_emptyHost).Measure(size.Width, size.Height);
             ((IView)_emptyHost).Arrange(bounds);
         }
+    }
+
+    /// <inheritdoc />
+    internal override void OnEffectiveFlowDirectionChanged()
+    {
+        base.OnEffectiveFlowDirectionChanged();
+        if (_panel is null)
+            return; // an implicit style in the base constructor
+        _requestingScroll = true;
+        try { Panel.Place(_position); } // the offset is the other direction's: only the position says where the strip is
+        finally { _requestingScroll = false; }
     }
 
     #endregion
@@ -1393,7 +1446,7 @@ public partial class SkUiCarouselView : SkUiView, ISkUiScrollStepper
         // A page of ItemsPerSnapPoint items; looping, past the last page to the first and before the first to the last.
         var last = PageStart(ItemCount - 1);
         var next = _position + (LogicalForward(forward) ? _perPage : -_perPage);
-        _ = ScrollToIndex(next > last ? 0 : next < 0 ? last : next);
+        StepTo(next > last ? 0 : next < 0 ? last : next, LogicalForward(forward), animated: true);
         return true;
     }
 

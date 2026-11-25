@@ -169,8 +169,8 @@ public partial class SkUiCoreCarouselView : SkUiCoreNode, ISkUiScrollStepper, IS
     {
         var previousItem = _currentItem;
         var previousCount = _panel.Count;
-        // Between two items (a fling, a drag): the strip stays that far past the current item.
-        var within = _panel.HasGeometry && _panel.CurrentIndex(_position) == _position ? _panel.WithinItem : 0;
+        // A fling, a drag or an animated scroll goes on from where it is: the strip stays that far past the current item.
+        var past = _panel.PastItem(_position);
         _source = value switch
         {
             null => null,
@@ -182,15 +182,19 @@ public partial class SkUiCoreCarouselView : SkUiCoreNode, ISkUiScrollStepper, IS
         if (count > 0 && _itemsUpdatingScrollMode == ItemsUpdatingScrollMode.KeepLastItemInView)
         {
             position = PageStart(count - 1);
-            within = 0;
+            past = 0;
+            StopScrolling(); // to the last item, not on from it
         }
         else if (count > 0)
         {
             var keep = keepCurrentItem && _itemsUpdatingScrollMode == ItemsUpdatingScrollMode.KeepItemsInView;
-            var index = keep && previousItem is not null ? _source!.IndexOf(previousItem) : -1;
+            // Where it is while the item there equals it (equal items), else where it moved.
+            var index = !keep || previousItem is null ? -1 : Equals(ItemAt(_position), previousItem) ? _position : _source!.IndexOf(previousItem);
             position = PageStart(index >= 0 ? index : Math.Clamp(_position, 0, count - 1));
         }
-        _panel.SetCount(count, position + within);
+        _panel.SetCount(count, position + past);
+        if (_targetIndex >= 0)
+            _targetIndex = position;
         UpdateOverscroll();
         FollowIndicatorCount();
         if (count > 0)
@@ -288,6 +292,24 @@ public partial class SkUiCoreCarouselView : SkUiCoreNode, ISkUiScrollStepper, IS
         return _lastScroll;
     }
 
+    private (int From, int To, bool Forward)? _step;
+
+    /// <summary>Steps to the page from <paramref name="index"/>, the way asked for also when a loop's other way round is shorter.</summary>
+    private void StepTo(int index, bool forward, bool animated)
+    {
+        _step = (_position, index, forward);
+        try { _ = ScrollToIndex(index, animated); }
+        finally { _step = null; }
+    }
+
+    /// <summary>Stops a running scroll; the position is not taken from where it stopped.</summary>
+    private void StopScrolling()
+    {
+        _requestingScroll = true;
+        try { Controller.StopMotion(); }
+        finally { _requestingScroll = false; }
+    }
+
     /// <summary>Scrolls to <paramref name="item"/> (found with <see cref="object.Equals(object?)"/>); see <see cref="ScrollToIndex"/>. An item that is not in the list is ignored.</summary>
     public Task ScrollToItem(object? item, bool animated = true)
     {
@@ -305,16 +327,22 @@ public partial class SkUiCoreCarouselView : SkUiCoreNode, ISkUiScrollStepper, IS
         _position = value;
         if (previous != value)
             OnPropertyChanged(nameof(Position));
+        if (_position != value)
+            return; // a handler moved on (here and below)
         var previousItem = _currentItem;
         var item = ItemAt(value);
         if (!Equals(previousItem, item))
         {
             SyncCurrentItem(item);
-            if (CurrentItemChanged is { } itemHandler && SkUiCarouselView.TryCreateCurrentItemArgs(previousItem, item) is { } itemArgs)
+            if (_position == value && CurrentItemChanged is { } itemHandler && SkUiCarouselView.TryCreateCurrentItemArgs(previousItem, item) is { } itemArgs)
                 itemHandler(this, itemArgs);
         }
+        if (_position != value)
+            return;
         if (previous != value && PositionChanged is { } handler && SkUiCarouselView.TryCreatePositionArgs(previous, value) is { } args)
             handler(this, args);
+        if (_position != value)
+            return;
         _indicator?.FollowCarousel(value / _perPage);
         if (!fromScroll)
             ScrollToCurrent(_requestedAnimation ?? _scrollAnimated);
@@ -345,7 +373,7 @@ public partial class SkUiCoreCarouselView : SkUiCoreNode, ISkUiScrollStepper, IS
         _requestingScroll = true;
         try
         {
-            _lastScroll = _panel.ScrollToIndex(_position, animated && IsShownNow());
+            _lastScroll = _panel.ScrollToIndex(_position, animated && IsShownNow(), _step);
         }
         finally
         {
@@ -392,13 +420,18 @@ public partial class SkUiCoreCarouselView : SkUiCoreNode, ISkUiScrollStepper, IS
         if (moving || _requestingScroll)
             return;
         // Settled: on the snap point of the position reached (or asked for); autoplay waits a full interval from here.
+        var asked = _targetIndex >= 0;
         _targetIndex = -1;
         _autoPlay?.Restart();
         if (_panel.HasGeometry && ItemCount > 0)
         {
-            var current = _panel.CurrentIndex(_position);
+            var disturbed = _panel.TakeDisturbed();
+            var current = asked && disturbed ? _position : _panel.CurrentIndex(_position);
             if (current != _position)
                 ApplyPosition(current, fromScroll: true);
+            // A change of the items or the layout stopped it on the way: it goes on.
+            if (disturbed && (asked || _snapPointsType != SnapPointsType.None) && !Controller.IsMoving && !_panel.RestsOn(_position))
+                ScrollToCurrent(_scrollAnimated);
         }
         FollowWithIndicator();
     }
@@ -690,7 +723,7 @@ public partial class SkUiCoreCarouselView : SkUiCoreNode, ISkUiScrollStepper, IS
         var count = ItemCount;
         if (_remainingItemsThreshold < 0 || count == 0 || _thresholdCount == count || !_panel.HasGeometry)
             return;
-        var last = _panel.Loops ? _position : _panel.LastVisibleIndex;
+        var last = _panel.Loops ? _position + _perPage - 1 : _panel.LastVisibleIndex;
         if (last < count - 1 - _remainingItemsThreshold)
             return;
         _thresholdCount = count;
@@ -803,10 +836,12 @@ public partial class SkUiCoreCarouselView : SkUiCoreNode, ISkUiScrollStepper, IS
     {
         UpdateEmpty();
         var empty = _isEmpty && _emptyView is { } view ? view.Measure(widthConstraint, heightConstraint) : Size.Zero;
-        _panel.SetViewport(_horizontal ? widthConstraint : heightConstraint);
+        var offered = _horizontal ? widthConstraint : heightConstraint;
+        _panel.SetViewport(offered, arranging: false);
         var size = _scroller.Measure(widthConstraint, heightConstraint);
         // Unbounded along the axis, the carousel is as long as its viewport (an item and the peek insets), not its strip.
-        size = _horizontal ? new Size(Math.Min(size.Width, _panel.ViewportLength), size.Height) : new Size(size.Width, Math.Min(size.Height, _panel.ViewportLength));
+        var length = _panel.MeasuredViewport(offered);
+        size = _horizontal ? new Size(Math.Min(size.Width, length), size.Height) : new Size(size.Width, Math.Min(size.Height, length));
         return new Size(Math.Max(size.Width, empty.Width), Math.Max(size.Height, empty.Height));
     }
 
@@ -815,7 +850,7 @@ public partial class SkUiCoreCarouselView : SkUiCoreNode, ISkUiScrollStepper, IS
     {
         var bounds = new Rect(0, 0, size.Width, size.Height);
         // Items that fill the carousel are as long as its arranged viewport, which the measure may not have known.
-        _panel.SetViewport(_horizontal ? size.Width : size.Height);
+        _panel.SetViewport(_horizontal ? size.Width : size.Height, arranging: true);
         _scroller.Measure(size.Width, size.Height);
         _scroller.Arrange(bounds);
         if (_isEmpty && _emptyView is { } empty)
@@ -829,7 +864,9 @@ public partial class SkUiCoreCarouselView : SkUiCoreNode, ISkUiScrollStepper, IS
     internal override void OnEffectiveFlowDirectionChanged()
     {
         base.OnEffectiveFlowDirectionChanged();
-        OnLayoutChanged(static () => { });
+        _requestingScroll = true;
+        try { _panel.Place(_position); } // the offset is the other direction's: only the position says where the strip is
+        finally { _requestingScroll = false; }
     }
 
     #endregion
@@ -852,7 +889,7 @@ public partial class SkUiCoreCarouselView : SkUiCoreNode, ISkUiScrollStepper, IS
             return false;
         var last = PageStart(ItemCount - 1);
         var next = _position + (LogicalForward(forward) ? _perPage : -_perPage);
-        _ = ScrollToIndex(next > last ? 0 : next < 0 ? last : next);
+        StepTo(next > last ? 0 : next < 0 ? last : next, LogicalForward(forward), animated: true);
         return true;
     }
 
@@ -960,14 +997,15 @@ public partial class SkUiCoreCarouselView : SkUiCoreNode, ISkUiScrollStepper, IS
                 _hiddenAtTick = false;
                 return true;
             }
-            return PageCount <= 1 || Controller.IsMoving || Controller.Dragging || _hovered || HasKeyboardFocusInside();
+            return PageCount <= 1 || Controller.IsMoving || Controller.Dragging || _hovered
+                || SkUiSemantics.FocusedInside(this) is not null || SkUiSemantics.IsScrolledOut(this);
         }
     }
 
     void ISkUiAutoPlayHost.AutoPlayStep(bool animated)
     {
         var next = _position + _perPage;
-        _ = ScrollToIndex(next > PageStart(ItemCount - 1) ? 0 : next, animated);
+        StepTo(next > PageStart(ItemCount - 1) ? 0 : next, forward: true, animated);
     }
 
     /// <inheritdoc />
@@ -979,16 +1017,6 @@ public partial class SkUiCoreCarouselView : SkUiCoreNode, ISkUiScrollStepper, IS
 
     /// <summary>The scroller is hovered (it covers the carousel): a mouse or pen is over the items.</summary>
     internal void OnScrollerHovered(bool isOver) => _hovered = isOver;
-
-    private bool HasKeyboardFocusInside()
-    {
-        if (SkUiSemantics.RootOf(this)?.FocusManagerIfCreated?.Focused is not ISkUiRenderable focused)
-            return false;
-        for (var node = focused; node is not null; node = node.RenderParent)
-            if (ReferenceEquals(node, this))
-                return true;
-        return false;
-    }
 
     #endregion
 }

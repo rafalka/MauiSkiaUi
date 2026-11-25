@@ -53,6 +53,12 @@ internal interface ISkUiScrollStepper
 
     /// <summary>Goes to the first (or, <paramref name="end"/>, the last) position; returns whether it moved.</summary>
     bool StepToEdge(bool end);
+
+    /// <summary>
+    /// Shows <paramref name="node"/>, a node inside that took focus, where the stepper's places allow; returns the offset it
+    /// scrolls to, or <c>null</c> to let the scroller move as little as it needs.
+    /// </summary>
+    Point? Reveal(ISkUiRenderable node) => null;
 }
 
 /// <summary>
