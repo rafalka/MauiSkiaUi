@@ -333,7 +333,7 @@ public partial class SkUiTabView : SkUiView, ISkUiFontElement, ISkUiKeyHandler, 
                 _attached.Remove(tab);
                 if (ReferenceEquals(tab.Parent, this))
                     tab.Parent = null;
-                if (tab.Icon is { } icon)
+                if (tab.Icon is { } icon && ReferenceEquals(icon.Parent, tab))
                     ReadoptIcon(icon);
                 Panes.Forget(tab);
             }
@@ -342,6 +342,7 @@ public partial class SkUiTabView : SkUiView, ISkUiFontElement, ISkUiKeyHandler, 
             {
                 tab.Parent = this;
                 SetInheritedBindingContext(tab, BindingContext);
+                tab.AdoptIcon(); // one an item outside a tab view had last has a context again
                 tab.PropertyChanged += OnTabPropertyChanged;
                 tab.BindingContextChanged += OnTabBindingContextChanged;
             }

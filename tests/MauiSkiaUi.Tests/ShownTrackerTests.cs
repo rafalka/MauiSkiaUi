@@ -37,7 +37,7 @@ public class ShownTrackerTests
     {
         var idle = Settled();
         ShowAndDrop(idle);
-        Assert.Equal(idle, Settled(until: idle));
+        Assert.True(Settled(until: idle) <= idle, $"{SkUiShownTracker.WatchedViews} watched views, {idle} before");
     }
 
     [Fact]

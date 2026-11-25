@@ -53,7 +53,8 @@ public class SkUiSegment : Element
 
     /// <summary>
     /// The icon becomes the item's child, as in MAUI: bindings and dynamic resources inside it (a color, a glyph) resolve against
-    /// the item. One that several items share belongs to the last of them, and to another when that one lets it go.
+    /// the item. One that several items share belongs to the last that took it, and to another of
+    /// the same control when that one lets it go.
     /// </summary>
     internal void AdoptIcon()
     {

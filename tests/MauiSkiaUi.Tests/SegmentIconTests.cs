@@ -140,15 +140,76 @@ public sealed class SegmentIconTests : IDisposable
     public void AnIconDisposedWhileItsSourceTellsAChangeLoadsNothing()
     {
         var icon = Icon(Colors.Lime);
+        var image = new SkUiImage { Source = icon }; // listens before the tab's icon does
         var tabs = new SkUiTabView().AddTab(new SkUiTabItem("A", new SkUiBox())).AddTab(new SkUiTabItem { Icon = icon });
-        // Listens before the tab's icon does, and removes the tab as the change is told.
-        var image = new SkUiImage { Source = icon };
+        var removed = 0;
         image.LoadingStarted += (_, _) =>
         {
-            if (tabs.Tabs.Count == 2)
-                tabs.Tabs.RemoveAt(1);
+            if (tabs.Tabs.Count < 2)
+                return;
+            tabs.Tabs.RemoveAt(1); // as the change is told
+            removed++;
         };
-        icon.Color = Colors.Magenta;
-        Assert.Single(tabs.Tabs);
+        icon.Color = Colors.Magenta; // threw: the disposed icon loaded again
+        Assert.Equal((1, 1), (removed, tabs.Tabs.Count));
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void ASharedIconTakesTheContextOfTheItemThatShowsIt(bool tabs)
+    {
+        // The item that had the icon last is not in the control (it never was, or it left).
+        var icon = Icon(Colors.Lime);
+        icon.SetBinding(SkUiVectorImageSource.ColorProperty, static (Model model) => model.Accent);
+        if (tabs)
+        {
+            var (a, b) = (new SkUiTabItem { Icon = icon }, new SkUiTabItem { Icon = icon });
+            var view = new SkUiTabView { BindingContext = new Model(Colors.Magenta) }.AddTab(a);
+            Assert.Equal(Colors.Magenta, icon.Color);
+            view.AddTab(b);
+            view.Tabs.Clear();
+            view.AddTab(a);
+            Assert.Equal(Colors.Magenta, icon.Color);
+        }
+        else
+        {
+            var (a, b) = (new SkUiSegment { Icon = icon }, new SkUiSegment { Icon = icon });
+            var control = new SkUiSegmentedControl { BindingContext = new Model(Colors.Magenta) };
+            control.Segments.Add(a);
+            Assert.Equal(Colors.Magenta, icon.Color);
+            control.Segments.Add(b);
+            control.Segments.Clear();
+            control.Segments.Add(a);
+            Assert.Equal(Colors.Magenta, icon.Color);
+        }
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void RemovingAnItemThatDoesNotOwnASharedIconLeavesItAsItIs(bool tabs)
+    {
+        var icon = Icon(Colors.Lime);
+        icon.SetBinding(SkUiVectorImageSource.ColorProperty, static (Model model) => model.Accent);
+        if (tabs)
+        {
+            var first = new SkUiTabView { BindingContext = new Model(Colors.Orange) };
+            first.AddTab(new SkUiTabItem { Icon = icon }).AddTab(new SkUiTabItem { Icon = icon });
+            var second = new SkUiTabView { BindingContext = new Model(Colors.Magenta) }.AddTab(new SkUiTabItem { Icon = icon }); // owns it
+            first.Tabs.RemoveAt(0);
+            GC.KeepAlive(second);
+        }
+        else
+        {
+            var first = new SkUiSegmentedControl { BindingContext = new Model(Colors.Orange) };
+            first.Segments.Add(new SkUiSegment { Icon = icon });
+            first.Segments.Add(new SkUiSegment { Icon = icon });
+            var second = new SkUiSegmentedControl { BindingContext = new Model(Colors.Magenta) };
+            second.Segments.Add(new SkUiSegment { Icon = icon });
+            first.Segments.RemoveAt(0);
+            GC.KeepAlive(second);
+        }
+        Assert.Equal(Colors.Magenta, icon.Color);
     }
 }

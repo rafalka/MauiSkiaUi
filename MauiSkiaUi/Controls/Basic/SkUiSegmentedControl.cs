@@ -286,6 +286,7 @@ public class SkUiSegmentedControl : SkUiView, ISkUiFontElement, ISkUiSegmentedOw
             return;
         segment.Parent = this;
         SetInheritedBindingContext(segment, BindingContext);
+        segment.AdoptIcon(); // one an item outside a control had last has a context again
         segment.PropertyChanged += OnSegmentPropertyChanged;
     }
 
@@ -296,7 +297,7 @@ public class SkUiSegmentedControl : SkUiView, ISkUiFontElement, ISkUiSegmentedOw
         segment.PropertyChanged -= OnSegmentPropertyChanged;
         if (ReferenceEquals(segment.Parent, this))
             segment.Parent = null;
-        if (segment.Icon is { } icon)
+        if (segment.Icon is { } icon && ReferenceEquals(icon.Parent, segment))
             ReadoptIcon(icon);
     }
 
