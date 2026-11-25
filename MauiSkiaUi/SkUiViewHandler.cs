@@ -1542,6 +1542,70 @@ internal sealed class SkUiOverlayContainer : Android.Widget.FrameLayout
         TextInput?.Autofill(values);
     }
 
+    protected override void OnAttachedToWindow()
+    {
+        base.OnAttachedToWindow();
+        if (OperatingSystem.IsAndroidVersionAtLeast(26))
+            RemovePageFocusHighlights();
+    }
+
+    /// <summary>
+    /// Page containers around the surface lose Android's default focus highlight (as this container has none): the list a
+    /// ViewPager2 pages with (Shell, TabbedPage) and the DrawerLayout (Shell, FlyoutPage) take focus themselves, when a focused
+    /// field lets go or the window leaves touch mode (a typed key), and the highlight tints all they hold: 60 % of the theme's
+    /// <c>colorControlHighlight</c>, which shows white as #ECECEC (issue #125). Scrollers, cells and the app's own focusable
+    /// views keep it: there it marks one of several places focus can be.
+    /// </summary>
+    [System.Runtime.Versioning.SupportedOSPlatform("android26.0")]
+    private void RemovePageFocusHighlights()
+    {
+        // The managed type tests first: surfaces in recycled cells attach while scrolling (one JNI call per ancestor).
+        for (var parent = Parent; parent is not null;)
+        {
+            var next = parent.Parent;
+            if ((parent is AndroidX.DrawerLayout.Widget.DrawerLayout || next is AndroidX.ViewPager2.Widget.ViewPager2)
+                && parent is Android.Views.ViewGroup { DefaultFocusHighlightEnabled: true } group)
+                RemoveFocusHighlight(group);
+            parent = next;
+        }
+    }
+
+    [System.Runtime.Versioning.SupportedOSPlatform("android26.0")]
+    private void RemoveFocusHighlight(Android.Views.ViewGroup group)
+    {
+        group.DefaultFocusHighlightEnabled = false;
+        // Android drops a highlight that already shows only when the view's focus changes (leaving it in touch mode too).
+        // After this pass: the surface can attach inside a layout.
+        if (group.IsFocused)
+            Post(() => Refocus(group));
+    }
+
+    /// <summary>
+    /// Focus leaves <paramref name="group"/> and comes back to it, without a stop elsewhere: outside touch mode Android gives
+    /// cleared focus to the window's first focusable view (an entry in the title bar), and focusing a group can focus what it holds.
+    /// </summary>
+    private static void Refocus(Android.Views.ViewGroup group)
+    {
+        // Posted: a closed Shell disposes its drawer, and focus can have moved on.
+        if (group.Handle == IntPtr.Zero || !group.IsAttachedToWindow || !group.IsFocused || group.RootView is not Android.Views.ViewGroup root)
+            return;
+        var rootFocusability = root.DescendantFocusability;
+        var focusability = group.DescendantFocusability;
+        try
+        {
+            group.DescendantFocusability = Android.Views.DescendantFocusability.BlockDescendants;
+            root.DescendantFocusability = Android.Views.DescendantFocusability.BlockDescendants;
+            group.ClearFocus();
+            root.DescendantFocusability = rootFocusability;
+            group.RequestFocus();
+        }
+        finally
+        {
+            root.DescendantFocusability = rootFocusability;
+            group.DescendantFocusability = focusability;
+        }
+    }
+
     /// <summary>Shown or hidden with its page: autofill learns it of the drawn fields, which it does not derive from this container.</summary>
     [System.Runtime.Versioning.SupportedOSPlatform("android24.0")]
     public override void OnVisibilityAggregated(bool isVisible)
