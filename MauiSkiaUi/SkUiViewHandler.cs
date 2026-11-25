@@ -1559,30 +1559,51 @@ internal sealed class SkUiOverlayContainer : Android.Widget.FrameLayout
     [System.Runtime.Versioning.SupportedOSPlatform("android26.0")]
     private void RemovePageFocusHighlights()
     {
-        for (var parent = Parent; parent is not null; parent = parent.Parent)
+        // The managed type tests first: surfaces in recycled cells attach while scrolling (one JNI call per ancestor).
+        for (var parent = Parent; parent is not null;)
         {
-            if (parent is not Android.Views.ViewGroup { DefaultFocusHighlightEnabled: true } group
-                || (group is not AndroidX.DrawerLayout.Widget.DrawerLayout && group.Parent is not AndroidX.ViewPager2.Widget.ViewPager2))
-                continue;
-            group.DefaultFocusHighlightEnabled = false;
-            // Android drops a highlight that already shows only when the view's focus changes (leaving it in touch mode too).
-            // After this pass: the surface can attach inside a layout.
-            if (group.IsFocused)
-                Post(() => Refocus(group));
+            var next = parent.Parent;
+            if ((parent is AndroidX.DrawerLayout.Widget.DrawerLayout || next is AndroidX.ViewPager2.Widget.ViewPager2)
+                && parent is Android.Views.ViewGroup { DefaultFocusHighlightEnabled: true } group)
+                RemoveFocusHighlight(group);
+            parent = next;
         }
     }
 
-    /// <summary>Focus leaves <paramref name="group"/> and comes back to it, not to what it holds.</summary>
+    [System.Runtime.Versioning.SupportedOSPlatform("android26.0")]
+    private void RemoveFocusHighlight(Android.Views.ViewGroup group)
+    {
+        group.DefaultFocusHighlightEnabled = false;
+        // Android drops a highlight that already shows only when the view's focus changes (leaving it in touch mode too).
+        // After this pass: the surface can attach inside a layout.
+        if (group.IsFocused)
+            Post(() => Refocus(group));
+    }
+
+    /// <summary>
+    /// Focus leaves <paramref name="group"/> and comes back to it, without a stop elsewhere: outside touch mode Android gives
+    /// cleared focus to the window's first focusable view (an entry in the title bar), and focusing a group can focus what it holds.
+    /// </summary>
     private static void Refocus(Android.Views.ViewGroup group)
     {
-        if (!group.IsFocused)
+        // Posted: a closed Shell disposes its drawer, and focus can have moved on.
+        if (group.Handle == IntPtr.Zero || !group.IsAttachedToWindow || !group.IsFocused || group.RootView is not Android.Views.ViewGroup root)
             return;
+        var rootFocusability = root.DescendantFocusability;
         var focusability = group.DescendantFocusability;
-        group.DescendantFocusability = Android.Views.DescendantFocusability.BlockDescendants;
-        group.ClearFocus();
-        if (!group.IsFocused)
+        try
+        {
+            group.DescendantFocusability = Android.Views.DescendantFocusability.BlockDescendants;
+            root.DescendantFocusability = Android.Views.DescendantFocusability.BlockDescendants;
+            group.ClearFocus();
+            root.DescendantFocusability = rootFocusability;
             group.RequestFocus();
-        group.DescendantFocusability = focusability;
+        }
+        finally
+        {
+            root.DescendantFocusability = rootFocusability;
+            group.DescendantFocusability = focusability;
+        }
     }
 
     /// <summary>Shown or hidden with its page: autofill learns it of the drawn fields, which it does not derive from this container.</summary>
