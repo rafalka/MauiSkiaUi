@@ -74,7 +74,8 @@ var tabs = new SkUiCoreTabView()
     .AddTab(new SkUiCoreTabItem("Media", () => new SkUiCoreLabel().SetText("Made when first shown")).SetBadgeText("3"))
     .SetIndicatorStyle(SkUiTabIndicatorStyle.Pill);
 tabs.SelectionChanged += (_, args) => Analytics.Track(args.CurrentIndex);
-page.Content = new SkUiCoreHost().SetContent(tabs);
+// A Core host that is the surface itself draws in software unless HwAccelerated is set; inside a drawn view it uses its surface.
+page.Content = new SkUiCoreHost { HwAccelerated = true }.SetContent(tabs);
 ```
 
 ## Key properties

@@ -31,6 +31,7 @@ public partial class SkUiTabView : SkUiView, ISkUiFontElement, ISkUiKeyHandler, 
     /// <summary>Creates a tab view without tabs.</summary>
     public SkUiTabView()
     {
+        HwAccelerated = true; // as a root: swipes and the indicator run on the render thread
         AttachChild(StripScroller);
         AttachChild(PaneScrollView);
     }

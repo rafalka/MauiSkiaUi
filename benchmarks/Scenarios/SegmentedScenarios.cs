@@ -104,7 +104,7 @@ public sealed class TabViewSwipe(bool core) : BenchScenario
         }
         if (!core)
             return new SkUiContentView { Background = Colors.White, Content = (SkUiView)tabs };
-        return new SkUiCoreHost { Background = Colors.White }.SetContent((SkUiCoreNode)tabs);
+        return new SkUiCoreHost { Background = Colors.White, HwAccelerated = true }.SetContent((SkUiCoreNode)tabs); // a host alone draws in software by default
     }
 
     private static SkUiCoreNode CorePane()
@@ -139,8 +139,7 @@ public sealed class CoreCarouselSwipe : BenchScenario
         TrySet(carousel, "ItemExtent", 280d);
         TrySet(carousel, "ItemsSource", Enumerable.Range(0, Items).ToList());
         Types117.Method(carousel, "SetItemFactory").Invoke(carousel, [(Func<object?, SkUiCoreNode>)(static _ => CoreCarousels.Card()), (Action<SkUiCoreNode, object?>)CoreCarousels.Bind, null]);
-        carousel.SetHeight(220);
-        return new SkUiCoreHost { Background = Colors.White }.SetContent(carousel);
+        return new SkUiCoreHost { Background = Colors.White, HeightRequest = 220, HwAccelerated = true }.SetContent(carousel); // as carousel-swipe: a GPU surface of the carousel's size
     }
 
     public override Func<View, IDisposable?>? Motion => root =>

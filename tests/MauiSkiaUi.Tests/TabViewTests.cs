@@ -124,6 +124,10 @@ public class TabViewTests
     }
 
     [Fact]
+    public void AsASurfacesRootItDrawsOnTheGpuAsTheOtherScrollingControls() =>
+        Assert.Equal((true, true, true), (new SkUiTabView().HwAccelerated, new SkUiCarouselView().HwAccelerated, new SkUiCollectionView().HwAccelerated));
+
+    [Fact]
     public void TheStripSitsAboveOrBelowThePanes()
     {
         using var _ = SkUiTestHelpers.UseBundledFont();
