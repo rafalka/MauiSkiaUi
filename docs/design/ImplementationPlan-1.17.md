@@ -176,6 +176,7 @@ Two tracks can run side by side: phase C (one agent; C2 to C5 touch the same car
 - **A grouped carousel source:** MAUI's `CarouselView` has none either.
 - **Visual states for Core carousel items:** Core has no `VisualStateManager` ([D7](#decisions)).
 - **Unloading far tab panes:** panes stay once created; an option to release them is a later step if an app needs it.
+- **Tab headers of your own** (a view or a control template): [1.18](Roadmap.md#1180-tab-headers-of-your-own-proposed).
 - **Tab strips on the left or right**, an overflow menu for tabs that do not fit, and tabs that reorder by drag.
 - **Autoplay progress in the indicator** (a dot that fills as the interval runs).
 - **The virtual stack's Core twin:** it reuses the Core carousel's factory shape ([D7](#decisions)) when it comes.

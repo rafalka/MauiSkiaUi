@@ -30,6 +30,7 @@ What the next releases bring, and the work after them. What has shipped is in th
 | **1.15.1** | As 1.11.0 | As 1.11.0 | 11.0.100 | As 1.11.0 | `master`, released 20 November 2026 |
 | **1.16.0** | As 1.11.0 | As 1.11.0 | 11.0.100 | As 1.11.0 | Proposed |
 | **1.17.0** | As 1.11.0 | As 1.11.0 | 11.0.100 | As 1.11.0 | Proposed |
+| **1.18.0** | As 1.11.0 | As 1.11.0 | 11.0.100 | As 1.11.0 | Proposed |
 
 SkiaUi up to 1.10 targets MAUI 10.x only; 1.11 adds net11 targets with MAUI 11 next to them ([1.11.0](#1110-net-11-and-maui-11-shipped)). Development happens on `devel`; `master` holds stable releases ([Releasing.md](../Releasing.md#branches-and-versions)).
 
@@ -176,6 +177,12 @@ Additive only. The carousel item of [MAUI parity](#maui-parity) and F1 of the [N
 - **Step 0:** SkiaSharp 4.157.0 (was 4.154.0) and HarfBuzzSharp 14.4.0.200, before the features.
 - **Phase C, the carousel:** its layout moves to an internal engine with no view types, shared by three users; MAUI's `VisibleViews`; several items per snap point (`ItemsPerSnapPoint`, pages stable on every round of a loop, the indicator counting pages); autoplay (`AutoPlayInterval`, waiting while the user scrolls, hovers or has focus inside, and while the carousel is not shown; `IsAutoPlayPaused`); `SkUiCoreCarouselView` with an item factory and a linked `SkUiCoreIndicatorView`.
 - **Phase S, F1:** `SkUiSegmentedControl` and `SkUiCoreSegmentedControl` (text and icon segments, a sliding selection, keys and screen readers, drawn by every look); `SkUiTabView`, a tab strip over panes created when first shown and kept, swiped on the carousel engine, its indicator following the panes on the render thread through 1.16's scroll links; `SkUiCoreTabView` on the same strip and engine.
+
+### 1.18.0: tab headers of your own (proposed)
+
+Initially placed here on 25 November 2026; the rest of the release is not planned yet. The [November 2026 review's order](ImplementationPlan-PerformanceAndControls.md#decisions) has the sheet (F3) for 1.18.
+
+- **Custom tab headers:** a view or a control template for a tab's header in `SkUiTabView` (1.17's headers are text, an icon and a badge drawn by the look, not views), for a whole strip or one tab, with the header's selected and disabled states; `SkUiCoreTabView` with a header node or a factory. To decide: how a header of one's own measures in equal and content widths, what it takes over from the look (the badge, the selected color), how the indicator and its scroll-linked channels use its bounds, and what screen readers read (the header stays one element of the tab list).
 
 ## Backlog (1.x)
 
