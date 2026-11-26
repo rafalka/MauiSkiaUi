@@ -31,6 +31,7 @@ A label measured at one width and drawn at a wider one reuses its lines when not
 | `MaxLines` | The most lines drawn; `-1` (default) or `0`: no limit. Wrapped lines past it are dropped. With `TailTruncation` the text wraps and the last line ends with the ellipsis, as on MAUI; without `MaxLines`, tail truncation keeps one line per paragraph. Explicit newlines count as lines |
 | `LineHeight` | Multiplier of the font's line spacing (`1.8`: 80 % more); `-1` (default) or `0`: the font's. The extra space is split above and below each line (CSS half-leading), so a single line stays centered in its taller box. The font's own line gap is placed the same way: half above the glyphs, half below |
 | `CharacterSpacing` | DIPs added after each character (grapheme, or ligature), negative for tighter; measure, wrapping and truncation count it. Plain Latin text keeps the `Auto` fast path |
+| `FontFeatures` | OpenType features the text is shaped with, comma-separated as CSS's `font-feature-settings`: `"tnum"` (digits of one width, for clocks and countdowns that must not jitter), `"-liga"`, `"ss01"`, `"zero=1"`; `null` (default): the font's. Part of the layout cache key; a font without a feature draws as before. Text with features is always shaped with HarfBuzz, also with `TextRendering="Simple"`. Spans take the label's unless they set `SkUiSpan.FontFeatures` (Core: `SkUiCoreSpan.FontFeatures`); a span turns one off by listing it off (`"-tnum"`). SkiaUi extension (1.18) |
 | `TextDecorations` | `Underline`, `Strikethrough` or both, in the text color, at the font's positions, across each line's glyphs (all of its bidi runs). Paint-only: no re-layout |
 | `TextTransform` | `Uppercase` / `Lowercase` (invariant culture, as MAUI) change the displayed text; `Text` keeps its value. `Default` / `None`: as written |
 
@@ -253,7 +254,7 @@ Fonts registered with MAUI's `ConfigureFonts` (`fonts.AddFont("file.ttf", "Alias
 
 ## Key properties
 
-`Text`, `FormattedText`, `TextType`, `LinkTappedCommand`, `TextColor`, `FontSize`, `FontAutoScalingEnabled`, `ShrinkToFit`, `MinimumFontScale`, `AllowsTightening`, `GrowToFill`, `MaximumFontScale`, `FontFamily`, `FontAttributes`, `LineBreakMode`, `MaxLines`, `LineHeight`, `CharacterSpacing`, `TextDecorations`, `TextTransform`, `LineBreaker`, `HorizontalTextAlignment`, `VerticalTextAlignment`, `TextRendering`, `Padding`, `CornerRadii`, `CornerRadius`, `BorderColor`, `BorderWidth` (+ matching `Set*` setters); `InvalidateTextLayout()`, `SpanAt(point)`, `LinkAt(point)`; `LinkTapped`.
+`Text`, `FormattedText`, `TextType`, `LinkTappedCommand`, `TextColor`, `FontSize`, `FontAutoScalingEnabled`, `ShrinkToFit`, `MinimumFontScale`, `AllowsTightening`, `GrowToFill`, `MaximumFontScale`, `FontFamily`, `FontAttributes`, `LineBreakMode`, `MaxLines`, `LineHeight`, `CharacterSpacing`, `FontFeatures`, `TextDecorations`, `TextTransform`, `LineBreaker`, `HorizontalTextAlignment`, `VerticalTextAlignment`, `TextRendering`, `Padding`, `CornerRadii`, `CornerRadius`, `BorderColor`, `BorderWidth` (+ matching `Set*` setters); `InvalidateTextLayout()`, `SpanAt(point)`, `LinkAt(point)`; `LinkTapped`.
 
 ## Differences from MAUI Label
 

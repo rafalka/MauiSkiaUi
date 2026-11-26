@@ -13,6 +13,13 @@ Publishing (the NuGet publish workflow, [docs/Releasing.md](docs/Releasing.md)) 
 
 ## Unreleased
 
+### New features
+
+- **OpenType font features:** `FontFeatures` on `SkUiLabel`, `SkUiCoreLabel`, spans (`SkUiSpan.FontFeatures` on MAUI's `Span`, `SkUiCoreSpan.FontFeatures`) and the text inputs of both layers (`SkUiEntry`, `SkUiEditor` and those built on them) shapes the text with the OpenType features listed, as CSS's `font-feature-settings`: `FontFeatures="tnum"` gives digits of one width, so a clock or a countdown no longer jitters as it ticks; `"-liga"`, `"ss01"`, `"zero=1"` and the like. A font without a feature draws as before. Spans take the label's unless they set their own. Text with features is always shaped with HarfBuzz, also with `TextRendering="Simple"`. An invalid list is ignored with a warning (the `Set*` setters throw). Issue #132.
+- **Press scale:** `PressedScale` on every view and Core node shrinks it about its anchor while it is pressed (0.97 for a card, 0.95 for a small button), with the look's press and release transitions, on top of the press overlay or fade and also without `ShowsPressEffect` (buttons, toggles and views with a tap). Composited: its frames re-record nothing, and it multiplies `Scale`. `-1` (default) takes the look's new `SkUiLook.PressedScale`, 1 (none) in every built-in look, so a look can make it an app's standard press. A press that turns into a scroll springs back; reduced motion shows none. Issue #133.
+- **Swipe views that open one at a time:** `SkUiSwipeView.ExclusiveGroup` closes the other views of a group on the same surface when one starts showing its items (a swipe or `Open`); `CloseAsync` completes when the content is back; `SkUiCollectionView.CloseSwipeViews()` closes every open row it has realized. The visible, enabled swipe items of a row are now custom actions of the row for TalkBack and VoiceOver, so a screen-reader user reaches "Delete" without the gesture. Issue #135.
+- **Hit slop and a minimum touch target:** `HitSlop` (DIPs per side) and `MinimumTouchTargetSize` (44 or 48) on every view and Core node grow the area it is pressed in, not its layout or drawing: a 32 DIP chevron pressed in 44 × 44. A slop takes the press where nothing, or only a container of the node (its row, a scroller), is under the finger; an exact hit on another node wins, slops are cut by their containers' clips, and the nearest of two wins. Screen readers' frame of the node grows the same way. Nodes without a slop cost nothing. Issue #134.
+
 ## 1.17.0
 
 ### New features

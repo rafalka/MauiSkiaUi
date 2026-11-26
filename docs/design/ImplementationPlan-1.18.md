@@ -2,7 +2,7 @@
 
 **Goal:** the review's in-surface sheet (F3) and chips (F5), custom tab headers (placed here on 25 November 2026), and the nine feature requests filed from one real screen set (employee self-service: time clock, breaks, balances, shifts), issues [#128](https://github.com/rafalka/MauiSkiaUi/issues/128) to [#136](https://github.com/rafalka/MauiSkiaUi/issues/136). Each request was checked against the architecture and the code before it was taken in ([review](#review-of-the-requests)).
 
-**Status:** proposed 26 November 2026. The decisions below are to be agreed before their phase starts; nothing is built.
+**Status:** proposed 26 November 2026; the decisions below are to be agreed before their phase starts. Phase A built on `1.18-implementation` (26 November 2026): A1 font features, A2 press scale, A3 swipe view groups, A4 hit slop, each with its tests (`FontFeatureTests`, `PressScaleTests`, `SwipeViewTests`, `HitSlopTests`), docs and changelog; the benches and gallery pages are open. Where the build differs from the plan, the phase's notes below say so.
 
 ## Review of the requests
 
@@ -65,9 +65,9 @@ Proposed 26 November 2026.
 Independent of each other; each one appends to the look and the gallery, merged in order.
 
 - **A1 Font features (#132, S).** `SkUiFontFeatures` parser and value; `SkUiTextStyle` member; `SkUiShaping` passes features and skips the simple path; spans in `SkUiRichTextLayout`; the edit layout. *Check:* `FontFeatureTests` (tabular digits keep `"10:11"` and `"10:00"` the same width with a bundled font that has `tnum`; cache keys differ; unknown tags ignored); `core-labels`, `skui-labels` within noise.
-- **A2 Press scale (#133, S).** Look member, `PressedScale` on both layers, the animator's scale channel, reduce motion. *Check:* `PressScaleTests` (scale reaches the value and comes back; cancelled by a scroll; no re-record while pressed); `ImplicitStyleTests`.
+- **A2 Press scale (#133, S).** Look member, `PressedScale` on both layers, the animator's scale channel, reduce motion. Built: shown whenever a view is pressed (buttons and toggles too), not only with `ShowsPressEffect`, as a composite-time `SkUiRenderProps.PressScale` applied in the matrix. *Check:* `PressScaleTests` (scale reaches the value and comes back; cancelled by a scroll; no re-record while pressed); `ImplicitStyleTests`.
 - **A3 Swipe view (#135, S).** `ExclusiveGroup`, `CloseAsync`, `CloseSwipeViews`, custom actions. *Check:* `SwipeViewTests` additions; a leak scenario that opens rows of a group and scrolls them away.
-- **A4 Hit slop (#134, M).** Props reach, two-pass `FindTarget`, `MapInsideClips` and the semantics frames, `MinimumTouchTargetSize`. *Check:* `HitSlopTests` (slop past a non-clipping parent; clipped by a scroller; exact hit wins over a neighbour's slop; disabled node blocks inside its slop); pointer benches within noise.
+- **A4 Hit slop (#134, M).** Built differently from D3's ancestor reach: `FindTarget` is unchanged. Nodes with a slop are tracked weakly per UI thread (`SkUiHitSlop`); only while one exists, the press looks for the node whose slop holds the point after the ordinary search, mapped through `MapInsideClips` (so its ancestors' clips cut it), and takes it when the search found nothing there or an ancestor of it; the nearest of several wins. Taps accept a release inside the slop; semantics frames grow. `MinimumTouchTargetSize`. *Check:* `HitSlopTests` (slop past a non-clipping parent; clipped by a scroller; exact hit wins over a neighbour's slop; disabled node blocks inside its slop); pointer benches within noise.
 
 ## Phase P: progress (#128, #129)
 
