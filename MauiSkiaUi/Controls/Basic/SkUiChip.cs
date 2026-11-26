@@ -260,7 +260,7 @@ public class SkUiChip : SkUiButton, ISkUiKeyHandler
         var background = ResolveBackgroundFill() is { IsVisible: true } fill
             ? new Color(fill.Color.Red / 255f, fill.Color.Green / 255f, fill.Color.Blue / 255f, fill.Color.Alpha / 255f)
             : null;
-        ChipChrome.Draw(canvas, ChromeState, (float)Width, (float)Height, Padding, CornerRadii, background, _selectedColor, _strokeColor,
+        ChipChrome.Draw(canvas, ChromeState, (float)Width, (float)Height, BasePadding, CornerRadii, background, _selectedColor, _strokeColor,
             TextColor, _badgeColor, _badgeTextColor, PressVisual, PressPosition, IsPressed, IsVisualStateEnabled);
     }
 
@@ -274,7 +274,7 @@ public class SkUiChip : SkUiButton, ISkUiKeyHandler
     protected override void OnTapped(SkUiTappedEventArgs args)
     {
         if (!CanReceiveTap) return;
-        if (EffectiveShowsRemoveButton && ChipChrome.Layout(ChromeState, (float)Width, (float)Height, Padding).RemoveHit
+        if (EffectiveShowsRemoveButton && ChipChrome.Layout(ChromeState, (float)Width, (float)Height, BasePadding).RemoveHit
                 .Contains((float)args.Position.X, (float)args.Position.Y))
         {
             Remove();
@@ -290,6 +290,13 @@ public class SkUiChip : SkUiButton, ISkUiKeyHandler
             group.OnChipTapped(this);
         else if (_kind == SkUiChipKind.Filter)
             WriteBack(IsSelectedProperty, !_isSelected);
+    }
+
+    /// <summary>The group's selection mode changed: the chip may become a toggle or stop being one (its check, its room, how it is read).</summary>
+    internal void OnGroupModeChanged()
+    {
+        ChromeChanged();
+        InvalidateSemantics();
     }
 
     /// <summary>Sets the selection as the control's own change (a group's rule, its sync): a one-way binding of <see cref="IsSelected"/> stays.</summary>

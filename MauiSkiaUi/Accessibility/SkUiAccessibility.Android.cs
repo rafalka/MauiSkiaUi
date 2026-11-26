@@ -154,7 +154,10 @@ internal sealed class SkUiAccessibilityHelper : ExploreByTouchHelper
         }, AnnouncerMs);
     }
 
-    /// <summary>The announcer's node: the text in a live region, at the surface's corner, not focusable.</summary>
+    /// <summary>
+    /// The announcer's node: the text in a live region, 1 px at the surface's corner, not keyboard focusable and no stop of the
+    /// helper's focus search or hit-testing. TalkBack's swipe navigation may still reach it while it is listed (3 s).
+    /// </summary>
     private void PopulateAnnouncer(AccessibilityNodeInfoCompat node)
     {
         var (text, politeness) = _announcement ?? (string.Empty, SkUiLiveRegion.Polite);
@@ -216,8 +219,8 @@ internal sealed class SkUiAccessibilityHelper : ExploreByTouchHelper
         foreach (var node in tree.Flatten())
             if (!node.IsNative)
                 virtualViewIds.Add(Java.Lang.Integer.ValueOf(node.Id));
-        if (_announcement is not null)
-            virtualViewIds.Add(Java.Lang.Integer.ValueOf(AnnouncerId));
+        // Not the announcer: it is no stop of the helper's own focus search (it stays a child of the host, where TalkBack reads
+        // its live region).
     }
 
     /// <inheritdoc />

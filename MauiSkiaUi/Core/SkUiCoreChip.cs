@@ -174,6 +174,13 @@ public class SkUiCoreChip : SkUiCoreButton, ISkUiKeyHandler
     /// <summary>The group the chip belongs to, when a <see cref="SkUiCoreChipGroup"/> made it.</summary>
     internal SkUiCoreChipGroup? Group { get; set; }
 
+    /// <summary>The group's selection mode changed: the chip may become a toggle or stop being one (its check, its room, how it is read).</summary>
+    internal void OnGroupModeChanged()
+    {
+        ChromeChanged();
+        InvalidateSemantics();
+    }
+
     internal bool EffectiveShowsRemoveButton => _showsRemoveButton ?? _kind == SkUiChipKind.Input;
 
     internal bool IsToggle => Group is { } group ? group.SelectionMode != SkUiChipSelectionMode.None : _kind == SkUiChipKind.Filter;

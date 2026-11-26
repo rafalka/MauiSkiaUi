@@ -124,6 +124,42 @@ public class ChipGroupTests
     }
 
     [Fact]
+    public void ChangingTheModeClearsOrResizesTheChips()
+    {
+        using var _ = SkUiTestHelpers.UseBundledFont();
+        var group = Group(["Approved", "Pending"]);
+        Tap(group, group.Chips[0]);
+        SkUiTestHelpers.Arrange(group, 300, 400);
+        var checkedWidth = group.Chips[0].Width;
+        var plainWidth = group.Chips[1].Width;
+        Assert.True(checkedWidth > plainWidth);
+
+        group.SelectionMode = SkUiChipSelectionMode.None; // no selection: no check, no fill, read as buttons
+        SkUiTestHelpers.Arrange(group, 300, 400);
+        Assert.False(group.Chips[0].IsSelected);
+        Assert.True(group.Chips[0].Width < checkedWidth, $"{checkedWidth} → {group.Chips[0].Width}");
+        Assert.All(SkUiSemanticsTree.Build(group).Flatten(), node => Assert.Equal(SkUiSemanticsRole.Button, node.Role));
+
+        var changes = new List<SkUiSelectionChangedEventArgs>();
+        group.SelectionChanged += (_, args) => changes.Add(args);
+        group.SelectionMode = SkUiChipSelectionMode.Multiple; // "Approved" is still in SelectedItems
+        SkUiTestHelpers.Arrange(group, 300, 400);
+        Assert.True(group.Chips[0].IsSelected);
+        Assert.Equal(checkedWidth, group.Chips[0].Width, 1); // the check's room is back
+        Tap(group, group.Chips[1]);
+        Assert.Equal(["Approved"], changes.Single().PreviousSelection);
+
+        var core = new SkUiCoreChipGroup().SetItemsSource(new[] { "A", "B" }).SetSelectedItems(["A"]);
+        var host = new SkUiCoreHost().SetContent(core);
+        SkUiTestHelpers.Arrange(host, 300, 200);
+        var coreChecked = core.Chips[0].Frame.Width;
+        core.SetSelectionMode(SkUiChipSelectionMode.None);
+        SkUiTestHelpers.Arrange(host, 300, 200);
+        Assert.False(core.Chips[0].IsSelected);
+        Assert.True(core.Chips[0].Frame.Width < coreChecked);
+    }
+
+    [Fact]
     public void RemovingAChipReportsItsItem()
     {
         using var _ = SkUiTestHelpers.UseBundledFont();

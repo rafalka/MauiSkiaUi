@@ -18,7 +18,7 @@ public class SkUiChipGroup : SkUiView, ISkUiKeyHandler
     private readonly List<object?> _items = [];
     private SkUiDisplayBinding? _itemDisplay;
     private SkUiWeakListener<SkUiChipGroup>? _itemsListener;
-    private SelectedItemsObserver? _selectedItemsObserver;
+    private SkUiWeakListener<SkUiChipGroup>? _selectedItemsListener;
     private SkUiWrapLayout? _wrap;
     private SkUiScrollView? _scroller;
     private SkUiHorizontalStackLayout? _row;
@@ -63,7 +63,7 @@ public class SkUiChipGroup : SkUiView, ISkUiKeyHandler
             // Created when first read; followed from then on (no property change is raised for a default).
             var list = new ObservableCollection<object>();
             var owner = (SkUiChipGroup)bindable;
-            (owner._selectedItemsObserver ??= new SelectedItemsObserver(owner)).Observe(list);
+            owner.ListenToSelectedItems(list);
             return list;
         },
         coerceValue: (_, value) => value ?? new ObservableCollection<object>(),
@@ -204,8 +204,12 @@ public class SkUiChipGroup : SkUiView, ISkUiKeyHandler
     private void OnSelectionModeChanged(SkUiChipSelectionMode value)
     {
         _selectionMode = value;
+        // What a later multiple-selection change reports as before.
+        _lastSelection = value == SkUiChipSelectionMode.Multiple ? SelectedItems.ToArray() : [];
         SyncChips();
-        InvalidateSemantics(); // a chip is read as a toggle or a button
+        foreach (var chip in _chips)
+            chip.OnGroupModeChanged(); // a check shows or goes; read as a toggle or a button
+        InvalidateSemantics();
     }
 
     private void OnSelectedItemChanged(object? old, object? value)
@@ -217,9 +221,17 @@ public class SkUiChipGroup : SkUiView, ISkUiKeyHandler
 
     private void OnSelectedItemsChanged(IList<object> value)
     {
-        (_selectedItemsObserver ??= new SelectedItemsObserver(this)).Observe(value as INotifyCollectionChanged);
+        ListenToSelectedItems(value);
         SyncSelectedItems();
     }
+
+    /// <summary>Follows the selected items' list (weakly: a long-lived view model's list keeps no group alive).</summary>
+    private void ListenToSelectedItems(IList<object> list) =>
+        (_selectedItemsListener ??= new SkUiWeakListener<SkUiChipGroup>(this, static (group, change) =>
+        {
+            if (change.Kind == SkUiChangeKind.Collection)
+                group.SyncSelectedItems();
+        })).Listen(list as INotifyCollectionChanged);
 
     /// <summary>The selected items' list changed (a tap, or the app): the chips follow.</summary>
     private void SyncSelectedItems()
@@ -357,8 +369,6 @@ public class SkUiChipGroup : SkUiView, ISkUiKeyHandler
     /// <summary>The chips show the selection.</summary>
     private void SyncChips()
     {
-        if (_selectionMode == SkUiChipSelectionMode.None)
-            return;
         _syncing = true;
         try
         {
@@ -464,30 +474,5 @@ public class SkUiChipGroup : SkUiView, ISkUiKeyHandler
         if (target >= 0 && target < _chips.Count)
             SkUiSemantics.RootOf(this)?.FocusManager.Focus(_chips[target]);
         return true; // at an end: the focus stays
-    }
-
-    private sealed class SelectedItemsObserver(SkUiChipGroup owner)
-    {
-        private readonly WeakReference<SkUiChipGroup> _owner = new(owner);
-        private INotifyCollectionChanged? _source;
-
-        public void Observe(INotifyCollectionChanged? source)
-        {
-            if (ReferenceEquals(source, _source))
-                return;
-            if (_source is not null)
-                _source.CollectionChanged -= OnChanged;
-            _source = source;
-            if (source is not null)
-                source.CollectionChanged += OnChanged;
-        }
-
-        private void OnChanged(object? sender, NotifyCollectionChangedEventArgs args)
-        {
-            if (_owner.TryGetTarget(out var owner))
-                owner.SyncSelectedItems();
-            else
-                Observe(null);
-        }
     }
 }

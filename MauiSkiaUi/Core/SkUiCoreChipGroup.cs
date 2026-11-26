@@ -118,7 +118,7 @@ public class SkUiCoreChipGroup : SkUiCoreNode, ISkUiKeyHandler
             return this;
         SyncChips();
         foreach (var chip in _chips)
-            chip.InvalidatePaint(); // a check shows or goes; read as a toggle or a button
+            chip.OnGroupModeChanged(); // a check shows or goes; read as a toggle or a button
         InvalidateSemantics();
         return this;
     }
@@ -277,8 +277,6 @@ public class SkUiCoreChipGroup : SkUiCoreNode, ISkUiKeyHandler
 
     private void SyncChips()
     {
-        if (_selectionMode == SkUiChipSelectionMode.None)
-            return;
         _syncing = true;
         try
         {

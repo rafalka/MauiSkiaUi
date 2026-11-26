@@ -175,6 +175,26 @@ public class ChipTests
     }
 
     [Fact]
+    public void PartsFollowTheSubtreeLooksPadding()
+    {
+        using var _ = SkUiTestHelpers.UseBundledFont();
+        var chip = Chip("Anna", SkUiChipKind.Input);
+        var removed = 0;
+        chip.Removed += (_, _) => removed++;
+        var root = Root(chip);
+        root.Look = new WidePaddingLook();
+        SkUiTestHelpers.Arrange(root, 300, 100);
+        // The × sits inside the subtree look's 40 DIP padding, not the app look's 12.
+        Tap(root, new Point(chip.Frame.Right - 40 - SkUiLook.Current.ChipIconSize / 2, chip.Frame.Y + chip.Height / 2));
+        Assert.Equal(1, removed);
+    }
+
+    private sealed class WidePaddingLook : DefaultSkUiLook
+    {
+        public override Thickness DefaultChipPadding => new(40, 4);
+    }
+
+    [Fact]
     public void TheCrossIsAtTheStartRightToLeft()
     {
         using var _ = SkUiTestHelpers.UseBundledFont();

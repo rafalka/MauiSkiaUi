@@ -56,19 +56,24 @@ internal sealed class SkUiAccessibilityBridge
     {
         if (node is not null)
         {
-            if (AutomationPeer.ListenerExists(AutomationEvents.LiveRegionChanged))
+            var peer = PeerOf(node.Id);
+            peer.RaiseChanges(node);
+            // Narrator reads a live region's name: when the text has more (a value), the whole text as the element's notification.
+            if (text == node.Label)
             {
-                var peer = PeerOf(node.Id);
-                peer.RaiseChanges(node);
-                peer.RaiseAutomationEvent(AutomationEvents.LiveRegionChanged);
+                if (AutomationPeer.ListenerExists(AutomationEvents.LiveRegionChanged))
+                    peer.RaiseAutomationEvent(AutomationEvents.LiveRegionChanged);
             }
+            else
+                peer.RaiseNotificationEvent(AutomationNotificationKind.Other, Processing(politeness), text, "SkUiLiveRegion");
             return;
         }
         if (FrameworkElementAutomationPeer.FromElement(_container) is { } surface)
-            surface.RaiseNotificationEvent(AutomationNotificationKind.Other,
-                politeness == SkUiLiveRegion.Assertive ? AutomationNotificationProcessing.ImportantMostRecent : AutomationNotificationProcessing.All,
-                text, "SkUiAnnouncement");
+            surface.RaiseNotificationEvent(AutomationNotificationKind.Other, Processing(politeness), text, "SkUiAnnouncement");
     }
+
+    private static AutomationNotificationProcessing Processing(SkUiLiveRegion politeness) =>
+        politeness == SkUiLiveRegion.Assertive ? AutomationNotificationProcessing.ImportantMostRecent : AutomationNotificationProcessing.All;
 
     /// <summary>A client reads the surface's children: report changes from now on while it listens.</summary>
     internal void UpdateListening()

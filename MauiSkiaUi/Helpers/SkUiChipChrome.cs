@@ -15,6 +15,7 @@ internal sealed class SkUiChipChrome(object owner)
     private bool _measuredScaled;
     private float _measuredLook;
     private double _measuredLookFontSize;
+    private int _measuredScaleVersion = -1;
     private SKSize _badgeSize;
 
     /// <summary>The badge's font: a family (<c>null</c>: the default), a size (-1: the look's <see cref="SkUiLook.ChipBadgeFontSize"/>) and attributes.</summary>
@@ -52,7 +53,9 @@ internal sealed class SkUiChipChrome(object owner)
         var look = SkUiLook.Current;
         var icon = look.ChipIconSize;
         // Exact comparisons: cache keys.
-        if (text != _measuredBadge || font != _measuredFont || scaled != _measuredScaled || icon != _measuredLook || look.ChipBadgeFontSize != _measuredLookFontSize)
+        var scaleVersion = SkUiFontScaling.Version; // the system text size and the look's FontScale
+        if (text != _measuredBadge || font != _measuredFont || scaled != _measuredScaled || icon != _measuredLook || look.ChipBadgeFontSize != _measuredLookFontSize
+            || scaleVersion != _measuredScaleVersion)
         {
             // The layout keeps its lines by style and width, not by text: a new text is broken again.
             var layout = _badgeLayout ??= new SkUiTextLayout(owner);
@@ -61,7 +64,8 @@ internal sealed class SkUiChipChrome(object owner)
             var height = Math.Max(icon, (float)Math.Ceiling(size.Height) + 2);
             // A pill: the text with half its height of room on each side, at least a circle.
             _badgeSize = new SKSize(Math.Max(height, (float)Math.Ceiling(size.Width) + height * 0.6f), height);
-            (_measuredBadge, _measuredFont, _measuredScaled, _measuredLook, _measuredLookFontSize) = (text, font, scaled, icon, look.ChipBadgeFontSize);
+            (_measuredBadge, _measuredFont, _measuredScaled, _measuredLook, _measuredLookFontSize, _measuredScaleVersion) =
+                (text, font, scaled, icon, look.ChipBadgeFontSize, scaleVersion);
         }
         return _badgeSize;
     }

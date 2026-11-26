@@ -850,6 +850,9 @@ public class SkUiLabel : SkUiView, ISkUiFontElement, ISkUiBorderElement
     /// <summary>The padding drawn: <see cref="Padding"/>, or the look's default under a subtree's own look when unset.</summary>
     private protected Thickness AppliedPadding => ContentPadding;
 
+    /// <summary>The applied padding without the <see cref="ChromeInset"/> (the look's default until set; the store keeps the app look's).</summary>
+    private protected Thickness BasePadding => _padding;
+
     /// <summary>Whether glyphs are clipped to the text's slot (<see cref="TextInset"/>), not only to the bounds: buttons keep text that does not fit out of their padding and image.</summary>
     private protected virtual bool ClipsTextToInset => false;
 
