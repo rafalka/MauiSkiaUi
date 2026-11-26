@@ -86,8 +86,9 @@ public class SkUiLabel : SkUiView, ISkUiFontElement, ISkUiBorderElement
     public static readonly BindableProperty MaxLinesProperty = BindableProperty.Create(nameof(MaxLines), typeof(int), typeof(SkUiLabel), -1, propertyChanged: (view, _, value) => ((SkUiLabel)view).OnMaxLinesChanged((int)value));
     /// <summary>Bindable line height multiplier (-1: the font's).</summary>
     public static readonly BindableProperty LineHeightProperty = BindableProperty.Create(nameof(LineHeight), typeof(double), typeof(SkUiLabel), -1d, validateValue: SkUiValidate.Finite, propertyChanged: (view, _, value) => ((SkUiLabel)view).OnLineHeightChanged((double)value));
-    /// <summary>Bindable spacing between characters in DIPs.</summary>
+    /// <summary>Bindable <see cref="FontFeatures"/>.</summary>
     public static readonly BindableProperty FontFeaturesProperty = BindableProperty.Create(nameof(FontFeatures), typeof(string), typeof(SkUiLabel), null, validateValue: SkUiValidate.FontFeatures, propertyChanged: (view, _, value) => ((SkUiLabel)view).OnFontFeaturesChanged((string?)value));
+    /// <summary>Bindable spacing between characters in DIPs.</summary>
     public static readonly BindableProperty CharacterSpacingProperty = BindableProperty.Create(nameof(CharacterSpacing), typeof(double), typeof(SkUiLabel), 0d, validateValue: SkUiValidate.Finite, propertyChanged: (view, _, value) => ((SkUiLabel)view).OnCharacterSpacingChanged((double)value));
     /// <summary>Bindable underline / strikethrough.</summary>
     public static readonly BindableProperty TextDecorationsProperty = BindableProperty.Create(nameof(TextDecorations), typeof(TextDecorations), typeof(SkUiLabel), TextDecorations.None, propertyChanged: (view, _, value) => ((SkUiLabel)view).OnTextDecorationsChanged((TextDecorations)value));

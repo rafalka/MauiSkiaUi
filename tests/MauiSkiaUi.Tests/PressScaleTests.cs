@@ -182,6 +182,31 @@ public sealed class PressScaleTests
     }
 
     [Fact]
+    public void APressedViewIsHitAtItsUnpressedSizeSoAReleaseNearItsEdgeTaps()
+    {
+        WithLook(new DefaultSkUiLook(), () =>
+        {
+            var (root, card) = Card(pressedScale: 0.5);
+            var taps = 0;
+            card.Tapped += (_, _) => taps++;
+            using var surface = new SkUiTestSurface(root, 100, 100);
+            surface.Frame();
+            var id = ++_pointer;
+            root.Touch(new(id, SkUiTouchAction.Pressed, new Point(31, 50), TimeSpan.FromSeconds(1)));
+            At(surface, 600);
+            Assert.True(card.IsPressed);
+            Assert.False(IsBlack(surface, 31, 50)); // drawn at half its size
+            root.Touch(new(id, SkUiTouchAction.Released, new Point(31, 50), TimeSpan.FromSeconds(1.6)));
+            Assert.Equal(1, taps);
+            // A second press near its edge while it is still drawn small finds it too.
+            id = ++_pointer;
+            root.Touch(new(id, SkUiTouchAction.Pressed, new Point(31, 50), TimeSpan.FromSeconds(2)));
+            root.Touch(new(id, SkUiTouchAction.Released, new Point(31, 50), TimeSpan.FromSeconds(2.05)));
+            Assert.Equal(2, taps);
+        });
+    }
+
+    [Fact]
     public void ReducedMotionShowsNoScale()
     {
         WithLook(new DefaultSkUiLook(), () =>

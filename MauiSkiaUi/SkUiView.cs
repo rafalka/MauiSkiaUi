@@ -235,7 +235,8 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
     /// transitions: 0.97 for a card, 0.95 for a small button. -1 (default): the look's <see cref="SkUiLook.PressedScale"/>,
     /// which is 1, none, in the built-in looks. Shown whenever the view is pressed (buttons, toggles, views with a tap), with or
     /// without <see cref="ShowsPressEffect"/> and on top of its overlay or fade. Composited: its frames re-record nothing, and
-    /// it multiplies <see cref="VisualElement.Scale"/>. A press that turns into a scroll springs back; reduced motion shows none.
+    /// it multiplies <see cref="VisualElement.Scale"/>. Only the drawing shrinks: the view is still pressed and tapped at its full size. A press
+    /// that turns into a scroll springs back; reduced motion shows none.
     /// </summary>
     public double PressedScale { get => (double)GetValue(PressedScaleProperty); set => SetValue(PressedScaleProperty, value); }
 

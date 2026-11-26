@@ -92,7 +92,6 @@ internal static class SkUiValidate
             throw new ArgumentException("An autofill hint has no white space (it is reserved for a list of hints).", name);
     }
 
-    /// <summary>A defined <see cref="StackOrientation"/> (horizontal or vertical).</summary>
     /// <summary><c>null</c>, blank, or OpenType features HarfBuzz parses (<see cref="SkUiFontFeatures"/>).</summary>
     public static bool FontFeatures(BindableObject bindable, object? value) => value is null || value is string text && SkUiFontFeatures.IsValid(text);
 
@@ -116,6 +115,7 @@ internal static class SkUiValidate
             throw new ArgumentOutOfRangeException(name, value, "Expected -1 (the look's) or a finite scale more than 0.");
     }
 
+    /// <summary>A defined <see cref="StackOrientation"/> (horizontal or vertical).</summary>
     public static bool Orientation(BindableObject bindable, object? value) => value is StackOrientation orientation && Enum.IsDefined(orientation);
 
     /// <summary>A defined <see cref="SkUiPressFeedback"/>.</summary>

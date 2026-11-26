@@ -150,7 +150,20 @@ internal sealed class SkUiTextFieldModel : ISkUiTextInputClient, ISkUiTextEditor
     public FontAttributes FontAttributes;
     public bool FontAutoScalingEnabled = true;
     public double CharacterSpacing;
-    public string? FontFeatures; // as set (valid); parsed into the style (SkUiFontFeatures caches the parse)
+    public string? FontFeatures; // as set (valid); parsed into the style once per value (ParsedFontFeatures)
+    private string? _parsedFrom;
+    private SkUiFontFeatures? _parsedFontFeatures;
+
+    /// <summary><see cref="FontFeatures"/> parsed, again only when it changes (no parse per style read).</summary>
+    private SkUiFontFeatures? ParsedFontFeatures
+    {
+        get
+        {
+            if (!ReferenceEquals(_parsedFrom, FontFeatures))
+                (_parsedFrom, _parsedFontFeatures) = (FontFeatures, SkUiFontFeatures.Parse(FontFeatures));
+            return _parsedFontFeatures;
+        }
+    }
     public TextAlignment HorizontalTextAlignment = TextAlignment.Start;
     public TextAlignment VerticalTextAlignment;
     public Keyboard Keyboard = Keyboard.Default;
@@ -423,7 +436,7 @@ internal sealed class SkUiTextFieldModel : ISkUiTextInputClient, ISkUiTextEditor
 
     private SkUiTextStyle TextStyle => new(SkUiTypefaces.Resolve(FontFamily, FontAttributes), SkUiFontScaling.ScaleFontSize(EffectiveFontSize, FontAutoScalingEnabled),
         LineBreakMode.WordWrap, null, -1, -1, CharacterSpacing, _owner.TextDirection, SkUiTextRendering.Default, FontAttributes,
-        Features: SkUiFontFeatures.Parse(FontFeatures));
+        Features: ParsedFontFeatures);
 
     /// <summary>A step button's text: one line in <paramref name="fontFamily"/> (else the field's) at the field's size.</summary>
     internal SkUiTextStyle ButtonTextStyle(string? fontFamily) => TextStyle with

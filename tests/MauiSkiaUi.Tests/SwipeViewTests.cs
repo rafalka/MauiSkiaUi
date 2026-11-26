@@ -886,6 +886,31 @@ public class SwipeViewTests
         Assert.Contains(tree.Flatten(), node => node.CustomActions is ["Pin", Archive, Delete]);
     }
 
+    [Fact]
+    public void TheCustomActionsFollowChangesOfTheItemsOfANeverSwipedRow()
+    {
+        var swipe = Swipe(out _);
+        var pin = new SwipeItem { Text = "Pin" };
+        var delete = new SwipeItem { Text = Delete };
+        swipe.LeftItems = [pin];
+        swipe.RightItems = [delete];
+        SkUiTestHelpers.Arrange(swipe, 300, 60);
+        var owner = new SkUiSemanticsOwner(swipe);
+        string[] Actions() => owner.Tree.Flatten().Single(node => node.CustomActions is not null).CustomActions!;
+        Assert.Equal(["Pin", Delete], Actions());
+
+        pin.Text = "Unpin";
+        Assert.Equal(["Unpin", Delete], Actions());
+        delete.IsEnabled = false;
+        Assert.Equal(["Unpin"], Actions());
+        swipe.RightItems.Add(new SwipeItem { Text = Archive });
+        Assert.Equal(["Unpin", Archive], Actions());
+        swipe.LeftItems = [];
+        Assert.Equal([Archive], Actions());
+        pin.Text = "Pin"; // no longer an item: nothing listens to it, nothing changes
+        Assert.Equal([Archive], Actions());
+    }
+
     #endregion
 
     [Fact]

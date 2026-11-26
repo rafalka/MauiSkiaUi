@@ -92,6 +92,9 @@ public partial class SkUiSwipeView : SkUiView
     private string? _exclusiveGroup;
     private List<TaskCompletionSource>? _closeWaiters; // CloseAsync calls waiting for the content to be back
     private List<ISwipeItem>? _semanticsItems; // the items offered as custom actions, in the order last reported
+    // One weak listener per item of every side: a change of an item's text, description, enabled or visible state changes
+    // the custom actions (the item buttons exist only once a side is revealed).
+    private readonly List<SkUiWeakListener<SkUiSwipeView>> _itemListeners = [];
     // The views of this UI thread with items shown: an opening view of a group closes the others (ExclusiveGroup).
     [ThreadStatic] private static List<WeakReference<SkUiSwipeView>>? _shownViews;
     private readonly Action<bool> _ancestorMovingChanged;
@@ -473,6 +476,7 @@ public partial class SkUiSwipeView : SkUiView
     internal void OnSideItemsChanged(OpenSwipeItem side)
     {
         InvalidateSemantics(); // the custom actions follow the items
+        ListenToItems();
         var part = _parts[(int)side];
         part?.InvalidateItems();
         if (part is null || !ReferenceEquals(part, _shownPart))
@@ -715,6 +719,21 @@ public partial class SkUiSwipeView : SkUiView
                 (_semanticsItems ??= []).Add(item);
                 info.AddCustomAction(label);
             }
+    }
+
+    /// <summary>Listens to every item of every side (and to nothing more), for the custom actions they make.</summary>
+    private void ListenToItems()
+    {
+        var count = 0;
+        foreach (var side in Sides)
+            foreach (var item in GetItems(side))
+            {
+                if (count == _itemListeners.Count)
+                    _itemListeners.Add(new SkUiWeakListener<SkUiSwipeView>(this, static (view, _) => view.InvalidateSemantics()));
+                _itemListeners[count++].Listen(item);
+            }
+        for (var index = count; index < _itemListeners.Count; index++)
+            _itemListeners[index].Listen(null);
     }
 
     /// <summary>What a screen reader offers for <paramref name="item"/>: its text, or its description; <c>null</c> for neither.</summary>
