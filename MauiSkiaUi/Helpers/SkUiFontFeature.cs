@@ -16,13 +16,13 @@ public readonly struct SkUiFontFeature : IEquatable<SkUiFontFeature>
     private readonly string? _tag;
 
     /// <summary>A feature <paramref name="tag"/> set to <paramref name="value"/> (1: on, 0: off, higher: an alternate).</summary>
-    /// <exception cref="ArgumentException"><paramref name="tag"/> is not four printable ASCII characters (spaces only at its end).</exception>
+    /// <exception cref="ArgumentException"><paramref name="tag"/> is not four ASCII letters or digits, as registered tags are.</exception>
     /// <exception cref="ArgumentOutOfRangeException"><paramref name="value"/> is negative.</exception>
     public SkUiFontFeature(string tag, int value = 1)
     {
         ArgumentNullException.ThrowIfNull(tag);
         if (!IsTag(tag))
-            throw new ArgumentException($"'{tag}' is not an OpenType feature tag: four printable ASCII characters, spaces only at the end (for example \"tnum\").", nameof(tag));
+            throw new ArgumentException($"'{tag}' is not an OpenType feature tag: four ASCII letters or digits (for example \"tnum\").", nameof(tag));
         ArgumentOutOfRangeException.ThrowIfNegative(value);
         _tag = tag;
         Value = value;
@@ -37,10 +37,10 @@ public readonly struct SkUiFontFeature : IEquatable<SkUiFontFeature>
     /// <summary>Whether the feature is on (<see cref="Value"/> is not 0).</summary>
     public bool IsEnabled => Value != 0;
 
-    /// <summary>This feature turned off (<see cref="Value"/> 0): <c>SkUiFontFeature.Kerning.Disabled</c>.</summary>
+    /// <summary>This feature turned off (<see cref="Value"/> 0): <c>SkUiFontFeature.Kerning.Disabled</c>. A <c>default</c> feature has no tag to turn off (<see cref="ArgumentException"/>).</summary>
     public SkUiFontFeature Disabled => new(Tag, 0);
 
-    /// <summary>This feature with <paramref name="value"/>: an alternate (<c>SkUiFontFeature.StylisticAlternates.WithValue(2)</c>).</summary>
+    /// <summary>This feature with <paramref name="value"/>: an alternate (<c>SkUiFontFeature.StylisticAlternates.WithValue(2)</c>). A <c>default</c> feature throws (<see cref="ArgumentException"/>).</summary>
     public SkUiFontFeature WithValue(int value) => new(Tag, value);
 
     internal bool IsDefault => _tag is null;
@@ -153,18 +153,17 @@ public readonly struct SkUiFontFeature : IEquatable<SkUiFontFeature>
         return true;
     }
 
-    /// <summary>Whether <paramref name="tag"/> is four characters of printable ASCII, the first not a space and spaces only at the end.</summary>
+    /// <summary>
+    /// Whether <paramref name="tag"/> is four ASCII letters or digits. Registered feature tags are; the rule keeps every tag
+    /// written back by <see cref="ToString"/> readable by <see cref="Parse"/>, and refuses the short tags HarfBuzz would pad.
+    /// </summary>
     private static bool IsTag(string tag)
     {
-        if (tag.Length != 4 || tag[0] == ' ')
+        if (tag.Length != 4)
             return false;
-        var space = false;
         foreach (var character in tag)
-        {
-            if (character is < ' ' or > '~' || space && character != ' ')
+            if (!char.IsAsciiLetterOrDigit(character))
                 return false;
-            space |= character == ' ';
-        }
         return true;
     }
 
@@ -174,9 +173,9 @@ public readonly struct SkUiFontFeature : IEquatable<SkUiFontFeature>
     public override string ToString() => Value switch
     {
         _ when IsDefault => string.Empty,
-        0 => "-" + Tag.TrimEnd(),
-        1 => Tag.TrimEnd(),
-        _ => $"{Tag.TrimEnd()}={Value}"
+        0 => "-" + Tag,
+        1 => Tag,
+        _ => $"{Tag}={Value}"
     };
 
     /// <inheritdoc />

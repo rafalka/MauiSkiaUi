@@ -110,8 +110,9 @@ public sealed class SkUiFontFeatures : IReadOnlyList<SkUiFontFeature>, IEquatabl
     /// <summary>
     /// The tags of the features the font of <paramref name="fontFamily"/> (a registered alias, a family name, or <c>null</c>
     /// for the default font) with <paramref name="attributes"/> has, sorted (<c>"kern"</c>, <c>"liga"</c>, <c>"tnum"</c>…): those
-    /// its substitution and positioning tables (GSUB, GPOS) list. A feature not listed draws nothing different. Text in other
-    /// scripts may fall back to other fonts, with features of their own.
+    /// its substitution and positioning tables (GSUB, GPOS) list, as they are written (compare with <see cref="SkUiFontFeature.Tag"/>).
+    /// A feature not listed draws nothing different. Fonts with only Apple's AAT tables (<c>morx</c>, some system fonts) list none,
+    /// though HarfBuzz maps some features onto them. Text in other scripts may fall back to other fonts, with features of their own.
     /// </summary>
     public static IReadOnlyList<string> SupportedBy(string? fontFamily, FontAttributes attributes = FontAttributes.None)
     {
@@ -139,7 +140,7 @@ public sealed class SkUiFontFeatures : IReadOnlyList<SkUiFontFeature>, IEquatabl
             var record = list + 2 + 6 * index;
             if (record + 6 > span.Length)
                 return;
-            tags.Add(System.Text.Encoding.Latin1.GetString(span.Slice(record, 4)).TrimEnd());
+            tags.Add(System.Text.Encoding.Latin1.GetString(span.Slice(record, 4)));
         }
     }
 
@@ -164,7 +165,8 @@ public sealed class SkUiFontFeatures : IReadOnlyList<SkUiFontFeature>, IEquatabl
 
 /// <summary>
 /// Converts the text of XAML and styles (<c>FontFeatures="tnum, -liga"</c>) to <see cref="SkUiFontFeatures"/>
-/// (<see cref="SkUiFontFeatures.Parse"/>; blank text: <c>null</c>, the font's defaults), and back.
+/// (<see cref="SkUiFontFeatures.Parse"/>; blank text: <see cref="SkUiFontFeatures.Empty"/>, the font's defaults, also on a span
+/// whose label has features), and back.
 /// </summary>
 public sealed class SkUiFontFeaturesConverter : TypeConverter
 {
@@ -177,7 +179,6 @@ public sealed class SkUiFontFeaturesConverter : TypeConverter
     /// <inheritdoc />
     public override object? ConvertFrom(ITypeDescriptorContext? context, CultureInfo? culture, object value) => value switch
     {
-        string text when string.IsNullOrWhiteSpace(text) => null,
         string text => SkUiFontFeatures.Parse(text),
         _ => throw new NotSupportedException($"Cannot convert {value.GetType().Name} to {nameof(SkUiFontFeatures)}.")
     };

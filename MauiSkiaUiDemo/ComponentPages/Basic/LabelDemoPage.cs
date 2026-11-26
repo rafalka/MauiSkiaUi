@@ -61,8 +61,11 @@ public sealed class LabelDemoPage : ComponentDemoPage
     };
 
     /// <summary>The <see cref="FontFeatureSamples"/> name of <paramref name="features"/> (its text form when it is none of them).</summary>
-    internal static string FontFeaturesName(SkUiFontFeatures? features) =>
-        FontFeatureSamples.FirstOrDefault(entry => Equals(entry.Value, features)).Key ?? features?.ToString() ?? NoFontFeatures;
+    internal static string FontFeaturesName(SkUiFontFeatures? features)
+    {
+        features = SkUiFontFeatures.OrNull(features); // an empty list is none too
+        return FontFeatureSamples.FirstOrDefault(entry => Equals(entry.Value, features)).Key ?? features?.ToString() ?? NoFontFeatures;
+    }
 
     private const string NoFormattedText = "None (Text)";
 

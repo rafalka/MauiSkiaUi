@@ -133,16 +133,17 @@ price.SetFontFeatures(SkUiFontFeatures.Parse("tnum, -liga"));           // the t
   `Fractions`, `Ordinals`, `Superscript`, `Subscript`, `SmallCaps`, `CapitalsToSmallCaps`, `CaseSensitiveForms`,
   `StylisticAlternates`, `Swash`), `StylisticSet(1–20)` and `CharacterVariant(1–99)`; `.Disabled` turns one off,
   `.WithValue(n)` picks an alternate. Other tags: `new SkUiFontFeature(tag, value)`, `Enable(tag)`, `Disable(tag)`
-  ([registry](https://learn.microsoft.com/typography/opentype/spec/featurelist)). The tag is checked when it is written.
+  ([registry](https://learn.microsoft.com/typography/opentype/spec/featurelist)). The tag is checked when it is written: four
+  ASCII letters or digits, as registered tags are.
 - **Text form:** CSS's `font-feature-settings` as HarfBuzz reads it (`"tnum"`, `"-liga"`, `"salt=2"`, `"kern off"`), comma
   separated: XAML and style setters (a type converter), `SkUiFontFeatures.Parse` / `TryParse`, and `ToString()` back. Ranges
   (`"liga[3:5]"`) are not taken: give that text a span. MAUI's bindings do not run type converters, so a view model binds an
   `SkUiFontFeatures`, not text.
 - **What a font has:** `SkUiFontFeatures.SupportedBy("OpenSansRegular")` lists the tags of the font's substitution and
   positioning tables, sorted. A feature the font lacks draws nothing different; text that falls back to another font (another
-  script, emoji) gets that font's features.
-- `null` or an empty list: the font's defaults. A span's own list replaces the label's for the span (an empty one: the
-  font's defaults). Text with features is always shaped with HarfBuzz, also with `TextRendering="Simple"`.
+  script, emoji) gets that font's features. Fonts with only Apple's AAT tables (some system fonts) list none.
+- `null` or an empty list: the font's defaults. A span's own list replaces the label's for the span (an empty one, `[]` or
+  `skui:SkUiSpan.FontFeatures=""`: the font's defaults). Text with features is always shaped with HarfBuzz, also with `TextRendering="Simple"`.
 
 ## Formatted text (spans)
 

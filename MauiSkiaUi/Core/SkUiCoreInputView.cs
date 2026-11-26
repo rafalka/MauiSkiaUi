@@ -55,7 +55,7 @@ public abstract class SkUiCoreInputView : SkUiCoreNode, ISkUiFontElement, ISkUiF
     /// <summary>DIPs added after each character.</summary>
     public double CharacterSpacing { get => Model.CharacterSpacing; set => SetCharacterSpacing(value); }
 
-    /// <summary>OpenType features the text and placeholder are shaped with (<c>"tnum"</c>, <c>"-liga"</c>); <c>null</c>: the font's defaults.</summary>
+    /// <summary>OpenType features the text and placeholder are shaped with (<c>[SkUiFontFeature.TabularFigures]</c>); <c>null</c>: the font's defaults (see <see cref="SkUiLabel.FontFeatures"/>).</summary>
     public SkUiFontFeatures? FontFeatures { get => Model.FontFeatures; set => SetFontFeatures(value); }
 
     /// <summary>Upper or lower case: typed and pasted text is transformed.</summary>

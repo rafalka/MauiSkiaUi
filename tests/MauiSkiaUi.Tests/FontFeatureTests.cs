@@ -56,6 +56,11 @@ public sealed class FontFeatureTests
         Assert.Throws<ArgumentException>(() => new SkUiFontFeature("tabular"));
         Assert.Throws<ArgumentException>(() => new SkUiFontFeature(" tnu"));
         Assert.Throws<ArgumentException>(() => new SkUiFontFeature("t nu"));
+        Assert.Throws<ArgumentException>(() => new SkUiFontFeature("-abc")); // would not read back
+        Assert.Throws<ArgumentException>(() => new SkUiFontFeature("a,bc"));
+        Assert.False(SkUiFontFeature.TryParse("tnu", out _)); // HarfBuzz would pad it to "tnu "
+        Assert.False(SkUiFontFeatures.TryParse("tnum, ab", out _));
+        Assert.Throws<ArgumentException>(() => default(SkUiFontFeature).Disabled);
         Assert.Throws<ArgumentOutOfRangeException>(() => new SkUiFontFeature("salt", -1));
         Assert.Throws<ArgumentOutOfRangeException>(() => SkUiFontFeature.StylisticSet(21));
         Assert.Throws<ArgumentOutOfRangeException>(() => SkUiFontFeature.CharacterVariant(0));
@@ -100,6 +105,7 @@ public sealed class FontFeatureTests
         Assert.Equal(lobsterTags.Order(StringComparer.Ordinal), lobsterTags);
         Assert.Equal(lobsterTags.Distinct(), lobsterTags);
         Assert.Contains("smcp", SkUiFontFeatures.SupportedBy(SkUiTestHelpers.BundledFontFamily));
+        Assert.Contains(SkUiFontFeature.Kerning.Tag, lobsterTags);
         Assert.DoesNotContain("smcp", lobsterTags);
     }
 
@@ -109,7 +115,7 @@ public sealed class FontFeatureTests
         var converter = new SkUiFontFeaturesConverter();
         Assert.True(converter.CanConvertFrom(typeof(string)));
         Assert.Equal([SkUiFontFeature.TabularFigures, SkUiFontFeature.Kerning.Disabled], (SkUiFontFeatures)converter.ConvertFromInvariantString("tnum, -kern")!);
-        Assert.Null(converter.ConvertFromInvariantString("  "));
+        Assert.Same(SkUiFontFeatures.Empty, converter.ConvertFromInvariantString("  ")); // none: on a span, the font's defaults
         Assert.Equal("tnum", converter.ConvertToInvariantString(SkUiFontFeatures.Create(SkUiFontFeature.TabularFigures)));
         Assert.Throws<FormatException>(() => converter.ConvertFromInvariantString("not a feature!"));
         Assert.IsType<SkUiFontFeaturesConverter>(System.ComponentModel.TypeDescriptor.GetConverter(typeof(SkUiFontFeatures)));
@@ -300,6 +306,7 @@ public sealed class FontFeatureXamlTests
                   <skui:SkUiLabel.FormattedText>
                     <FormattedString>
                       <Span Text="Caps" skui:SkUiSpan.FontFeatures="smcp, c2sc" />
+                      <Span Text="Plain" skui:SkUiSpan.FontFeatures="" />
                     </FormattedString>
                   </skui:SkUiLabel.FormattedText>
                 </skui:SkUiLabel>
@@ -314,5 +321,6 @@ public sealed class FontFeatureXamlTests
         Assert.Equal([SkUiFontFeature.StylisticSet(1)], ((SkUiEntry)children[2]).FontFeatures);
         var span = ((SkUiLabel)children[3]).FormattedText!.Spans[0];
         Assert.Equal([SkUiFontFeature.SmallCaps, SkUiFontFeature.CapitalsToSmallCaps], SkUiSpan.GetFontFeatures(span));
+        Assert.Same(SkUiFontFeatures.Empty, SkUiSpan.GetFontFeatures(((SkUiLabel)children[3]).FormattedText!.Spans[1]));
     }
 }
