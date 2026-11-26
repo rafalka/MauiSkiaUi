@@ -907,7 +907,15 @@ public class SwipeViewTests
         Assert.Equal(["Unpin", Archive], Actions());
         swipe.LeftItems = [];
         Assert.Equal([Archive], Actions());
-        pin.Text = "Pin"; // no longer an item: nothing listens to it, nothing changes
+
+        // A drawn item view's command that can no longer execute disables it, though its side was never revealed.
+        var canExecute = true;
+        var command = new Command(_ => { }, () => canExecute);
+        swipe.BottomItems = [new SkUiSwipeItemView { Content = new SkUiBox(), Command = command, AutomationId = "share" }];
+        SemanticProperties.SetDescription((BindableObject)swipe.BottomItems[0], "Share");
+        Assert.Equal([Archive, "Share"], Actions());
+        canExecute = false;
+        command.RaiseCanExecuteChanged();
         Assert.Equal([Archive], Actions());
     }
 

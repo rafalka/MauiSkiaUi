@@ -721,19 +721,47 @@ public partial class SkUiSwipeView : SkUiView
             }
     }
 
-    /// <summary>Listens to every item of every side (and to nothing more), for the custom actions they make.</summary>
+    /// <summary>
+    /// Listens to every item of every side, and to the command of each drawn item view (its <c>CanExecute</c> enables it), for
+    /// the custom actions they make; to nothing more.
+    /// </summary>
     private void ListenToItems()
     {
         var count = 0;
         foreach (var side in Sides)
-            foreach (var item in GetItems(side))
+        {
+            var items = GetItems(side);
+            for (var index = 0; index < items.Count; index++) // no enumerator
             {
-                if (count == _itemListeners.Count)
-                    _itemListeners.Add(new SkUiWeakListener<SkUiSwipeView>(this, static (view, _) => view.InvalidateSemantics()));
-                _itemListeners[count++].Listen(item);
+                var item = items[index];
+                ListenTo(item, ref count);
+                if (item is SkUiSwipeItemView { Command: { } command })
+                    ListenTo(command, ref count);
             }
+        }
         for (var index = count; index < _itemListeners.Count; index++)
             _itemListeners[index].Listen(null);
+    }
+
+    private void ListenTo(object source, ref int count)
+    {
+        if (count == _itemListeners.Count)
+            _itemListeners.Add(new SkUiWeakListener<SkUiSwipeView>(this, static (view, change) => view.OnItemChanged(change)));
+        _itemListeners[count++].Listen(source);
+    }
+
+    /// <summary>An item (or an item view's command) changed: the custom actions follow what they read.</summary>
+    private void OnItemChanged(SkUiChange change)
+    {
+        if (change.Kind == SkUiChangeKind.Property)
+        {
+            if (change.PropertyName is not (nameof(MenuItem.Text) or nameof(VisualElement.IsEnabled) or nameof(VisualElement.IsVisible)
+                or nameof(SkUiSwipeItemView.Command) or nameof(SkUiSwipeItemView.CommandParameter) or "Description"))
+                return; // layout and visual states of an item view do not change the actions
+            if (change.PropertyName == nameof(SkUiSwipeItemView.Command))
+                ListenToItems(); // listen to the new command
+        }
+        InvalidateSemantics();
     }
 
     /// <summary>What a screen reader offers for <paramref name="item"/>: its text, or its description; <c>null</c> for neither.</summary>
