@@ -82,7 +82,7 @@ Proposed. Agree them before the first step.
 - **D7 The data grid (F9) is SkUi\* only at first** and waits for a decision on the virtual stack's horizontal layout (backlog).
 - **D8 Backdrop blur (F10) ships only if the Galaxy S9 holds 50 fps** with one blurred bar over a scrolling list. Otherwise it stays a spike with its numbers in Performance.md.
 - **D9 Runtime async (A7) is enabled only if** the image-load scenarios allocate less and the package does not grow.
-- **D10 Releases (proposed):** 1.13 the calendar (not part of this plan); 1.14 track A; 1.15 the calendar finished (not part of this plan; agreed 19 November 2026, which moved everything below by one release); 1.16 F1, F5, F6; 1.17 F2, F3; 1.18 F4 phase 1; then F7, F8, F9, F10 as apps ask. Changed on 23 November 2026 ([1.16 plan, D1](ImplementationPlan-1.16.md#decisions)): 1.16 F2; 1.17 F1, F5, F6; 1.18 F3; 1.19 F4 phase 1. Changed again on 24 November 2026 ([1.17 plan, D1](ImplementationPlan-1.17.md#decisions)): 1.17 F1 with the carousel's parity items; F5 and F6 after F3, their release decided when 1.18 is planned.
+- **D10 Releases (proposed):** 1.13 the calendar (not part of this plan); 1.14 track A; 1.15 the calendar finished (not part of this plan; agreed 19 November 2026, which moved everything below by one release); 1.16 F1, F5, F6; 1.17 F2, F3; 1.18 F4 phase 1; then F7, F8, F9, F10 as apps ask. Changed on 23 November 2026 ([1.16 plan, D1](ImplementationPlan-1.16.md#decisions)): 1.16 F2; 1.17 F1, F5, F6; 1.18 F3; 1.19 F4 phase 1. Changed again on 24 November 2026 ([1.17 plan, D1](ImplementationPlan-1.17.md#decisions)): 1.17 F1 with the carousel's parity items; F5 and F6 after F3, their release decided when 1.18 is planned. Decided on 26 November 2026 ([1.18 plan, D1](ImplementationPlan-1.18.md#decisions)): 1.18 F3 and F5; F6 back on the backlog.
 
 ## Order and parallel work
 
@@ -248,6 +248,8 @@ Steps:
 
 ### F3 In-surface sheet
 
+Planned step by step for 1.18 in [ImplementationPlan-1.18.md](ImplementationPlan-1.18.md), which wins where the two differ (a dialog presentation, stacking, `ShowAsync<TResult>`, header and action slots).
+
 - **Size:** M to L. **Depends on:** F2. **Agent:** a stronger agent for steps 2 and 4; a simple agent for the rest.
 - **Read first:** `SkUiScrollController.cs` (fling, snap points, nested hand-off), `SkUiDraggerInput.cs`, `ISkUiPopupPresenter.cs`, [Popups.md](Popups.md), [EventMechanism.md](EventMechanism.md) (grep "nested").
 
@@ -313,6 +315,8 @@ Steps:
 **Out of scope (phase 2):** pie, donut, radial gauge, pan and zoom, financial series.
 
 ### F5 Chips
+
+Planned for 1.18 in [ImplementationPlan-1.18.md](ImplementationPlan-1.18.md), which adds the group's `Padding` and a chip's `BadgeText`.
 
 - **Size:** S to M. **Depends on:** track A. **Agent:** simple.
 - **Pattern to copy:** `SkUiButton.cs` (press, command), `SkUiToggleControl.cs` (selected state), the picker's token drawing in `SkUiLook.cs` (grep "token"), `SkUiWrapEngine.cs`.

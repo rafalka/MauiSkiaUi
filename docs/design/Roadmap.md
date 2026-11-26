@@ -28,8 +28,8 @@ What the next releases bring, and the work after them. What has shipped is in th
 | **1.14.0** | As 1.11.0 | As 1.11.0 | 11.0.100 | As 1.11.0 | `master`, released 18 November 2026 |
 | **1.15.0** | As 1.11.0 | As 1.11.0 | 11.0.100 | As 1.11.0 | `master`, released 19 November 2026 |
 | **1.15.1** | As 1.11.0 | As 1.11.0 | 11.0.100 | As 1.11.0 | `master`, released 20 November 2026 |
-| **1.16.0** | As 1.11.0 | As 1.11.0 | 11.0.100 | As 1.11.0 | Proposed |
-| **1.17.0** | As 1.11.0 | As 1.11.0 | 11.0.100 | As 1.11.0 | Proposed |
+| **1.16.0** | As 1.11.0 | As 1.11.0 | 11.0.100 | As 1.11.0 | `master`, released 24 November 2026 |
+| **1.17.0** | As 1.11.0 | As 1.11.0 | 11.0.100 | As 1.11.0 | `master`, released 25 November 2026 |
 | **1.18.0** | As 1.11.0 | As 1.11.0 | 11.0.100 | As 1.11.0 | Proposed |
 
 SkiaUi up to 1.10 targets MAUI 10.x only; 1.11 adds net11 targets with MAUI 11 next to them ([1.11.0](#1110-net-11-and-maui-11-shipped)). Development happens on `devel`; `master` holds stable releases ([Releasing.md](../Releasing.md#branches-and-versions)).
@@ -162,15 +162,15 @@ Additive only. Closes what 1.13 left open on the calendar; the review's controls
 - **Wave B, the gaps:** render-thread page slides (not needed: the S9 keeps up after a fix A1 found), a calendar popup with time wheels for `SkUiDateTimePicker`, platform looks' calendars, image markers, event lines in a month view (not a scheduler).
 - **Wave C:** other calendar systems (Thai, Taiwan, Korean, Japanese, Hijri, Umm al-Qura, Persian, Hebrew) through `System.Globalization.Calendar`; in 1.15.
 
-### 1.16.0: scroll-linked effects (proposed)
+### 1.16.0: scroll-linked effects (shipped)
 
-Additive only. F2 of the [November 2026 review](ImplementationPlan-PerformanceAndControls.md#f2-scroll-linked-effects), moved ahead of the review's controls (F1, F5, F6 go to 1.17) on 23 November 2026: a view follows a scroller's offset or its scroll direction on the render thread, with no re-recording, on both layers. Takes in the render-thread effects linked to overscroll from [Lists and scrolling](#lists-and-scrolling). Built on `1.16-implementation`: phase A, the public API (B1 to B4), docs and the gallery page; headless benches and snapping to the ends (B5); the device checks are next. Steps, decisions and verification: [ImplementationPlan-1.16.md](ImplementationPlan-1.16.md).
+Additive only. F2 of the [November 2026 review](ImplementationPlan-PerformanceAndControls.md#f2-scroll-linked-effects), moved ahead of the review's controls (F1, F5, F6 go to 1.17) on 23 November 2026: a view follows a scroller's offset or its scroll direction on the render thread, with no re-recording, on both layers. Takes in the render-thread effects linked to overscroll from [Lists and scrolling](#lists-and-scrolling). Built on `1.16-implementation`: phase A, the public API (B1 to B4), docs and the gallery page; headless benches and snapping to the ends (B5); the device benches ran on 23 November 2026, and the feel by hand is on the [verification backlog](#verification-backlog). Steps, decisions and verification: [ImplementationPlan-1.16.md](ImplementationPlan-1.16.md).
 
 - **Phase A, the engine:** a list of scroll links per render node in place of the single translation link (the scroll bar thumb moves to it), evaluated by the compositor onto translation, scale, opacity and a clipped height or width (kept at the start, end or center, with rectangle, rounded or capsule corners, the shadow following); scroll-direction reveals whose state lives on the render thread; overscroll (bounce and stretch) as input; the same values on the UI side for hit-testing, the immediate painter and screen readers.
 - **Phase B, the API:** `SkUiScrollEffect` (source, orientation, input range, property, output range, easing) on `SkUiView.ScrollEffects` and `SkUiCoreNode.AddScrollEffect`, and `SkUiScrollReveal` (tracked or triggered show / hide by scroll direction, shown near the start, settling at rest, `Show` / `Hide`), with factories for parallax, fade-in, collapse and hide-on-scroll; reduce motion keeps fades and clips and stops parallax and zoom; snapping a collapsing header to its ends if time allows.
 - **Docs, demo and bench:** recipes (collapsing header with parallax and pull-to-stretch, a collection view's sticky header and footer by direction, a hiding floating button, an extended button shrinking to its icon, a fading toolbar), a gallery page, `skui-scroll-effects` / `core-scroll-effects` benches, device frame times on the S9 and the iPhone 8.
 
-### 1.17.0: carousel parity, segmented control and tab view (proposed)
+### 1.17.0: carousel parity, segmented control and tab view (shipped)
 
 Additive only. The carousel item of [MAUI parity](#maui-parity) and F1 of the [November 2026 review](ImplementationPlan-PerformanceAndControls.md#f1-segmented-control-and-tab-view). The review's chips (F5) and range slider and rating (F6), planned here by the 1.16 plan, go back to the backlog after the sheet (24 November 2026). Built on `1.17-implementation`: step 0, phases C and S, the benches and docs; the device checks by hand are on the [verification backlog](#verification-backlog). Steps, decisions and verification: [ImplementationPlan-1.17.md](ImplementationPlan-1.17.md).
 
@@ -178,11 +178,16 @@ Additive only. The carousel item of [MAUI parity](#maui-parity) and F1 of the [N
 - **Phase C, the carousel:** its layout moves to an internal engine with no view types, shared by three users; MAUI's `VisibleViews`; several items per snap point (`ItemsPerSnapPoint`, pages stable on every round of a loop, the indicator counting pages); autoplay (`AutoPlayInterval`, waiting while the user scrolls, hovers or has focus inside, and while the carousel is not shown; `IsAutoPlayPaused`); `SkUiCoreCarouselView` with an item factory and a linked `SkUiCoreIndicatorView`.
 - **Phase S, F1:** `SkUiSegmentedControl` and `SkUiCoreSegmentedControl` (text and icon segments, a sliding selection, keys and screen readers, drawn by every look); `SkUiTabView`, a tab strip over panes created when first shown and kept, swiped on the carousel engine, its indicator following the panes on the render thread through 1.16's scroll links; `SkUiCoreTabView` on the same strip and engine.
 
-### 1.18.0: tab headers of your own (proposed)
+### 1.18.0: the sheet, chips, tab headers and the time-clock screen set (proposed)
 
-Initially placed here on 25 November 2026; the rest of the release is not planned yet. The [November 2026 review's order](ImplementationPlan-PerformanceAndControls.md#decisions) has the sheet (F3) for 1.18.
+Additive only. Tab headers placed here on 25 November 2026; on 26 November 2026 the [November 2026 review's](ImplementationPlan-PerformanceAndControls.md#decisions) sheet (F3) and chips (F5) and the nine requests filed from one real screen set ([#128](https://github.com/rafalka/MauiSkiaUi/issues/128) to [#136](https://github.com/rafalka/MauiSkiaUi/issues/136)), each reviewed against the architecture. Steps, decisions and verification: [ImplementationPlan-1.18.md](ImplementationPlan-1.18.md).
 
-- **Custom tab headers:** a view or a control template for a tab's header in `SkUiTabView` (1.17's headers are text, an icon and a badge drawn by the look, not views), for a whole strip or one tab, with the header's selected and disabled states; `SkUiCoreTabView` with a header node or a factory. To decide: how a header of one's own measures in equal and content widths, what it takes over from the look (the badge, the selected color), how the indicator and its scroll-linked channels use its bounds, and what screen readers read (the header stays one element of the tab list).
+- **Phase A, small pieces:** OpenType font features on drawn text (`FontFeatures="tnum"`, #132); a press scale on both layers, combinable with the overlay (`PressedScale`, #133); swipe views that close each other (`ExclusiveGroup`), `CloseAsync`, `SkUiCollectionView.CloseSwipeViews` and swipe items as custom actions (#135); hit slop and a minimum touch target that grow hit-testing and semantics, not layout (#134).
+- **Phase P, progress:** a determinate progress ring with centred content (#128) and a stacked bar of several parts (#129), both layers.
+- **Phase L, live regions:** `SkUiAccessibility.LiveRegion`, `Announce` and `UpdatesFrequently` on Android, Apple and Windows (#131).
+- **Phase S, the sheet (F3, #136):** an in-surface sheet with detents, drag, a scrim, a dialog presentation for tablets and confirmations, stacking, `ShowAsync<TResult>` and a popup presenter for the pickers. SkUi\* only.
+- **Phase K, chips (F5, #130):** `SkUiChip`, `SkUiChipGroup` and their Core twins, wrapping or in one scrolling row.
+- **Phase T, custom tab headers (cut line):** a view or a control template for a tab's header in `SkUiTabView` (1.17's headers are text, an icon and a badge drawn by the look, not views), for a whole strip or one tab, with the header's selected and disabled states; `SkUiCoreTabView` with a header node or a factory. To decide: how a header of one's own measures in equal and content widths, what it takes over from the look (the badge, the selected color), how the indicator and its scroll-linked channels use its bounds, and what screen readers read (the header stays one element of the tab list).
 
 ## Backlog (1.x)
 
@@ -192,11 +197,11 @@ Taken up when a real app needs it, roughly in this order within each area. Items
 
 - **Calendar:** built in [1.13](#1130-and-1131-calendar-shipped); non-Gregorian calendars, a calendar popup with time wheels for `SkUiDateTimePicker`, platform looks' calendars, image markers and a month view with event lines are [1.15](#1150-and-1151-the-calendar-finished-shipped). A scheduler stays out of scope; so do the Julian and East Asian lunisolar calendars.
 - **Full SVG** in an optional `SkiaUi.Maui.Svg` package on Svg.Skia, for what [1.7's icon reader](../archive/ImplementationPlan-1.7.md) leaves out: gradients, `<use>`, filters and CSS in downloaded files and rich illustrations. Needs a vector entry in the image cache and protection against hostile files (design and a spike's findings: [the full SVG plan](ImplementationPlan-FullSvg.md)).
-- **From the November 2026 review** (briefs, order and open decisions: [ImplementationPlan-PerformanceAndControls.md](ImplementationPlan-PerformanceAndControls.md#track-f-features)), scroll-linked effects in 1.16, the segmented control and tab view (F1) in [1.17](#1170-carousel-parity-segmented-control-and-tab-view-proposed) and the rest after it, roughly in this order. Each is the common pattern on SkiaUi's own API, not a copy of one vendor's control:
-  - **Scroll-linked effects** (F2, [1.16](#1160-scroll-linked-effects-proposed)): a public link from a scroller's offset to translation, opacity, scale and a clipped height on the render thread (collapsing headers, parallax); takes in the overscroll-linked effects under [Lists and scrolling](#lists-and-scrolling).
-  - **Sheet** (F3): a bottom or side sheet inside a surface, with detents, a scrim and a popup presenter for the pickers. A drawn container, not a window.
+- **From the November 2026 review** (briefs, order and open decisions: [ImplementationPlan-PerformanceAndControls.md](ImplementationPlan-PerformanceAndControls.md#track-f-features)), scroll-linked effects in 1.16, the segmented control and tab view (F1) in [1.17](#1170-carousel-parity-segmented-control-and-tab-view-shipped) and the rest after it, roughly in this order. Each is the common pattern on SkiaUi's own API, not a copy of one vendor's control:
+  - **Scroll-linked effects** (F2, [1.16](#1160-scroll-linked-effects-shipped)): a public link from a scroller's offset to translation, opacity, scale and a clipped height on the render thread (collapsing headers, parallax); takes in the overscroll-linked effects under [Lists and scrolling](#lists-and-scrolling).
+  - **Sheet** (F3, [1.18](#1180-the-sheet-chips-tab-headers-and-the-time-clock-screen-set-proposed)): a bottom or side sheet inside a surface, with detents, a scrim and a popup presenter for the pickers. A drawn container, not a window.
   - **Charts** (F4) in an optional `SkiaUi.Maui.Charts` package: sparkline, line, area and bar first; pie, donut, gauges, pan and zoom later.
-  - **Chips** (F5), which the pickers' token template can then use; **range slider and rating** (F6); **autocomplete** (F7).
+  - **Chips** (F5, [1.18](#1180-the-sheet-chips-tab-headers-and-the-time-clock-screen-set-proposed)), which the pickers' token template can then use; **range slider and rating** (F6); **autocomplete** (F7).
   - **Lottie** (F8) in an optional `SkiaUi.Maui.Lottie` package on Skottie, drawn by the compositor.
   - **Data grid** (F9): virtualized rows, frozen header and columns, sorting, column resize; waits for the virtual stack's horizontal layout.
   - **Backdrop blur** (F10): only if it holds 50 fps on the Galaxy S9.
@@ -221,17 +226,17 @@ Taken up when a real app needs it, roughly in this order within each area. Items
 
 - Virtual stack: a public horizontal layout, `VirtualScrollMode` (`InfiniteFeed`, `Loop`), `PrefetchDistance`, `QueryItemSize`, a load-more hook with a placeholder, a Core twin.
 - Scroll bars: the thumb shrinking during a bounce (iOS), repeated paging on a held track press; native overlays following a stretch.
-- Pull to refresh from other edges (render-thread effects linked to overscroll: [1.16](#1160-scroll-linked-effects-proposed)).
+- Pull to refresh from other edges (render-thread effects linked to overscroll: [1.16](#1160-scroll-linked-effects-shipped)).
 - Markdown: long documents as virtualized rows, measuring and recording only the top-level blocks near the viewport (the first frame of a 100 KB document takes about 760 ms on the S9, [Performance.md](../Performance.md#markdown)). Not planned for now. Needs the virtual stack's Core twin or starts on `SkUiMarkdownView` only, and an opt-in way to scroll, since the view is as tall as its document today. Design notes: [1.8 plan, V2](../archive/ImplementationPlan-1.8.md#phase-v--long-documents).
 
 ### Looks, colors and motion
 
 - Per-tree color schemes (looks already work per tree); reading the device's dynamic color (Android 12+), the Windows and Mac accent colors and the OS dark mode into the schemes.
-- Transitions: several ripples at once, press scale, opt-in render-thread painters; render-thread animation of shadow properties.
+- Transitions: several ripples at once, opt-in render-thread painters; render-thread animation of shadow properties.
 
 ### Accessibility
 
-- Links inside text as elements, custom actions on swipe view items and refresh (reorderable items have theirs), public custom actions for own controls, live regions, arrow keys within radio groups, a platform expanded / collapsed state for the expander.
+- Links inside text as elements, custom actions on refresh (swipe view items and live regions: [1.18](#1180-the-sheet-chips-tab-headers-and-the-time-clock-screen-set-proposed); reorderable items have theirs), public custom actions for own controls, arrow keys within radio groups, a platform expanded / collapsed state for the expander.
 - iPad keyboard navigation, Windows' non-linear text scale, font images following a later text size change.
 
 ### Architecture and performance

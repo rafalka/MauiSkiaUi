@@ -1,0 +1,117 @@
+# SkiaUi 1.18 implementation plan: the sheet and the time-clock screen set
+
+**Goal:** the review's in-surface sheet (F3) and chips (F5), custom tab headers (placed here on 25 November 2026), and the nine feature requests filed from one real screen set (employee self-service: time clock, breaks, balances, shifts), issues [#128](https://github.com/rafalka/MauiSkiaUi/issues/128) to [#136](https://github.com/rafalka/MauiSkiaUi/issues/136). Each request was checked against the architecture and the code before it was taken in ([review](#review-of-the-requests)).
+
+**Status:** proposed 26 November 2026. The decisions below are to be agreed before their phase starts; nothing is built.
+
+## Review of the requests
+
+All nine are valid, fit the two-layer, retained-rendering architecture, and need no change to it. Where the request and the code or an existing brief disagree, the plan follows the decision named in the last column.
+
+| Issue | Request | Verdict | Corrections and notes | Decision |
+| --- | --- | --- | --- | --- |
+| [#128](https://github.com/rafalka/MauiSkiaUi/issues/128) | Determinate progress ring with centred content | Valid | Shares `SkUiProgressTween` (`ProgressTo`) with the bar and the indeterminate rotation with the activity indicator. The donut and gauges it mentions belong to the charts package (F4). | [D6](#decisions) |
+| [#129](https://github.com/rafalka/MauiSkiaUi/issues/129) | Stacked bar of several coloured parts | Valid | Not on `SkUiProgressBar` (one value, `ProgressTo`, indeterminate mode). "SegmentedBar" would be confused with 1.17's `SkUiSegmentedControl`. `ValuePath` / `ColorPath` are reflection paths, which the trim and AOT analyzers reject (the library is `IsAotCompatible`). | [D7](#decisions) |
+| [#130](https://github.com/rafalka/MauiSkiaUi/issues/130) | Chips and a chip group | Valid; F5 is already briefed | The request's names differ from the brief (`IsChecked` / `IsSelected`, `Layout="Scroll"` / `Wraps`, `IsCloseVisible` / `ShowsRemoveButton`). It adds a count and edge insets for the scrolling row. | [D9](#decisions) |
+| [#131](https://github.com/rafalka/MauiSkiaUi/issues/131) | Live regions, announcements, `UpdatesFrequently` | Valid; on the accessibility backlog | The semantics owner already reports changed node ids, coalesced by its timer (`SkUiSemanticsOwner.Changed`), and each platform invalidates virtual nodes from it: live regions build on that report. iOS already sets `UpdatesFrequently` for the progress bar role. SkiaUi never calls Android's deprecated `announceForAccessibility`. | [D5](#decisions) |
+| [#132](https://github.com/rafalka/MauiSkiaUi/issues/132) | OpenType font features (`tnum`) | Valid | HarfBuzz takes features. The simple Latin path (`SkUiShaping` `IsSimple`) does not shape and must be skipped when features are set, because `tnum` changes advances. | [D4](#decisions) |
+| [#133](https://github.com/rafalka/MauiSkiaUi/issues/133) | Scale press feedback | Valid; "press scale" is on the backlog | `SkUiPressFeedback` is a choice of one (`Overlay`, `Fade`); the request wants scale combined with the overlay, so it is a property. `Fade` animates a composite-time opacity from the UI thread (`SkUiPressAnimator`, `SkUiRenderDirty.Props`, no re-record); scale takes the same path, which is enough for 120 ms. | [D2](#decisions) |
+| [#134](https://github.com/rafalka/MauiSkiaUi/issues/134) | Hit slop / minimum touch target | Valid | `SkUiPointerRouter.FindTarget` enters a child only when the point is inside the child's rectangle (or `HitsOutsideBounds`, used by text handles and the dragger), so a slop past an ancestor's rectangle needs the ancestors' help. This touches the hottest pointer path. | [D3](#decisions) |
+| [#135](https://github.com/rafalka/MauiSkiaUi/issues/135) | One open swipe row, `CloseSwipeViews`, events | Valid in part | `SwipeStarted`, `SwipeChanging` and `SwipeEnded` (with `IsOpen`) already exist, as does `Close(bool)`: the "opened" signal is there. Missing: an exclusive group, closing every row of a list, an awaitable close, and swipe items as custom actions (backlog). | [D8](#decisions) |
+| [#136](https://github.com/rafalka/MauiSkiaUi/issues/136) | Bottom sheet, dialog, form sheet | Valid; F3 is already briefed | The brief is SkUi\* only, bottom / start / end edges, no dialog layout, no stacking, no result. The request asks for a Core twin, dialogs and form sheets, stacking and `ShowAsync<TResult>`. | [D10](#decisions) |
+
+[#125](https://github.com/rafalka/MauiSkiaUi/issues/125) (open) is a bug, not a feature request; commit `2624df9` ("Android: no focus highlight over drawn pages", #127) refers to it, so it waits for the reporter to confirm the fix.
+
+## Decisions
+
+Proposed 26 November 2026.
+
+- **D1 1.18 scope.** The sheet (F3), chips (F5), custom tab headers and requests #128 to #135. F5 comes into 1.18 (the 1.17 plan's D1 left its release to this plan) because a real screen needs it and its brief is ready; range slider and rating (F6) stay on the backlog.
+- **D2 Press scale is a property, not a `PressFeedback` value.** `PressedScale` (`double`, default `-1`: the look's `SkUiLook.PressedScale`, which is `1`, no scale, in every built-in look) on `SkUiView` and `SetPressedScale` on Core nodes, combinable with `Overlay` and `Fade`. A composite-time scale around the centre, driven by the pressed animator as `Fade` is (no re-record); length and easing are the look's press transition, not per-control properties. A press that turns into a scroll springs back with the pressed state. Reduce motion: no scale. The migration docs and skill convert Community Toolkit `TouchBehavior.PressedScale`.
+- **D3 Hit slop.** `HitSlop` (`Thickness`) on `SkUiView`, `SetHitSlop` on Core nodes; extends hit-testing only, never layout or drawing. `MinimumTouchTargetSize` (`double`, default `0`) grows the hit area symmetrically up to that size; the look default stays `0` so existing apps do not change.
+  - **Exact hits win:** the router searches without slops first, and only when no participant is found searches again with them, so a slop never steals a tap from a neighbour under the finger. Between two slops the topmost wins.
+  - **Ancestors let the search in:** arrange computes how far a subtree's slops reach past each node's rectangle (render props carry it, zero and skipped when no slop is set), and `FindTarget` uses that inflated rectangle for ancestors that do not clip. Slops are clipped by the nearest children clip (a scroller's viewport) and the surface.
+  - **Semantics** frames grow the same way, clipped the same way. The headless pointer benches stay within noise when no slop is set.
+- **D4 Font features.** `FontFeatures` (`string`, CSS-like: `"tnum, -liga, ss01"`) on `SkUiLabel`, `SkUiSpan`, the buttons, `SkUiEntry`, `SkUiEditor` and their Core twins. Parsed once into an immutable `SkUiFontFeatures` value (value equality) that joins `SkUiTextStyle`, so it is part of every text cache key. Passed to HarfBuzz when shaping; a style with features skips the simple Latin path. Fonts without a feature draw as before. No `FontVariantNumeric` shortcut: one API, documented with the `tnum` example. Invalid strings are ignored with a warning (`SkUiValidate`), as other invalid values are.
+- **D5 Live regions.**
+  - `SkUiAccessibility.LiveRegion` (attached, `SkUiLiveRegion`: `None`, `Polite`, `Assertive`) on `SkUiView`; `SetLiveRegion` on Core nodes.
+  - Built on the semantics owner's change report: a node with a region whose spoken text (name and value) differs from what was last read for it, and that is shown, is read. Coalesced per node (the last text within 300 ms). Nothing is read while the node is hidden, off screen or outside the topmost modal pane. A node that appears with a region set is read once.
+  - Android: the virtual node's live region and `TYPE_WINDOW_CONTENT_CHANGED` with `CONTENT_CHANGE_TYPE_TEXT`. Apple: an announcement, queued when polite. Windows: the peer's `LiveSetting` and `LiveRegionChanged`.
+  - `SkUiAccessibility.Announce(anchor, text, politeness)` reads text tied to no element; on Android through a hidden live-region node of the anchor's surface.
+  - `SkUiAccessibility.UpdatesFrequently` (attached) and `SetUpdatesFrequently`: the iOS trait (today set only for progress bars), and on Android the state description updates without an announcement.
+  - Nothing is computed while no screen reader runs (the semantics tree is built lazily).
+- **D6 Progress ring:** `SkUiProgressRing` and `SkUiCoreProgressRing`, shaped like the progress bar: `Progress`, `ProgressTo`, `IsIndeterminate` (the activity indicator's render-thread rotation), `ProgressColor`, `TrackColor`, `Thickness` (DIPs, `-1` the look's), `StartAngle` (`-90`), `IsClockwise`, `LineCap` (`Round`, `Butt`). `Content` (SkUi\*: a view; Core: a child node) is laid out in the square inscribed in the inner circle. Drawn by a new look member `DrawProgressRing(canvas, SkUiProgressRingPaint)` next to `DrawProgressBar`. Semantics as a progress bar. A segmented ring, donut and gauges are F4.
+- **D7 Stacked bar:** `SkUiStackedBar` and `SkUiCoreStackedBar`. `Segments`: SkUi\* a collection of `SkUiBarSegment` (bindable: `Value`, `Color`, `Label`), Core a list of `SkUiBarValue(Value, Color, Label)`. `Maximum` (`-1`: the sum), negative values count as `0`, `SegmentSpacing`, `CornerRadius` (the bar's outer ends; `-1` the look's), `TrackColor` for what is left up to `Maximum`. Changes animate by tweening every value with the progress tween; reduce motion jumps. Semantics: one element whose value lists the labelled parts. No `ItemsSource` with paths in 1.18 ([Not in 1.18](#not-in-118)); the legend stays app layout.
+- **D8 Swipe view.**
+  - `SkUiSwipeView.ExclusiveGroup` (`string?`, default `null`): when a view of a group starts opening (swipe or `Open`), the other open views of that group on the same surface close, animated.
+  - `SkUiCollectionView.CloseSwipeViews(bool animated = true)` closes the open swipe views among its realized rows.
+  - `CloseAsync(bool animated = true)` completes when the content is back.
+  - The swipe items of a row become custom actions of the row (as reorderable items have theirs), so a screen reader reaches "Remove" without the gesture.
+  - No new open/close events: `SwipeStarted` and `SwipeEnded.IsOpen` are MAUI's and cover them; the docs say so.
+- **D9 Chips follow the F5 brief** ([ImplementationPlan-PerformanceAndControls.md](ImplementationPlan-PerformanceAndControls.md#f5-chips)), keeping its names: `IsSelected` matches `SelectedItem` / `SelectedItems` and the pickers; `Wraps="False"` is the scrolling row. From the request: `Padding` on the group (the scrolling row's edge insets, scrolled with the chips) and `BadgeText` on a chip (the count), drawn by the look's tab badge painter from 1.17.
+- **D10 The sheet follows the F3 brief** ([ImplementationPlan-PerformanceAndControls.md](ImplementationPlan-PerformanceAndControls.md#f3-in-surface-sheet), D5 there: a drawn container inside a surface, not a window), with these additions:
+  - **`Presentation`** (`SkUiSheetPresentation`: `Sheet`, `Dialog`, `Auto`; default `Sheet`): `Dialog` is a centred card at most `MaximumWidth` wide (the look's), with no detents or drag; `Auto` is a sheet on compact widths and a dialog (the tablet form sheet) above the look's breakpoint.
+  - **Header and actions:** `Title`, `Description` and an `Actions` view slot, drawn with `SkUiPopupParts`' title and button row so a picker opened in a sheet looks like the others.
+  - **Stacking:** several sheets can be open; the last opened is on top; Back, Escape and a scrim tap close the topmost; only the topmost is a modal pane.
+  - **`SkUiSheet.ShowAsync<TResult>(anchor, content, configure)`** opens a sheet on the anchor's surface root and completes with the value passed to `Close(result)`, or `default` when dismissed. It needs an overlay layer on the surface root (internal), which `SkUiSheetPopupPresenter` uses too: step S1 decides its shape.
+  - **No Core twin in 1.18.** A sheet has to be on the surface root to cover the page; a Core tree lives inside an `SkUiCoreHost`. Core content goes into a sheet through a host.
+  - **Accessibility:** the modal pane (focus moves in and is trapped, the page behind leaves the tree, the title is read as the pane title); `AutomationId`s on the scrim and the grabber.
+  - **Limits** in the docs: inside one surface, so it cannot cover hosted native views (overlay masks, backlog) or native chrome outside the surface (a Shell tab bar); it covers a drawn bottom bar in the same surface.
+- **D11 Custom tab headers** as placed on the [roadmap](Roadmap.md#1180-the-sheet-chips-tab-headers-and-the-time-clock-screen-set-proposed); its open questions are decided in step T1.
+- **D12 Release:** `1.18.0`. Cut line: phase T (tab headers) moves to 1.19 if the sheet runs long; the other phases ship together.
+
+## Phase A: small pieces (parallel, in worktrees)
+
+Independent of each other; each one appends to the look and the gallery, merged in order.
+
+- **A1 Font features (#132, S).** `SkUiFontFeatures` parser and value; `SkUiTextStyle` member; `SkUiShaping` passes features and skips the simple path; spans in `SkUiRichTextLayout`; the edit layout. *Check:* `FontFeatureTests` (tabular digits keep `"10:11"` and `"10:00"` the same width with a bundled font that has `tnum`; cache keys differ; unknown tags ignored); `core-labels`, `skui-labels` within noise.
+- **A2 Press scale (#133, S).** Look member, `PressedScale` on both layers, the animator's scale channel, reduce motion. *Check:* `PressScaleTests` (scale reaches the value and comes back; cancelled by a scroll; no re-record while pressed); `ImplicitStyleTests`.
+- **A3 Swipe view (#135, S).** `ExclusiveGroup`, `CloseAsync`, `CloseSwipeViews`, custom actions. *Check:* `SwipeViewTests` additions; a leak scenario that opens rows of a group and scrolls them away.
+- **A4 Hit slop (#134, M).** Props reach, two-pass `FindTarget`, `MapInsideClips` and the semantics frames, `MinimumTouchTargetSize`. *Check:* `HitSlopTests` (slop past a non-clipping parent; clipped by a scroller; exact hit wins over a neighbour's slop; disabled node blocks inside its slop); pointer benches within noise.
+
+## Phase P: progress (#128, #129)
+
+- **P1** Look: `SkUiProgressRingPaint`, `DrawProgressRing` in the default and platform looks. **P2** `SkUiProgressRing` with content. **P3** `SkUiCoreProgressRing`, pixel comparison with P2. **P4** `SkUiStackedBar` and `SkUiCoreStackedBar` on a shared internal segments model. *Check:* `ProgressRingTests`, `StackedBarTests`, semantics values, `ImplicitStyleTests`; a `skui-rings` bench (200 animating rings).
+
+## Phase L: live regions (#131, M)
+
+- **L1** API and the change detection on the semantics owner (platform-neutral, headless-testable through a recording platform sink). **L2** Android, **L3** Apple, **L4** Windows. **L5** `Announce` and `UpdatesFrequently`. *Check:* `LiveRegionTests` (coalescing, hidden and off-screen nodes, appearing nodes, modal pane); device checks with TalkBack, VoiceOver and Narrator on the verification backlog.
+
+## Phase S: the sheet (F3, #136, L)
+
+The brief's steps, with D10's additions placed:
+
+- **S1** Control page; the surface root's overlay layer. **S2** `SkUiSheetEngine` (detents, nearest detent by position and velocity, dismissal). **S3** Look members and `SkUiSheet` with `IsOpen`, detents as render-thread translation, `Presentation`. **S4** Drag and the nested-scroll hand-off. **S5** Modal behaviour (scrim linked to the position through 1.16's links, focus trap, Back and Escape), stacking. **S6** Header and actions slots; `ShowAsync<TResult>`. **S7** `SkUiSheetPopupPresenter`. **S8** Leak scenario `SheetOpenedAndClosed`, gallery page with the request's cases (confirm dialog, option list, action sheet with a destructive row, form with a time picker).
+- *Checks:* as in the brief, plus `SheetStackTests` and `SheetResultTests`.
+
+## Phase K: chips (F5, #130, S to M)
+
+The brief's seven steps, with D9's `Padding` and `BadgeText`. *Check:* `ChipTests`, `ChipGroupTests`, bench `skui-chips` (500 chips).
+
+## Phase T: custom tab headers (M, cut line)
+
+- **T1** Decide the roadmap's open questions (measuring in equal and content widths, what the header takes over from the look, the indicator's bounds, semantics). **T2** `SkUiTabView`. **T3** `SkUiCoreTabView` (header node or factory).
+
+## Docs, demo and release
+
+Each phase: its control pages, [Accessibility.md](Accessibility.md) (live regions leave "not done"), [Popups.md](Popups.md) (the sheet presenter), [EventMechanism.md](EventMechanism.md) (hit slop), [SkUiLabel.md](../controls/SkUiLabel.md) (font features), the changelog under `## Unreleased`, [Migration.md](../Migration.md) and the migration skill (`TouchBehavior.PressedScale`, `SwipeView` groups), gallery pages next to the MAUI controls, [Roadmap.md](Roadmap.md) and [Requirements.md](Requirements.md) statuses. A comment on each issue when its phase merges.
+
+## Order and sizes
+
+| Order | Work | Size | Parallel |
+| --- | --- | --- | --- |
+| 1 | A1, A2, A3, A4 | S, S, S, M | Yes, in worktrees |
+| 2 | P, L, K | S–M, M, S–M | Yes: they share only the look and the gallery |
+| 3 | S | L | Alone (overlay layer, focus, pointer hand-off) |
+| 4 | T | M | After S; cut line |
+
+## Not in 1.18
+
+- A Core sheet (D10); side sheets beyond the brief's `Start` / `End`.
+- A segmented ring, donut and gauges (F4); `ItemsSource` with value and colour bindings on the stacked bar (needs compiled bindings, not reflection paths).
+- `FontVariantNumeric`; per-control press scale length and easing.
+- Range slider and rating (F6), autocomplete (F7).
+
+## Verification
+
+Headless suite green on net10.0 and net11.0, the library at 0 warnings (trim and AOT analyzers included), benches within noise where a phase touches a hot path (text shaping, `FindTarget`, press). Device checks by hand on the [verification backlog](Roadmap.md#verification-backlog): the sheet's drag and fling on the Galaxy S9 and an iPhone, press scale frame times, live regions with each screen reader.
