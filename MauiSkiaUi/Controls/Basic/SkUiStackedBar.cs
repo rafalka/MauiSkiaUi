@@ -18,6 +18,8 @@ namespace MauiSkiaUi;
 public class SkUiStackedBar : SkUiView
 {
     private ObservableCollection<SkUiBarSegment>? _segments;
+    private bool _batching;
+    private static readonly NotifyCollectionChangedEventArgs ResetArgs = new(NotifyCollectionChangedAction.Reset);
     private readonly HashSet<SkUiBarSegment> _attached = [];
     private SkUiStackedBarModel? _model;
     private double _maximum = -1;
@@ -72,9 +74,19 @@ public class SkUiStackedBar : SkUiView
         ArgumentNullException.ThrowIfNull(segments);
         var list = segments.ToList();
         var current = (ObservableCollection<SkUiBarSegment>)Segments;
-        current.Clear();
-        foreach (var segment in list)
-            current.Add(segment);
+        // One change for the bar: each Clear / Add would animate from what it showed halfway (empty after the Clear).
+        _batching = true;
+        try
+        {
+            current.Clear();
+            foreach (var segment in list)
+                current.Add(segment);
+        }
+        finally
+        {
+            _batching = false;
+        }
+        OnSegmentsChanged(current, ResetArgs);
         return this;
     }
 
@@ -119,6 +131,8 @@ public class SkUiStackedBar : SkUiView
 
     private void OnSegmentsChanged(object? sender, NotifyCollectionChangedEventArgs args)
     {
+        if (_batching)
+            return; // SetSegments reports its changes once
         foreach (var segment in _attached.ToArray())
             if (!_segments!.Contains(segment))
                 Detach(segment);
@@ -260,6 +274,9 @@ internal sealed class SkUiStackedBarModel(ISkUiTransitionHost host)
     private readonly SkUiTween _tween = new(host);
     private SkUiStackedBarPart[] _parts = [];
 
+    /// <summary>How close to the bar's end a part counts as reaching it (rounding of the shares).</summary>
+    private const double FullTolerance = 1e-5;
+
     /// <summary>The values set.</summary>
     public IReadOnlyList<SkUiBarValue> Values => _readOnlyValues;
 
@@ -309,14 +326,17 @@ internal sealed class SkUiStackedBarModel(ISkUiTransitionHost host)
         if (_parts.Length < _values.Length)
             _parts = new SkUiStackedBarPart[_values.Length];
         var count = 0;
-        var start = 0f;
+        // In doubles, snapped to the end: a bar the parts fill ends at exactly 1 (no track, so no gap cut from the last part).
+        var start = 0d;
         for (var i = 0; i < _values.Length && total > 0 && start < 1; i++)
         {
-            var end = (float)Math.Min(1, start + Drawn(i, progress) / total);
+            var end = Math.Min(1, start + Drawn(i, progress) / total);
+            if (1 - end < FullTolerance)
+                end = 1;
             if (end <= start)
                 continue;
             var color = _values[i].Color ?? SkUiColors.Accent;
-            _parts[count++] = new SkUiStackedBarPart(start, end, SkUiToggleDrawing.ToSkColor(SkUiColors.EnabledTint(color, enabled)));
+            _parts[count++] = new SkUiStackedBarPart((float)start, (float)end, SkUiToggleDrawing.ToSkColor(SkUiColors.EnabledTint(color, enabled)));
             start = end;
         }
         var save = canvas.Save();

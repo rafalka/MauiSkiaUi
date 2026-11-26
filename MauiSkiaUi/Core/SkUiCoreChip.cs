@@ -40,8 +40,11 @@ public class SkUiCoreChip : SkUiCoreButton, ISkUiKeyHandler
     /// <summary>Whether the chip is selected; a tap on a filter chip toggles it.</summary>
     public bool IsSelected { get => _isSelected; set => SetIsSelected(value); }
 
-    /// <summary>Whether the × shows (default: for <see cref="SkUiChipKind.Input"/> chips, until set).</summary>
-    public bool ShowsRemoveButton { get => EffectiveShowsRemoveButton; set => SetShowsRemoveButton(value); }
+    /// <summary>
+    /// Whether the × shows, as set (default <c>false</c>), as <c>SkUiChip.ShowsRemoveButton</c>; until it is set, the × shows for
+    /// <see cref="SkUiChipKind.Input"/> chips and not for the others.
+    /// </summary>
+    public bool ShowsRemoveButton { get => _showsRemoveButton ?? false; set => SetShowsRemoveButton(value); }
 
     /// <summary>A count or short text in a pill at the end (default <c>null</c>: none).</summary>
     public string? BadgeText { get => _badgeText; set => SetBadgeText(value); }
@@ -224,6 +227,7 @@ public class SkUiCoreChip : SkUiCoreButton, ISkUiKeyHandler
     {
         if (!CanReceiveTap)
             return;
+        using var lookScope = SkUiLookScope.Enter(this); // the parts' sizes are the look's that drew them (a subtree's)
         if (EffectiveShowsRemoveButton && ChipChrome.Layout(ChromeState, (float)Frame.Width, (float)Frame.Height, Padding).RemoveHit
                 .Contains((float)args.Position.X, (float)args.Position.Y))
         {
@@ -240,10 +244,17 @@ public class SkUiCoreChip : SkUiCoreButton, ISkUiKeyHandler
     /// <summary>Removes the chip as its × does: <see cref="Removed"/>, <see cref="RemoveCommand"/>, and its group's <c>ChipRemoved</c>.</summary>
     public void Remove()
     {
+        // Taken first: a handler or the command that removes the item rebuilds a group, which reuses chips by position.
+        var group = Group;
+        var item = default(object);
+        var index = -1;
+        var inGroup = group?.TryGetItem(this, out item, out index) == true;
+        var parameter = CommandParameter;
         Removed?.Invoke(this, EventArgs.Empty);
-        if (_removeCommand is { } command && CommandParameter is var parameter && command.CanExecute(parameter))
+        if (_removeCommand is { } command && command.CanExecute(parameter))
             command.Execute(parameter);
-        Group?.OnChipRemoved(this);
+        if (inGroup)
+            group!.RaiseChipRemoved(item, index);
     }
 
     bool ISkUiKeyHandler.OnKeyDown(in SkUiKeyEvent key)

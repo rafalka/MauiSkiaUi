@@ -188,7 +188,10 @@ internal sealed class SkUiAccessibilityBridge
                 surface.RaiseStructureChangedEvent(AutomationStructureChangeType.ChildrenInvalidated, surface);
         foreach (var id in changed)
             if (_peers.TryGetValue(id, out var peer) && tree.Find(id) is { } node)
-                peer.RaiseChanges(node);
+                // A live element's new text waits to be read once it settles (OnAnnouncement raises its changes then), so clients
+                // watching its name do not hear each step either.
+                if (_owner?.IsLivePending(id) != true)
+                    peer.RaiseChanges(node);
     }
 
     /// <summary>The peer of the drawn element with keyboard focus (the field the hidden text box types into), while a client listens.</summary>

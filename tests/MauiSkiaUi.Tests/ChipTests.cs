@@ -165,6 +165,8 @@ public class ChipTests
         Tap(root, new Point(chip.Frame.X + 14, chip.Frame.Y + chip.Height / 2));
         Assert.Equal(1, clicked);
 
+        Assert.False(chip.ShowsRemoveButton); // the value set: none yet (the kind shows the ×)
+        Assert.False(new SkUiCoreChip().SetKind(SkUiChipKind.Input).ShowsRemoveButton); // the Core chip's getter agrees
         chip.ShowsRemoveButton = false;
         SkUiTestHelpers.Arrange(root, 300, 100);
         Assert.True(chip.Width < withCross);
@@ -184,14 +186,19 @@ public class ChipTests
         var root = Root(chip);
         root.Look = new WidePaddingLook();
         SkUiTestHelpers.Arrange(root, 300, 100);
-        // The × sits inside the subtree look's 40 DIP padding, not the app look's 12.
-        Tap(root, new Point(chip.Frame.Right - 40 - SkUiLook.Current.ChipIconSize / 2, chip.Frame.Y + chip.Height / 2));
+        // The × sits inside the subtree look's 40 DIP padding and is its 30 DIPs wide: its middle, not the app look's (12 + 18 / 2).
+        Tap(root, new Point(chip.Frame.Right - 40 - 15, chip.Frame.Y + chip.Height / 2));
+        Assert.Equal(1, removed);
+        // Left of the × by more than the subtree look's 10 DIP spacing: the chip clicks, it is not removed.
+        Tap(root, new Point(chip.Frame.Right - 40 - 30 - 12, chip.Frame.Y + chip.Height / 2));
         Assert.Equal(1, removed);
     }
 
     private sealed class WidePaddingLook : DefaultSkUiLook
     {
         public override Thickness DefaultChipPadding => new(40, 4);
+        public override float ChipIconSize => 30;
+        public override float ChipIconSpacing => 10;
     }
 
     [Fact]

@@ -164,6 +164,55 @@ public class ChipGroupTests
     }
 
     [Fact]
+    public void ACommandThatRemovesTheItemStillReportsIt()
+    {
+        var items = new ObservableCollection<string> { "Anna", "Ben", "Chiara" };
+        var group = new SkUiChipGroup { ItemsSource = items, ChipKind = SkUiChipKind.Input, SelectionMode = SkUiChipSelectionMode.None };
+        var commanded = new List<object?>();
+        var removed = new List<(object? Item, int Index)>();
+        var command = new Command<object>(parameter =>
+        {
+            commanded.Add(parameter);
+            items.Remove((string)parameter); // the group rebuilds before the chip is done
+        });
+        foreach (var chip in group.Chips)
+            chip.RemoveCommand = command;
+        group.ChipRemoved += (_, args) => removed.Add((args.Item, args.Index));
+
+        group.Chips[1].Remove();
+        group.Chips[^1].Remove(); // the last chip: the rebuild takes it out of the group
+        Assert.Equal(["Ben", "Chiara"], commanded);
+        Assert.Equal([("Ben", 1), ("Chiara", 1)], removed);
+        Assert.Equal(["Anna"], items);
+
+        var coreItems = new ObservableCollection<string> { "A", "B" };
+        var core = new SkUiCoreChipGroup().SetItemsSource(coreItems).SetChipKind(SkUiChipKind.Input);
+        var coreRemoved = new List<object?>();
+        core.ChipRemoved += (_, args) => coreRemoved.Add(args.Item);
+        core.Chips[1].SetRemoveCommand(new Command<object>(parameter => coreItems.Remove((string)parameter)));
+        core.Chips[1].Remove();
+        Assert.Equal(["B"], coreRemoved);
+    }
+
+    [Fact]
+    public void ArrowKeysPassOverDisabledChips()
+    {
+        var group = Group(["A", "B", "C"]);
+        group.Chips[1].IsEnabled = false;
+        var focus = group.FocusManager;
+        Assert.True(group.Chips[0].Focus());
+        Assert.True(focus.KeyDown(SkUiKey.Right));
+        Assert.True(group.Chips[2].IsFocused);
+        Assert.True(focus.KeyDown(SkUiKey.Left));
+        Assert.True(group.Chips[0].IsFocused);
+        group.Chips[0].IsEnabled = false;
+        group.Chips[1].IsEnabled = true;
+        Assert.True(group.Chips[2].Focus());
+        Assert.True(focus.KeyDown(SkUiKey.Home)); // the first chip that takes focus
+        Assert.True(group.Chips[1].IsFocused);
+    }
+
+    [Fact]
     public void RemovingAChipReportsItsItem()
     {
         using var _ = SkUiTestHelpers.UseBundledFont();

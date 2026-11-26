@@ -350,12 +350,16 @@ public class SkUiCoreChipGroup : SkUiCoreNode, ISkUiKeyHandler
         }
     }
 
-    internal void OnChipRemoved(SkUiCoreChip chip)
+    /// <summary>The chip's item and its index, while the chip is one of the group's.</summary>
+    internal bool TryGetItem(SkUiCoreChip chip, out object? item, out int index)
     {
-        var index = _chips.IndexOf(chip);
-        if (index >= 0)
-            ChipRemoved?.Invoke(this, new SkUiChipRemovedEventArgs(_items[index], index));
+        index = _chips.IndexOf(chip);
+        item = index >= 0 ? _items[index] : null;
+        return index >= 0;
     }
+
+    /// <summary>A chip was removed: <see cref="ChipRemoved"/> with the item it showed then.</summary>
+    internal void RaiseChipRemoved(object? item, int index) => ChipRemoved?.Invoke(this, new SkUiChipRemovedEventArgs(item, index));
 
     /// <inheritdoc />
     internal override IReadOnlyList<IVisualTreeElement> VisualChildren => _panel is null ? [] : [_panel];
@@ -382,18 +386,20 @@ public class SkUiCoreChipGroup : SkUiCoreNode, ISkUiKeyHandler
         if (focused < 0)
             return false;
         var step = IsRightToLeft ? -1 : 1;
-        var target = key.Key switch
+        // Where the search starts and which way it goes; a chip that takes no focus (disabled) is passed over.
+        var (from, direction) = key.Key switch
         {
-            SkUiKey.Right => focused + step,
-            SkUiKey.Left => focused - step,
-            SkUiKey.Home => 0,
-            SkUiKey.End => _chips.Count - 1,
-            _ => -2
+            SkUiKey.Right => (focused + step, step),
+            SkUiKey.Left => (focused - step, -step),
+            SkUiKey.Home => (0, 1),
+            SkUiKey.End => (_chips.Count - 1, -1),
+            _ => (-2, 0)
         };
-        if (target == -2)
+        if (direction == 0)
             return false;
-        if (target >= 0 && target < _chips.Count)
-            _chips[target].Focus();
-        return true;
+        for (var index = from; index >= 0 && index < _chips.Count; index += direction)
+            if (_chips[index].Focus())
+                break;
+        return true; // at an end: the focus stays
     }
 }

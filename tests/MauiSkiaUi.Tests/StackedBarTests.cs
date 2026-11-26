@@ -91,6 +91,41 @@ public class StackedBarTests
     }
 
     [Fact]
+    public void SetSegmentsAnimatesFromWhatIsDrawnInOneChange()
+    {
+        WithMotion(() =>
+        {
+            var bar = Bar(new SkUiBarSegment(5, Colors.Red), new SkUiBarSegment(5, Colors.Green));
+            var root = new SkUiContentView { Content = bar, Background = Colors.White };
+            using var surface = new SkUiTestSurface(root, 200, 8);
+            surface.Frame();
+
+            bar.SetSegments(new SkUiBarSegment(6, Colors.Red), new SkUiBarSegment(4, Colors.Green));
+            root.AnimationClock.Tick(TimeSpan.FromMilliseconds(1));
+            var first = surface.Frame(16);
+            Assert.Equal(Red, first.GetPixel(90, 4)); // still near the old halves, not empty
+            Assert.Equal(Green, first.GetPixel(110, 4));
+
+            root.AnimationClock.Tick(TimeSpan.FromMilliseconds(1000));
+            bar.SetSegments(new SkUiBarSegment(6, Colors.Red), new SkUiBarSegment(4, Colors.Green)); // the same values: nothing moves
+            var same = surface.Frame(32);
+            Assert.Equal(Red, same.GetPixel(110, 4));
+            Assert.Equal(Green, same.GetPixel(130, 4));
+        });
+    }
+
+    [Fact]
+    public void AFullBarEndsWithItsLastPart()
+    {
+        // Shares that do not add up to exactly 1 in floats: the last part still reaches the end, with no gap cut for a track.
+        var colors = new[] { Colors.Red, Colors.Orange, Colors.Yellow, Colors.Purple, Colors.Pink, Colors.Green };
+        var bar = Bar(new[] { 0.2, 8.4, 2.7, 2.4, 10.0, 4.8 }.Select((value, index) => new SkUiBarSegment(value, colors[index])).ToArray());
+        bar.SegmentSpacing = 3;
+        using var bitmap = Draw(bar);
+        Assert.Equal(Green, bitmap.GetPixel(199, 4));
+    }
+
+    [Fact]
     public void SegmentsBindToTheBarsContext()
     {
         var segment = new SkUiBarSegment { Color = Colors.Red };

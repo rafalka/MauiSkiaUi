@@ -109,16 +109,21 @@ public class ProgressRingTests
         var recorded = surface.RecordedPictures;
         var period = SkUiLook.Current.IndeterminateProgressRingPeriod * 1000;
 
+        // The content's corner (the square spans 21.7 to 78.3): turned 45° about the centre, the square leaves it (a diamond reaches
+        // 40 along each axis, the corner is 26 + 26 away), and it is inside the ring's hole.
+        var corner = (X: 24, Y: 24);
         SKColor[] Sample(double ms)
         {
             surface.Renderer.Render(canvas, bitmap.Info, TimeSpan.FromMilliseconds(ms));
-            return [At(bitmap, TopRight), At(bitmap, BottomRight), At(bitmap, BottomLeft), At(bitmap, TopLeft), bitmap.GetPixel(32, 32)];
+            return [At(bitmap, TopRight), At(bitmap, BottomRight), At(bitmap, BottomLeft), At(bitmap, TopLeft), At(bitmap, corner)];
         }
-        var quarter = Sample(1000 * period + period * 0.0);
-        var later = Sample(1000 * period + period * 0.5);
-        Assert.NotEqual(quarter[..4], later[..4]);
-        Assert.Equal(SKColors.Green, quarter[4]); // the content (near its corner) does not turn
-        Assert.Equal(SKColors.Green, later[4]);
+        var start = Sample(1000 * period);
+        var eighth = Sample(1000 * period + period * 0.125);
+        var half = Sample(1000 * period + period * 0.5);
+        Assert.NotEqual(start[..4], half[..4]); // the arc turns
+        Assert.Equal(SKColors.Green, start[4]); // the content does not
+        Assert.Equal(SKColors.Green, eighth[4]);
+        Assert.Equal(SKColors.Green, half[4]);
         Assert.Equal(recorded, surface.RecordedPictures);
 
         ring.IsIndeterminate = false;

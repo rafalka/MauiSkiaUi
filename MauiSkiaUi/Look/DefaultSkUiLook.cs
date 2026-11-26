@@ -1036,6 +1036,9 @@ public partial class DefaultSkUiLook : SkUiLook
     /// <summary>The gap between a determinate progress ring's arc and the rest of its track, DIPs (default 0; Material 3: 4).</summary>
     public virtual float ProgressRingGap => 0;
 
+    /// <summary>The least room after a stacked bar's last part, as a fraction of the bar, that shows the track.</summary>
+    private const float TrackTolerance = 1e-4f;
+
     /// <inheritdoc />
     protected override void DrawStackedBarCore(SKCanvas canvas, SkUiStackedBarPaint bar)
     {
@@ -1053,7 +1056,7 @@ public partial class DefaultSkUiLook : SkUiLook
         var parts = bar.Parts;
         var spacing = Math.Max(0, bar.Spacing);
         var last = parts.Count > 0 ? parts[^1].End : 0;
-        var hasTrack = last < 1 && bar.Track.Alpha > 0;
+        var hasTrack = last < 1 - TrackTolerance && bar.Track.Alpha > 0; // a painter's own rounding of the parts does not make a track
         for (var i = 0; i < parts.Count; i++)
         {
             var part = parts[i];
