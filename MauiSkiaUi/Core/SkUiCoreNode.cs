@@ -1451,6 +1451,55 @@ public partial class SkUiCoreNode : ISkUiCoreNode, INotifyPropertyChanged, ISkUi
     private SkUiPressAnimator? _pressEffect;
     private double _pressedScale = -1;
     private SkUiPressAnimator? _pressScaleEffect;
+    private Thickness _hitSlop;
+    private double _minimumTouchTargetSize;
+
+    /// <summary>
+    /// How far past its rectangle the node is pressed (DIPs per side, default none), without changing its layout or drawing
+    /// (see <see cref="SkUiView.HitSlop"/>).
+    /// </summary>
+    public Thickness HitSlop
+    {
+        get => _hitSlop;
+        set => SetHitSlop(value);
+    }
+
+    /// <summary>The smallest size the node is pressed in (DIPs, default 0: its own; see <see cref="SkUiView.MinimumTouchTargetSize"/>).</summary>
+    public double MinimumTouchTargetSize
+    {
+        get => _minimumTouchTargetSize;
+        set => SetMinimumTouchTargetSize(value);
+    }
+
+    /// <summary>Sets <see cref="HitSlop"/> (sides finite and not negative).</summary>
+    public SkUiCoreNode SetHitSlop(Thickness value)
+    {
+        SkUiValidate.ThrowIfNotThickness(value, nameof(value));
+        var had = SkUiHitSlop.Has(_hitSlop, _minimumTouchTargetSize);
+        if (!SetProperty(ref _hitSlop, value, nameof(HitSlop))) return this;
+        OnHitSlopChanged(had);
+        return this;
+    }
+
+    /// <summary>Sets <see cref="MinimumTouchTargetSize"/> (finite, not negative).</summary>
+    public SkUiCoreNode SetMinimumTouchTargetSize(double value)
+    {
+        SkUiValidate.ThrowIfNegativeOrNotFinite(value, nameof(value));
+        var had = SkUiHitSlop.Has(_hitSlop, _minimumTouchTargetSize);
+        if (!SetProperty(ref _minimumTouchTargetSize, value, nameof(MinimumTouchTargetSize))) return this;
+        OnHitSlopChanged(had);
+        return this;
+    }
+
+    private void OnHitSlopChanged(bool had)
+    {
+        var has = SkUiHitSlop.Has(_hitSlop, _minimumTouchTargetSize);
+        if (had || has)
+            SkUiHitSlop.Track(this, has);
+        SkUiSemantics.Invalidate(this);
+    }
+
+    Thickness ISkUiInputNode.HitSlop => SkUiHitSlop.Effective(_hitSlop, _minimumTouchTargetSize, _frame.Width, _frame.Height);
 
     /// <summary>
     /// The scale the node and its children shrink to while pressed, about the anchor, with the look's press and release

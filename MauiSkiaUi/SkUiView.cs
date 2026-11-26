@@ -111,6 +111,8 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
     private SkUiPressFeedback _pressFeedback;
     private SkUiPressAnimator? _pressEffect;
     private double _pressedScale = -1;
+    private Thickness _hitSlop;
+    private double _minimumTouchTargetSize;
     private SkUiPressAnimator? _pressScaleEffect;
 
     /// <summary>Bindable <see cref="ShowsPressEffect"/>.</summary>
@@ -172,6 +174,56 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
         InvalidatePaint();
         InvalidateRender(SkUiRenderDirty.Props);
     }
+
+    /// <summary>Bindable <see cref="HitSlop"/>.</summary>
+    public static readonly BindableProperty HitSlopProperty = BindableProperty.Create(nameof(HitSlop), typeof(Thickness), typeof(SkUiView), default(Thickness),
+        validateValue: SkUiValidate.ThicknessValue, propertyChanged: (view, _, value) => ((SkUiView)view).OnHitSlopChanged((Thickness)value, ((SkUiView)view)._minimumTouchTargetSize));
+
+    /// <summary>Bindable <see cref="MinimumTouchTargetSize"/>.</summary>
+    public static readonly BindableProperty MinimumTouchTargetSizeProperty = BindableProperty.Create(nameof(MinimumTouchTargetSize), typeof(double), typeof(SkUiView), 0d,
+        validateValue: SkUiValidate.NonNegative, propertyChanged: (view, _, value) => ((SkUiView)view).OnHitSlopChanged(((SkUiView)view)._hitSlop, (double)value));
+
+    /// <summary>
+    /// How far past its rectangle the view is pressed (DIPs per side, default none), without changing its layout or drawing:
+    /// a 32 DIP chevron pressed in 44 × 44. Found where no other view is under the finger, or only a container of this one (its
+    /// row, a scroller), and cut by the clips of its containers (a scroller's viewport); the view nearest the finger wins
+    /// between two slops. Screen readers' frame of the view grows the same way. See also <see cref="MinimumTouchTargetSize"/>.
+    /// </summary>
+    public Thickness HitSlop { get => (Thickness)GetValue(HitSlopProperty); set => SetValue(HitSlopProperty, value); }
+
+    /// <summary>
+    /// The smallest size the view is pressed in (DIPs, default 0: its own): a smaller view's <see cref="HitSlop"/> grows
+    /// evenly on both sides of each axis up to it, as 44 (Apple) or 48 (Material) asks of touch targets.
+    /// </summary>
+    public double MinimumTouchTargetSize { get => (double)GetValue(MinimumTouchTargetSizeProperty); set => SetValue(MinimumTouchTargetSizeProperty, value); }
+
+    /// <summary>Sets <see cref="HitSlop"/> (same as the property setter, but throws on a negative or non-finite side).</summary>
+    public SkUiView SetHitSlop(Thickness value)
+    {
+        SkUiValidate.ThrowIfNotThickness(value, nameof(value));
+        HitSlop = value;
+        return this;
+    }
+
+    /// <summary>Sets <see cref="MinimumTouchTargetSize"/> (same as the property setter, but throws on a negative or non-finite size).</summary>
+    public SkUiView SetMinimumTouchTargetSize(double value)
+    {
+        SkUiValidate.ThrowIfNegativeOrNotFinite(value, nameof(value));
+        MinimumTouchTargetSize = value;
+        return this;
+    }
+
+    private void OnHitSlopChanged(Thickness slop, double minimum)
+    {
+        var had = SkUiHitSlop.Has(_hitSlop, _minimumTouchTargetSize);
+        (_hitSlop, _minimumTouchTargetSize) = (slop, minimum);
+        var has = SkUiHitSlop.Has(slop, minimum);
+        if (had || has)
+            SkUiHitSlop.Track(this, has);
+        InvalidateSemantics();
+    }
+
+    Thickness ISkUiInputNode.HitSlop => SkUiHitSlop.Effective(_hitSlop, _minimumTouchTargetSize, Width, Height);
 
     /// <summary>Bindable <see cref="PressedScale"/>.</summary>
     public static readonly BindableProperty PressedScaleProperty = BindableProperty.Create(nameof(PressedScale), typeof(double), typeof(SkUiView), -1d,

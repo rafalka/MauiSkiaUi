@@ -364,7 +364,7 @@ internal sealed class SkUiSemanticsTree
                     }
                     else if (!visible.IsEmpty)
                     {
-                        element = NewNode(accessible, visible, text, native: false);
+                        element = NewNode(accessible, SlopFrame(node, props, toRoot, clip) ?? visible, text, native: false);
                         Add(parent, element);
                         parts = NewPartNodes(accessible, toRoot, visible);
                         var described = Clean(_info.Description) is not null;
@@ -456,6 +456,18 @@ internal sealed class SkUiSemanticsTree
                 });
             }
             return nodes;
+        }
+
+        /// <summary>
+        /// The frame of a node with a hit slop (<see cref="ISkUiInputNode.HitSlop"/>): its rectangle grown by the slop, cut by
+        /// <paramref name="clip"/> as the press is; <c>null</c> without one.
+        /// </summary>
+        private static SKRect? SlopFrame(ISkUiRenderable node, in SkUiRenderProps props, SKMatrix toRoot, SKRect clip)
+        {
+            if (!SkUiHitSlop.Any || node is not ISkUiInputNode input || input.HitSlop is var slop && !SkUiHitSlop.Has(slop, 0))
+                return null;
+            var grown = new SKRect((float)-slop.Left, (float)-slop.Top, props.Width + (float)slop.Right, props.Height + (float)slop.Bottom);
+            return Intersect(toRoot.MapRect(grown), clip);
         }
 
         private static bool IsElement(SkUiSemanticsInfo info, string? text)
