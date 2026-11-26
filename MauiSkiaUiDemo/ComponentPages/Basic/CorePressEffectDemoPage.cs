@@ -53,7 +53,7 @@ public sealed class CorePressEffectDemoPage : ComponentDemoPage
                     node.SetPressFeedback(value ? SkUiPressFeedback.Fade : SkUiPressFeedback.Overlay);
         }, () => pressables[0].Node.PressFeedback == SkUiPressFeedback.Fade);
         // Every card, chip and tile shrinks while pressed (-1: the look's); the Details button inside a card keeps the look's.
-        Choice(nameof(SkUiCoreNode.PressedScale), PressedScales, -1d, value =>
+        PressedScaleChoice(value =>
         {
             foreach (var (_, node) in pressables)
                 node.SetPressedScale(value);

@@ -16,8 +16,13 @@ public abstract class ComponentDemoPage : ContentPage
     protected static readonly Color Ink = DemoColors.Ink;
     /// <summary>Interactive accent used by editors and sample fills.</summary>
     protected static readonly Color Accent = DemoColors.Accent;
-    /// <summary>The values a <c>PressedScale</c> editor offers: -1 (the look's), 1 (none), then scales down.</summary>
-    protected static readonly double[] PressedScales = [-1, 1, 0.97, 0.95, 0.9, 0.8];
+    private const string LookPressedScale = "The look's (-1)";
+
+    /// <summary>The values a <c>PressedScale</c> editor offers by name: the look's, none, then scales down.</summary>
+    private static readonly Dictionary<string, double> PressedScales = new()
+    {
+        [LookPressedScale] = -1, ["None (1)"] = 1, ["97%"] = 0.97, ["95%"] = 0.95, ["90%"] = 0.9, ["80%"] = 0.8
+    };
     private readonly Grid _comparisons = new() { ColumnSpacing = 16, RowSpacing = 12 };
     // Control-specific editors (added by the derived page) come first; the common ones the base page adds for every
     // control (HwAccelerated, sizes, opacity, ...) follow under their own heading.
@@ -847,6 +852,12 @@ public abstract class ComponentDemoPage : ContentPage
     }
 
     protected void OnReset(Action action) => _resets.Add(action);
+
+    /// <summary>A <c>PressedScale</c> editor: the look's (-1), none (1) or a scale down; <paramref name="skia"/> reads it back.</summary>
+    protected void PressedScaleChoice(Action<double> apply, Func<double> skia) =>
+        Choice(nameof(SkUiView.PressedScale), PressedScales.Keys.ToArray(), LookPressedScale, name => apply(PressedScales[name]),
+            // Exact: the editor's own values come back unchanged.
+            () => PressedScales.FirstOrDefault(entry => entry.Value == skia()).Key ?? skia().ToString(System.Globalization.CultureInfo.InvariantCulture));
     protected void Feedback(string skia, string? native = null)
     {
         _skiaStatus.Text = skia;

@@ -6,8 +6,9 @@ namespace MauiSkiaUi.Tests;
 
 /// <summary>
 /// 1.18 A1 (issue #132): OpenType features on drawn text (<c>FontFeatures</c>), passed to HarfBuzz, part of the text style
-/// (so of every cache key), on labels, spans and text inputs of both layers. Neither bundled font has <c>tnum</c>; Lobster's
-/// ligatures (<c>-liga</c>) and kerning (<c>-kern</c>) change its widths, Roboto Mono's small capitals (<c>smcp</c>) its glyphs.
+/// (so of every cache key), on labels, spans and text inputs of both layers; typed (<see cref="SkUiFontFeature"/>,
+/// <see cref="SkUiFontFeatures"/>) with a text form for XAML. Neither bundled font has <c>tnum</c>; Lobster's ligatures
+/// (<c>-liga</c>) and kerning (<c>-kern</c>) change its widths, Roboto Mono's small capitals (<c>smcp</c>) its glyphs.
 /// </summary>
 public sealed class FontFeatureTests
 {
@@ -22,7 +23,7 @@ public sealed class FontFeatureTests
         new SkUiTextLayout().Measure(text, Style(typeface, features, rendering), default, double.PositiveInfinity).Width;
 
     private static SkUiTextStyle Style(SKTypeface typeface, string? features, SkUiTextRendering rendering = SkUiTextRendering.Auto) =>
-        new(typeface, 20, LineBreakMode.NoWrap, Rendering: rendering, Features: SkUiFontFeatures.Parse(features));
+        new(typeface, 20, LineBreakMode.NoWrap, Rendering: rendering, Features: features is null ? null : SkUiFontFeatures.Parse(features));
 
     private static IDisposable UseLobster()
     {
@@ -36,22 +37,82 @@ public sealed class FontFeatureTests
     }
 
     [Fact]
-    public void ListsParseOnceNormalizedAndCompareByValue()
+    public void FeaturesAreNamedValidatedAndWrittenAsCssReadsThem()
     {
-        var features = SkUiFontFeatures.Parse("tnum,  -liga ,ss01=1");
-        Assert.NotNull(features);
-        Assert.Equal("tnum, -liga, ss01=1", features.Text);
-        Assert.Equal(3, features.Features.Length);
-        Assert.Same(features, SkUiFontFeatures.Parse("tnum,  -liga ,ss01=1"));
-        Assert.Equal(features, SkUiFontFeatures.Parse("tnum, -liga, ss01=1"));
-        Assert.NotEqual(features, SkUiFontFeatures.Parse("tnum"));
-        Assert.Null(SkUiFontFeatures.Parse(null));
-        Assert.Null(SkUiFontFeatures.Parse("  "));
-        Assert.Null(SkUiFontFeatures.Parse(" , "));
-        Assert.True(SkUiFontFeatures.IsValid(null));
-        Assert.True(SkUiFontFeatures.IsValid("kern=0, +liga"));
-        Assert.False(SkUiFontFeatures.IsValid("tnum, not a feature!"));
-        Assert.Null(SkUiFontFeatures.Parse("tnum, not a feature!"));
+        Assert.Equal(("tnum", 1, true), (SkUiFontFeature.TabularFigures.Tag, SkUiFontFeature.TabularFigures.Value, SkUiFontFeature.TabularFigures.IsEnabled));
+        Assert.Equal(new SkUiFontFeature("kern", 0), SkUiFontFeature.Kerning.Disabled);
+        Assert.Equal(SkUiFontFeature.Disable("liga"), SkUiFontFeature.StandardLigatures.Disabled);
+        Assert.Equal(("ss03", "cv12"), (SkUiFontFeature.StylisticSet(3).Tag, SkUiFontFeature.CharacterVariant(12).Tag));
+        Assert.Equal(["tnum", "-kern", "salt=2"], new[] { SkUiFontFeature.TabularFigures, SkUiFontFeature.Kerning.Disabled, SkUiFontFeature.StylisticAlternates.WithValue(2) }.Select(f => f.ToString()));
+        // CSS's forms, as HarfBuzz reads them; ranges and anything else are not features.
+        Assert.Equal(SkUiFontFeature.Kerning.Disabled, SkUiFontFeature.Parse("kern=0"));
+        Assert.Equal(SkUiFontFeature.Kerning.Disabled, SkUiFontFeature.Parse(" kern off "));
+        Assert.Equal(SkUiFontFeature.StandardLigatures, SkUiFontFeature.Parse("+liga"));
+        Assert.Equal(new SkUiFontFeature("salt", 3), SkUiFontFeature.Parse("salt=3"));
+        Assert.False(SkUiFontFeature.TryParse("liga[3:5]", out _));
+        Assert.False(SkUiFontFeature.TryParse("not a feature!", out _));
+        Assert.False(SkUiFontFeature.TryParse(null, out _));
+        Assert.Throws<FormatException>(() => SkUiFontFeature.Parse(""));
+        Assert.Throws<ArgumentException>(() => new SkUiFontFeature("tabular"));
+        Assert.Throws<ArgumentException>(() => new SkUiFontFeature(" tnu"));
+        Assert.Throws<ArgumentException>(() => new SkUiFontFeature("t nu"));
+        Assert.Throws<ArgumentOutOfRangeException>(() => new SkUiFontFeature("salt", -1));
+        Assert.Throws<ArgumentOutOfRangeException>(() => SkUiFontFeature.StylisticSet(21));
+        Assert.Throws<ArgumentOutOfRangeException>(() => SkUiFontFeature.CharacterVariant(0));
+        Assert.Equal("", default(SkUiFontFeature).Tag);
+    }
+
+    [Fact]
+    public void ListsAreBuiltByCollectionExpressionsOrParsedAndCompareByValue()
+    {
+        SkUiFontFeatures built = [SkUiFontFeature.TabularFigures, SkUiFontFeature.StandardLigatures.Disabled, SkUiFontFeature.StylisticSet(1)];
+        var parsed = SkUiFontFeatures.Parse("tnum,  -liga ,ss01=1");
+        Assert.Equal(built, parsed);
+        Assert.Equal(built.GetHashCode(), parsed.GetHashCode());
+        Assert.Equal("tnum, -liga, ss01", built.ToString());
+        Assert.Equal(built, SkUiFontFeatures.Parse(built.ToString()));
+        Assert.Equal(3, built.Count);
+        Assert.Equal(SkUiFontFeature.StandardLigatures.Disabled, built[1]);
+        Assert.Same(parsed, SkUiFontFeatures.Parse("tnum,  -liga ,ss01=1")); // parsed once per text
+        Assert.NotEqual(built, SkUiFontFeatures.Create(SkUiFontFeature.TabularFigures));
+        Assert.NotEqual(built, [SkUiFontFeature.StandardLigatures.Disabled, SkUiFontFeature.TabularFigures, SkUiFontFeature.StylisticSet(1)]); // order counts
+        SkUiFontFeatures none = [];
+        Assert.Same(SkUiFontFeatures.Empty, none);
+        Assert.Same(SkUiFontFeatures.Empty, SkUiFontFeatures.Parse(" , "));
+        Assert.Equal("", none.ToString());
+        Assert.True(SkUiFontFeatures.TryParse("kern=0, +liga", out var list));
+        Assert.Equal([SkUiFontFeature.Kerning.Disabled, SkUiFontFeature.StandardLigatures], list);
+        Assert.False(SkUiFontFeatures.TryParse("tnum, not a feature!", out _));
+        Assert.False(SkUiFontFeatures.TryParse(null, out _));
+        Assert.Throws<FormatException>(() => SkUiFontFeatures.Parse("tnum, liga[0:2]"));
+        Assert.Throws<ArgumentException>(() => SkUiFontFeatures.Create(SkUiFontFeature.TabularFigures, default));
+    }
+
+    [Fact]
+    public void SupportedByListsTheFeaturesOfAFont()
+    {
+        using var lobster = UseLobster();
+        using var mono = SkUiTestHelpers.UseBundledFont();
+        var lobsterTags = SkUiFontFeatures.SupportedBy(LobsterFamily);
+        Assert.Contains("liga", lobsterTags);
+        Assert.Contains("kern", lobsterTags);
+        Assert.DoesNotContain("tnum", lobsterTags);
+        Assert.Equal(lobsterTags.Order(StringComparer.Ordinal), lobsterTags);
+        Assert.Equal(lobsterTags.Distinct(), lobsterTags);
+        Assert.Contains("smcp", SkUiFontFeatures.SupportedBy(SkUiTestHelpers.BundledFontFamily));
+        Assert.DoesNotContain("smcp", lobsterTags);
+    }
+
+    [Fact]
+    public void TheConverterReadsTheTextFormAndBlankIsNone()
+    {
+        var converter = new SkUiFontFeaturesConverter();
+        Assert.True(converter.CanConvertFrom(typeof(string)));
+        Assert.Equal([SkUiFontFeature.TabularFigures, SkUiFontFeature.Kerning.Disabled], (SkUiFontFeatures)converter.ConvertFromInvariantString("tnum, -kern")!);
+        Assert.Null(converter.ConvertFromInvariantString("  "));
+        Assert.Equal("tnum", converter.ConvertToInvariantString(SkUiFontFeatures.Create(SkUiFontFeature.TabularFigures)));
+        Assert.Throws<FormatException>(() => converter.ConvertFromInvariantString("not a feature!"));
+        Assert.IsType<SkUiFontFeaturesConverter>(System.ComponentModel.TypeDescriptor.GetConverter(typeof(SkUiFontFeatures)));
     }
 
     [Fact]
@@ -121,10 +182,10 @@ public sealed class FontFeatureTests
     public void FeaturesChangeTheGlyphsDrawn()
     {
         using var _ = SkUiTestHelpers.UseBundledFont();
-        SKBitmap Draw(string? features) =>
+        SKBitmap Draw(SkUiFontFeatures? features) =>
             Render(new SkUiCoreLabel().SetText("Text").SetFontFamily(SkUiTestHelpers.BundledFontFamily).SetFontSize(20).SetFontFeatures(features), 160, 40);
         using var plain = Draw(null);
-        using var smallCaps = Draw("smcp");
+        using var smallCaps = Draw([SkUiFontFeature.SmallCaps]);
         Assert.False(plain.GetPixelSpan().SequenceEqual(smallCaps.GetPixelSpan()));
         using var again = Draw(null);
         Assert.True(plain.GetPixelSpan().SequenceEqual(again.GetPixelSpan()));
@@ -136,15 +197,21 @@ public sealed class FontFeatureTests
         using var _ = UseLobster();
         var label = new SkUiLabel { Text = Ligatures, FontFamily = LobsterFamily, FontSize = 20, LineBreakMode = LineBreakMode.NoWrap };
         var plain = label.Measure(double.PositiveInfinity, double.PositiveInfinity).Width;
-        label.FontFeatures = "-liga";
+        label.FontFeatures = [SkUiFontFeature.StandardLigatures.Disabled];
         var noLigatures = label.Measure(double.PositiveInfinity, double.PositiveInfinity).Width;
         Assert.True(noLigatures > plain + 1, $"-liga {noLigatures}, default {plain}");
 
         var core = new SkUiCoreLabel().SetText(Ligatures).SetFontFamily(LobsterFamily).SetFontSize(20).SetLineBreakMode(LineBreakMode.NoWrap);
         Assert.Equal(plain, core.Measure(double.PositiveInfinity, double.PositiveInfinity).Width, 0.01);
-        core.SetFontFeatures("-liga");
+        core.SetFontFeatures([SkUiFontFeature.StandardLigatures.Disabled]);
         Assert.Equal(noLigatures, core.Measure(double.PositiveInfinity, double.PositiveInfinity).Width, 0.01);
-        Assert.Equal("-liga", core.FontFeatures);
+        Assert.Equal([SkUiFontFeature.StandardLigatures.Disabled], core.FontFeatures);
+
+        // No features is the font's defaults, on both layers.
+        label.FontFeatures = [];
+        Assert.Equal(plain, label.Measure(double.PositiveInfinity, double.PositiveInfinity).Width, 0.01);
+        core.SetFontFeatures(SkUiFontFeatures.Empty);
+        Assert.Equal(plain, core.Measure(double.PositiveInfinity, double.PositiveInfinity).Width, 0.01);
     }
 
     [Fact]
@@ -156,37 +223,36 @@ public sealed class FontFeatureTests
         var span = new Span { Text = Ligatures };
         var label = new SkUiLabel
         {
-            FontFamily = LobsterFamily, FontSize = 20, LineBreakMode = LineBreakMode.NoWrap, FontFeatures = "-liga",
+            FontFamily = LobsterFamily, FontSize = 20, LineBreakMode = LineBreakMode.NoWrap, FontFeatures = [SkUiFontFeature.StandardLigatures.Disabled],
             FormattedText = new FormattedString { Spans = { span } }
         };
         double Measure() => label.Measure(double.PositiveInfinity, double.PositiveInfinity).Width;
         var inherited = Measure();
         Assert.True(inherited > plainWidth + 1);
-        SkUiSpan.SetFontFeatures(span, "+liga");
+        SkUiSpan.SetFontFeatures(span, [SkUiFontFeature.StandardLigatures]);
         Assert.Equal(plainWidth, Measure(), 0.01);
+        SkUiSpan.SetFontFeatures(span, []); // the font's defaults, not the label's
+        Assert.Equal(plainWidth, Measure(), 0.01);
+        SkUiSpan.SetFontFeatures(span, null);
+        Assert.Equal(inherited, Measure(), 0.01);
 
         var coreSpan = new SkUiCoreSpan(Ligatures);
         var core = new SkUiCoreLabel().SetFontFamily(LobsterFamily).SetFontSize(20).SetLineBreakMode(LineBreakMode.NoWrap)
-            .SetFontFeatures("-liga").SetSpans([coreSpan]);
+            .SetFontFeatures([SkUiFontFeature.StandardLigatures.Disabled]).SetSpans([coreSpan]);
         Assert.Equal(inherited, core.Measure(double.PositiveInfinity, double.PositiveInfinity).Width, 0.01);
-        coreSpan.SetFontFeatures("+liga");
+        coreSpan.SetFontFeatures([SkUiFontFeature.StandardLigatures]);
         Assert.Equal(plainWidth, core.Measure(double.PositiveInfinity, double.PositiveInfinity).Width, 0.01);
     }
 
     [Fact]
-    public void InvalidListsAreIgnoredByPropertiesAndRejectedBySetters()
+    public void BindingsTakeFeaturesNotText()
     {
-        var label = new SkUiLabel { FontFeatures = "tnum" };
-        label.FontFeatures = "tnum, not a feature!";
-        Assert.Equal("tnum", label.FontFeatures);
-        Assert.Throws<ArgumentException>(() => label.SetFontFeatures("not a feature!"));
-        Assert.Throws<ArgumentException>(() => new SkUiCoreLabel().SetFontFeatures("not a feature!"));
-        Assert.Throws<ArgumentException>(() => new SkUiCoreSpan("x").SetFontFeatures("not a feature!"));
-        Assert.Throws<ArgumentException>(() => SkUiSpan.SetFontFeatures(new Span(), "not a feature!"));
-        var entry = new SkUiEntry().SetFontFeatures("tnum");
-        entry.FontFeatures = "not a feature!";
-        Assert.Equal("tnum", entry.FontFeatures);
-        Assert.Throws<ArgumentException>(() => new SkUiCoreEntry().SetFontFeatures("not a feature!"));
+        // A view model holds the list: MAUI's bindings do not run type converters, so a text source is not taken.
+        var label = new SkUiLabel { BindingContext = new { Features = SkUiFontFeatures.Parse("tnum, -liga"), Text = "tnum" } };
+        label.SetBinding(SkUiLabel.FontFeaturesProperty, "Text");
+        Assert.Null(label.FontFeatures);
+        label.SetBinding(SkUiLabel.FontFeaturesProperty, "Features");
+        Assert.Equal([SkUiFontFeature.TabularFigures, SkUiFontFeature.StandardLigatures.Disabled], label.FontFeatures);
     }
 
     [Fact]
@@ -200,13 +266,53 @@ public sealed class FontFeatureTests
             return entry.Model.Layout.Width;
         }
         var plain = EntryWidth();
-        entry.FontFeatures = "-liga";
+        entry.FontFeatures = SkUiFontFeatures.Parse("-liga");
         var noLigatures = EntryWidth();
         Assert.True(noLigatures > plain + 1, $"-liga {noLigatures}, default {plain}");
 
-        var core = new SkUiCoreEntry().SetText(Ligatures).SetFontFamily(LobsterFamily).SetFontSize(20).SetFontFeatures("-liga");
+        var core = new SkUiCoreEntry().SetText(Ligatures).SetFontFamily(LobsterFamily).SetFontSize(20).SetFontFeatures([SkUiFontFeature.StandardLigatures.Disabled]);
         using (Render(core, 400, 60))
             Assert.Equal(noLigatures, core.Model.Layout.Width, 0.01);
-        Assert.Equal("-liga", core.FontFeatures);
+        Assert.Equal("-liga", core.FontFeatures?.ToString());
+    }
+}
+
+/// <summary>1.18 A1: <c>FontFeatures</c> in XAML and styles, as CSS's text, on controls and spans.</summary>
+[Collection(RuntimeXamlCollection.Name)]
+public sealed class FontFeatureXamlTests
+{
+    [Fact]
+    public void XamlAndStylesTakeTheTextForm()
+    {
+        const string xaml = """
+            <ContentView xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+                         xmlns:skui="clr-namespace:MauiSkiaUi;assembly=MauiSkiaUi">
+              <ContentView.Resources>
+                <Style x:Key="Clock" TargetType="skui:SkUiLabel" xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml">
+                  <Setter Property="FontFeatures" Value="tnum, zero" />
+                </Style>
+              </ContentView.Resources>
+              <VerticalStackLayout>
+                <skui:SkUiLabel FontFeatures="tnum, -liga" />
+                <skui:SkUiLabel Style="{StaticResource Clock}" />
+                <skui:SkUiEntry FontFeatures="ss01" />
+                <skui:SkUiLabel>
+                  <skui:SkUiLabel.FormattedText>
+                    <FormattedString>
+                      <Span Text="Caps" skui:SkUiSpan.FontFeatures="smcp, c2sc" />
+                    </FormattedString>
+                  </skui:SkUiLabel.FormattedText>
+                </skui:SkUiLabel>
+              </VerticalStackLayout>
+            </ContentView>
+            """;
+        var root = new ContentView();
+        Microsoft.Maui.Controls.Xaml.Extensions.LoadFromXaml(root, xaml);
+        var children = ((VerticalStackLayout)root.Content).Children;
+        Assert.Equal([SkUiFontFeature.TabularFigures, SkUiFontFeature.StandardLigatures.Disabled], ((SkUiLabel)children[0]).FontFeatures);
+        Assert.Equal([SkUiFontFeature.TabularFigures, SkUiFontFeature.SlashedZero], ((SkUiLabel)children[1]).FontFeatures);
+        Assert.Equal([SkUiFontFeature.StylisticSet(1)], ((SkUiEntry)children[2]).FontFeatures);
+        var span = ((SkUiLabel)children[3]).FormattedText!.Spans[0];
+        Assert.Equal([SkUiFontFeature.SmallCaps, SkUiFontFeature.CapitalsToSmallCaps], SkUiSpan.GetFontFeatures(span));
     }
 }

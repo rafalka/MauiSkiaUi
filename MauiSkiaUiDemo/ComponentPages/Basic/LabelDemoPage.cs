@@ -46,11 +46,23 @@ public sealed class LabelDemoPage : ComponentDemoPage
 
     private const string NoFontFeatures = "None";
 
-    /// <summary>OpenType feature lists for <see cref="SkUiLabel.FontFeatures"/>; whether one shows depends on the font.</summary>
-    internal static readonly string[] FontFeatureSamples = [NoFontFeatures, "tnum", "-liga, -kern", "smcp", "frac", "zero, tnum", "onum"];
+    /// <summary>
+    /// <see cref="SkUiLabel.FontFeatures"/> to try, named by their text form; whether one shows depends on the font (Open Sans
+    /// has tabular, old-style figures and fractions; Lobster ligatures and kerning; Roboto Mono small capitals).
+    /// </summary>
+    internal static readonly Dictionary<string, SkUiFontFeatures?> FontFeatureSamples = new()
+    {
+        [NoFontFeatures] = null,
+        ["tnum"] = [SkUiFontFeature.TabularFigures],
+        ["-liga, -kern"] = [SkUiFontFeature.StandardLigatures.Disabled, SkUiFontFeature.Kerning.Disabled],
+        ["smcp"] = [SkUiFontFeature.SmallCaps],
+        ["frac"] = [SkUiFontFeature.Fractions],
+        ["onum"] = [SkUiFontFeature.OldstyleFigures],
+    };
 
-    /// <summary>The <c>FontFeatures</c> value of a <see cref="FontFeatureSamples"/> entry (<c>null</c> for none).</summary>
-    internal static string? FontFeaturesOf(string sample) => sample == NoFontFeatures ? null : sample;
+    /// <summary>The <see cref="FontFeatureSamples"/> name of <paramref name="features"/> (its text form when it is none of them).</summary>
+    internal static string FontFeaturesName(SkUiFontFeatures? features) =>
+        FontFeatureSamples.FirstOrDefault(entry => Equals(entry.Value, features)).Key ?? features?.ToString() ?? NoFontFeatures;
 
     private const string NoFormattedText = "None (Text)";
 
@@ -68,7 +80,7 @@ public sealed class LabelDemoPage : ComponentDemoPage
             span.GestureRecognizers.Add(new TapGestureRecognizer { Command = new Command(() => tapped(text)) });
             return span;
         }
-        static Span WithFeatures(Span span, string features)
+        static Span WithFeatures(Span span, SkUiFontFeatures features)
         {
             SkUiSpan.SetFontFeatures(span, features);
             return span;
@@ -85,7 +97,7 @@ public sealed class LabelDemoPage : ComponentDemoPage
                     new Span { Text = "spaced out, ", CharacterSpacing = 4 },
                     new Span { Text = "upper case, ", TextTransform = TextTransform.Uppercase },
                     // SkiaUi only: a span's own OpenType features (small caps where the font has them, as Roboto Mono).
-                    WithFeatures(new Span { Text = "Small Caps, " }, "smcp"),
+                    WithFeatures(new Span { Text = "Small Caps, " }, [SkUiFontFeature.SmallCaps]),
                     new Span { Text = "italic and small.", FontAttributes = FontAttributes.Italic, FontSize = 12 }
                 }
             },
@@ -133,8 +145,11 @@ public sealed class LabelDemoPage : ComponentDemoPage
         Number(nameof(SkUiLabel.CharacterSpacing), -2, 10, 0, value => { skia.CharacterSpacing = value; native.CharacterSpacing = value; }, () => skia.CharacterSpacing, () => native.CharacterSpacing);
         // SkiaUi only (MAUI's Label has none): OpenType features; try the "Figures and ligatures" script sample, Lobster for
         // the ligatures and kerning, Roboto Mono for small caps.
-        Choice(nameof(SkUiLabel.FontFeatures), FontFeatureSamples, NoFontFeatures, value => skia.FontFeatures = FontFeaturesOf(value),
-            () => skia.FontFeatures ?? NoFontFeatures);
+        Choice(nameof(SkUiLabel.FontFeatures), FontFeatureSamples.Keys.ToArray(), NoFontFeatures, value => skia.FontFeatures = FontFeatureSamples[value],
+            () => FontFeaturesName(skia.FontFeatures));
+        // The features the label's font has (SkUiFontFeatures.SupportedBy): a feature it lacks draws nothing different.
+        ActionButton("List the font's features", () =>
+            Feedback($"{skia.FontFamily ?? DefaultFontFamily}: {string.Join(", ", SkUiFontFeatures.SupportedBy(skia.FontFamily, skia.FontAttributes))}"));
         Choice(nameof(SkUiLabel.TextDecorations), new[] { TextDecorations.None, TextDecorations.Underline, TextDecorations.Strikethrough, TextDecorations.Underline | TextDecorations.Strikethrough }, TextDecorations.None,
             value => { skia.TextDecorations = value; native.TextDecorations = value; }, () => skia.TextDecorations, () => native.TextDecorations);
         Choice(nameof(SkUiLabel.TextTransform), Enum.GetValues<TextTransform>(), TextTransform.Default, value => { skia.TextTransform = value; native.TextTransform = value; }, () => skia.TextTransform, () => native.TextTransform);

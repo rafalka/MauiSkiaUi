@@ -413,7 +413,7 @@ internal sealed class SkUiTextLayout : ISkUiTextFitLayout
     {
         var direction = _style.Direction;
         var spacing = _style.TightenedSpacing(_style.CharacterSpacing, _style.FontSize);
-        var features = _style.Features?.Features;
+        var features = _style.Features?.HarfBuzzFeatures;
         switch (_style.Rendering)
         {
             case SkUiTextRendering.Simple when features is null:

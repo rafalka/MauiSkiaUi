@@ -87,7 +87,7 @@ public class SkUiLabel : SkUiView, ISkUiFontElement, ISkUiBorderElement
     /// <summary>Bindable line height multiplier (-1: the font's).</summary>
     public static readonly BindableProperty LineHeightProperty = BindableProperty.Create(nameof(LineHeight), typeof(double), typeof(SkUiLabel), -1d, validateValue: SkUiValidate.Finite, propertyChanged: (view, _, value) => ((SkUiLabel)view).OnLineHeightChanged((double)value));
     /// <summary>Bindable <see cref="FontFeatures"/>.</summary>
-    public static readonly BindableProperty FontFeaturesProperty = BindableProperty.Create(nameof(FontFeatures), typeof(string), typeof(SkUiLabel), null, validateValue: SkUiValidate.FontFeatures, propertyChanged: (view, _, value) => ((SkUiLabel)view).OnFontFeaturesChanged((string?)value));
+    public static readonly BindableProperty FontFeaturesProperty = BindableProperty.Create(nameof(FontFeatures), typeof(SkUiFontFeatures), typeof(SkUiLabel), null, propertyChanged: (view, _, value) => ((SkUiLabel)view).OnFontFeaturesChanged((SkUiFontFeatures?)value));
     /// <summary>Bindable spacing between characters in DIPs.</summary>
     public static readonly BindableProperty CharacterSpacingProperty = BindableProperty.Create(nameof(CharacterSpacing), typeof(double), typeof(SkUiLabel), 0d, validateValue: SkUiValidate.Finite, propertyChanged: (view, _, value) => ((SkUiLabel)view).OnCharacterSpacingChanged((double)value));
     /// <summary>Bindable underline / strikethrough.</summary>
@@ -240,13 +240,14 @@ public class SkUiLabel : SkUiView, ISkUiFontElement, ISkUiBorderElement
     /// <summary>DIPs added after each character (negative: tighter). Wrapping and truncation account for it.</summary>
     public double CharacterSpacing { get => (double)GetValue(CharacterSpacingProperty); set => SetValue(CharacterSpacingProperty, value); }
     /// <summary>
-    /// OpenType features the text is shaped with, comma-separated as CSS's <c>font-feature-settings</c> (<c>"tnum"</c>: digits of one
-    /// width, so a clock or a countdown does not jitter; <c>"-liga"</c>, <c>"ss01"</c>, <c>"zero=1"</c>); <c>null</c> (default): the
-    /// font's defaults. A font without a feature draws as before. Spans take the label's unless they set their own
-    /// (<see cref="SkUiSpan.FontFeaturesProperty"/>). Text with features is always shaped with HarfBuzz, also with
-    /// <see cref="SkUiTextRendering.Simple"/>.
+    /// OpenType features the text is shaped with: in code <c>[SkUiFontFeature.TabularFigures]</c> (digits of one width, so a clock
+    /// or a countdown does not jitter), <c>[SkUiFontFeature.StandardLigatures.Disabled, SkUiFontFeature.StylisticSet(1)]</c>; in XAML
+    /// CSS's <c>font-feature-settings</c> text, <c>"tnum, -liga"</c> (<see cref="SkUiFontFeatures"/>). <c>null</c> (default) or none:
+    /// the font's defaults. A font without a feature draws as before (<see cref="SkUiFontFeatures.SupportedBy"/> lists a font's).
+    /// Spans take the label's unless they set their own (<see cref="SkUiSpan.FontFeaturesProperty"/>). Text with features is
+    /// always shaped with HarfBuzz, also with <see cref="SkUiTextRendering.Simple"/>.
     /// </summary>
-    public string? FontFeatures { get => (string?)GetValue(FontFeaturesProperty); set => SetValue(FontFeaturesProperty, value); }
+    public SkUiFontFeatures? FontFeatures { get => (SkUiFontFeatures?)GetValue(FontFeaturesProperty); set => SetValue(FontFeaturesProperty, value); }
     /// <summary>Underline and / or strikethrough, in the text color, under / through each line.</summary>
     public TextDecorations TextDecorations { get => (TextDecorations)GetValue(TextDecorationsProperty); set => SetValue(TextDecorationsProperty, value); }
     /// <summary>Displays <see cref="Text"/> in upper or lower case (invariant culture, as MAUI); <see cref="Text"/> keeps its value.</summary>
@@ -442,11 +443,11 @@ public class SkUiLabel : SkUiView, ISkUiFontElement, ISkUiBorderElement
     /// <summary>Sets the character spacing (same as the property setter).</summary>
     public SkUiLabel SetCharacterSpacing(double value) { SkUiValidate.ThrowIfNotFinite(value, nameof(value)); CharacterSpacing = value; return this; }
     private void OnCharacterSpacingChanged(double value) { if (_characterSpacing == value) return; _characterSpacing = value; InvalidateText(); }
-    /// <summary>Sets <see cref="FontFeatures"/> (same as the property setter); throws when the list does not parse.</summary>
-    public SkUiLabel SetFontFeatures(string? value) { SkUiValidate.ThrowIfNotFontFeatures(value, nameof(value)); FontFeatures = value; return this; }
-    private void OnFontFeaturesChanged(string? value)
+    /// <summary>Sets <see cref="FontFeatures"/> (same as the property setter).</summary>
+    public SkUiLabel SetFontFeatures(SkUiFontFeatures? value) { FontFeatures = value; return this; }
+    private void OnFontFeaturesChanged(SkUiFontFeatures? value)
     {
-        var features = SkUiFontFeatures.Parse(value);
+        var features = SkUiFontFeatures.OrNull(value);
         if (Equals(features, _fontFeatures)) return;
         _fontFeatures = features;
         InvalidateText();
@@ -670,7 +671,7 @@ public class SkUiLabel : SkUiView, ISkUiFontElement, ISkUiBorderElement
             var inlineObject = SkUiSpan.GetInlineObject(span);
             builder.Add(inlineObject is null ? SkUiTextTransform.Apply(span.Text ?? string.Empty, transform) : SkUiInlineObject.ReplacementText,
                 new SkUiTextSpanStyle(SkUiTypefaces.Resolve(family, attributes), scaledSize, attributes, spacing, lineHeight, SkUiSpan.GetBaselineShift(span) * scaledSize, inlineObject,
-                    SkUiFontFeatures.Parse(SkUiSpan.GetFontFeatures(span))),
+                    SkUiSpan.GetFontFeatures(span)),
                 new SkUiTextSpanPaint(ToSkColor(span.TextColor ?? _textColor), span.BackgroundColor is { } background ? ToSkColor(background) : default, decorations));
         }
         return builder.Build();

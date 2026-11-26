@@ -217,7 +217,7 @@ internal sealed class SkUiRichTextLayout : ISkUiTextSpanFonts, ISkUiTextFitLayou
 
     SkUiInlineObject? ISkUiTextSpanFonts.InlineObject(int span) => _text.Styles[span].InlineObject;
 
-    HarfBuzzSharp.Feature[]? ISkUiTextSpanFonts.Features(int span) => (_text.Styles[span].Features ?? _style.Features)?.Features;
+    HarfBuzzSharp.Feature[]? ISkUiTextSpanFonts.Features(int span) => (_text.Styles[span].Features ?? _style.Features)?.HarfBuzzFeatures;
 
     private void EnsureLines(SkUiRichText text, double width, SkUiTextStyle style)
     {

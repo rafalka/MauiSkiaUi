@@ -205,7 +205,7 @@ internal sealed class SkUiTextEditLayout
         layout.Text = text;
         var primary = _primary!;
         var spacing = (float)_style.CharacterSpacing;
-        var features = _style.Features?.Features;
+        var features = _style.Features?.HarfBuzzFeatures;
         var paragraph = _style.Rendering switch
         {
             SkUiTextRendering.Simple when features is null => SkUiShaping.ShapeSimple(text, primary, _style.Direction, spacing),

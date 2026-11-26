@@ -13,6 +13,7 @@ public sealed class TouchTargetsDemoPage : ComponentDemoPage
 {
     private const double IconSize = 22;
     private const double RowHeight = 80;
+    private const double Tolerance = 0.001; // editor values compared back (both layers hold the same)
     private const string Gap = "Gap between icons";
     private const string ShowTouchAreas = "Show touch areas";
     private static readonly string[] Names = ["Back", "Share", "Star", "Edit", "More"];
@@ -32,7 +33,7 @@ public sealed class TouchTargetsDemoPage : ComponentDemoPage
     private bool _showAreas = true;
 
     public TouchTargetsDemoPage() : base("Touch targets", new SkUiVerticalStackLayout { Spacing = 6, Padding = new Thickness(12) }, native: null,
-        widthRange: (220, 420, 320))
+        widthRange: (280, 420, 320))
     {
         var taps = new Dictionary<string, int>();
         void Count(string name)
@@ -52,6 +53,7 @@ public sealed class TouchTargetsDemoPage : ComponentDemoPage
             var coreArea = new SkUiCoreBox().SetColor(AreaColor);
             coreArea.SetInputTransparent(true);
             var coreIcon = new SkUiCoreBox().SetColor(IconColors[index]).SetCornerRadius(IconSize / 2);
+            coreIcon.SetSemanticDescription("Core " + name);
             coreIcon.Tapped += (_, _) => Count("Core " + name);
             _coreAreas.Add(coreArea);
             _coreIcons.Add(coreIcon);
@@ -83,7 +85,7 @@ public sealed class TouchTargetsDemoPage : ComponentDemoPage
             foreach (var icon in _coreIcons)
                 icon.SetHitSlop(new Thickness(value));
             Place();
-        }, () => _icons[0].HitSlop.Left, whole: true);
+        }, () => _coreIcons[0].HitSlop == _icons[0].HitSlop ? _icons[0].HitSlop.Left : double.NaN, whole: true);
         Number(nameof(SkUiView.MinimumTouchTargetSize), 0, 64, 0, value =>
         {
             _minimum = value;
@@ -92,8 +94,9 @@ public sealed class TouchTargetsDemoPage : ComponentDemoPage
             foreach (var icon in _coreIcons)
                 icon.SetMinimumTouchTargetSize(value);
             Place();
-        }, () => _icons[0].MinimumTouchTargetSize, whole: true);
-        Number(Gap, 0, 32, _gap, value =>
+        }, () => Math.Abs(_coreIcons[0].MinimumTouchTargetSize - _icons[0].MinimumTouchTargetSize) < Tolerance ? _icons[0].MinimumTouchTargetSize : double.NaN, whole: true);
+        // At most 20: five icons with the largest slop still fit the narrowest preview.
+        Number(Gap, 0, 20, _gap, value =>
         {
             _gap = value;
             Place();

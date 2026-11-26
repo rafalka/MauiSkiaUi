@@ -97,7 +97,7 @@ public sealed class ButtonDemoPage : ComponentDemoPage
         Choice(nameof(SkUiButton.DisabledFillColor), DisabledFills, DefaultDisabledFill,
             name => skia.DisabledFillColor = DisabledFill(name), () => DisabledFillName(skia.DisabledFillColor));
         // SkiaUi only: the pressed button shrinks (-1: the look's, set on the Look & colors page; MAUI's Button has none).
-        Choice(nameof(SkUiButton.PressedScale), PressedScales, -1d, value => skia.PressedScale = value, () => skia.PressedScale);
+        PressedScaleChoice(value => skia.PressedScale = value, () => skia.PressedScale);
         Toggle(nameof(Command.CanExecute), true, value => { canExecute = value; skiaCommand.ChangeCanExecute(); nativeCommand.ChangeCanExecute(); }, () => skia.Command.CanExecute(null), () => native.Command.CanExecute(null));
         OnReset(() => { skiaClicks = nativeClicks = 0; skiaPress = nativePress = ""; Counts(); });
     }

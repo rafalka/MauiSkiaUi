@@ -56,7 +56,7 @@ public abstract class SkUiCoreInputView : SkUiCoreNode, ISkUiFontElement, ISkUiF
     public double CharacterSpacing { get => Model.CharacterSpacing; set => SetCharacterSpacing(value); }
 
     /// <summary>OpenType features the text and placeholder are shaped with (<c>"tnum"</c>, <c>"-liga"</c>); <c>null</c>: the font's defaults.</summary>
-    public string? FontFeatures { get => Model.FontFeatures; set => SetFontFeatures(value); }
+    public SkUiFontFeatures? FontFeatures { get => Model.FontFeatures; set => SetFontFeatures(value); }
 
     /// <summary>Upper or lower case: typed and pasted text is transformed.</summary>
     public TextTransform TextTransform { get => Model.Editor.Transform; set => SetTextTransform(value); }
@@ -216,10 +216,9 @@ public abstract class SkUiCoreInputView : SkUiCoreNode, ISkUiFontElement, ISkUiF
         return Update(ref Model.CharacterSpacing, value, nameof(CharacterSpacing), measure: true);
     }
 
-    /// <summary>Sets <see cref="FontFeatures"/>; throws when the list does not parse.</summary>
-    public SkUiCoreInputView SetFontFeatures(string? value)
+    /// <summary>Sets <see cref="FontFeatures"/>.</summary>
+    public SkUiCoreInputView SetFontFeatures(SkUiFontFeatures? value)
     {
-        SkUiValidate.ThrowIfNotFontFeatures(value, nameof(value));
         return Update(ref Model.FontFeatures, value, nameof(FontFeatures), measure: true);
     }
 

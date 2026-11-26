@@ -92,16 +92,6 @@ internal static class SkUiValidate
             throw new ArgumentException("An autofill hint has no white space (it is reserved for a list of hints).", name);
     }
 
-    /// <summary><c>null</c>, blank, or OpenType features HarfBuzz parses (<see cref="SkUiFontFeatures"/>).</summary>
-    public static bool FontFeatures(BindableObject bindable, object? value) => value is null || value is string text && SkUiFontFeatures.IsValid(text);
-
-    /// <summary>Throws unless <paramref name="value"/> is a valid <c>FontFeatures</c> list.</summary>
-    public static void ThrowIfNotFontFeatures(string? value, string name)
-    {
-        if (!SkUiFontFeatures.IsValid(value))
-            throw new ArgumentException($"'{value}' is not a list of OpenType features (for example \"tnum, -liga\").", name);
-    }
-
     /// <summary>A press scale: -1 (the look's) or finite and more than 0.</summary>
     public static bool PressedScale(BindableObject bindable, object? value) => value is double scale && IsPressedScale(scale);
 

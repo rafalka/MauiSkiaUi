@@ -31,7 +31,7 @@ A label measured at one width and drawn at a wider one reuses its lines when not
 | `MaxLines` | The most lines drawn; `-1` (default) or `0`: no limit. Wrapped lines past it are dropped. With `TailTruncation` the text wraps and the last line ends with the ellipsis, as on MAUI; without `MaxLines`, tail truncation keeps one line per paragraph. Explicit newlines count as lines |
 | `LineHeight` | Multiplier of the font's line spacing (`1.8`: 80 % more); `-1` (default) or `0`: the font's. The extra space is split above and below each line (CSS half-leading), so a single line stays centered in its taller box. The font's own line gap is placed the same way: half above the glyphs, half below |
 | `CharacterSpacing` | DIPs added after each character (grapheme, or ligature), negative for tighter; measure, wrapping and truncation count it. Plain Latin text keeps the `Auto` fast path |
-| `FontFeatures` | OpenType features the text is shaped with, comma-separated as CSS's `font-feature-settings`: `"tnum"` (digits of one width, for clocks and countdowns that must not jitter), `"-liga"`, `"ss01"`, `"zero=1"`; `null` (default): the font's. Part of the layout cache key; a font without a feature draws as before. Text with features is always shaped with HarfBuzz, also with `TextRendering="Simple"`. Spans take the label's unless they set `SkUiSpan.FontFeatures` (Core: `SkUiCoreSpan.FontFeatures`); a span turns one off by listing it off (`"-tnum"`). SkiaUi extension (1.18) |
+| `FontFeatures` | OpenType features the text is shaped with (`SkUiFontFeatures`, see [Font features](#font-features)): `[SkUiFontFeature.TabularFigures]` in code (digits of one width, for clocks and countdowns that must not jitter), `FontFeatures="tnum, -liga"` in XAML; `null` (default) or none: the font's. Part of the layout cache key; a font without a feature draws as before. Text with features is always shaped with HarfBuzz, also with `TextRendering="Simple"`. Spans take the label's unless they set `SkUiSpan.FontFeatures` (Core: `SkUiCoreSpan.FontFeatures`), which replaces it for the span. SkiaUi extension (1.18) |
 | `TextDecorations` | `Underline`, `Strikethrough` or both, in the text color, at the font's positions, across each line's glyphs (all of its bidi runs). Paint-only: no re-layout |
 | `TextTransform` | `Uppercase` / `Lowercase` (invariant culture, as MAUI) change the displayed text; `Text` keeps its value. `Default` / `None`: as written |
 
@@ -110,6 +110,39 @@ people.LineBreaker = context =>
 ```
 
 The samples app shows these side by side (**Controls › Text that fits**).
+
+## Font features
+
+`FontFeatures` turns OpenType features of the font on or off (1.18). The value is an immutable `SkUiFontFeatures` list of
+`SkUiFontFeature`s, applied in order (a later setting of a tag wins):
+
+```csharp
+clock.FontFeatures = [SkUiFontFeature.TabularFigures];                  // digits of one width: no jitter as it ticks
+title.FontFeatures = [SkUiFontFeature.StandardLigatures.Disabled, SkUiFontFeature.StylisticSet(1)];
+code.FontFeatures = [SkUiFontFeature.SlashedZero, new SkUiFontFeature("salt", 2)]; // any registered tag, an alternate
+price.SetFontFeatures(SkUiFontFeatures.Parse("tnum, -liga"));           // the text form, as in XAML
+```
+
+```xml
+<skui:SkUiLabel FontFeatures="tnum, -liga" />
+<Span Text="Caps" skui:SkUiSpan.FontFeatures="smcp, c2sc" />
+```
+
+- **Names:** `SkUiFontFeature` has members for the common features (`Kerning`, `StandardLigatures`, `ContextualAlternates`,
+  `DiscretionaryLigatures`, `TabularFigures`, `ProportionalFigures`, `OldstyleFigures`, `LiningFigures`, `SlashedZero`,
+  `Fractions`, `Ordinals`, `Superscript`, `Subscript`, `SmallCaps`, `CapitalsToSmallCaps`, `CaseSensitiveForms`,
+  `StylisticAlternates`, `Swash`), `StylisticSet(1–20)` and `CharacterVariant(1–99)`; `.Disabled` turns one off,
+  `.WithValue(n)` picks an alternate. Other tags: `new SkUiFontFeature(tag, value)`, `Enable(tag)`, `Disable(tag)`
+  ([registry](https://learn.microsoft.com/typography/opentype/spec/featurelist)). The tag is checked when it is written.
+- **Text form:** CSS's `font-feature-settings` as HarfBuzz reads it (`"tnum"`, `"-liga"`, `"salt=2"`, `"kern off"`), comma
+  separated: XAML and style setters (a type converter), `SkUiFontFeatures.Parse` / `TryParse`, and `ToString()` back. Ranges
+  (`"liga[3:5]"`) are not taken: give that text a span. MAUI's bindings do not run type converters, so a view model binds an
+  `SkUiFontFeatures`, not text.
+- **What a font has:** `SkUiFontFeatures.SupportedBy("OpenSansRegular")` lists the tags of the font's substitution and
+  positioning tables, sorted. A feature the font lacks draws nothing different; text that falls back to another font (another
+  script, emoji) gets that font's features.
+- `null` or an empty list: the font's defaults. A span's own list replaces the label's for the span (an empty one: the
+  font's defaults). Text with features is always shaped with HarfBuzz, also with `TextRendering="Simple"`.
 
 ## Formatted text (spans)
 
