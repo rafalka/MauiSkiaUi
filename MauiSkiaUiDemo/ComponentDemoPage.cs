@@ -16,6 +16,8 @@ public abstract class ComponentDemoPage : ContentPage
     protected static readonly Color Ink = DemoColors.Ink;
     /// <summary>Interactive accent used by editors and sample fills.</summary>
     protected static readonly Color Accent = DemoColors.Accent;
+    /// <summary>The values a <c>PressedScale</c> editor offers: -1 (the look's), 1 (none), then scales down.</summary>
+    protected static readonly double[] PressedScales = [-1, 1, 0.97, 0.95, 0.9, 0.8];
     private readonly Grid _comparisons = new() { ColumnSpacing = 16, RowSpacing = 12 };
     // Control-specific editors (added by the derived page) come first; the common ones the base page adds for every
     // control (HwAccelerated, sizes, opacity, ...) follow under their own heading.

@@ -68,6 +68,9 @@ public sealed class EntryDemoPage : ComponentDemoPage
         Number(nameof(SkUiEntry.FontSize), 10, 32, 16, value => { skia.FontSize = value; native.FontSize = value; }, () => skia.FontSize, () => native.FontSize);
         Number(nameof(SkUiEntry.CharacterSpacing), 0, 6, 0, value => { skia.CharacterSpacing = value; native.CharacterSpacing = value; },
             () => skia.CharacterSpacing, () => native.CharacterSpacing);
+        // SkiaUi only: OpenType features of the typed text (tnum keeps a changing amount from shifting).
+        Choice(nameof(SkUiEntry.FontFeatures), LabelDemoPage.FontFeatureSamples, LabelDemoPage.FontFeatureSamples[0],
+            value => skia.FontFeatures = LabelDemoPage.FontFeaturesOf(value), () => skia.FontFeatures ?? LabelDemoPage.FontFeatureSamples[0]);
         Choice(nameof(SkUiEntry.InputFormatters), [NoFormatters, DigitsOnly, PhoneMask, CardNumber, NoSpaces], NoFormatters,
             value => skia.SetInputFormatters(FormattersOf(value)), () => NameOf(skia.InputFormatters));
         Toggle(nameof(SkUiEntry.FormatsAssignedText), false, value => skia.FormatsAssignedText = value, () => skia.FormatsAssignedText);

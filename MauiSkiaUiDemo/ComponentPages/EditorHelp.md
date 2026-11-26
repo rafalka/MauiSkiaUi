@@ -234,6 +234,11 @@ Whether the Reply item's `Command` can execute; when it cannot, the item is dimm
 The `Mode` of the rows' delete items: **Reveal** shows the item to tap; **Execute** deletes the row once swiped past the
 threshold.
 
+## SwipeViewListDemoPage.Close before archiving
+
+The drawn rows' Archive item awaits `CloseAsync()` before it removes the message: the row slides back, then goes. Off, the
+row is removed at once. MAUI's `SwipeView` has no `CloseAsync`, so the native rows always go at once.
+
 ## BorderDemoPage.Stroke gradient
 
 A linear gradient brush as the border's `Stroke` instead of a solid color.
@@ -523,6 +528,16 @@ The first row's background (`SetRowBackground(0, …)`), drawn behind its cells 
 
 The first column's background (`SetColumnBackground(0, …)`); where a row background crosses it, `TrackBackgroundOrder`
 decides which is on top.
+
+## TouchTargetsDemoPage.Gap between icons
+
+The space between neighbouring icons. With a touch area larger than half the gap, the areas overlap: a press in the
+overlap taps the nearer icon, and a press on an icon always taps that icon.
+
+## TouchTargetsDemoPage.Show touch areas
+
+Tints each icon's touch area: its rectangle grown by `HitSlop`, or by `MinimumTouchTargetSize` where that adds more. The
+tinted squares take no input; screen readers frame the icons the same way.
 
 ## CorePressEffectDemoPage.Details can execute
 

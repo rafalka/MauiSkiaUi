@@ -126,7 +126,7 @@ public sealed class LookAndColorSchemePage : ContentPage
         _pressPicker = new SkUiPicker
         {
             Title = "Press effect",
-            ItemsSource = new[] { "Dim", "Ripple" },
+            ItemsSource = new[] { "Dim", "Ripple", "Dim, scale 0.96", "Ripple, scale 0.96" },
             SelectedIndex = Settings.Press,
             AutomationId = "LookPressPicker",
             FontFamily = DemoFonts.OpenSansRegular
@@ -250,7 +250,8 @@ public sealed class LookAndColorSchemePage : ContentPage
                 _lookPicker,
                 Section("Press effect"),
                 Caption("How buttons, image buttons and tappable containers with ShowsPressEffect (cards, composite buttons) " +
-                    "react to a press. Dim fades the button; Ripple spreads a circle from the finger and fades after the release."),
+                    "react to a press. Dim fades the button; Ripple spreads a circle from the finger and fades after the release. " +
+                    "With a scale, they also shrink to 96% while pressed (the look's PressedScale; a view's own PressedScale wins)."),
                 _pressPicker,
                 Section("Indicator style"),
                 Caption("How indicator views (the dots under a carousel) draw: dots, or a pill the selected one stretches into, " +
@@ -569,7 +570,8 @@ public sealed class LookAndColorSchemePage : ContentPage
         _look.PickerFieldStyle = (SkUiPickerFieldStyle)Settings.PickerField;
         _look.PopupPlacement = PopupPlacements[Math.Min(Settings.PopupPlacement, PopupPlacements.Length - 1)];
         Settings.Motion = _motionPicker.SelectedIndex;
-        _look.PressEffect = _pressPicker.SelectedIndex == 1 ? SkUiPressEffect.Ripple : SkUiPressEffect.Dim;
+        _look.PressEffect = _pressPicker.SelectedIndex % 2 == 1 ? SkUiPressEffect.Ripple : SkUiPressEffect.Dim;
+        _look.PressScale = _pressPicker.SelectedIndex >= 2 ? 0.96 : 1;
         _look.IndicatorStyle = _indicatorPicker.SelectedIndex == 1 ? SkUiIndicatorStyle.Pill : SkUiIndicatorStyle.Dots;
         _look.TransitionScale = _motionPicker.SelectedIndex == 1 ? 5 : 1;
         // Slow motion is for watching transitions: on even when the system reduces motion.
@@ -583,7 +585,7 @@ public sealed class LookAndColorSchemePage : ContentPage
         RebuildAllPreviews();
         _status.Text =
             $"Scheme: {SkUiColorScheme.Current.GetType().Name} · Accent {ToHex(SkUiColorScheme.Current.Accent)} · " +
-            $"Look: {_look.Style} · Press: {_look.EffectivePressEffect} · Indicators: {_look.EffectiveIndicatorStyle} · Platform: {PlatformLooks[Settings.PlatformLook].Name} · Picker fields: {_look.PickerFieldStyle} · Transitions: {(SkUiMotion.IsMotionReduced ? "off" : _look.TransitionScale == 1 ? "normal" : "slow")}";
+            $"Look: {_look.Style} · Press: {_look.EffectivePressEffect}{(_look.PressScale < 1 ? $", scale {_look.PressScale}" : "")} · Indicators: {_look.EffectiveIndicatorStyle} · Platform: {PlatformLooks[Settings.PlatformLook].Name} · Picker fields: {_look.PickerFieldStyle} · Transitions: {(SkUiMotion.IsMotionReduced ? "off" : _look.TransitionScale == 1 ? "normal" : "slow")}";
     }
 
     private void SyncSizeEntriesFromLook()
