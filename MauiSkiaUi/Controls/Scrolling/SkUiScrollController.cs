@@ -81,6 +81,9 @@ internal interface ISkUiWheelProxy : ISkUiInputNode
 internal interface ISkUiWheelHandler : ISkUiInputNode
 {
     Point OnWheel(double deltaX, double deltaY);
+
+    /// <summary>Whether <see cref="OnWheel"/> would use any of this delta now, without using it (a platform deciding whether to take a scroll gesture from a native scroller around the surface).</summary>
+    bool TakesWheel(double deltaX, double deltaY);
 }
 
 /// <summary>
@@ -578,13 +581,7 @@ internal sealed class SkUiScrollController(ISkUiRenderable owner, Action<SkUiRen
     /// </summary>
     public Point Wheel(double deltaX, double deltaY)
     {
-        if (Orientation == ScrollOrientation.Neither || !IsUserScrollEnabled || (deltaX == 0 && deltaY == 0))
-            return new Point(deltaX, deltaY);
-        var mapped = Horizontal && !Vertical && deltaX == 0;
-        var dx = mapped ? -deltaY : Horizontal ? -deltaX : 0;
-        var dy = Vertical ? -deltaY : 0;
-        var useX = dx != 0 && CanScroll(dx, 0);
-        var useY = dy != 0 && CanScroll(0, dy);
+        var (mapped, dx, dy, useX, useY) = WheelAxes(deltaX, deltaY);
         if (!useX && !useY)
             return new Point(deltaX, deltaY);
         StopMotion();
@@ -596,6 +593,27 @@ internal sealed class SkUiScrollController(ISkUiRenderable owner, Action<SkUiRen
         // outer scrollers, so a list reaching its end does not jerk the page with the same step (as browsers do); the
         // next wheel event chains outwards (GestureTests.WheelScrollsInnermostScrollerThatCanMove).
         return mapped ? Point.Zero : new Point(useX ? 0 : deltaX, useY ? 0 : deltaY);
+    }
+
+    /// <summary>Whether <see cref="Wheel"/> would use any of this delta now, without scrolling.</summary>
+    public bool TakesWheel(double deltaX, double deltaY)
+    {
+        var (_, _, _, useX, useY) = WheelAxes(deltaX, deltaY);
+        return useX || useY;
+    }
+
+    /// <summary>
+    /// How a wheel delta maps onto this scroller: whether a vertical-only delta drives a horizontal-only scroller, the offset
+    /// change per axis (positive towards the end), and the axes that can move that way.
+    /// </summary>
+    private (bool Mapped, double Dx, double Dy, bool UseX, bool UseY) WheelAxes(double deltaX, double deltaY)
+    {
+        if (Orientation == ScrollOrientation.Neither || !IsUserScrollEnabled || (deltaX == 0 && deltaY == 0))
+            return default;
+        var mapped = Horizontal && !Vertical && deltaX == 0;
+        var dx = mapped ? -deltaY : Horizontal ? -deltaX : 0;
+        var dy = Vertical ? -deltaY : 0;
+        return (mapped, dx, dy, dx != 0 && CanScroll(dx, 0), dy != 0 && CanScroll(0, dy));
     }
 
     /// <summary>How long wheel / trackpad input must pause before a scroller with snap points settles on one.</summary>

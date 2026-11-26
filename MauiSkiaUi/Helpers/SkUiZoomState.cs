@@ -134,4 +134,9 @@ internal sealed class SkUiZoomState(ISkUiZoomTarget target)
         ZoomAbout(Scale * Math.Exp(deltaY / WheelUnit), target.ZoomContentFrame.Center);
         return Math.Abs(Scale - before) > double.Epsilon ? new Point(deltaX, 0) : new Point(deltaX, deltaY);
     }
+
+    /// <summary>Whether <see cref="OnWheel"/> would zoom for this delta now (not at a limit in that direction), without zooming.</summary>
+    internal bool TakesWheel(double deltaY) =>
+        IsWheelEnabled && Math.Abs(deltaY) > double.Epsilon
+        && Math.Abs(Math.Clamp(Scale * Math.Exp(deltaY / WheelUnit), MinimumScale, Math.Max(MinimumScale, MaximumScale)) - Scale) > double.Epsilon;
 }

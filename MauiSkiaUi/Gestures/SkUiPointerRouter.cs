@@ -825,31 +825,67 @@ internal sealed class SkUiPointerRouter(ISkUiInputNode root)
     /// Wheel and trackpad scrolling, from the innermost scroller under the pointer outwards: each scroller uses the axes it
     /// can move that way, and the rest goes on to the outer ones.
     /// </summary>
-    private bool DispatchWheel(SkUiTouchEvent touch)
+    private bool DispatchWheel(SkUiTouchEvent touch) => Wheel(touch.Position, touch.WheelDeltaX, touch.WheelDelta, apply: true);
+
+    /// <summary>
+    /// Whether a wheel or trackpad delta at <paramref name="position"/> (root coordinates; positive towards the start of each
+    /// axis) would be used by the drawn tree now, without using it: <see cref="Dispatch(SkUiTouchEvent)"/> would return
+    /// <c>true</c>. Apple surfaces ask it before taking a scroll gesture, so one the drawn tree cannot use goes to a native
+    /// scroller around the surface (Windows forwards a wheel event the dispatch did not use).
+    /// </summary>
+    internal bool TakesWheel(Point position, double deltaX, double deltaY) => Wheel(position, deltaX, deltaY, apply: false);
+
+    /// <summary>
+    /// The wheel walk, from the node under the pointer outwards: each scroller (or wheel handler) uses what it can and hands on the rest.
+    /// Not <paramref name="apply"/>: only asks whether a node would use any of it (the first that would answers).
+    /// </summary>
+    private bool Wheel(Point position, double deltaX, double deltaY, bool apply)
     {
-        var rest = new Point(touch.WheelDeltaX, touch.WheelDelta);
-        for (var node = FindTarget(root, ToSk(touch.Position), isRoot: true, requireParticipant: false);
+        var rest = new Point(deltaX, deltaY);
+        for (var node = FindTarget(root, ToSk(position), isRoot: true, requireParticipant: false);
              node is not null; node = node.RenderParent as ISkUiInputNode)
         {
-            if (!node.IsInputEnabled)
-                return true;
-            // A node that passes presses through passes the wheel on too.
-            if (node.HitTestsSelf && ((node as ISkUiScrollHost)?.Scroller ?? (node as ISkUiWheelProxy)?.WheelScroller) is { } scroller)
+            // A disabled node (also a button whose command cannot run) and one that passes presses through pass the wheel on to
+            // the scrollers around them: a disabled button in a drawn form does not keep the page from scrolling.
+            if (!node.IsInputEnabled || !node.HitTestsSelf)
             {
-                rest = scroller.Wheel(rest.X, rest.Y);
-                if (rest.X == 0 && rest.Y == 0)
-                    return true;
+                if (ReferenceEquals(node, root))
+                    break;
+                continue;
             }
-            else if (node is ISkUiWheelHandler { HitTestsSelf: true } handler)
+            if (((node as ISkUiScrollHost)?.Scroller ?? (node as ISkUiWheelProxy)?.WheelScroller) is { } scroller)
             {
-                rest = handler.OnWheel(rest.X, rest.Y);
-                if (rest.X == 0 && rest.Y == 0)
-                    return true;
+                if (!apply)
+                {
+                    if (scroller.TakesWheel(rest.X, rest.Y))
+                        return true;
+                }
+                else
+                {
+                    rest = scroller.Wheel(rest.X, rest.Y);
+                    if (rest.X == 0 && rest.Y == 0)
+                        return true;
+                }
+            }
+            else if (node is ISkUiWheelHandler handler)
+            {
+                if (!apply)
+                {
+                    if (handler.TakesWheel(rest.X, rest.Y))
+                        return true;
+                }
+                else
+                {
+                    rest = handler.OnWheel(rest.X, rest.Y);
+                    if (rest.X == 0 && rest.Y == 0)
+                        return true;
+                }
             }
             if (ReferenceEquals(node, root))
                 break;
         }
-        return rest.X != touch.WheelDeltaX || rest.Y != touch.WheelDelta;
+        // Exact: the rest is the input itself unless a node used some of it.
+        return rest.X != deltaX || rest.Y != deltaY;
     }
 
     /// <summary>
