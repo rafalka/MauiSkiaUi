@@ -23,6 +23,9 @@ internal interface ISkUiTextSpanFonts
 
     /// <summary>What the span draws instead of glyphs, or <c>null</c>.</summary>
     SkUiInlineObject? InlineObject(int span);
+
+    /// <summary>OpenType features the span is shaped with (its own, else the text's), or <c>null</c>.</summary>
+    Feature[]? Features(int span);
 }
 
 /// <summary>
@@ -78,7 +81,7 @@ internal static partial class SkUiShaping
                 paragraph.Advances[run.Start] += run.Width;
                 continue;
             }
-            ShapeRun(text, run.Start, run.Length, run, run.Font!, fonts.Spacing(run.Span));
+            ShapeRun(text, run.Start, run.Length, run, run.Font!, fonts.Spacing(run.Span), fonts.Features(run.Span));
             paragraph.Width += run.Width;
             AddAdvances(paragraph, run);
         }
@@ -163,7 +166,7 @@ internal static partial class SkUiShaping
                 Start = clipStart, Length = clipEnd - clipStart, Level = run.Level, Script = run.Script, Typeface = run.Typeface,
                 Span = run.Span, Font = run.Font
             };
-            ShapeRun(paragraph.Text, piece.Start, piece.Length, piece, piece.Font!, fonts.Spacing(piece.Span));
+            ShapeRun(paragraph.Text, piece.Start, piece.Length, piece, piece.Font!, fonts.Spacing(piece.Span), fonts.Features(piece.Span));
             pieces.Add(piece);
         }
 

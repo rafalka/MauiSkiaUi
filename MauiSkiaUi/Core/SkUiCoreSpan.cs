@@ -19,6 +19,7 @@ public sealed class SkUiCoreSpan : INotifyPropertyChanged
     private FontAttributes? _fontAttributes;
     private bool? _fontAutoScalingEnabled;
     private double? _characterSpacing;
+    private string? _fontFeatures;
     private double? _lineHeight;
     private TextDecorations? _textDecorations;
     private TextTransform _textTransform = TextTransform.Default;
@@ -58,6 +59,12 @@ public sealed class SkUiCoreSpan : INotifyPropertyChanged
 
     /// <summary>DIPs added after each character; <c>null</c>: the label's.</summary>
     public double? CharacterSpacing { get => _characterSpacing; set => SetCharacterSpacing(value); }
+
+    /// <summary>
+    /// The span's own OpenType features (see <see cref="SkUiCoreLabel.FontFeatures"/>); <c>null</c>: the label's. A span turns a
+    /// label's feature off by listing it off (<c>"-tnum"</c>).
+    /// </summary>
+    public string? FontFeatures { get => _fontFeatures; set => SetFontFeatures(value); }
 
     /// <summary>
     /// Multiplier of the span's line spacing (a line is as tall as its tallest span); <c>null</c>: the label's
@@ -124,6 +131,13 @@ public sealed class SkUiCoreSpan : INotifyPropertyChanged
     {
         if (value is { } spacing) SkUiValidate.ThrowIfNotFinite(spacing, nameof(value));
         return Set(ref _characterSpacing, value, layout: true);
+    }
+
+    /// <summary>Sets <see cref="FontFeatures"/>; throws when the list does not parse.</summary>
+    public SkUiCoreSpan SetFontFeatures(string? value)
+    {
+        SkUiValidate.ThrowIfNotFontFeatures(value, nameof(value));
+        return Set(ref _fontFeatures, value, layout: true);
     }
 
     /// <summary>Sets <see cref="LineHeight"/> (finite, or <c>null</c>; 0 or less: the font's).</summary>

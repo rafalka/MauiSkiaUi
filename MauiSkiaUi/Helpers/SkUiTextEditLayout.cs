@@ -205,11 +205,12 @@ internal sealed class SkUiTextEditLayout
         layout.Text = text;
         var primary = _primary!;
         var spacing = (float)_style.CharacterSpacing;
+        var features = _style.Features?.Features;
         var paragraph = _style.Rendering switch
         {
-            SkUiTextRendering.Simple => SkUiShaping.ShapeSimple(text, primary, _style.Direction, spacing),
-            SkUiTextRendering.Auto when SkUiShaping.TryShapePlain(text, primary, _style.Direction, spacing) is { } plain => plain,
-            _ => SkUiShaping.Shape(text, primary.Typeface, _fontSize, _style.Direction, _fontFor, spacing)
+            SkUiTextRendering.Simple when features is null => SkUiShaping.ShapeSimple(text, primary, _style.Direction, spacing),
+            SkUiTextRendering.Auto or SkUiTextRendering.Simple when SkUiShaping.TryShapePlain(text, primary, _style.Direction, spacing, features) is { } plain => plain,
+            _ => SkUiShaping.Shape(text, primary.Typeface, _fontSize, _style.Direction, _fontFor, spacing, features)
         };
         if (text.Length == 0 || double.IsPositiveInfinity(_wrapWidth) || paragraph.Width <= _wrapWidth + SkUiTextLayout.FitTolerance)
         {

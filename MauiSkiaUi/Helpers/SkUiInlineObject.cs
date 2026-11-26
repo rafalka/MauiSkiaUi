@@ -102,6 +102,23 @@ public static class SkUiSpan
     /// <summary>What the span draws instead of its text; see <see cref="SkUiCoreSpan.InlineObject"/>.</summary>
     public static readonly BindableProperty InlineObjectProperty = BindableProperty.CreateAttached("InlineObject", typeof(SkUiInlineObject), typeof(SkUiSpan), null);
 
+    /// <summary>
+    /// The span's own OpenType features, as <see cref="SkUiLabel.FontFeatures"/> takes them; <c>null</c> (default): the label's.
+    /// A span turns a label's feature off by listing it off (<c>"-tnum"</c>).
+    /// </summary>
+    public static readonly BindableProperty FontFeaturesProperty = BindableProperty.CreateAttached("FontFeatures", typeof(string), typeof(SkUiSpan), null,
+        validateValue: SkUiValidate.FontFeatures);
+
+    /// <summary>Gets <see cref="FontFeaturesProperty"/>.</summary>
+    public static string? GetFontFeatures(Span span) => (string?)span.GetValue(FontFeaturesProperty);
+
+    /// <summary>Sets <see cref="FontFeaturesProperty"/>; throws when the list does not parse.</summary>
+    public static void SetFontFeatures(Span span, string? value)
+    {
+        SkUiValidate.ThrowIfNotFontFeatures(value, nameof(value));
+        span.SetValue(FontFeaturesProperty, value);
+    }
+
     /// <summary>Gets <see cref="BaselineShiftProperty"/>.</summary>
     public static double GetBaselineShift(Span span) => (double)span.GetValue(BaselineShiftProperty);
 

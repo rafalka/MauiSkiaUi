@@ -35,6 +35,8 @@ public class SkUiCoreLabel : SkUiCoreNode, ISkUiFontElement, ISkUiBorderElement
     private int _maxLines = -1;
     private double _lineHeight = -1;
     private double _characterSpacing;
+    private string? _fontFeatures;
+    private SkUiFontFeatures? _parsedFontFeatures;
     private TextDecorations _textDecorations;
     private TextTransform _textTransform = TextTransform.Default;
     private List<SkUiInlineObject>? _inlineObjects; // what the spans last resolved show: they let go of what they drew when they leave, or when this label does
@@ -160,6 +162,13 @@ public class SkUiCoreLabel : SkUiCoreNode, ISkUiFontElement, ISkUiBorderElement
     {
         get => _characterSpacing;
         set => SetCharacterSpacing(value);
+    }
+
+    /// <summary>OpenType features the text is shaped with (<c>"tnum"</c>, <c>"-liga"</c>); <c>null</c>: the font's defaults (see <see cref="SkUiLabel.FontFeatures"/>).</summary>
+    public string? FontFeatures
+    {
+        get => _fontFeatures;
+        set => SetFontFeatures(value);
     }
 
     /// <summary>Underline and / or strikethrough, in the text color.</summary>
@@ -497,7 +506,8 @@ public class SkUiCoreLabel : SkUiCoreNode, ISkUiFontElement, ISkUiBorderElement
             var size = SkUiFontScaling.ScaleFontSize(span.FontSize ?? EffectiveFontSize, span.FontAutoScalingEnabled ?? _fontAutoScalingEnabled);
             builder.Add(span.InlineObject is null ? SkUiTextTransform.Apply(span.Text, transform) : SkUiInlineObject.ReplacementText,
                 new SkUiTextSpanStyle(SkUiTypefaces.Resolve(span.FontFamily ?? _fontFamily, attributes), size, attributes,
-                    span.CharacterSpacing ?? _characterSpacing, span.LineHeight ?? _lineHeight, span.BaselineShift * size, span.InlineObject),
+                    span.CharacterSpacing ?? _characterSpacing, span.LineHeight ?? _lineHeight, span.BaselineShift * size, span.InlineObject,
+                    SkUiFontFeatures.Parse(span.FontFeatures)),
                 new SkUiTextSpanPaint(ToSkColor(span.TextColor ?? _textColor), span.BackgroundColor is { } background ? ToSkColor(background) : default,
                     span.TextDecorations ?? _textDecorations));
         }
@@ -588,6 +598,18 @@ public class SkUiCoreLabel : SkUiCoreNode, ISkUiFontElement, ISkUiBorderElement
     {
         SkUiValidate.ThrowIfNotFinite(value, nameof(value));
         if (!SetProperty(ref _characterSpacing, value, nameof(CharacterSpacing))) return this;
+        InvalidateText();
+        return this;
+    }
+
+    /// <summary>Sets <see cref="FontFeatures"/>; throws when the list does not parse.</summary>
+    public SkUiCoreLabel SetFontFeatures(string? value)
+    {
+        SkUiValidate.ThrowIfNotFontFeatures(value, nameof(value));
+        if (!SetProperty(ref _fontFeatures, value, nameof(FontFeatures))) return this;
+        var parsed = SkUiFontFeatures.Parse(value);
+        if (Equals(parsed, _parsedFontFeatures)) return this;
+        _parsedFontFeatures = parsed;
         InvalidateText();
         return this;
     }
@@ -819,7 +841,7 @@ public class SkUiCoreLabel : SkUiCoreNode, ISkUiFontElement, ISkUiBorderElement
 
     private SkUiTextStyle TextStyle => new(SkUiTypefaces.Resolve(_fontFamily, _fontAttributes), ScaledFontSize(EffectiveFontSize), _lineBreakMode, _lineBreaker,
         _maxLines, _lineHeight, _characterSpacing, EffectiveTextDirection, _textRendering, _fontAttributes, _horizontal == TextAlignment.Justify,
-        _shrinkToFit ? (float)_minimumFontScale : 1, _growToFill ? (float)_maximumFontScale : 1, _allowsTightening);
+        _shrinkToFit ? (float)_minimumFontScale : 1, _growToFill ? (float)_maximumFontScale : 1, _allowsTightening, Features: _parsedFontFeatures);
 
     /// <inheritdoc />
     protected override Size MeasureContent(double widthConstraint, double heightConstraint)

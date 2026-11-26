@@ -93,6 +93,16 @@ internal static class SkUiValidate
     }
 
     /// <summary>A defined <see cref="StackOrientation"/> (horizontal or vertical).</summary>
+    /// <summary><c>null</c>, blank, or OpenType features HarfBuzz parses (<see cref="SkUiFontFeatures"/>).</summary>
+    public static bool FontFeatures(BindableObject bindable, object? value) => value is null || value is string text && SkUiFontFeatures.IsValid(text);
+
+    /// <summary>Throws unless <paramref name="value"/> is a valid <c>FontFeatures</c> list.</summary>
+    public static void ThrowIfNotFontFeatures(string? value, string name)
+    {
+        if (!SkUiFontFeatures.IsValid(value))
+            throw new ArgumentException($"'{value}' is not a list of OpenType features (for example \"tnum, -liga\").", name);
+    }
+
     public static bool Orientation(BindableObject bindable, object? value) => value is StackOrientation orientation && Enum.IsDefined(orientation);
 
     /// <summary>A defined <see cref="SkUiPressFeedback"/>.</summary>

@@ -149,6 +149,9 @@ public class SkUiCoreEntry : SkUiCoreInputView
     /// <inheritdoc cref="SkUiCoreInputView.SetCharacterSpacing" />
     public new SkUiCoreEntry SetCharacterSpacing(double value) { base.SetCharacterSpacing(value); return this; }
 
+    /// <inheritdoc cref="SkUiCoreInputView.SetFontFeatures" />
+    public new SkUiCoreEntry SetFontFeatures(string? value) { base.SetFontFeatures(value); return this; }
+
     /// <inheritdoc cref="SkUiCoreInputView.SetTextTransform" />
     public new SkUiCoreEntry SetTextTransform(TextTransform value) { base.SetTextTransform(value); return this; }
 
