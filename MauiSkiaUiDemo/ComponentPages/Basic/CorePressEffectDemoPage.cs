@@ -9,8 +9,9 @@ namespace MauiSkiaUiDemo;
 /// <see cref="SkUiCoreNode.Tapped"/> handler. A Core button inside a card takes its own presses, also while its command
 /// cannot execute (then it is disabled and the card is not pressed either). <see cref="SkUiCoreNode.IsEnabled"/> on the
 /// content disables every card, chip and tile under it; the list still scrolls from them. The dark remove disc fades
-/// (<see cref="SkUiPressFeedback.Fade"/>), where the dark tint would hardly show; a toggle fades every control. The press
-/// effect (dim or ripple) and the transition speed are set on the Look &amp; colors page.
+/// (<see cref="SkUiPressFeedback.Fade"/>), where the dark tint would hardly show; a toggle fades every control, and
+/// <see cref="SkUiCoreNode.PressedScale"/> shrinks them while pressed. The press effect (dim or ripple, with or without a
+/// scale) and the transition speed are set on the Look &amp; colors page.
 /// </summary>
 public sealed class CorePressEffectDemoPage : ComponentDemoPage
 {
@@ -51,6 +52,12 @@ public sealed class CorePressEffectDemoPage : ComponentDemoPage
                 if (name != RemoveDisc)
                     node.SetPressFeedback(value ? SkUiPressFeedback.Fade : SkUiPressFeedback.Overlay);
         }, () => pressables[0].Node.PressFeedback == SkUiPressFeedback.Fade);
+        // Every card, chip and tile shrinks while pressed (-1: the look's); the Details button inside a card keeps the look's.
+        PressedScaleChoice(value =>
+        {
+            foreach (var (_, node) in pressables)
+                node.SetPressedScale(value);
+        }, () => pressables[0].Node.PressedScale);
         OnReset(taps.Clear);
     }
 

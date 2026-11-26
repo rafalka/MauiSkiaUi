@@ -166,11 +166,12 @@ public abstract class SkUiGestureRecognizer
     /// <summary>The owner's arranged size (DIPs).</summary>
     protected Size OwnerSize => Node is { } node ? SkUiPointerRouter.GetSize(node) : Size.Zero;
 
-    /// <summary>Whether a point in owner coordinates lies inside the owner's arranged rectangle.</summary>
+    /// <summary>Whether a point in owner coordinates lies inside the owner's arranged rectangle, grown by its hit slop.</summary>
     protected bool IsInsideOwner(Point local)
     {
         var size = OwnerSize;
-        return local.X >= 0 && local.Y >= 0 && local.X <= size.Width && local.Y <= size.Height;
+        var slop = (Node as ISkUiInputNode)?.HitSlop ?? default;
+        return local.X >= -slop.Left && local.Y >= -slop.Top && local.X <= size.Width + slop.Right && local.Y <= size.Height + slop.Bottom;
     }
 
     /// <summary>Whether a movement exceeds <see cref="SkUiGestureSettings.TouchSlop"/> along <paramref name="axis"/> (and dominates the other axis).</summary>

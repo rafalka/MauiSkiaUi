@@ -20,6 +20,13 @@ internal record struct SkUiRenderProps
     public float PressOpacity;
 
     /// <summary>
+    /// A factor on <see cref="ScaleX"/> and <see cref="ScaleY"/> from the press scale (<c>PressedScale</c>), 1 = none, about the
+    /// anchor like them. Apart from them, so a scale animation and the press neither cancel nor overwrite each other. Drawn
+    /// only (<see cref="DrawnMatrix"/>): hit-testing keeps the unpressed size.
+    /// </summary>
+    public float PressScale;
+
+    /// <summary>
     /// Turns the node about its vertical axis through the anchor, in perspective, in degrees (positive: its right edge goes
     /// away); 0 = none. Applied before <see cref="ScaleX"/> / <see cref="ScaleY"/> and <see cref="Rotation"/>.
     /// </summary>
@@ -142,7 +149,7 @@ internal record struct SkUiRenderProps
 
     public static SkUiRenderProps Default => new()
     {
-        ScaleX = 1, ScaleY = 1, AnchorX = 0.5f, AnchorY = 0.5f, Opacity = 1, PressOpacity = 1, IsVisible = true, ClipToBounds = true,
+        ScaleX = 1, ScaleY = 1, AnchorX = 0.5f, AnchorY = 0.5f, Opacity = 1, PressOpacity = 1, PressScale = 1, IsVisible = true, ClipToBounds = true,
         ChildrenScaleX = 1, ChildrenScaleY = 1
     };
 
@@ -178,6 +185,15 @@ internal record struct SkUiRenderProps
     /// side's offsets (<see cref="LinkValues"/>).
     /// </summary>
     public readonly SKMatrix Matrix => Links is null ? GetMatrix(TranslationX, TranslationY, ScaleX, ScaleY) : GetMatrix(LinkValues);
+
+    /// <summary>
+    /// The matrix the node is drawn with: <see cref="Matrix"/> times the press scale (<see cref="PressScale"/>). Only drawing
+    /// uses it: hit-testing, semantics and native views keep <see cref="Matrix"/>, so a pressed view does not shrink away from
+    /// the finger that presses it (a release near its edge still taps).
+    /// </summary>
+    public readonly SKMatrix DrawnMatrix => Links is null
+        ? GetMatrix(TranslationX, TranslationY, ScaleX * PressScale, ScaleY * PressScale)
+        : GetDrawnMatrix(LinkValues);
 
     /// <summary>The translation along X including <see cref="LinkValues"/>, as <see cref="Matrix"/> places the node.</summary>
     public readonly float EffectiveTranslationX => Links is null ? TranslationX : TranslationX + LinkValues.TranslationX;
@@ -236,6 +252,10 @@ internal record struct SkUiRenderProps
     /// <summary><see cref="Matrix"/> with scroll-linked contributions (<see cref="Links"/> evaluated at some offsets).</summary>
     public readonly SKMatrix GetMatrix(in SkUiRenderLinkValues links) =>
         GetMatrix(TranslationX + links.TranslationX, TranslationY + links.TranslationY, ScaleX * links.ScaleX, ScaleY * links.ScaleY);
+
+    /// <summary><see cref="DrawnMatrix"/> with scroll-linked contributions (<see cref="Links"/> evaluated at some offsets).</summary>
+    public readonly SKMatrix GetDrawnMatrix(in SkUiRenderLinkValues links) =>
+        GetMatrix(TranslationX + links.TranslationX, TranslationY + links.TranslationY, ScaleX * links.ScaleX * PressScale, ScaleY * links.ScaleY * PressScale);
 
     /// <summary><see cref="Matrix"/> with another translation and scale.</summary>
     public readonly SKMatrix GetMatrix(float translationX, float translationY, float scaleX, float scaleY)

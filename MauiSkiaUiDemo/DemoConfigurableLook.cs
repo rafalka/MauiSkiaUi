@@ -38,6 +38,12 @@ internal sealed class DemoConfigurableLook : DefaultSkUiLook
     /// <summary>When set, replaces the pack's <see cref="DefaultActivityIndicatorSize"/>.</summary>
     public Size? OverrideActivityIndicatorSize { get; set; }
 
+    /// <summary>The scale a pressed button or tappable node shrinks to (<see cref="PressedScale"/>); 1: none, the default look's.</summary>
+    public double PressScale { get; set; } = 1;
+
+    /// <inheritdoc />
+    public override double PressedScale => PressScale;
+
     /// <summary>Slows every state-change transition down by this factor (1 = the default look's timing).</summary>
     public double TransitionScale { get; set; } = 1;
 

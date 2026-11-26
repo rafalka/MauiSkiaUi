@@ -198,6 +198,8 @@ internal static class SkUiTextTransform
 /// scaled. Layouts lay the lines out unscaled in a slot as much smaller and draw them with a canvas scale
 /// (<see cref="SkUiTextFit.Unscaled"/>).</param>
 /// <param name="Tightening">Ems (of each font size) taken from the space after each character (the fit sets it; labels pass 0).</param>
+/// <param name="Features">OpenType features the text is shaped with (<c>FontFeatures</c>), or <c>null</c>. Text with features
+/// is always shaped with HarfBuzz: <see cref="SkUiTextRendering.Simple"/> is taken as <see cref="SkUiTextRendering.Auto"/>.</param>
 internal readonly record struct SkUiTextStyle(
     SKTypeface Typeface,
     double FontSize,
@@ -214,7 +216,8 @@ internal readonly record struct SkUiTextStyle(
     float MaximumScale = 1,
     bool AllowsTightening = false,
     float Scale = 1,
-    float Tightening = 0)
+    float Tightening = 0,
+    SkUiFontFeatures? Features = null)
 {
     // The fit's values are floats: every layout and remembered fit carries a style, and float precision is plenty for scales.
 
@@ -374,7 +377,7 @@ internal sealed class SkUiTextLayout : ISkUiTextFitLayout
     private sealed class ShapedParagraphs
     {
         private readonly Dictionary<(string Text, float Spacing), SkUiShaping.Paragraph> _paragraphs = [];
-        private (SKFont? Font, SkUiTextDirection Direction, SkUiTextRendering Rendering) _with;
+        private (SKFont? Font, SkUiTextDirection Direction, SkUiTextRendering Rendering, SkUiFontFeatures? Features) _with;
 
         /// <summary>Whether a fit runs.</summary>
         internal bool Running { get; private set; }
@@ -386,7 +389,7 @@ internal sealed class SkUiTextLayout : ISkUiTextFitLayout
 
         internal SkUiShaping.Paragraph Get(string text, SKFont primary, in SkUiTextStyle style, SkUiTextLayout layout)
         {
-            var with = (primary, style.Direction, style.Rendering);
+            var with = (primary, style.Direction, style.Rendering, style.Features);
             if (with != _with)
             {
                 _paragraphs.Clear();
@@ -410,14 +413,15 @@ internal sealed class SkUiTextLayout : ISkUiTextFitLayout
     {
         var direction = _style.Direction;
         var spacing = _style.TightenedSpacing(_style.CharacterSpacing, _style.FontSize);
+        var features = _style.Features?.HarfBuzzFeatures;
         switch (_style.Rendering)
         {
-            case SkUiTextRendering.Simple:
+            case SkUiTextRendering.Simple when features is null:
                 return SkUiShaping.ShapeSimple(text, primary, direction, spacing);
-            case SkUiTextRendering.Auto when SkUiShaping.TryShapePlain(text, primary, direction, spacing) is { } plain:
+            case SkUiTextRendering.Auto or SkUiTextRendering.Simple when SkUiShaping.TryShapePlain(text, primary, direction, spacing, features) is { } plain:
                 return plain;
             default:
-                return SkUiShaping.Shape(text, primary.Typeface, _fontSize, direction, _fontFor, spacing);
+                return SkUiShaping.Shape(text, primary.Typeface, _fontSize, direction, _fontFor, spacing, features);
         }
     }
 

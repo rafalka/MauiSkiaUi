@@ -17,6 +17,8 @@ public sealed class LabelDemoPage : ComponentDemoPage
         ["Devanagari"] = "नमस्ते दुनिया। पृथ्वी हमारा घर है।",
         ["CJK"] = "地球は私たちの家です。海は表面の71％を覆っています。",
         ["Emoji"] = "Launch 🚀 ready 👍🏽 family 👩‍👩‍👧 flag 🇵🇱 done ✅",
+        // For FontFeatures: figures that line up with tnum, ligatures and kerning to turn off (Lobster), small caps (smcp).
+        ["Figures and ligatures"] = "11:11 / 88:88\n1/2 offline fiffle AVATAR Wave",
         // For TextType = Html (as plain text it shows the markup).
         ["HTML"] = "<h3>Release notes</h3><p>Now with <b>bold</b>, <i>italic</i>, <u>underline</u>, <s>strike</s>, <span style=\"color:#C62828\">color</span> and <code>code</code>.</p><ul><li>One</li><li>Two with <a href=\"https://learn.microsoft.com/dotnet/maui/\">a link</a></li></ul>",
     };
@@ -58,6 +60,11 @@ public sealed class LabelDemoPage : ComponentDemoPage
             span.GestureRecognizers.Add(new TapGestureRecognizer { Command = new Command(() => tapped(text)) });
             return span;
         }
+        static Span WithFeatures(Span span, SkUiFontFeatures features)
+        {
+            SkUiSpan.SetFontFeatures(span, features);
+            return span;
+        }
         return sample switch
         {
             "Styles" => new FormattedString
@@ -69,6 +76,8 @@ public sealed class LabelDemoPage : ComponentDemoPage
                     new Span { Text = "struck through, ", TextDecorations = TextDecorations.Strikethrough },
                     new Span { Text = "spaced out, ", CharacterSpacing = 4 },
                     new Span { Text = "upper case, ", TextTransform = TextTransform.Uppercase },
+                    // SkiaUi only: a span's own OpenType features (small caps where the font has them, as Roboto Mono).
+                    WithFeatures(new Span { Text = "Small Caps, " }, [SkUiFontFeature.SmallCaps]),
                     new Span { Text = "italic and small.", FontAttributes = FontAttributes.Italic, FontSize = 12 }
                 }
             },
@@ -114,6 +123,9 @@ public sealed class LabelDemoPage : ComponentDemoPage
         Number(nameof(SkUiLabel.MaxLines), -1, 6, -1, value => { skia.MaxLines = (int)value; native.MaxLines = (int)value; }, () => skia.MaxLines, () => native.MaxLines, whole: true);
         Number(nameof(SkUiLabel.LineHeight), 0.5, 3, 1, value => { skia.LineHeight = value; native.LineHeight = value; }, () => skia.LineHeight, () => native.LineHeight);
         Number(nameof(SkUiLabel.CharacterSpacing), -2, 10, 0, value => { skia.CharacterSpacing = value; native.CharacterSpacing = value; }, () => skia.CharacterSpacing, () => native.CharacterSpacing);
+        // SkiaUi only (MAUI's Label has none): the OpenType features the label's font has; try the "Figures and ligatures"
+        // script sample with Open Sans (figures, fractions), Lobster (ligatures, kerning) or Roboto Mono (small caps).
+        FontFeaturesEditor(() => skia.FontFamily, () => skia.FontAttributes, value => skia.FontFeatures = value, () => skia.FontFeatures);
         Choice(nameof(SkUiLabel.TextDecorations), new[] { TextDecorations.None, TextDecorations.Underline, TextDecorations.Strikethrough, TextDecorations.Underline | TextDecorations.Strikethrough }, TextDecorations.None,
             value => { skia.TextDecorations = value; native.TextDecorations = value; }, () => skia.TextDecorations, () => native.TextDecorations);
         Choice(nameof(SkUiLabel.TextTransform), Enum.GetValues<TextTransform>(), TextTransform.Default, value => { skia.TextTransform = value; native.TextTransform = value; }, () => skia.TextTransform, () => native.TextTransform);

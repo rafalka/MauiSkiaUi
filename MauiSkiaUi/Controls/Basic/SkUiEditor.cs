@@ -54,6 +54,9 @@ public class SkUiEditor : SkUiInputView
     /// <inheritdoc cref="SkUiInputView.SetCharacterSpacing" />
     public new SkUiEditor SetCharacterSpacing(double value) { base.SetCharacterSpacing(value); return this; }
 
+    /// <inheritdoc cref="SkUiInputView.SetFontFeatures" />
+    public new SkUiEditor SetFontFeatures(SkUiFontFeatures? value) { base.SetFontFeatures(value); return this; }
+
     /// <inheritdoc cref="SkUiInputView.SetTextTransform" />
     public new SkUiEditor SetTextTransform(TextTransform value) { base.SetTextTransform(value); return this; }
 

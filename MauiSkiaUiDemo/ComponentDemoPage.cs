@@ -16,6 +16,13 @@ public abstract class ComponentDemoPage : ContentPage
     protected static readonly Color Ink = DemoColors.Ink;
     /// <summary>Interactive accent used by editors and sample fills.</summary>
     protected static readonly Color Accent = DemoColors.Accent;
+    private const string LookPressedScale = "The look's (-1)";
+
+    /// <summary>The values a <c>PressedScale</c> editor offers by name: the look's, none, then scales down.</summary>
+    private static readonly Dictionary<string, double> PressedScales = new()
+    {
+        [LookPressedScale] = -1, ["None (1)"] = 1, ["97%"] = 0.97, ["95%"] = 0.95, ["90%"] = 0.9, ["80%"] = 0.8
+    };
     private readonly Grid _comparisons = new() { ColumnSpacing = 16, RowSpacing = 12 };
     // Control-specific editors (added by the derived page) come first; the common ones the base page adds for every
     // control (HwAccelerated, sizes, opacity, ...) follow under their own heading.
@@ -845,6 +852,134 @@ public abstract class ComponentDemoPage : ContentPage
     }
 
     protected void OnReset(Action action) => _resets.Add(action);
+
+    /// <summary>
+    /// A <c>FontFeatures</c> editor: a multiple-choice list of the features the control's font has
+    /// (<see cref="SkUiFontFeatures.SupportedBy"/>), each row with its name and description (<see cref="SkUiFontFeature.Info"/>).
+    /// A feature the font applies by default is offered turned off; those the shaper needs for the script are left out. The list
+    /// follows the font (<paramref name="fontFamily"/>, <paramref name="fontAttributes"/>); chosen features the font lacks stay
+    /// listed, marked.
+    /// </summary>
+    protected void FontFeaturesEditor(Func<string?> fontFamily, Func<FontAttributes> fontAttributes, Action<SkUiFontFeatures?> apply,
+        Func<SkUiFontFeatures?> skia)
+    {
+        const string name = nameof(SkUiLabel.FontFeatures);
+        var picker = new SkUiPicker
+        {
+            Title = name, SelectionMode = SkUiSelectionMode.Multiple, FillColor = Colors.White, TextColor = Ink, TitleColor = DemoColors.Caption,
+            AutomationId = "Edit" + name, ItemTemplate = new DataTemplate(() => new FontFeatureRow())
+        };
+        var updating = false; // the editor writes the picker or the property: no echo back
+        HashSet<SkUiFontFeature> Chosen() => [.. picker.SelectedItems.OfType<FontFeatureItem>().Select(item => item.Feature)];
+        void Rebuild()
+        {
+            var current = SkUiFontFeatures.OrNull(skia());
+            var fontTags = SkUiFontFeatures.SupportedBy(fontFamily(), fontAttributes());
+            var items = fontTags.Select(FontFeatureItem.For).OfType<FontFeatureItem>().ToList();
+            // One row per tag: a value set in code (kern on, salt=2, a script feature) takes its tag's row.
+            foreach (var feature in current ?? SkUiFontFeatures.Empty)
+            {
+                if (items.Exists(item => item.Feature == feature))
+                    continue;
+                items.RemoveAll(item => item.Feature.Tag == feature.Tag && !current!.Contains(item.Feature)); // rows of the list stay
+                items.Add(FontFeatureItem.Set(feature, inFont: fontTags.Contains(feature.Tag)));
+            }
+            items.Sort((first, second) => StringComparer.CurrentCulture.Compare(first.Title, second.Title));
+            updating = true;
+            try
+            {
+                picker.ItemsSource = items;
+                picker.SelectedItems = [.. items.Where(item => current?.Contains(item.Feature) == true)];
+                picker.Title = items.Count > 0 ? name : "No OpenType features in this font";
+                picker.IsEnabled = items.Count > 0;
+            }
+            finally { updating = false; }
+        }
+        picker.SelectionChanged += (_, _) =>
+        {
+            if (updating)
+                return;
+            var chosen = picker.SelectedItems.OfType<FontFeatureItem>().Select(item => item.Feature).ToArray();
+            updating = true;
+            try { apply(chosen.Length == 0 ? null : SkUiFontFeatures.Create(chosen)); }
+            finally { updating = false; }
+        };
+        AddEditor(name, picker);
+        // A new font has other features; a value set elsewhere shows.
+        foreach (var watched in new[] { nameof(SkUiLabel.FontFamily), nameof(SkUiLabel.FontAttributes), name })
+        {
+            if (!_syncs.TryGetValue(watched, out var syncs))
+                _syncs[watched] = syncs = [];
+            syncs.Add(fromNative =>
+            {
+                if (!fromNative && !updating)
+                    Rebuild();
+            });
+        }
+        _resets.Add(() =>
+        {
+            updating = true;
+            try { apply(null); }
+            finally { updating = false; }
+            Rebuild();
+        });
+        _checks.Add((name, () => Chosen().SetEquals(skia() ?? SkUiFontFeatures.Empty)));
+        Rebuild();
+    }
+
+    /// <summary>A row of the <c>FontFeatures</c> editor: the feature it adds and what it is; the field shows the features' text.</summary>
+    private sealed record FontFeatureItem(SkUiFontFeature Feature, string Title, string Description)
+    {
+        /// <summary>The row of a font's feature <paramref name="tag"/>; <c>null</c> for one the shaper applies for the script.</summary>
+        public static FontFeatureItem? For(string tag)
+        {
+            var info = SkUiFontFeature.Describe(tag);
+            return info?.Default switch
+            {
+                SkUiFontFeatureDefault.Required => null,
+                SkUiFontFeatureDefault.On => new(SkUiFontFeature.Disable(tag), $"{info.Name} off", info.Description + " On by default."),
+                null => new(SkUiFontFeature.Enable(tag), tag, "The font's own feature (not in the OpenType registry)."),
+                _ => new(SkUiFontFeature.Enable(tag), info.Name, info.Description)
+            };
+        }
+
+        /// <summary>The row of a <paramref name="feature"/> set elsewhere that no font row offers: a value of its own, or a tag the font lacks.</summary>
+        public static FontFeatureItem Set(SkUiFontFeature feature, bool inFont) =>
+            new(feature, (feature.Info?.Name ?? feature.Tag) + feature.Value switch { 0 => " off", 1 => " on", var value => $" {value}" },
+                inFont ? feature.Info?.Description ?? "The font's own feature." : "Not in this font: it draws nothing different.");
+
+        public override string ToString() => Feature.ToString();
+    }
+
+    /// <summary>The look of a <see cref="FontFeatureItem"/> in the list: its name and text form, its description under it.</summary>
+    private sealed class FontFeatureRow : SkUiVerticalStackLayout
+    {
+        private readonly SkUiLabel _title = new() { FontSize = 15, TextColor = DemoColors.Ink };
+        private readonly SkUiLabel _description = new() { FontSize = 12, TextColor = DemoColors.Caption, LineBreakMode = LineBreakMode.WordWrap };
+
+        public FontFeatureRow()
+        {
+            Spacing = 1;
+            Padding = new Thickness(0, 4);
+            Children.Add(_title);
+            Children.Add(_description);
+        }
+
+        protected override void OnBindingContextChanged()
+        {
+            base.OnBindingContextChanged();
+            if (BindingContext is not FontFeatureItem item)
+                return;
+            _title.Text = $"{item.Title} ({item.Feature})";
+            _description.Text = item.Description;
+        }
+    }
+
+    /// <summary>A <c>PressedScale</c> editor: the look's (-1), none (1) or a scale down; <paramref name="skia"/> reads it back.</summary>
+    protected void PressedScaleChoice(Action<double> apply, Func<double> skia) =>
+        Choice(nameof(SkUiView.PressedScale), PressedScales.Keys.ToArray(), LookPressedScale, name => apply(PressedScales[name]),
+            // Exact: the editor's own values come back unchanged.
+            () => PressedScales.FirstOrDefault(entry => entry.Value == skia()).Key ?? skia().ToString(System.Globalization.CultureInfo.InvariantCulture));
     protected void Feedback(string skia, string? native = null)
     {
         _skiaStatus.Text = skia;

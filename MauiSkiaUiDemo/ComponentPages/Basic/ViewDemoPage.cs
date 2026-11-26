@@ -24,6 +24,8 @@ public sealed class ViewDemoPage : ComponentDemoPage
         Toggle(nameof(InputTransparent), false, value => SkiaControl.InputTransparent = value, () => SkiaControl.InputTransparent);
         // Press feedback from the look (Dim / Ripple and speed: Look & colors page).
         Toggle(nameof(SkUiView.ShowsPressEffect), true, value => SkiaControl.ShowsPressEffect = value, () => SkiaControl.ShowsPressEffect);
+        // Shrinks the pressed view about its anchor, also without ShowsPressEffect; taps keep its full size.
+        PressedScaleChoice(value => SkiaControl.PressedScale = value, () => SkiaControl.PressedScale);
         // Shown while a mouse or trackpad pointer rests on the view (Mac Catalyst, iPad with a pointer, Windows).
         Text(ToolTipEditor, "A drawn view", value => ToolTipProperties.SetText(SkiaControl, value),
             () => ToolTipProperties.GetText(SkiaControl)?.ToString() ?? string.Empty);

@@ -831,7 +831,7 @@ internal sealed class SkUiCompositor : IDisposable
             opacity *= (float)Math.Clamp(effect.Apply(ref placed, source.ChildrenOffsetX, source.ChildrenOffsetY), 0, 1);
             if (opacity <= 0)
                 return;
-            matrix = placed.Matrix;
+            matrix = placed.DrawnMatrix;
         }
         else if (props.Links is { } links)
         {
@@ -844,11 +844,11 @@ internal sealed class SkUiCompositor : IDisposable
             clipped = SkUiRenderLinkClip.TryGet(links, values, props.Width, props.Height, out clip);
             if (clipped && clip.IsEmpty)
                 return;
-            matrix = props.GetMatrix(values);
+            matrix = props.GetDrawnMatrix(values);
         }
         else
         {
-            matrix = props.Matrix;
+            matrix = props.DrawnMatrix;
         }
         var save = canvas.Save();
         if (isRoot)

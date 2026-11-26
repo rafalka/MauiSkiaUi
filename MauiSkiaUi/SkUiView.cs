@@ -110,6 +110,10 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
     private bool _showsPressEffect;
     private SkUiPressFeedback _pressFeedback;
     private SkUiPressAnimator? _pressEffect;
+    private double _pressedScale = -1;
+    private Thickness _hitSlop;
+    private double _minimumTouchTargetSize;
+    private SkUiPressAnimator? _pressScaleEffect;
 
     /// <summary>Bindable <see cref="ShowsPressEffect"/>.</summary>
     public static readonly BindableProperty ShowsPressEffectProperty = BindableProperty.Create(nameof(ShowsPressEffect), typeof(bool), typeof(SkUiView), false,
@@ -171,6 +175,102 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
         InvalidateRender(SkUiRenderDirty.Props);
     }
 
+    /// <summary>Bindable <see cref="HitSlop"/>.</summary>
+    public static readonly BindableProperty HitSlopProperty = BindableProperty.Create(nameof(HitSlop), typeof(Thickness), typeof(SkUiView), default(Thickness),
+        validateValue: SkUiValidate.ThicknessValue, propertyChanged: (view, _, value) => ((SkUiView)view).OnHitSlopChanged((Thickness)value, ((SkUiView)view)._minimumTouchTargetSize));
+
+    /// <summary>Bindable <see cref="MinimumTouchTargetSize"/>.</summary>
+    public static readonly BindableProperty MinimumTouchTargetSizeProperty = BindableProperty.Create(nameof(MinimumTouchTargetSize), typeof(double), typeof(SkUiView), 0d,
+        validateValue: SkUiValidate.NonNegative, propertyChanged: (view, _, value) => ((SkUiView)view).OnHitSlopChanged(((SkUiView)view)._hitSlop, (double)value));
+
+    /// <summary>
+    /// How far past its rectangle the view is pressed (DIPs per side, default none), without changing its layout or drawing:
+    /// a 32 DIP chevron pressed in 44 × 44. Found where no other view is under the finger, or only a container of this one (its
+    /// row, a scroller), and cut by the clips of its containers (a scroller's viewport); the view nearest the finger wins
+    /// between two slops. Screen readers' frame of the view grows the same way. See also <see cref="MinimumTouchTargetSize"/>.
+    /// </summary>
+    public Thickness HitSlop { get => (Thickness)GetValue(HitSlopProperty); set => SetValue(HitSlopProperty, value); }
+
+    /// <summary>
+    /// The smallest size the view is pressed in (DIPs, default 0: its own): a smaller view's <see cref="HitSlop"/> grows
+    /// evenly on both sides of each axis up to it, as 44 (Apple) or 48 (Material) asks of touch targets.
+    /// </summary>
+    public double MinimumTouchTargetSize { get => (double)GetValue(MinimumTouchTargetSizeProperty); set => SetValue(MinimumTouchTargetSizeProperty, value); }
+
+    /// <summary>Sets <see cref="HitSlop"/> (same as the property setter, but throws on a negative or non-finite side).</summary>
+    public SkUiView SetHitSlop(Thickness value)
+    {
+        SkUiValidate.ThrowIfNotThickness(value, nameof(value));
+        HitSlop = value;
+        return this;
+    }
+
+    /// <summary>Sets <see cref="MinimumTouchTargetSize"/> (same as the property setter, but throws on a negative or non-finite size).</summary>
+    public SkUiView SetMinimumTouchTargetSize(double value)
+    {
+        SkUiValidate.ThrowIfNegativeOrNotFinite(value, nameof(value));
+        MinimumTouchTargetSize = value;
+        return this;
+    }
+
+    private void OnHitSlopChanged(Thickness slop, double minimum)
+    {
+        var had = SkUiHitSlop.Has(_hitSlop, _minimumTouchTargetSize);
+        (_hitSlop, _minimumTouchTargetSize) = (slop, minimum);
+        var has = SkUiHitSlop.Has(slop, minimum);
+        if (had || has)
+            SkUiHitSlop.Track(this, has);
+        InvalidateSemantics();
+    }
+
+    Thickness ISkUiInputNode.HitSlop => SkUiHitSlop.Effective(_hitSlop, _minimumTouchTargetSize, Width, Height);
+
+    /// <summary>Bindable <see cref="PressedScale"/>.</summary>
+    public static readonly BindableProperty PressedScaleProperty = BindableProperty.Create(nameof(PressedScale), typeof(double), typeof(SkUiView), -1d,
+        validateValue: SkUiValidate.PressedScale, propertyChanged: (view, _, value) => ((SkUiView)view).OnPressedScaleChanged((double)value));
+
+    /// <summary>
+    /// The scale the view and its children shrink to while pressed, about the anchor (the centre unless
+    /// <see cref="VisualElement.AnchorX"/> / <see cref="VisualElement.AnchorY"/> move it), with the look's press and release
+    /// transitions: 0.97 for a card, 0.95 for a small button. -1 (default): the look's <see cref="SkUiLook.PressedScale"/>,
+    /// which is 1, none, in the built-in looks. Shown whenever the view is pressed (buttons, toggles, views with a tap), with or
+    /// without <see cref="ShowsPressEffect"/> and on top of its overlay or fade. Composited: its frames re-record nothing, and
+    /// it multiplies <see cref="VisualElement.Scale"/>. Only the drawing shrinks: the view is still pressed and tapped at its full size. A press
+    /// that turns into a scroll springs back; reduced motion shows none.
+    /// </summary>
+    public double PressedScale { get => (double)GetValue(PressedScaleProperty); set => SetValue(PressedScaleProperty, value); }
+
+    /// <summary>Sets <see cref="PressedScale"/> (same as the property setter, but throws on an invalid value).</summary>
+    public SkUiView SetPressedScale(double value)
+    {
+        SkUiValidate.ThrowIfNotPressedScale(value, nameof(value));
+        PressedScale = value;
+        return this;
+    }
+
+    private void OnPressedScaleChanged(double value)
+    {
+        if (_pressedScale == value) return; // exact: a setter's change check
+        _pressedScale = value;
+        InvalidateRender(SkUiRenderDirty.Props);
+    }
+
+    /// <summary>The press scale this view shows: its own <see cref="PressedScale"/>, or the look's.</summary>
+    private double EffectivePressedScale => _pressedScale > 0 ? _pressedScale : Math.Max(double.Epsilon, SkUiLookScope.Resolve(this).PressedScale);
+
+    /// <summary>The press scale's factor on the view's scale (1 unless it is pressed or releasing with a scale).</summary>
+    private float PressScale => _pressScaleEffect is { Pressed: > 0 } press ? SkUiPressAnimator.ScaledBy(press.Pressed, EffectivePressedScale) : 1;
+
+    /// <summary>Starts or releases the press scale when the view's pressed state changes (none under reduced motion).</summary>
+    private void UpdatePressScale(bool pressed)
+    {
+        // Exact: 1 is no scale.
+        if (_pressScaleEffect is null && (!pressed || EffectivePressedScale == 1 || SkUiMotion.IsMotionReduced))
+            return;
+        (_pressScaleEffect ??= SkUiPressAnimator.Fade(this, () => InvalidateRender(SkUiRenderDirty.Props)))
+            .SetPressed(pressed && !SkUiMotion.IsMotionReduced, PressPosition);
+    }
+
     /// <summary>Whether the look's press overlay is drawn over the view (<see cref="ShowsPressEffect"/> without the fade).</summary>
     private bool DrawsPressOverlay => _showsPressEffect && _pressFeedback == SkUiPressFeedback.Overlay;
 
@@ -207,6 +307,7 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
             (_pressEffect ??= _pressFeedback == SkUiPressFeedback.Fade
                 ? SkUiPressAnimator.Fade(this, () => InvalidateRender(SkUiRenderDirty.Props))
                 : new SkUiPressAnimator(this)).SetPressed(value, PressPosition);
+        UpdatePressScale(value);
         RaiseIsPressedChanged();
         OnPressedChanged();
         ChangeVisualState();
@@ -1122,6 +1223,7 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
         props.AnchorY = (float)AnchorY;
         props.Opacity = (float)Opacity;
         props.PressOpacity = PressOpacity;
+        props.PressScale = PressScale;
         props.IsVisible = IsVisible;
         props.ClipToBounds = ClipToBounds;
         OnGetRenderProps(ref props);

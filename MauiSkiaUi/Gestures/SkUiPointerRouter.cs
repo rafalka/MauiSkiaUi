@@ -35,6 +35,13 @@ internal interface ISkUiInputNode : ISkUiRenderable
     /// </summary>
     bool HitsOutsideBounds(Point local) => false;
 
+    /// <summary>
+    /// How far past its arranged rectangle the node is pressed, at its current size (<c>HitSlop</c>,
+    /// <c>MinimumTouchTargetSize</c>; tracked by <see cref="SkUiHitSlop"/> while not zero). Found only where the ordinary search
+    /// finds no node or an ancestor of this one.
+    /// </summary>
+    Thickness HitSlop => default;
+
     /// <summary>Appends this node's active recognizers (innermost priority first); nothing when passive.</summary>
     void CollectGestureRecognizers(List<SkUiGestureRecognizer> recognizers);
 
@@ -586,7 +593,11 @@ internal sealed class SkUiPointerRouter(ISkUiInputNode root)
     {
         if (_arenas.TryGetValue(touch.Id, out var stale))
             EndArena(stale, cancelled: true);
-        if ((FocusedTextHandleAt(touch) ?? FindTarget(root, ToSk(touch.Position), isRoot: true, requireParticipant: true)) is not { } leaf)
+        var handle = FocusedTextHandleAt(touch);
+        var leaf = handle ?? FindTarget(root, ToSk(touch.Position), isRoot: true, requireParticipant: true);
+        if (handle is null && SkUiHitSlop.Any)
+            leaf = SlopTargetAt(touch.Position, leaf) ?? leaf;
+        if (leaf is null)
             return false;
         if (root is SkUiView { FocusManagerIfCreated: { PointerPressFocuses: true } focus })
             focus.OnPointerPressed(leaf);
@@ -626,6 +637,59 @@ internal sealed class SkUiPointerRouter(ISkUiInputNode root)
     }
 
     private readonly List<ISkUiRenderable> _chain = [];
+    private readonly List<ISkUiInputNode> _slopNodes = [];
+
+    /// <summary>
+    /// The node whose hit slop holds <paramref name="rootPoint"/>, when the ordinary search found <paramref name="exact"/>
+    /// (or nothing) there: only a node <paramref name="exact"/> is an ancestor of (a row, a scroller around it) takes the
+    /// press from it, so an exact hit on any other node wins over a slop. Slops are cut by the clips of the node's ancestors.
+    /// Of several, the node whose rectangle is nearest the point.
+    /// </summary>
+    private ISkUiInputNode? SlopTargetAt(Point rootPoint, ISkUiInputNode? exact)
+    {
+        _slopNodes.Clear();
+        SkUiHitSlop.Collect(_slopNodes);
+        ISkUiInputNode? best = null;
+        var bestDistance = double.PositiveInfinity;
+        try
+        {
+            foreach (var node in _slopNodes)
+            {
+                if (ReferenceEquals(node, exact) || (exact is not null && !IsAncestor(exact, node)) || !IsLive(node))
+                    continue;
+                var slop = node.HitSlop;
+                if (!SkUiHitSlop.Has(slop, 0) || MapInsideClips(node, rootPoint) is not { } local)
+                    continue;
+                var size = GetSize(node);
+                if (local.X < -slop.Left || local.Y < -slop.Top || local.X > size.Width + slop.Right || local.Y > size.Height + slop.Bottom)
+                    continue;
+                _recognizers.Clear();
+                node.CollectGestureRecognizers(_recognizers);
+                var participates = _recognizers.Count > 0;
+                _recognizers.Clear();
+                if (!participates)
+                    continue;
+                var dx = Math.Max(0, Math.Max(-local.X, local.X - size.Width));
+                var dy = Math.Max(0, Math.Max(-local.Y, local.Y - size.Height));
+                var distance = dx * dx + dy * dy;
+                if (distance < bestDistance)
+                    (best, bestDistance) = (node, distance);
+            }
+        }
+        finally
+        {
+            _slopNodes.Clear();
+        }
+        return best;
+    }
+
+    private static bool IsAncestor(ISkUiRenderable ancestor, ISkUiRenderable node)
+    {
+        for (var current = node.RenderParent; current is not null; current = current.RenderParent)
+            if (ReferenceEquals(current, ancestor))
+                return true;
+        return false;
+    }
 
     /// <summary>
     /// <paramref name="rootPoint"/> in <paramref name="node"/>'s local coordinates (as <see cref="MapToNode"/>), or <c>null</c> when an

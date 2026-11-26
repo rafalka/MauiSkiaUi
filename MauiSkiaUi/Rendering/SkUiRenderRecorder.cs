@@ -228,7 +228,7 @@ internal static class SkUiImmediatePainter
         var save = canvas.Save();
         try
         {
-            var matrix = props.Matrix;
+            var matrix = props.DrawnMatrix;
             canvas.Concat(in matrix);
             if (canvas.QuickReject(props.InkBounds))
                 return false;

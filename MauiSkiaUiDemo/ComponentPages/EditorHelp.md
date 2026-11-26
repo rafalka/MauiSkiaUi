@@ -43,6 +43,19 @@ first: without one there is nothing to space.
 Whether the buttons' `Command` can execute. When it cannot, the button is disabled as MAUI's is: dimmed, and taps are
 ignored (`IsEnabled` stays as set).
 
+## LabelDemoPage.FontFeatures
+
+The OpenType features the label's font has (`SkUiFontFeatures.SupportedBy`), each with its name and description
+(`SkUiFontFeature.Info`); pick any number. Features the font applies by default (kerning, ligatures) are offered turned off;
+those the shaper needs for a script are not listed. The list follows the `FontFamily` editor: try Open Sans (figures,
+fractions), Lobster (ligatures, kerning) or Roboto Mono (small caps) with the "Figures and ligatures" script sample. In code:
+`label.FontFeatures = [SkUiFontFeature.TabularFigures, SkUiFontFeature.Kerning.Disabled]`.
+
+## EntryDemoPage.FontFeatures
+
+The OpenType features of the field's font (`SkUiFontFeatures.SupportedBy`), with their names and descriptions; pick any
+number. Tabular figures (`tnum`) keep a typed amount from shifting as digits change.
+
 ## LabelDemoPage.Script
 
 Sample texts in other scripts, written into the `Text` editor: Arabic and Hebrew (right to left, and mixed with Latin),
@@ -233,6 +246,11 @@ Whether the Reply item's `Command` can execute; when it cannot, the item is dimm
 
 The `Mode` of the rows' delete items: **Reveal** shows the item to tap; **Execute** deletes the row once swiped past the
 threshold.
+
+## SwipeViewListDemoPage.Close before archiving
+
+The drawn rows' Archive item awaits `CloseAsync()` before it removes the message: the row slides back, then goes. Off, the
+row is removed at once. MAUI's `SwipeView` has no `CloseAsync`, so the native rows always go at once.
 
 ## BorderDemoPage.Stroke gradient
 
@@ -523,6 +541,16 @@ The first row's background (`SetRowBackground(0, …)`), drawn behind its cells 
 
 The first column's background (`SetColumnBackground(0, …)`); where a row background crosses it, `TrackBackgroundOrder`
 decides which is on top.
+
+## TouchTargetsDemoPage.Gap between icons
+
+The space between neighbouring icons. With a touch area larger than half the gap, the areas overlap: a press in the
+overlap taps the nearer icon, and a press on an icon always taps that icon.
+
+## TouchTargetsDemoPage.Show touch areas
+
+Tints each icon's touch area: its rectangle grown by `HitSlop`, or by `MinimumTouchTargetSize` where that adds more. The
+tinted squares take no input; screen readers frame the icons the same way.
 
 ## CorePressEffectDemoPage.Details can execute
 

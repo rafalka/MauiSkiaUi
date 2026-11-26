@@ -10,7 +10,10 @@ public static class ComponentDemos
     /// <summary>All demos in gallery display order within each category.</summary>
     public static IReadOnlyList<ComponentDemo> All { get; } =
     [
-        new(typeof(SkUiView), typeof(ViewDemoPage), ComponentDemo.SkUiOnlyCounterpart, ComponentCategory.BasicControls, () => new ViewDemoPage()),
+        new(typeof(SkUiView), typeof(ViewDemoPage), ComponentDemo.SkUiOnlyCounterpart, ComponentCategory.BasicControls, () => new ViewDemoPage(),
+            Scenario: "press, effects, tooltip"),
+        new(typeof(SkUiView), typeof(TouchTargetsDemoPage), ComponentDemo.SkUiOnlyCounterpart, ComponentCategory.BasicControls,
+            () => new TouchTargetsDemoPage(), Key: "SkUiViewTouchTargets", Scenario: "touch targets (hit slop)"),
         new(typeof(SkUiLabel), typeof(LabelDemoPage), nameof(Label), ComponentCategory.BasicControls, () => new LabelDemoPage()),
         new(typeof(SkUiButton), typeof(ButtonDemoPage), nameof(Button), ComponentCategory.BasicControls, () => new ButtonDemoPage()),
         new(typeof(SkUiImage), typeof(ImageDemoPage), nameof(Image), ComponentCategory.BasicControls, () => new ImageDemoPage(),

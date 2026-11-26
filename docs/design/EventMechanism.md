@@ -46,6 +46,9 @@ SkUiPointerRouter (one per surface root)
         │           (a node with HitTestsChildren = false, a shimmer's content skeleton, is tried without its subtree)
         │           inside each node's arranged rectangle, or where it reaches past it (HitsOutsideBounds: a thin
         │           dragger's touch area, a text field's message below a fixed height)
+        │         → then, only while some node has a hit slop (HitSlop / MinimumTouchTargetSize, tracked weakly per UI
+        │           thread by SkUiHitSlop), the node whose slop holds the point, if the search found nothing there or an
+        │           ancestor of it (a row, a scroller); cut by its ancestors' clips; the nearest of several wins
         │  Arena: recognizers of that node, then of each ancestor up to the root (innermost first)
         ▼
 SkUiGestureArena (one per pointer)

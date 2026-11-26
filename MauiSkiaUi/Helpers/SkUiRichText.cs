@@ -11,6 +11,7 @@ namespace MauiSkiaUi;
 /// <param name="LineHeight">Multiplier of the font's line spacing; 0 / negative: the font's.</param>
 /// <param name="BaselineShift">DIPs the span sits above the line's baseline (negative: below).</param>
 /// <param name="InlineObject">What the span draws instead of glyphs: its text is one <see cref="SkUiInlineObject.ReplacementCharacter"/>.</param>
+/// <param name="Features">The span's own OpenType features; <c>null</c>: the text style's (<see cref="SkUiTextStyle.Features"/>).</param>
 internal readonly record struct SkUiTextSpanStyle(
     SKTypeface Typeface,
     double FontSize,
@@ -18,7 +19,8 @@ internal readonly record struct SkUiTextSpanStyle(
     double CharacterSpacing = 0,
     double LineHeight = -1,
     double BaselineShift = 0,
-    SkUiInlineObject? InlineObject = null);
+    SkUiInlineObject? InlineObject = null,
+    SkUiFontFeatures? Features = null);
 
 /// <summary>How one span paints: colors and decorations (no re-layout when they change).</summary>
 /// <param name="TextColor">Glyph and decoration color.</param>
@@ -214,6 +216,8 @@ internal sealed class SkUiRichTextLayout : ISkUiTextSpanFonts, ISkUiTextFitLayou
     float ISkUiTextSpanFonts.BaselineShift(int span) => (float)_text.Styles[span].BaselineShift;
 
     SkUiInlineObject? ISkUiTextSpanFonts.InlineObject(int span) => _text.Styles[span].InlineObject;
+
+    HarfBuzzSharp.Feature[]? ISkUiTextSpanFonts.Features(int span) => (_text.Styles[span].Features ?? _style.Features)?.HarfBuzzFeatures;
 
     private void EnsureLines(SkUiRichText text, double width, SkUiTextStyle style)
     {

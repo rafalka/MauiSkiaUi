@@ -6,7 +6,10 @@ namespace MauiSkiaUiDemo;
 /// <summary>
 /// <see cref="SkUiSwipeView"/> rows in an <see cref="SkUiCollectionView"/>, next to MAUI's <see cref="SwipeView"/> rows in
 /// a <see cref="CollectionView"/>, on the same messages: swipe a row left to archive or delete it, right to flag it;
-/// vertical drags scroll, taps still select. Scrolling closes an open row; a recycled row shows closed.
+/// vertical drags scroll, taps still select. Scrolling closes an open row; a recycled row shows closed. The drawn rows can
+/// share an <see cref="SkUiSwipeView.ExclusiveGroup"/> (opening one closes the other), close all at once
+/// (<see cref="SkUiCollectionView.CloseSwipeViews"/>) and close before an archived row goes
+/// (<see cref="SkUiSwipeView.CloseAsync"/>); with a screen reader their items are actions of the row.
 /// </summary>
 public sealed class SwipeViewListDemoPage : ComponentDemoPage
 {
@@ -15,6 +18,8 @@ public sealed class SwipeViewListDemoPage : ComponentDemoPage
     private const string Archive = "Archive";
     private const string Delete = "Delete";
     private const string FlaggedMark = "⚑ ";
+    private const string RowGroup = "messages";
+    private const string CloseBeforeArchiving = "Close before archiving";
     private static readonly Color FlagColor = Color.FromArgb("#EF6C00");
     private static readonly Color ArchiveColor = Color.FromArgb("#546E7A");
     private static readonly string[] Senders = ["Ada", "Grace", "Linus", "Margaret", "Ken", "Barbara", "Dennis", "Frances"];
@@ -24,7 +29,10 @@ public sealed class SwipeViewListDemoPage : ComponentDemoPage
     private readonly SkUiCollectionView _skia;
     private readonly CollectionView _native;
     private readonly ObservableCollection<Message> _messages = [];
+    private readonly List<WeakReference<SkiaRow>> _rows = [];
     private SwipeMode _deleteMode;
+    private string? _group;
+    private bool _closeBeforeArchiving;
     private string _last = "";
 
     public SwipeViewListDemoPage() : base("SkUiSwipeView rows", new SkUiCollectionView(), new CollectionView(),
@@ -42,7 +50,28 @@ public sealed class SwipeViewListDemoPage : ComponentDemoPage
 
         Choice("Delete " + nameof(SwipeItems.Mode), [SwipeMode.Reveal, SwipeMode.Execute], SwipeMode.Reveal,
             value => _deleteMode = value, () => _deleteMode);
+        // SkiaUi only (MAUI's SwipeView has none of these).
+        DocumentTypes(typeof(SkUiSwipeView));
+        Toggle(nameof(SkUiSwipeView.ExclusiveGroup), false, value =>
+        {
+            _group = value ? RowGroup : null;
+            foreach (var row in LiveRows())
+                row.ExclusiveGroup = _group;
+        }, () => _group is not null && LiveRows().TrueForAll(row => row.ExclusiveGroup == _group));
+        Toggle(CloseBeforeArchiving, false, value => _closeBeforeArchiving = value, () => _closeBeforeArchiving);
+        ActionButton("Close all rows", () => _skia.CloseSwipeViews());
         ActionButton("Restore messages", Fill);
+    }
+
+    /// <summary>The drawn rows still alive (recycled ones included); forgets the collected ones.</summary>
+    private List<SkiaRow> LiveRows()
+    {
+        var rows = new List<SkiaRow>();
+        _rows.RemoveAll(reference => !reference.TryGetTarget(out _));
+        foreach (var reference in _rows)
+            if (reference.TryGetTarget(out var row))
+                rows.Add(row);
+        return rows;
     }
 
     private sealed record Message(int Id, string From, string Subject, bool Flagged = false);
@@ -90,12 +119,21 @@ public sealed class SwipeViewListDemoPage : ComponentDemoPage
             var archive = new SwipeItem { Text = Archive, BackgroundColor = ArchiveColor };
             var delete = new SwipeItem { Text = Delete, BackgroundColor = DemoColors.SampleA };
             _flag.Invoked += (_, _) => { if (BindingContext is Message message) page.ToggleFlag(message); };
-            archive.Invoked += (_, _) => { if (BindingContext is Message message) page.Remove(message, Archive); };
+            archive.Invoked += async (_, _) =>
+            {
+                if (BindingContext is not Message message)
+                    return;
+                if (page._closeBeforeArchiving)
+                    await CloseAsync(); // the row slides back, then goes
+                page.Remove(message, Archive);
+            };
             delete.Invoked += (_, _) => { if (BindingContext is Message message) page.Remove(message, Delete); };
             LeftItems = [_flag];
             _right = [archive, delete];
             RightItems = _right;
             SwipeStarted += (_, _) => _right.Mode = page._deleteMode; // in execute mode a full swipe archives
+            ExclusiveGroup = page._group;
+            page._rows.Add(new WeakReference<SkiaRow>(this));
             Content = new SkUiVerticalStackLayout
             {
                 Background = Colors.White,

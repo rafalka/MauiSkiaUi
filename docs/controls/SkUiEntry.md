@@ -153,6 +153,7 @@ var tag = new SkUiEntry().SetInputFormatters(
 | `Placeholder`, `PlaceholderColor` | `null` | The color scheme's muted color by default |
 | `PlaceholderFontFamily`, `PlaceholderFontAttributes` | `null` | The placeholder's font, when it differs from the text's (a regular hint, a semibold value); `null`: `FontFamily` / `FontAttributes` (SkiaUi) |
 | `TextColor`, `FontFamily`, `FontSize` (16), `FontAttributes`, `FontAutoScalingEnabled`, `CharacterSpacing` | | As labels |
+| `FontFeatures` | `null` | OpenType features the text and placeholder are shaped with (`[SkUiFontFeature.TabularFigures]`; XAML `"tnum"`), as [labels](SkUiLabel.md#how-it-works). SkiaUi extension (1.18) |
 | `HorizontalTextAlignment`, `VerticalTextAlignment` | Start, Center | Start follows the text's direction |
 | `MaxLength` | `int.MaxValue` | Input is cut there (never inside a surrogate pair) |
 | `IsReadOnly` | `false` | Selectable and copyable; no caret, no keyboard |

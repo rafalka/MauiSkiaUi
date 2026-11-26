@@ -71,6 +71,10 @@ public abstract class SkUiInputView : SkUiView, ISkUiFontElement, ISkUiFieldChro
         validateValue: SkUiValidate.Finite,
         propertyChanged: (view, _, value) => ((SkUiInputView)view).Apply(model => model.CharacterSpacing = (double)value, measure: true));
 
+    /// <summary>Bindable property for <see cref="FontFeatures"/>.</summary>
+    public static readonly BindableProperty FontFeaturesProperty = BindableProperty.Create(nameof(FontFeatures), typeof(SkUiFontFeatures), typeof(SkUiInputView), null,
+        propertyChanged: (view, _, value) => ((SkUiInputView)view).Apply(model => model.FontFeatures = (SkUiFontFeatures?)value, measure: true));
+
     /// <summary>Bindable property for <see cref="TextTransform"/>.</summary>
     public static readonly BindableProperty TextTransformProperty = BindableProperty.Create(nameof(TextTransform), typeof(TextTransform), typeof(SkUiInputView), TextTransform.Default,
         validateValue: (_, value) => Enum.IsDefined((TextTransform)value),
@@ -248,6 +252,9 @@ public abstract class SkUiInputView : SkUiView, ISkUiFontElement, ISkUiFieldChro
 
     /// <summary>DIPs added after each character.</summary>
     public double CharacterSpacing { get => (double)GetValue(CharacterSpacingProperty); set => SetValue(CharacterSpacingProperty, value); }
+
+    /// <summary>OpenType features the text and placeholder are shaped with (<c>[SkUiFontFeature.TabularFigures]</c>; XAML <c>"tnum"</c>); <c>null</c>: the font's defaults (see <see cref="SkUiLabel.FontFeatures"/>).</summary>
+    public SkUiFontFeatures? FontFeatures { get => (SkUiFontFeatures?)GetValue(FontFeaturesProperty); set => SetValue(FontFeaturesProperty, value); }
 
     /// <summary>Upper or lower case: typed and pasted text is transformed (as MAUI's entries transform what they show).</summary>
     public TextTransform TextTransform { get => (TextTransform)GetValue(TextTransformProperty); set => SetValue(TextTransformProperty, value); }
@@ -456,6 +463,9 @@ public abstract class SkUiInputView : SkUiView, ISkUiFontElement, ISkUiFieldChro
 
     /// <summary>Sets <see cref="CharacterSpacing"/>.</summary>
     public SkUiInputView SetCharacterSpacing(double value) { SkUiValidate.ThrowIfNotFinite(value, nameof(value)); CharacterSpacing = value; return this; }
+
+    /// <summary>Sets <see cref="FontFeatures"/> (same as the property setter).</summary>
+    public SkUiInputView SetFontFeatures(SkUiFontFeatures? value) { FontFeatures = value; return this; }
 
     /// <summary>Sets <see cref="TextTransform"/>.</summary>
     public SkUiInputView SetTextTransform(TextTransform value) { ThrowIfUndefined(value); TextTransform = value; return this; }

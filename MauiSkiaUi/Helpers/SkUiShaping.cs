@@ -165,7 +165,7 @@ internal static partial class SkUiShaping
     /// right) shaped with HarfBuzz as one run, as the platforms' text engines do: kerning and ligatures, without the bidi
     /// levels, itemization and fallback lookups of <see cref="Shape"/>. Returns <c>null</c> when the text is not plain.
     /// </summary>
-    internal static Paragraph? TryShapePlain(string text, SKFont font, SkUiTextDirection direction, float spacing = 0)
+    internal static Paragraph? TryShapePlain(string text, SKFont font, SkUiTextDirection direction, float spacing = 0, Feature[]? features = null)
     {
         if (!IsPlain(text, font, direction) || Shaper(font.Typeface) is null)
             return null;
@@ -175,7 +175,7 @@ internal static partial class SkUiShaping
             return paragraph;
         var run = new Run { Start = 0, Length = text.Length, Script = Script.Latin, Typeface = font.Typeface };
         paragraph.Runs.Add(run);
-        ShapeRun(text, 0, text.Length, run, font, spacing);
+        ShapeRun(text, 0, text.Length, run, font, spacing, features);
         paragraph.Width = run.Width;
         return paragraph;
     }
@@ -254,7 +254,8 @@ internal static partial class SkUiShaping
         c is >= ' ' and <= '~' or >= '\u00A0' and <= '\u017F' or >= '\u2010' and <= '\u2027' or >= '\u2030' and <= '\u205E' or >= '\u20A0' and <= '\u20C0';
 
     /// <summary>Shapes <paramref name="text"/> (no line breaks inside) as one paragraph, <paramref name="spacing"/> DIPs added after each cluster.</summary>
-    internal static Paragraph Shape(string text, SKTypeface primary, float size, SkUiTextDirection direction, Func<SKTypeface, SKFont> fonts, float spacing = 0)
+    internal static Paragraph Shape(string text, SKTypeface primary, float size, SkUiTextDirection direction, Func<SKTypeface, SKFont> fonts, float spacing = 0,
+        Feature[]? features = null)
     {
         var paragraph = new Paragraph { Text = text, BaseLevel = SkUiBidi.BaseLevel(text, direction), Spacing = spacing };
         paragraph.Levels = SkUiBidi.ResolveLevels(text, paragraph.BaseLevel);
@@ -264,7 +265,7 @@ internal static partial class SkUiShaping
         Itemize(paragraph, primary);
         foreach (var run in paragraph.Runs)
         {
-            ShapeRun(text, run.Start, run.Length, run, fonts(run.Typeface), spacing);
+            ShapeRun(text, run.Start, run.Length, run, fonts(run.Typeface), spacing, features);
             paragraph.Width += run.Width;
             AddAdvances(paragraph, run);
         }
@@ -427,9 +428,9 @@ internal static partial class SkUiShaping
         }
 
         /// <summary>Shapes <paramref name="buffer"/> with <paramref name="font"/>'s size and scale into <paramref name="run"/>'s glyphs.</summary>
-        public void Shape(Buffer buffer, SKFont font, Run run)
+        public void Shape(Buffer buffer, SKFont font, Run run, Feature[]? features)
         {
-            _font.Shape(buffer);
+            _font.Shape(buffer, features ?? []);
             var info = buffer.GetGlyphInfoSpan();
             var positions = buffer.GetGlyphPositionSpan();
             var sizeY = font.Size / Scale;
@@ -454,8 +455,11 @@ internal static partial class SkUiShaping
         }
     }
 
-    /// <summary>Shapes <c>text[start..start+length)</c> with the whole string as context into <paramref name="run"/>.</summary>
-    private static void ShapeRun(string text, int start, int length, Run run, SKFont font, float spacing)
+    /// <summary>
+    /// Shapes <c>text[start..start+length)</c> with the whole string as context into <paramref name="run"/>, with OpenType
+    /// <paramref name="features"/> (<see cref="SkUiFontFeatures"/>) when given.
+    /// </summary>
+    private static void ShapeRun(string text, int start, int length, Run run, SKFont font, float spacing, Feature[]? features = null)
     {
         var buffer = _buffer ??= new Buffer();
         buffer.ClearContents();
@@ -470,7 +474,7 @@ internal static partial class SkUiShaping
             AddSpacing(run, spacing);
             return;
         }
-        shaper.Shape(buffer, font, run);
+        shaper.Shape(buffer, font, run, features);
         AddSpacing(run, spacing);
     }
 

@@ -31,6 +31,7 @@ public class SkUiLabel : SkUiView, ISkUiFontElement, ISkUiBorderElement
     private int _maxLines = -1;
     private double _lineHeight = -1;
     private double _characterSpacing;
+    private SkUiFontFeatures? _fontFeatures;
     private TextDecorations _textDecorations;
     private TextTransform _textTransform = TextTransform.Default;
     private List<SkUiInlineObject>? _inlineObjects; // what the spans last resolved show: they let go of what they drew when they leave, or when this label does
@@ -85,6 +86,8 @@ public class SkUiLabel : SkUiView, ISkUiFontElement, ISkUiBorderElement
     public static readonly BindableProperty MaxLinesProperty = BindableProperty.Create(nameof(MaxLines), typeof(int), typeof(SkUiLabel), -1, propertyChanged: (view, _, value) => ((SkUiLabel)view).OnMaxLinesChanged((int)value));
     /// <summary>Bindable line height multiplier (-1: the font's).</summary>
     public static readonly BindableProperty LineHeightProperty = BindableProperty.Create(nameof(LineHeight), typeof(double), typeof(SkUiLabel), -1d, validateValue: SkUiValidate.Finite, propertyChanged: (view, _, value) => ((SkUiLabel)view).OnLineHeightChanged((double)value));
+    /// <summary>Bindable <see cref="FontFeatures"/>.</summary>
+    public static readonly BindableProperty FontFeaturesProperty = BindableProperty.Create(nameof(FontFeatures), typeof(SkUiFontFeatures), typeof(SkUiLabel), null, propertyChanged: (view, _, value) => ((SkUiLabel)view).OnFontFeaturesChanged((SkUiFontFeatures?)value));
     /// <summary>Bindable spacing between characters in DIPs.</summary>
     public static readonly BindableProperty CharacterSpacingProperty = BindableProperty.Create(nameof(CharacterSpacing), typeof(double), typeof(SkUiLabel), 0d, validateValue: SkUiValidate.Finite, propertyChanged: (view, _, value) => ((SkUiLabel)view).OnCharacterSpacingChanged((double)value));
     /// <summary>Bindable underline / strikethrough.</summary>
@@ -236,6 +239,15 @@ public class SkUiLabel : SkUiView, ISkUiFontElement, ISkUiBorderElement
     public double LineHeight { get => (double)GetValue(LineHeightProperty); set => SetValue(LineHeightProperty, value); }
     /// <summary>DIPs added after each character (negative: tighter). Wrapping and truncation account for it.</summary>
     public double CharacterSpacing { get => (double)GetValue(CharacterSpacingProperty); set => SetValue(CharacterSpacingProperty, value); }
+    /// <summary>
+    /// OpenType features the text is shaped with: in code <c>[SkUiFontFeature.TabularFigures]</c> (digits of one width, so a clock
+    /// or a countdown does not jitter), <c>[SkUiFontFeature.StandardLigatures.Disabled, SkUiFontFeature.StylisticSet(1)]</c>; in XAML
+    /// CSS's <c>font-feature-settings</c> text, <c>"tnum, -liga"</c> (<see cref="SkUiFontFeatures"/>). <c>null</c> (default) or none:
+    /// the font's defaults. A font without a feature draws as before (<see cref="SkUiFontFeatures.SupportedBy"/> lists a font's).
+    /// Spans take the label's unless they set their own (<see cref="SkUiSpan.FontFeaturesProperty"/>). Text with features is
+    /// always shaped with HarfBuzz, also with <see cref="SkUiTextRendering.Simple"/>.
+    /// </summary>
+    public SkUiFontFeatures? FontFeatures { get => (SkUiFontFeatures?)GetValue(FontFeaturesProperty); set => SetValue(FontFeaturesProperty, value); }
     /// <summary>Underline and / or strikethrough, in the text color, under / through each line.</summary>
     public TextDecorations TextDecorations { get => (TextDecorations)GetValue(TextDecorationsProperty); set => SetValue(TextDecorationsProperty, value); }
     /// <summary>Displays <see cref="Text"/> in upper or lower case (invariant culture, as MAUI); <see cref="Text"/> keeps its value.</summary>
@@ -431,6 +443,15 @@ public class SkUiLabel : SkUiView, ISkUiFontElement, ISkUiBorderElement
     /// <summary>Sets the character spacing (same as the property setter).</summary>
     public SkUiLabel SetCharacterSpacing(double value) { SkUiValidate.ThrowIfNotFinite(value, nameof(value)); CharacterSpacing = value; return this; }
     private void OnCharacterSpacingChanged(double value) { if (_characterSpacing == value) return; _characterSpacing = value; InvalidateText(); }
+    /// <summary>Sets <see cref="FontFeatures"/> (same as the property setter).</summary>
+    public SkUiLabel SetFontFeatures(SkUiFontFeatures? value) { FontFeatures = value; return this; }
+    private void OnFontFeaturesChanged(SkUiFontFeatures? value)
+    {
+        var features = SkUiFontFeatures.OrNull(value);
+        if (Equals(features, _fontFeatures)) return;
+        _fontFeatures = features;
+        InvalidateText();
+    }
     /// <summary>Sets the text decorations (same as the property setter).</summary>
     public SkUiLabel SetTextDecorations(TextDecorations value) { TextDecorations = value; return this; }
     private void OnTextDecorationsChanged(TextDecorations value) { if (_textDecorations == value) return; _textDecorations = value; _richText = null; InvalidatePaint(); }
@@ -577,7 +598,7 @@ public class SkUiLabel : SkUiView, ISkUiFontElement, ISkUiBorderElement
 
     private SkUiTextStyle TextStyle => new(SkUiTypefaces.Resolve(_fontFamily, _fontAttributes), ScaledFontSize(EffectiveFontSize), _lineBreakMode, _lineBreaker,
         _maxLines, _lineHeight, _characterSpacing, TextDirection, _textRendering, _fontAttributes, _horizontalTextAlignment == TextAlignment.Justify,
-        _shrinkToFit ? (float)_minimumFontScale : 1, _growToFill ? (float)_maximumFontScale : 1, _allowsTightening);
+        _shrinkToFit ? (float)_minimumFontScale : 1, _growToFill ? (float)_maximumFontScale : 1, _allowsTightening, Features: _fontFeatures);
 
     /// <summary>
     /// Paragraph direction from MAUI <see cref="VisualElement.FlowDirection"/>: an explicit or inherited right-to-left
@@ -649,7 +670,8 @@ public class SkUiLabel : SkUiView, ISkUiFontElement, ISkUiBorderElement
             var scaledSize = SkUiFontScaling.ScaleFontSize(size, autoScaling);
             var inlineObject = SkUiSpan.GetInlineObject(span);
             builder.Add(inlineObject is null ? SkUiTextTransform.Apply(span.Text ?? string.Empty, transform) : SkUiInlineObject.ReplacementText,
-                new SkUiTextSpanStyle(SkUiTypefaces.Resolve(family, attributes), scaledSize, attributes, spacing, lineHeight, SkUiSpan.GetBaselineShift(span) * scaledSize, inlineObject),
+                new SkUiTextSpanStyle(SkUiTypefaces.Resolve(family, attributes), scaledSize, attributes, spacing, lineHeight, SkUiSpan.GetBaselineShift(span) * scaledSize, inlineObject,
+                    SkUiSpan.GetFontFeatures(span)),
                 new SkUiTextSpanPaint(ToSkColor(span.TextColor ?? _textColor), span.BackgroundColor is { } background ? ToSkColor(background) : default, decorations));
         }
         return builder.Build();
