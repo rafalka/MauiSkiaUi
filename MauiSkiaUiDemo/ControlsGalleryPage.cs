@@ -143,6 +143,12 @@ public sealed class ControlsGalleryPage : ContentPage
 
     // ---- Samples: small, live instances; the bigger previews reuse their demo page's builder in a clipped frame. ----
 
+    private static SkUiView WithWidth(SkUiView view, double width)
+    {
+        view.WidthRequest = width;
+        return view;
+    }
+
     private static readonly string[] Words = ["Alpha", "Beta", "Gamma", "Delta", "Epsilon", "Zeta", "Eta", "Theta"];
     private static readonly Color[] Palette = [DemoColors.Accent, DemoColors.SampleA, DemoColors.SampleB];
 
@@ -179,6 +185,12 @@ public sealed class ControlsGalleryPage : ContentPage
         _ when type == typeof(SkUiTabView) => Framed(TabViewDemoPage.CreateSample(), 300, 220),
         _ when type == typeof(SkUiStepper<decimal>) => new SkUiStepper<decimal> { Maximum = 10, Increment = 0.25m, Value = 1.5m },
         _ when type == typeof(SkUiProgressBar) => new SkUiProgressBar { Progress = 0.6, WidthRequest = 200 },
+        _ when type == typeof(SkUiProgressRing) => new SkUiProgressRing { Progress = 0.65, Thickness = 6, WidthRequest = 64, HeightRequest = 64,
+            Content = new SkUiLabel { Text = "65%", FontSize = 13, HorizontalTextAlignment = TextAlignment.Center, VerticalTextAlignment = TextAlignment.Center } },
+        _ when type == typeof(SkUiStackedBar) => WithWidth(StackedBarDemoPage.CreateSample(out _), 200),
+        _ when type == typeof(SkUiChip) => new SkUiChip { Text = "Approved", Kind = SkUiChipKind.Filter, IsSelected = true },
+        _ when type == typeof(SkUiChipGroup) => new SkUiChipGroup { ItemsSource = new[] { "Today", "This week", "This month" },
+            SelectionMode = SkUiChipSelectionMode.Single, SelectedItem = "This week", WidthRequest = 280 },
         _ when type == typeof(SkUiEntry) => new SkUiEntry { Placeholder = "Type here", WidthRequest = 220 },
         _ when type == typeof(SkUiEditor) => new SkUiEditor { Placeholder = "Several lines", WidthRequest = 220, HeightRequest = 72 },
         _ when type == typeof(SkUiSearchBar) => new SkUiSearchBar { Placeholder = "Search", WidthRequest = 220 },
@@ -279,6 +291,8 @@ public sealed class ControlsGalleryPage : ContentPage
         _ when type == typeof(SkUiCoreDragger) => Framed(CoreDraggerDemoPage.CreateHost(out _, out _), 280, 160),
         _ when type == typeof(SkUiCoreGridSplitter) => Framed(CoreGridSplitterDemoPage.CreateHost(out _, out _), 300, 160),
         _ when type == typeof(SkUiCoreTable) => Framed(CoreTableDemoPage.CreateHost(out _), 300, 200),
+        _ when type == typeof(SkUiCoreProgressRing) => Framed(CoreProgressRingDemoPage.CreateSample(out _, out _, out _), 240, 180),
+        _ when type == typeof(SkUiCoreChipGroup) => Framed(CoreChipsDemoPage.CreateSample(out _, out _), 300, 160),
         _ when type == typeof(SkUiCoreWrapLayout) => Framed(CoreWrapLayoutDemoPage.CreateHost(out _), 240, 120),
         _ when type == typeof(SkUiCoreTileLayout) => Framed(CoreTileLayoutDemoPage.CreateHost(out _), 300, 200),
         _ when type == typeof(SkUiCoreHorizontalShrinkLayout) => Framed(CoreHorizontalShrinkLayoutDemoPage.CreateHost(out _, out _, out _), 280, 60),

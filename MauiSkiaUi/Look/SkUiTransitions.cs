@@ -62,7 +62,9 @@ public enum SkUiTransitionKind
     /// A segmented control's selection moves to the segment chosen: the marker slides across (or, in a look whose segments
     /// fade, the old one fades out and the new one in).
     /// </summary>
-    SegmentSelection
+    SegmentSelection,
+    /// <summary>A stacked bar's parts move to new values (or a new maximum): each part's value tweens from what is drawn.</summary>
+    StackedBar
     // New members go last: the values are compiled into callers (a look built against an earlier 1.x keeps its meaning).
 }
 

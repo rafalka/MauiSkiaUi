@@ -240,6 +240,9 @@ public class SkUiButton : SkUiLabel, SkUiButtonImageLayout.IText
     public new SkUiButton SetBorderColor(Color value) { base.SetBorderColor(value); return this; }
     /// <summary>Sets border width (same as the property setter).</summary>
     public new SkUiButton SetBorderWidth(double value) { base.SetBorderWidth(value); return this; }
+    /// <summary>The press feedback now (for subclasses that draw their own chrome).</summary>
+    private protected SkUiPressVisual PressVisual => _press?.Visual ?? SkUiPressVisual.None;
+
     /// <inheritdoc />
     protected override bool HandlesTap => true;
     /// <inheritdoc />

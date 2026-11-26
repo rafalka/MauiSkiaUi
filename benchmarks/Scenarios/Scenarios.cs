@@ -102,6 +102,8 @@ public static class Scenarios
         new CalendarSlide(),
         new Steppers(),
         new Spinners(),
+        new ProgressRings(),
+        new Chips(),
         new ToggleTransitions(),
         new ToggleTransitions(busy: true),
         new NativeLabels(),

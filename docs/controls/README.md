@@ -39,6 +39,9 @@ Shared pipelines: [Architecture.md](../design/Architecture.md) · [LayoutSystem.
 | `SkUiSegmentedControl` / `SkUiCoreSegmentedControl` | [SkUiSegmentedControl.md](SkUiSegmentedControl.md) | None (1.17; Core twin included): one of a few options in a drawn row, the selection marker by the look |
 | `SkUiSlider` | [SkUiSlider.md](SkUiSlider.md) | Slider (plus vertical) |
 | `SkUiProgressBar` | [SkUiProgressBar.md](SkUiProgressBar.md) | ProgressBar (plus indeterminate) |
+| `SkUiProgressRing` / `SkUiCoreProgressRing` | [SkUiProgressRing.md](SkUiProgressRing.md) | None (1.18; Core twin included): circular progress with content in the middle |
+| `SkUiStackedBar` / `SkUiCoreStackedBar` | [SkUiStackedBar.md](SkUiStackedBar.md) | None (1.18; Core twin included): one bar of several coloured parts |
+| `SkUiChip` / `SkUiChipGroup` / Core twins | [SkUiChip.md](SkUiChip.md) | None (1.18): action, filter, input and suggestion chips; groups that wrap or scroll in a row |
 | `SkUiStepper` / `SkUiCoreStepper`, `SkUiStepper<T>` / `SkUiCoreStepper<T>` | [SkUiStepper.md](SkUiStepper.md) | Stepper (plus stacked buttons, `Orientation`, texts in place of − / +, corner radius and outline, and typed values) |
 | `SkUiEntry` / `SkUiCoreEntry` | [SkUiEntry.md](SkUiEntry.md) | Entry (drawn; the platform's keyboard and input methods through a proxy) |
 | `SkUiEditor` / `SkUiCoreEditor` | [SkUiEditor.md](SkUiEditor.md) | Editor (drawn) |

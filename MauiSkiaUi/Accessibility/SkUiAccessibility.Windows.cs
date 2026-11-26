@@ -36,14 +36,46 @@ internal sealed class SkUiAccessibilityBridge
     private bool _detached;
 
     /// <summary>The tree; empty once the bridge is detached (clients may still hold peers of it).</summary>
-    internal SkUiSemanticsTree Tree => _detached ? SkUiSemanticsTree.Empty : (_owner ??= new SkUiSemanticsOwner(_root)).Tree;
+    internal SkUiSemanticsTree Tree => _detached ? SkUiSemanticsTree.Empty : EnsureOwner().Tree;
+
+    private SkUiSemanticsOwner EnsureOwner()
+    {
+        if (_owner is null)
+        {
+            _owner = new SkUiSemanticsOwner(_root);
+            _owner.Announcement += OnAnnouncement;
+        }
+        return _owner;
+    }
+
+    /// <summary>
+    /// A live element's settled text (its peer's <c>LiveSetting</c> says how; Narrator reads its name), or an app's announcement
+    /// (a notification event of the surface's peer).
+    /// </summary>
+    private void OnAnnouncement(SkUiSemanticsNode? node, string text, SkUiLiveRegion politeness)
+    {
+        if (node is not null)
+        {
+            if (AutomationPeer.ListenerExists(AutomationEvents.LiveRegionChanged))
+            {
+                var peer = PeerOf(node.Id);
+                peer.RaiseChanges(node);
+                peer.RaiseAutomationEvent(AutomationEvents.LiveRegionChanged);
+            }
+            return;
+        }
+        if (FrameworkElementAutomationPeer.FromElement(_container) is { } surface)
+            surface.RaiseNotificationEvent(AutomationNotificationKind.Other,
+                politeness == SkUiLiveRegion.Assertive ? AutomationNotificationProcessing.ImportantMostRecent : AutomationNotificationProcessing.All,
+                text, "SkUiAnnouncement");
+    }
 
     /// <summary>A client reads the surface's children: report changes from now on while it listens.</summary>
     internal void UpdateListening()
     {
         if (_detached)
             return;
-        _owner ??= new SkUiSemanticsOwner(_root);
+        EnsureOwner();
         Listen(HasListeners);
     }
 
@@ -281,6 +313,14 @@ internal sealed partial class SkUiElementAutomationPeer(SkUiAccessibilityBridge 
 
     /// <inheritdoc />
     protected override string GetHelpTextCore() => Node?.Hint ?? string.Empty;
+
+    /// <inheritdoc />
+    protected override AutomationLiveSetting GetLiveSettingCore() => Node?.LiveRegion switch
+    {
+        SkUiLiveRegion.Polite => AutomationLiveSetting.Polite,
+        SkUiLiveRegion.Assertive => AutomationLiveSetting.Assertive,
+        _ => AutomationLiveSetting.Off
+    };
 
     /// <inheritdoc />
     protected override string GetAutomationIdCore() => Node?.AutomationId ?? string.Empty;

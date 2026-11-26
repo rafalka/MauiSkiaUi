@@ -169,6 +169,10 @@ public class WindowsSkUiLook : DefaultSkUiLook
     public override Size DefaultActivityIndicatorSize => new(32, 32);
 
     /// <inheritdoc />
+    /// <remarks>Fluent's determinate progress ring: 32 epx.</remarks>
+    public override double DefaultProgressRingSize => 32;
+
+    /// <inheritdoc />
     /// <remarks>Fluent's thin scroll bars grow to 6 when the pointer is over them.</remarks>
     public override double ScrollBarThickness => 2;
 

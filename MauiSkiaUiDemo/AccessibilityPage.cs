@@ -204,6 +204,39 @@ public sealed class AccessibilityPage : ContentPage
         // A drawn search bar: its clear button is an element of its own, PostcodeSearch_Clear.
         Add(new SkUiSearchBar { Placeholder = "Postcode", Text = "SW1A 1AA", AutomationId = "PostcodeSearch", FontFamily = DemoFonts.OpenSansRegular });
 
+        // Live regions (1.18): the status is read when it changes, without moving to it; the timer updates often (VoiceOver polls it);
+        // Announce reads text tied to no element.
+        var status = new SkUiLabel { Text = "Clocked out", TextColor = DemoColors.Ink, AutomationId = "ClockStatus" };
+        SkUiAccessibility.SetLiveRegion(status, SkUiLiveRegion.Polite);
+        var elapsed = new SkUiLabel { Text = "0:00", TextColor = DemoColors.Ink, AutomationId = "ClockTimer" };
+        SkUiAccessibility.SetUpdatesFrequently(elapsed, true);
+        var clock = new SkUiButton { Text = "Clock in", AutomationId = "ClockIn", FontFamily = DemoFonts.OpenSansSemibold };
+        IDispatcherTimer? timer = null;
+        var started = DateTime.Now;
+        clock.Clicked += (_, _) =>
+        {
+            var clockingIn = timer is null;
+            status.Text = clockingIn ? $"Clocked in at {DateTime.Now:t}" : $"Clocked out at {DateTime.Now:t}";
+            clock.Text = clockingIn ? "Clock out" : "Clock in";
+            if (clockingIn)
+            {
+                started = DateTime.Now;
+                timer = Dispatcher.CreateTimer();
+                timer.Interval = TimeSpan.FromSeconds(1);
+                timer.Tick += (_, _) => elapsed.Text = $"{DateTime.Now - started:m\\:ss}";
+                timer.Start();
+            }
+            else
+            {
+                timer!.Stop();
+                timer = null;
+            }
+        };
+        var saved = new SkUiButton { Text = "Announce \"Saved\"", AutomationId = "AnnounceSaved", FontFamily = DemoFonts.OpenSansSemibold };
+        saved.Clicked += (_, _) => SkUiAccessibility.Announce(saved, "Saved");
+        Add(Row(clock, saved));
+        Add(Row(status, elapsed));
+
         // Core nodes: the semantic properties and focus API of the Core layer.
         var core = new SkUiCoreVerticalStackLayout { Spacing = 8 };
         core.Add(new SkUiCoreLabel { Text = "Core section", FontSize = 18 }.SetSemanticHeadingLevel(SemanticHeadingLevel.Level2));

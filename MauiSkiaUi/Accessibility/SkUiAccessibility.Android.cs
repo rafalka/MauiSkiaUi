@@ -46,6 +46,7 @@ internal sealed class SkUiAccessibilityHelper : ExploreByTouchHelper
                     return null;
                 _owner = new SkUiSemanticsOwner(_root);
                 _owner.Changed += OnSemanticsChanged;
+                _owner.Announcement += OnAnnouncement;
             }
             return _owner.Tree;
         }
@@ -59,6 +60,8 @@ internal sealed class SkUiAccessibilityHelper : ExploreByTouchHelper
             _root.SemanticFocusRequested = null;
         _owner?.Detach();
         _owner = null;
+        _frequentReported.Clear();
+        _announcement = null;
     }
 
     private void OnSemanticsChanged(bool structureChanged, IReadOnlyList<int> changed)
@@ -75,8 +78,96 @@ internal sealed class SkUiAccessibilityHelper : ExploreByTouchHelper
             InvalidateRoot();
             return;
         }
+        var tree = _owner?.Tree;
         foreach (var id in changed)
+        {
+            // A live region's new text is reported once it settled (OnAnnouncement), so TalkBack reads it once.
+            if (_owner?.IsLivePending(id) == true)
+                continue;
+            if (tree?.Find(id) is { UpdatesFrequently: true })
+            {
+                InvalidateFrequent(id);
+                continue;
+            }
             InvalidateVirtualView(id);
+        }
+    }
+
+    /// <summary>How often TalkBack hears of an element whose value changes often (<see cref="SkUiAccessibility.UpdatesFrequentlyProperty"/>).</summary>
+    private const int FrequentUpdateMs = 1000;
+
+    private readonly Dictionary<int, long> _frequentReported = [];
+    private readonly HashSet<int> _frequentDeferred = [];
+
+    /// <summary>Reports an often-changing element at most once a second: the last value, when the second is over.</summary>
+    private void InvalidateFrequent(int id)
+    {
+        var now = System.Environment.TickCount64;
+        var last = _frequentReported.GetValueOrDefault(id, long.MinValue / 2);
+        if (now - last >= FrequentUpdateMs)
+        {
+            _frequentReported[id] = now;
+            InvalidateVirtualView(id);
+            return;
+        }
+        if (!_frequentDeferred.Add(id))
+            return;
+        _host.PostDelayed(() =>
+        {
+            _frequentDeferred.Remove(id);
+            if (_owner is null)
+                return;
+            _frequentReported[id] = System.Environment.TickCount64;
+            InvalidateVirtualView(id);
+        }, FrequentUpdateMs - (now - last));
+    }
+
+    /// <summary>The virtual view that reads <see cref="SkUiAccessibility.Announce(SkUiView, string, SkUiLiveRegion)"/>'s text: a hidden live region.</summary>
+    private const int AnnouncerId = 0x7FFFFFF0;
+
+    /// <summary>How long the announcer stays in the tree after its text was read.</summary>
+    private const int AnnouncerMs = 3000;
+
+    private (string Text, SkUiLiveRegion Politeness)? _announcement;
+    private int _announcementToken;
+
+    private void OnAnnouncement(SkUiSemanticsNode? node, string text, SkUiLiveRegion politeness)
+    {
+        if (_manager is not { IsEnabled: true })
+            return;
+        if (node is not null)
+        {
+            // A live element's text settled: TalkBack reads the node's live region on this change.
+            InvalidateVirtualView(node.Id, AccessibilityEventCompat.ContentChangeTypeText);
+            return;
+        }
+        _announcement = (text, politeness);
+        var token = ++_announcementToken;
+        InvalidateRoot(); // the host lists the announcer
+        InvalidateVirtualView(AnnouncerId, AccessibilityEventCompat.ContentChangeTypeText);
+        _host.PostDelayed(() =>
+        {
+            if (token != _announcementToken || _announcement is null)
+                return;
+            _announcement = null;
+            InvalidateRoot();
+        }, AnnouncerMs);
+    }
+
+    /// <summary>The announcer's node: the text in a live region, at the surface's corner, not focusable.</summary>
+    private void PopulateAnnouncer(AccessibilityNodeInfoCompat node)
+    {
+        var (text, politeness) = _announcement ?? (string.Empty, SkUiLiveRegion.Polite);
+        node.ClassName = "android.widget.TextView";
+        node.Text = text;
+        node.LiveRegion = politeness == SkUiLiveRegion.Assertive ? ViewCompat.AccessibilityLiveRegionAssertive : ViewCompat.AccessibilityLiveRegionPolite;
+        var local = new Android.Graphics.Rect(0, 0, 1, 1);
+#pragma warning disable CS0618 // ExploreByTouchHelper requires the parent bounds
+        node.SetBoundsInParent(local);
+#pragma warning restore CS0618
+        _host.GetLocationOnScreen(_location);
+        local.Offset(_location[0], _location[1]);
+        node.SetBoundsInScreen(local);
     }
 
     private bool _syncingKeyboardFocus;
@@ -125,6 +216,8 @@ internal sealed class SkUiAccessibilityHelper : ExploreByTouchHelper
         foreach (var node in tree.Flatten())
             if (!node.IsNative)
                 virtualViewIds.Add(Java.Lang.Integer.ValueOf(node.Id));
+        if (_announcement is not null)
+            virtualViewIds.Add(Java.Lang.Integer.ValueOf(AnnouncerId));
     }
 
     /// <inheritdoc />
@@ -152,6 +245,8 @@ internal sealed class SkUiAccessibilityHelper : ExploreByTouchHelper
                 info.RemoveChild(native);
         foreach (var node in tree.Root.Children)
             AddChild(info, node);
+        if (_announcement is not null)
+            info.AddChild(_host, AnnouncerId);
         return info;
     }
 
@@ -195,6 +290,11 @@ internal sealed class SkUiAccessibilityHelper : ExploreByTouchHelper
     {
         if (node is null)
             return;
+        if (virtualViewId == AnnouncerId)
+        {
+            PopulateAnnouncer(node);
+            return;
+        }
         var density = Density;
         if (Tree?.Find(virtualViewId) is not { } element || element.Source is null)
         {
@@ -237,6 +337,10 @@ internal sealed class SkUiAccessibilityHelper : ExploreByTouchHelper
             node.HintText = hint;
         if (element.HeadingLevel != SemanticHeadingLevel.None)
             node.Heading = true;
+        if (element.LiveRegion != SkUiLiveRegion.None)
+            node.LiveRegion = element.LiveRegion == SkUiLiveRegion.Assertive
+                ? ViewCompat.AccessibilityLiveRegionAssertive
+                : ViewCompat.AccessibilityLiveRegionPolite;
         if (element.AutomationId is { } automationId && ResourceId(automationId) is { } resourceId)
             node.ViewIdResourceName = resourceId;
         node.Enabled = element.IsEnabled;

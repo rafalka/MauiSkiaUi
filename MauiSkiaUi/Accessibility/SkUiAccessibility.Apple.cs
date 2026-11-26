@@ -29,7 +29,34 @@ internal sealed class SkUiAccessibilityBridge
         root.SemanticFocusRequested = RequestAccessibilityFocus;
     }
 
-    private SkUiSemanticsTree Tree => (_owner ??= new SkUiSemanticsOwner(_root)).Tree;
+    private SkUiSemanticsTree Tree => Owner.Tree;
+
+    private SkUiSemanticsOwner Owner
+    {
+        get
+        {
+            if (_owner is null)
+            {
+                _owner = new SkUiSemanticsOwner(_root);
+                _owner.Announcement += OnAnnouncement;
+            }
+            return _owner;
+        }
+    }
+
+    /// <summary>
+    /// A live element's settled text, or an app's announcement: VoiceOver has no live regions, so both are announcements, queued
+    /// after what it is reading when polite.
+    /// </summary>
+    private static void OnAnnouncement(SkUiSemanticsNode? node, string text, SkUiLiveRegion politeness)
+    {
+        if (!UIAccessibility.IsVoiceOverRunning)
+            return;
+        NSObject announcement = politeness == SkUiLiveRegion.Polite
+            ? new NSAttributedString(text, new NSDictionary(UIApplication.SpeechAttributeQueueAnnouncement, NSNumber.FromBoolean(true)))
+            : new NSString(text);
+        UIAccessibility.PostNotification(UIAccessibilityPostNotification.Announcement, announcement);
+    }
 
     /// <summary>Built and not detached: an element VoiceOver still holds after <see cref="Detach"/> must not build the tree again.</summary>
     internal bool IsAttached => _owner is not null;
@@ -199,6 +226,8 @@ internal sealed class SkUiAccessibilityBridge
                     traits |= UIAccessibilityTrait.Button;
                 break;
         }
+        if (node.UpdatesFrequently)
+            traits |= UIAccessibilityTrait.UpdatesFrequently;
         if (node.HeadingLevel != SemanticHeadingLevel.None)
             traits |= UIAccessibilityTrait.Header;
         if (!node.IsEnabled)

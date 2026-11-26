@@ -143,6 +143,10 @@ public sealed class SkUiSemanticsInfo
     internal SemanticHeadingLevel HeadingLevel;
     internal bool? IsInAccessibleTree;
     internal bool ExcludedWithChildren;
+    /// <summary>The node's own live region (<see cref="SkUiAccessibility.LiveRegionProperty"/>); elements inside inherit it.</summary>
+    internal SkUiLiveRegion LiveRegion;
+    /// <summary>The value changes often (<see cref="SkUiAccessibility.UpdatesFrequentlyProperty"/>).</summary>
+    internal bool UpdatesFrequently;
     /// <summary>The element stands for its subtree: its descendants are not read (a loading shimmer's skeleton).</summary>
     internal bool ChildrenHidden;
     internal string? AutomationId;
@@ -186,6 +190,8 @@ public sealed class SkUiSemanticsInfo
         IsInAccessibleTree = null;
         ExcludedWithChildren = false;
         ChildrenHidden = false;
+        LiveRegion = SkUiLiveRegion.None;
+        UpdatesFrequently = false;
         IsNative = false;
         Parts?.Clear();
         CustomActions?.Clear();

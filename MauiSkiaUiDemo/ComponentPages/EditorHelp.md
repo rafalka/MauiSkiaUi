@@ -677,6 +677,40 @@ Whether tapping a picture opens it, zoomable, through the app's popup presenter.
 
 `SkUiMarkdownStyle.CodeFontSize`, set by copying the style with `with`: the document is built again.
 
+## StackedBarDemoPage.Taken
+
+The first part's `SkUiBarSegment.Value` (hours taken). The bar tweens every part to its new share with the look's `StackedBar`
+transition; negative values count as 0.
+
+## StackedBarDemoPage.Scheduled
+
+The second part's `SkUiBarSegment.Value` (hours scheduled).
+
+## StackedBarDemoPage.Available
+
+The third part's `SkUiBarSegment.Value` (hours available). With `Maximum` at -1 the parts always fill the bar; set a maximum to
+see the track after them.
+
+## CoreProgressRingDemoPage.Bar: worked
+
+The stacked bar's first `SkUiBarValue` (hours worked), replaced with `SetSegments`: the parts move to their new values.
+
+## CoreProgressRingDemoPage.Bar: overtime
+
+The stacked bar's second `SkUiBarValue` (overtime hours), out of a maximum of 40.
+
+## ChipsDemoPage.Image
+
+Shows a leading image (`ImageSource`, a font glyph) on the chip. A selected filter chip with an image shows no check.
+
+## CoreChipsDemoPage.Filters wrap
+
+The Core filter group's `SkUiCoreChipGroup.Wraps`: rows (on) or one scrolling row (off).
+
+## CoreChipsDemoPage.Filter kind
+
+The Core filter group's `SkUiCoreChipGroup.ChipKind`: input chips show their ×.
+
 ## SegmentedControlDemoPage.Year segment enabled
 
 Whether the fourth segment (`SkUiSegment.IsEnabled`) can be chosen. A disabled segment is dimmed and ignores taps; the

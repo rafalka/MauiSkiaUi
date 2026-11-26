@@ -111,7 +111,7 @@ public class SkUiCoreButton : SkUiCoreLabel, SkUiButtonImageLayout.IText
     internal Task ImageLoadingTask => _image?.LoadingTask ?? Task.CompletedTask;
 
     /// <summary>Where the image and the text sit in the arranged button.</summary>
-    private SkUiButtonImageLayout.Placement ImagePlacement => SkUiButtonImageLayout.Arrange(this, ImageSize, _contentLayout, Padding, Frame.Width, Frame.Height,
+    private SkUiButtonImageLayout.Placement ImagePlacement => SkUiButtonImageLayout.Arrange(this, ImageSize, _contentLayout, ContentPadding, Frame.Width, Frame.Height,
         HorizontalTextAlignment, VerticalTextAlignment, IsRightToLeft);
 
     /// <inheritdoc />
@@ -220,7 +220,7 @@ public class SkUiCoreButton : SkUiCoreLabel, SkUiButtonImageLayout.IText
     protected override Size MeasureContent(double widthConstraint, double heightConstraint)
     {
         var size = ImageSize is { Width: > 0 } image
-            ? SkUiButtonImageLayout.Measure(this, image, _contentLayout, Padding, widthConstraint, heightConstraint)
+            ? SkUiButtonImageLayout.Measure(this, image, _contentLayout, ContentPadding, widthConstraint, heightConstraint)
             : base.MeasureContent(widthConstraint, heightConstraint);
         if (!_minimumHeightExplicit)
             size = new Size(size.Width, Math.Max(size.Height, DefaultMinimumHeight));
@@ -261,6 +261,9 @@ public class SkUiCoreButton : SkUiCoreLabel, SkUiButtonImageLayout.IText
     /// <inheritdoc />
     internal override SKPath? CreateShadowOutline(float width, float height) =>
         ReferenceEquals(PaintBackground, _buttonPainter) ? ChromeShadowOutline(width, height, CornerRadii, ButtonFill(IsInteractionEnabled).ToPaint()) : null;
+
+    /// <summary>The press feedback now (for subclasses that draw their own chrome).</summary>
+    private protected SkUiPressVisual PressVisual => _press?.Visual ?? SkUiPressVisual.None;
 
     /// <inheritdoc />
     internal override bool HasIntrinsicTap => true;

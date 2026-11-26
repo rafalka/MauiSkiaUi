@@ -781,10 +781,10 @@ public class SkUiLabel : SkUiView, ISkUiFontElement, ISkUiBorderElement
     protected override Size MeasureContent(double widthConstraint, double heightConstraint)
     {
         if (!HasText && SkeletonPlaceholderLines is > 0 and var lines)
-            return SkUiSkeletonScope.PlaceholderSize(lines, _layout.LineSpacing(TextStyle), EffectiveFontSize, _padding, widthConstraint);
+            return SkUiSkeletonScope.PlaceholderSize(lines, _layout.LineSpacing(TextStyle), EffectiveFontSize, ContentPadding, widthConstraint);
         return UsesRichText
-            ? RichLayout.Measure(RichText, TextStyle, _padding, widthConstraint, heightConstraint)
-            : _layout.Measure(_displayText, TextStyle, _padding, widthConstraint, heightConstraint);
+            ? RichLayout.Measure(RichText, TextStyle, ContentPadding, widthConstraint, heightConstraint)
+            : _layout.Measure(_displayText, TextStyle, ContentPadding, widthConstraint, heightConstraint);
     }
 
     /// <summary>Whether an empty label shows placeholder lines in a skeleton made from content (buttons: their shape is the bone).</summary>
@@ -835,10 +835,20 @@ public class SkUiLabel : SkUiView, ISkUiFontElement, ISkUiBorderElement
     private protected bool HasText => (UsesRichText ? RichText.Text : _displayText).Length > 0;
 
     /// <summary>The text's slot in the arranged label, as an inset from its edges: <see cref="Padding"/> (buttons: beside their image).</summary>
-    private protected virtual Thickness TextInset => _padding;
+    private protected virtual Thickness TextInset => ContentPadding;
+
+    /// <summary>
+    /// Room the control's own chrome takes inside the padding (a chip's check, badge and remove button), added to it for measuring and
+    /// placing the text and image; none for labels and buttons.
+    /// </summary>
+    private protected virtual Thickness ChromeInset => default;
+
+    /// <summary>The padding plus the <see cref="ChromeInset"/>: where the text and image go.</summary>
+    private protected Thickness ContentPadding => ChromeInset is var chrome && chrome == default ? _padding
+        : new Thickness(_padding.Left + chrome.Left, _padding.Top + chrome.Top, _padding.Right + chrome.Right, _padding.Bottom + chrome.Bottom);
 
     /// <summary>The padding drawn: <see cref="Padding"/>, or the look's default under a subtree's own look when unset.</summary>
-    private protected Thickness AppliedPadding => _padding;
+    private protected Thickness AppliedPadding => ContentPadding;
 
     /// <summary>Whether glyphs are clipped to the text's slot (<see cref="TextInset"/>), not only to the bounds: buttons keep text that does not fit out of their padding and image.</summary>
     private protected virtual bool ClipsTextToInset => false;

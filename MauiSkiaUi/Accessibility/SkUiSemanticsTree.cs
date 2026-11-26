@@ -80,6 +80,10 @@ internal sealed class SkUiSemanticsNode
     /// passes through it.
     /// </summary>
     public bool IsIdOnly;
+    /// <summary>How changes of the element are read (its own live region or the nearest ancestor's).</summary>
+    public SkUiLiveRegion LiveRegion;
+    /// <summary>The element's value changes often (<see cref="SkUiAccessibility.UpdatesFrequentlyProperty"/>).</summary>
+    public bool UpdatesFrequently;
     /// <summary><see cref="Bounds"/> and every descendant's (set for hit-testing: subtrees away from the point are skipped).</summary>
     internal Rect Extent;
 
@@ -96,12 +100,21 @@ internal sealed class SkUiSemanticsNode
         && Actions == other.Actions && IsHorizontal == other.IsHorizontal && IsExpanded == other.IsExpanded && TextField == other.TextField
         && HeadingLevel == other.HeadingLevel
         && AutomationId == other.AutomationId && IsFocusable == other.IsFocusable && IsFocused == other.IsFocused && IsNative == other.IsNative
-        && IsIdOnly == other.IsIdOnly && PartIndex == other.PartIndex
+        && IsIdOnly == other.IsIdOnly && PartIndex == other.PartIndex && LiveRegion == other.LiveRegion && UpdatesFrequently == other.UpdatesFrequently
         && (ReferenceEquals(CustomActions, other.CustomActions)
             || (CustomActions is not null && other.CustomActions is not null && CustomActions.AsSpan().SequenceEqual(other.CustomActions)));
 
     /// <summary>The value read for a range element without an explicit one: a percentage (as native sliders).</summary>
     public string? DisplayValue => Value ?? (Range is { } range ? range.Fraction.ToString("P0", System.Globalization.CultureInfo.CurrentCulture) : null);
+
+    /// <summary>What a live region reads: the name and the value, or <c>null</c> when both are empty.</summary>
+    public string? SpokenText => (Label, DisplayValue) switch
+    {
+        ({ Length: > 0 } label, { Length: > 0 } value) => $"{label}, {value}",
+        ({ Length: > 0 } label, _) => label,
+        (_, { Length: > 0 } value) => value,
+        _ => null
+    };
 
     public override string ToString() => $"#{Id} {Role} \"{Label}\" {Bounds}";
 }
@@ -147,6 +160,11 @@ internal sealed class SkUiSemanticsTree
 
     /// <summary>Every element, by id (the root included).</summary>
     public IReadOnlyDictionary<int, SkUiSemanticsNode> Nodes => _byId;
+
+    /// <summary>The elements with a live region, in reading order.</summary>
+    public IReadOnlyList<SkUiSemanticsNode> LiveNodes => (IReadOnlyList<SkUiSemanticsNode>?)_live ?? [];
+
+    private List<SkUiSemanticsNode>? _live;
 
     /// <summary>The element with <paramref name="id"/>, or <c>null</c>.</summary>
     public SkUiSemanticsNode? Find(int id) => _byId.GetValueOrDefault(id);
@@ -265,7 +283,8 @@ internal sealed class SkUiSemanticsTree
         // The surface shows the root's local space: its own frame offset is outside the surface.
         props.X = props.Y = 0;
         var builder = new Builder(tree, focus, root, exposeAutomationIds ?? SkUiAccessibility.ExposeAutomationIds);
-        builder.Visit(root, props, SKMatrix.Identity, new SKRect(0, 0, props.Width, props.Height), rootNode, absorber: null, enabled: true);
+        builder.Visit(root, props, SKMatrix.Identity, new SKRect(0, 0, props.Width, props.Height), rootNode, absorber: null, enabled: true,
+            live: SkUiLiveRegion.None);
         return tree;
     }
 
@@ -307,7 +326,7 @@ internal sealed class SkUiSemanticsTree
         }
 
         public void Visit(ISkUiRenderable node, SkUiRenderProps props, SKMatrix parentToRoot, SKRect clip, SkUiSemanticsNode parent, Absorber? absorber,
-            bool enabled)
+            bool enabled, SkUiLiveRegion live)
         {
             if (props.IsSkipped)
                 return;
@@ -344,6 +363,8 @@ internal sealed class SkUiSemanticsTree
                 if (_info.ExcludedWithChildren)
                     return;
                 childrenHidden = _info.ChildrenHidden;
+                if (_info.LiveRegion != SkUiLiveRegion.None)
+                    live = _info.LiveRegion;
                 if (_info.IsNative)
                 {
                     if (!visible.IsEmpty)
@@ -361,11 +382,16 @@ internal sealed class SkUiSemanticsTree
                         // Read as part of the actionable (or described) ancestor.
                         if (absorber.Collects && text is not null)
                             (absorber.Merged ??= []).Add(text);
+                        // A live text inside a group: the group reads its changes.
+                        if (live > absorber.Element.LiveRegion)
+                            SetLive(absorber.Element, live);
                     }
                     else if (!visible.IsEmpty)
                     {
                         element = NewNode(accessible, SlopFrame(node, props, toRoot, clip) ?? visible, text, native: false);
                         Add(parent, element);
+                        if (live != SkUiLiveRegion.None)
+                            SetLive(element, live);
                         parts = NewPartNodes(accessible, toRoot, visible);
                         var described = Clean(_info.Description) is not null;
                         childAbsorber = actionable || described ? new Absorber(element, collects: !described) { AutomationIdRoot = _info.AutomationIdRoot } : null;
@@ -411,9 +437,9 @@ internal sealed class SkUiSemanticsTree
                     var child = _children[index];
                     var childProps = GetProps(child);
                     if (childProps.Pinned)
-                        Visit(child, childProps, toRoot, ownClip, element, childAbsorber, childrenEnabled);
+                        Visit(child, childProps, toRoot, ownClip, element, childAbsorber, childrenEnabled, live);
                     else
-                        Visit(child, childProps, childrenToRoot, childrenClip, element, childAbsorber, childrenEnabled);
+                        Visit(child, childProps, childrenToRoot, childrenClip, element, childAbsorber, childrenEnabled, live);
                 }
             }
             finally
@@ -520,8 +546,17 @@ internal sealed class SkUiSemanticsTree
                 AutomationId = info.AutomationId,
                 IsFocusable = !native && source.IsKeyboardFocusable,
                 IsFocused = !native && (focus?.Focused is { } focused ? ReferenceEquals(focused, source) : source.IsFocused),
+                UpdatesFrequently = info.UpdatesFrequently,
                 IsNative = native
             };
+        }
+
+        /// <summary>Gives <paramref name="node"/> a live region (the tree lists it once).</summary>
+        private void SetLive(SkUiSemanticsNode node, SkUiLiveRegion live)
+        {
+            if (node.LiveRegion == SkUiLiveRegion.None)
+                (tree._live ??= []).Add(node);
+            node.LiveRegion = live;
         }
 
         private void Add(SkUiSemanticsNode parent, SkUiSemanticsNode node)

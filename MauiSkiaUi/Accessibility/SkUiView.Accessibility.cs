@@ -183,6 +183,8 @@ public partial class SkUiView : ISkUiAccessibleNode
         info.HeadingLevel = SemanticProperties.GetHeadingLevel(this);
         info.IsInAccessibleTree = AutomationProperties.GetIsInAccessibleTree(this);
         info.ExcludedWithChildren = AutomationProperties.GetExcludedWithChildren(this) == true;
+        info.LiveRegion = SkUiAccessibility.GetLiveRegion(this);
+        info.UpdatesFrequently = SkUiAccessibility.GetUpdatesFrequently(this);
         info.AutomationId = AutomationId;
     }
 
@@ -244,7 +246,7 @@ public partial class SkUiView : ISkUiAccessibleNode
     /// <summary>Whether a MAUI property that semantics read changed (attached properties are reported by name).</summary>
     private static bool IsSemanticProperty(string? propertyName) => propertyName is
         "Description" or "Hint" or "HeadingLevel" or "Name" or "HelpText" or "IsInAccessibleTree" or "ExcludedWithChildren"
-        or nameof(AutomationId);
+        or "LiveRegion" or "UpdatesFrequently" or nameof(AutomationId);
 
     /// <summary>Draws the look's focus ring over the view (overlay layer).</summary>
     private void DrawFocusRing(SKCanvas canvas) =>
