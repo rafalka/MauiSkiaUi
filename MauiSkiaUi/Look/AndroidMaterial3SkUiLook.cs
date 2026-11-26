@@ -88,6 +88,14 @@ public class AndroidMaterial3SkUiLook : AndroidSkUiLook
     public override bool ProgressBarHasStopIndicator => true;
 
     /// <inheritdoc />
+    /// <remarks>Material 3's circular indicator: a gap between the arc and the track.</remarks>
+    public override float ProgressRingGap => 4;
+
+    /// <inheritdoc />
+    /// <remarks>Material 3's 4 dp gap between an indicator's parts.</remarks>
+    public override float StackedBarSegmentSpacing => 4;
+
+    /// <inheritdoc />
     /// <remarks>A 4 dp linear indicator.</remarks>
     public override double DefaultProgressBarHeight => 4;
 

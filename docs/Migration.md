@@ -57,6 +57,8 @@ Checked against .NET MAUI 10.0.130 (`MauiApiParityTests` compares every drawn co
 | CarouselView, IndicatorView | `SkUiCarouselView`; `SkUiIndicatorView` + Core | Done: `ItemsLayout` (or the items layout as carousel properties), `ItemsUpdatingScrollMode`, scroll bars, `IndicatorTemplate` (SkUi* only); `VisibleViews` (1.17); plus several items in view or per swipe, autoplay, item effects and `SkUiCoreCarouselView` (1.17) |
 | — (third-party segmented controls) | `SkUiSegmentedControl` + Core | Done in 1.17: text and icon segments or items, a sliding selection drawn by the look |
 | — (tabs inside a page: third-party tab views, buttons over a `CarouselView`) | `SkUiTabView` + Core | Done in 1.17: a tab strip over swiped panes; `TabbedPage` and Shell tabs stay MAUI's |
+| — (third-party chips, pills in a `FlexLayout`) | `SkUiChip`, `SkUiChipGroup` + Core | Done in 1.18: action, filter, input and suggestion chips; groups that wrap or scroll in a row |
+| — (circular progress views, multi-part bars) | `SkUiProgressRing`, `SkUiStackedBar` + Core | Done in 1.18: a ring with content in the middle; a bar of several coloured parts |
 | Picker | `SkUiPicker` + Core | Done: drawn field, drawn list on the app's popup system (`ISkUiPopupPresenter`); plus placement, drawn rows, keyboard and type-ahead everywhere; `UpdateMode` on every platform |
 | DatePicker, TimePicker | `SkUiDatePicker`, `SkUiTimePicker` + Core; `SkUiDateTimePicker` | Done: drawn wheels on the app's popup system; plus wheel formats, ranges of times, steps, blackout days; a month calendar popup for the date pickers (`PopupStyle`, 1.13) |
 | — (third-party calendars) | `SkUiCalendar` + Core | Done in 1.13: month / year / decade / century pages, single, multiple, range and multiple-range selection, day and range rules, events under the days |
@@ -458,6 +460,14 @@ MAUI has neither; these replace third-party controls and hand-made ones (1.17, [
 
 - **A segmented control** (third-party, or a row of buttons or radio buttons restyled on selection) → `sk:SkUiSegmentedControl`: its items → `Segments` (`sk:SkUiSegment`: `Text`, `Icon`, `IsEnabled`) or `ItemsSource` with `ItemDisplayBinding`; the selected index or item → `SelectedIndex` / `SelectedItem` (two-way); its event → `SelectionChanged` (`PreviousIndex`, `CurrentIndex`), raised for every change, or `Command`, run only after the user's choice; equal or content-sized segments → `SegmentWidthMode`. Its chrome is the look's (`SegmentedStyle`, `SegmentedMetrics`), so platform-specific styling usually goes.
 - **A tab view inside a page** (third-party, the Xamarin Community Toolkit's `TabView`, or buttons over a `CarouselView` or a `Grid` of views toggled by `IsVisible`) → `sk:SkUiTabView`: each item → `sk:SkUiTabItem` (`Header`, `Icon`, `BadgeText`, `IsEnabled`, `Content`, or `ContentTemplate` for content made when first shown); the selected index → `SelectedIndex` (two-way); the bar's place → `TabStripPlacement`; equal or content-sized headers → `TabWidthMode`; the indicator → `IndicatorStyle` and `IndicatorColor`; swiping → `IsSwipeEnabled`; its event → `SelectionChanged`. Panes are kept once created, so code that saves and restores their state goes. Not there: tabs from an `ItemsSource`, tabs on the left or right, a close button, an overflow menu.
+
+## Chips, progress rings and stacked bars
+
+MAUI has none of them; these replace third-party controls and hand-made ones (1.18, [SkUiChip.md](controls/SkUiChip.md), [SkUiProgressRing.md](controls/SkUiProgressRing.md), [SkUiStackedBar.md](controls/SkUiStackedBar.md)).
+
+- **Chips** (third-party, or `Border` + `Label` pills in a `FlexLayout` or a `BindableLayout`, restyled by triggers when selected) → `sk:SkUiChipGroup`: the items → `ItemsSource` with `ItemDisplayBinding`; one or several selected → `SelectionMode="Single"` with `SelectedItem`, or `"Multiple"` with `SelectedItems`; a horizontally scrolling row → `Wraps="False"`, the page margin as `Padding`; chips with a close button → `ChipKind="Input"`, removing the item in `ChipRemoved`; a count → `BadgeText` on a single `sk:SkUiChip`. The selected look is the look's, so the triggers go.
+- **A circular progress view** (third-party, or an arc drawn in a `GraphicsView`) → `sk:SkUiProgressRing`: the value → `Progress` (0–1) or `ProgressTo`; the text in the middle → its `Content`; the stroke → `Thickness`, `ProgressColor`, `TrackColor`, `LineCap`; spinning → `IsIndeterminate`.
+- **A bar of several parts** (a `Grid` of boxes with star widths computed in the view model) → `sk:SkUiStackedBar` with an `sk:SkUiBarSegment` per part (`Value`, `Color`, `Label` for screen readers); the total → `Maximum` (the sum by default); the legend stays app layout.
 
 ## Pickers (`Picker`)
 

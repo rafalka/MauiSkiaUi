@@ -205,6 +205,9 @@ public class SkUiStrings
     /// <summary>What screen readers read for a loading shimmer instead of its skeleton. Default "Loading".</summary>
     public virtual string LoadingText { get; set => Set(ref field, value); } = "Loading";
 
+    /// <summary>The screen-reader action that removes a chip (its ×). Default "Remove".</summary>
+    public virtual string RemoveText { get; set => Set(ref field, value); } = "Remove";
+
     /// <summary>The screen-reader action that moves a reorderable collection view item one place up. Default "Move up".</summary>
     public virtual string MoveUpText { get; set => Set(ref field, value); } = "Move up";
 

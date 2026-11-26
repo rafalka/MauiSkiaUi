@@ -29,6 +29,23 @@ internal sealed class SkUiSemanticsOwner
     private long _firstChange;
     private long _lastChange;
 
+    /// <summary>How long a live region's changes are gathered before its last text is read.</summary>
+    internal static TimeSpan LiveRegionDelay { get; set; } = TimeSpan.FromMilliseconds(300);
+
+    /// <summary>What was last read (or first seen) for each live element still in the tree, by id.</summary>
+    private readonly Dictionary<int, string?> _liveText = [];
+
+    /// <summary>Live elements whose text changed, and when their last text is due to be read (<see cref="Environment.TickCount64"/>).</summary>
+    private readonly Dictionary<int, long> _livePending = [];
+
+    private bool _liveScheduled;
+
+    /// <summary>
+    /// Raised (UI thread) for text a screen reader should read: a live element's new text (the element, its text, how) once its
+    /// changes settled, or <see cref="SkUiAccessibility.Announce(SkUiView, string, SkUiLiveRegion)"/>'s text (no element).
+    /// </summary>
+    public event Action<SkUiSemanticsNode?, string, SkUiLiveRegion>? Announcement;
+
     public SkUiSemanticsOwner(SkUiView root)
     {
         _root = root;
@@ -66,14 +83,23 @@ internal sealed class SkUiSemanticsOwner
         add
         {
             _changed += value;
-            _reported ??= Tree;
+            if (_reported is not null)
+                return;
+            _reported = Tree;
+            // What shows when a screen reader starts reading is not a change: only later changes are read.
+            foreach (var node in _reported.LiveNodes)
+                _liveText[node.Id] = node.SpokenText;
         }
         remove
         {
             _changed -= value;
             // Nobody compares with it any more: a kept tree would keep removed nodes alive.
             if (_changed is null)
+            {
                 _reported = null;
+                _liveText.Clear();
+                _livePending.Clear();
+            }
         }
     }
 
@@ -83,7 +109,10 @@ internal sealed class SkUiSemanticsOwner
         if (ReferenceEquals(_root.SemanticsOwner, this))
             _root.SemanticsOwner = null;
         _changed = null;
+        Announcement = null;
         _tree = _reported = null;
+        _liveText.Clear();
+        _livePending.Clear();
     }
 
     /// <summary>The drawn tree changed: rebuild on the next read, and report the change when listened to.</summary>
@@ -120,7 +149,10 @@ internal sealed class SkUiSemanticsOwner
     }
 
     /// <summary>Reports what changed since the last report (normally run by <see cref="Invalidate"/>'s timer).</summary>
-    internal void Flush()
+    internal void Flush() => Flush(Environment.TickCount64);
+
+    /// <summary><see cref="Flush()"/> at <paramref name="now"/> (<see cref="Environment.TickCount64"/>; tests pass their own).</summary>
+    internal void Flush(long now)
     {
         _scheduled = false;
         if (_changed is not { } changed)
@@ -131,8 +163,96 @@ internal sealed class SkUiSemanticsOwner
         var (structure, ids) = current.Diff(_reported);
         _reported = current;
         if (structure || ids.Count > 0)
+        {
+            // First: bridges ask which changes wait to be read (IsLivePending).
+            DetectLiveChanges(current, now);
             changed(structure, ids);
+        }
     }
+
+    /// <summary>
+    /// Live elements whose text differs from what was last read are due <see cref="LiveRegionDelay"/> after their first change
+    /// (later changes within it replace the text); elements that left the tree are forgotten, so they are read once when they
+    /// come back.
+    /// </summary>
+    private void DetectLiveChanges(SkUiSemanticsTree tree, long now)
+    {
+        var live = tree.LiveNodes;
+        if (live.Count == 0 && _liveText.Count == 0)
+            return;
+        if (_liveText.Count > 0)
+            foreach (var id in _liveText.Keys.ToArray())
+                if (tree.Find(id) is not { LiveRegion: not SkUiLiveRegion.None })
+                {
+                    _liveText.Remove(id);
+                    _livePending.Remove(id);
+                }
+        foreach (var node in live)
+        {
+            var text = node.SpokenText;
+            if (_liveText.TryGetValue(node.Id, out var last) && last == text)
+            {
+                _livePending.Remove(node.Id); // back to what was read: nothing to say
+                continue;
+            }
+            _livePending.TryAdd(node.Id, now + (long)LiveRegionDelay.TotalMilliseconds);
+        }
+        ScheduleLive(now);
+    }
+
+    private void ScheduleLive(long now)
+    {
+        if (_liveScheduled || _livePending.Count == 0)
+            return;
+        // Without a dispatcher (headless) the texts wait for ReadDueLiveRegions.
+        if (Microsoft.Maui.Dispatching.Dispatcher.GetForCurrentThread() is not { } dispatcher)
+            return;
+        _liveScheduled = true;
+        var due = _livePending.Values.Min();
+        dispatcher.DispatchDelayed(TimeSpan.FromMilliseconds(Math.Max(1, due - now)), () =>
+        {
+            _liveScheduled = false;
+            var at = Environment.TickCount64;
+            ReadDueLiveRegions(at);
+            ScheduleLive(at);
+        });
+    }
+
+    /// <summary>Reads the live elements that are due at <paramref name="now"/>: each one's current text, when it still shows and differs.</summary>
+    internal void ReadDueLiveRegions(long now)
+    {
+        if (_livePending.Count == 0)
+            return;
+        List<int>? due = null;
+        foreach (var (id, at) in _livePending)
+            if (at <= now)
+                (due ??= []).Add(id);
+        if (due is null)
+            return;
+        // The tree as it is now: a change since the last report is read, not an older text.
+        var tree = Tree;
+        foreach (var id in due)
+        {
+            _livePending.Remove(id);
+            if (tree.Find(id) is not { LiveRegion: not SkUiLiveRegion.None } node)
+            {
+                _liveText.Remove(id);
+                continue;
+            }
+            var text = node.SpokenText;
+            if (_liveText.TryGetValue(id, out var last) && last == text)
+                continue;
+            _liveText[id] = text;
+            if (text is not null)
+                Announcement?.Invoke(node, text, node.LiveRegion);
+        }
+    }
+
+    /// <summary>Whether live element <paramref name="id"/> has new text waiting to be read (bridges report it then, not now).</summary>
+    public bool IsLivePending(int id) => _livePending.ContainsKey(id);
+
+    /// <summary>Reads <paramref name="text"/> tied to no element (<see cref="SkUiAccessibility.Announce(SkUiView, string, SkUiLiveRegion)"/>).</summary>
+    internal void Announce(string text, SkUiLiveRegion politeness) => Announcement?.Invoke(null, text, politeness);
 
     /// <summary>Performs <paramref name="action"/> on element <paramref name="id"/>; returns whether it was done.</summary>
     public bool Perform(int id, SkUiSemanticsActions action) =>

@@ -767,6 +767,205 @@ public partial class SkUiLook
 
     #endregion
 
+    #region ProgressRing
+
+    /// <summary>Default ProgressRing diameter in DIPs (also the least one when it has content).</summary>
+    public virtual double DefaultProgressRingSize => 40;
+
+    /// <summary>Default ProgressRing stroke thickness in DIPs (the control's <c>Thickness</c> of <c>-1</c>).</summary>
+    public virtual float ProgressRingThickness => 4;
+
+    /// <summary>Length of the arc an indeterminate ProgressRing shows, in degrees.</summary>
+    public virtual float IndeterminateProgressRingSweep => 90;
+
+    /// <summary>Seconds for an indeterminate ProgressRing's arc to turn once.</summary>
+    public virtual float IndeterminateProgressRingPeriod => 1;
+
+    /// <summary>
+    /// Optional ProgressRing intrinsic measure override: the width and height constraints, the stroke thickness and the size the
+    /// content asks for inside the ring (<see cref="Size.Zero"/> without content).
+    /// </summary>
+    public Func<double, double, float, Size, Size>? ProgressRingMeasure { get; set; }
+
+    /// <summary>Optional ProgressRing painter; when set, replaces <see cref="DrawProgressRingCore"/>.</summary>
+    public Action<SKCanvas, SkUiProgressRingPaint>? ProgressRingPainter { get; set; }
+
+    /// <summary>
+    /// Intrinsic ProgressRing size in DIPs, for a stroke of <paramref name="thickness"/> around content that asks for
+    /// <paramref name="content"/> (its square inscribed in the inner circle; <see cref="Size.Zero"/> without content).
+    /// </summary>
+    public Size MeasureProgressRing(double widthConstraint, double heightConstraint, float thickness, Size content) =>
+        ProgressRingMeasure?.Invoke(widthConstraint, heightConstraint, thickness, content)
+        ?? MeasureProgressRingCore(widthConstraint, heightConstraint, thickness, content);
+
+    /// <summary>
+    /// Default ProgressRing size: a square of <see cref="DefaultProgressRingSize"/>, or larger when the content's square
+    /// (its larger side) needs a larger inner circle.
+    /// </summary>
+    protected virtual Size MeasureProgressRingCore(double widthConstraint, double heightConstraint, float thickness, Size content)
+    {
+        var side = Math.Max(content.Width, content.Height);
+        var diameter = Math.Max(DefaultProgressRingSize, side > 0 ? side * Math.Sqrt(2) + 2 * thickness : 0);
+        return new Size(diameter, diameter);
+    }
+
+    /// <summary>
+    /// Draws a ProgressRing (delegate or <see cref="DrawProgressRingCore"/>): the track around the whole circle and the arc
+    /// of the progress from <see cref="SkUiProgressRingPaint.StartAngle"/>. Indeterminate: the track and one arc of
+    /// <see cref="SkUiProgressRingPaint.Sweep"/> from the start angle; the compositor turns the picture about the centre on
+    /// the render thread, so a painter draws a centred, rotation-symmetric track.
+    /// </summary>
+    public void DrawProgressRing(SKCanvas canvas, SkUiProgressRingPaint ring)
+    {
+        if (ProgressRingPainter is { } painter)
+        {
+            painter(canvas, ring);
+            return;
+        }
+        DrawProgressRingCore(canvas, ring);
+    }
+
+    /// <summary>Default ProgressRing geometry.</summary>
+    protected virtual void DrawProgressRingCore(SKCanvas canvas, SkUiProgressRingPaint ring) { }
+
+    #endregion
+
+    #region StackedBar
+
+    /// <summary>Default StackedBar height in DIPs.</summary>
+    public virtual double DefaultStackedBarHeight => 8;
+
+    /// <summary>Default gap between a StackedBar's parts in DIPs (the control's <c>SegmentSpacing</c> of <c>-1</c>).</summary>
+    public virtual float StackedBarSegmentSpacing => 2;
+
+    /// <summary>Corner radius of a StackedBar's outer ends for a bar of <paramref name="height"/> (default: the progress bar's).</summary>
+    public virtual float GetStackedBarCornerRadius(float height) => GetProgressBarCornerRadius(height);
+
+    /// <summary>Optional StackedBar intrinsic measure override.</summary>
+    public Func<double, double, Size>? StackedBarMeasure { get; set; }
+
+    /// <summary>Optional StackedBar painter; when set, replaces <see cref="DrawStackedBarCore"/>.</summary>
+    public Action<SKCanvas, SkUiStackedBarPaint>? StackedBarPainter { get; set; }
+
+    /// <summary>Intrinsic StackedBar size in DIPs.</summary>
+    public Size MeasureStackedBar(double widthConstraint, double heightConstraint) =>
+        StackedBarMeasure?.Invoke(widthConstraint, heightConstraint)
+        ?? MeasureStackedBarCore(widthConstraint, heightConstraint);
+
+    /// <summary>Default StackedBar size: the offered width (else <see cref="DefaultProgressBarLength"/>) by <see cref="DefaultStackedBarHeight"/>.</summary>
+    protected virtual Size MeasureStackedBarCore(double widthConstraint, double heightConstraint) =>
+        new(double.IsFinite(widthConstraint) ? widthConstraint : DefaultProgressBarLength, DefaultStackedBarHeight);
+
+    /// <summary>
+    /// Draws a StackedBar (delegate or <see cref="DrawStackedBarCore"/>), in left-to-right coordinates (the control mirrors
+    /// right-to-left layouts): its parts side by side from the start, each <see cref="SkUiStackedBarPart"/> a fraction of the
+    /// bar, and the track after the last up to the maximum.
+    /// </summary>
+    public void DrawStackedBar(SKCanvas canvas, SkUiStackedBarPaint bar)
+    {
+        if (StackedBarPainter is { } painter)
+        {
+            painter(canvas, bar);
+            return;
+        }
+        DrawStackedBarCore(canvas, bar);
+    }
+
+    /// <summary>Default StackedBar geometry.</summary>
+    protected virtual void DrawStackedBarCore(SKCanvas canvas, SkUiStackedBarPaint bar) { }
+
+    #endregion
+
+    #region Chip
+
+    /// <summary>A chip's least height in DIPs (Material: 32).</summary>
+    public virtual double DefaultChipHeight => 32;
+
+    /// <summary>A chip's padding (the control's <c>Padding</c> until set).</summary>
+    public virtual Thickness DefaultChipPadding => new(12, 4);
+
+    /// <summary>A chip's corner radius (Material 3: 8; a pill when at least half its height).</summary>
+    public virtual double DefaultChipCornerRadius => 8;
+
+    /// <summary>The width of an unselected chip's outline in DIPs.</summary>
+    public virtual float ChipStrokeWidth => 1;
+
+    /// <summary>The size of a chip's check, remove button and image in DIPs.</summary>
+    public virtual float ChipIconSize => 18;
+
+    /// <summary>The font size of a chip's badge in DIPs (the chip's <c>BadgeFontSize</c> of <c>-1</c>).</summary>
+    public virtual double ChipBadgeFontSize => 11;
+
+    /// <summary>The gap between a chip's text and its check, badge or remove button in DIPs.</summary>
+    public virtual float ChipIconSpacing => 6;
+
+    /// <summary>Optional chip painter; when set, replaces <see cref="DrawChipCore"/>.</summary>
+    public Action<SKCanvas, SkUiChipPaint>? ChipPainter { get; set; }
+
+    /// <summary>
+    /// Draws a chip's chrome (delegate or <see cref="DrawChipCore"/>): its shape, press feedback, check, badge pill and remove
+    /// button; the control draws the image and the texts over it.
+    /// </summary>
+    public void DrawChip(SKCanvas canvas, SkUiChipPaint chip)
+    {
+        if (ChipPainter is { } painter)
+        {
+            painter(canvas, chip);
+            return;
+        }
+        DrawChipCore(canvas, chip);
+    }
+
+    /// <summary>
+    /// Default chip: the fill and outline in its rounded shape, a dim of the foreground while pressed, a check, a pill for the
+    /// badge and an ×.
+    /// </summary>
+    protected virtual void DrawChipCore(SKCanvas canvas, SkUiChipPaint chip)
+    {
+        var bounds = chip.Bounds;
+        if (bounds.Width <= 0 || bounds.Height <= 0) return;
+        DrawRoundedBox(canvas, bounds, chip.CornerRadii, chip.Fill, chip.Stroke, chip.StrokeWidth);
+        using var scratch = SkUiScratchPaint.Rent(chip.Foreground);
+        var paint = scratch.Paint;
+        paint.IsAntialias = true;
+        if (chip.Press.Pressed > 0)
+        {
+            paint.Color = chip.Foreground.WithAlpha((byte)(chip.Foreground.Alpha * 0.12f * Math.Clamp(chip.Press.Pressed, 0, 1)));
+            DrawRoundedBox(canvas, bounds, chip.CornerRadii, paint.Color, SKColors.Transparent, 0);
+        }
+        paint.Style = SKPaintStyle.Stroke;
+        paint.StrokeCap = SKStrokeCap.Round;
+        paint.StrokeJoin = SKStrokeJoin.Round;
+        if (!chip.CheckBounds.IsEmpty)
+        {
+            var check = chip.CheckBounds;
+            paint.Color = chip.Foreground;
+            paint.StrokeWidth = Math.Max(1.5f, check.Width / 9);
+            var corner = new SKPoint(check.Left + check.Width * 0.42f, check.Top + check.Height * 0.74f);
+            canvas.DrawLine(check.Left + check.Width * 0.18f, check.Top + check.Height * 0.52f, corner.X, corner.Y, paint);
+            canvas.DrawLine(corner.X, corner.Y, check.Left + check.Width * 0.84f, check.Top + check.Height * 0.28f, paint);
+        }
+        if (!chip.BadgeBounds.IsEmpty)
+        {
+            paint.Style = SKPaintStyle.Fill;
+            paint.Color = chip.BadgeFill;
+            var radius = chip.BadgeBounds.Height / 2;
+            canvas.DrawRoundRect(chip.BadgeBounds, radius, radius, paint);
+        }
+        if (!chip.RemoveBounds.IsEmpty)
+        {
+            var remove = chip.RemoveBounds;
+            var arm = remove.Width * 0.22f;
+            paint.Style = SKPaintStyle.Stroke;
+            paint.StrokeWidth = 1.5f;
+            paint.Color = chip.Foreground.WithAlpha((byte)(chip.Foreground.Alpha * (chip.IsRemovePressed ? 0.6f : 1f)));
+            canvas.DrawLine(remove.MidX - arm, remove.MidY - arm, remove.MidX + arm, remove.MidY + arm, paint);
+            canvas.DrawLine(remove.MidX - arm, remove.MidY + arm, remove.MidX + arm, remove.MidY - arm, paint);
+        }
+    }
+
+    #endregion
+
     #region Dragger
 
     /// <summary>

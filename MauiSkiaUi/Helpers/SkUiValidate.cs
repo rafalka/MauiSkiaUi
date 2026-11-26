@@ -23,6 +23,19 @@ internal static class SkUiValidate
 
     public static bool FinitePositive(BindableObject bindable, object? value) => value is double number && double.IsFinite(number) && number > 0;
 
+    /// <summary>A size in DIPs, or -1 for the look's.</summary>
+    public static bool NonNegativeOrLook(BindableObject bindable, object? value) => value is double number && IsNonNegativeOrLook(number);
+
+    /// <summary>Whether <paramref name="value"/> is finite and not negative, or -1 (the look's).</summary>
+    public static bool IsNonNegativeOrLook(double value) => double.IsFinite(value) && (value >= 0 || value == -1); // exact: -1 is a sentinel
+
+    /// <summary>Throws unless <paramref name="value"/> is finite and not negative, or -1 (the look's).</summary>
+    public static void ThrowIfNotNonNegativeOrLook(double value, string name)
+    {
+        if (!IsNonNegativeOrLook(value))
+            throw new ArgumentOutOfRangeException(name, value, "Must be a finite, non-negative number, or -1 for the look's.");
+    }
+
     /// <summary>A row limit: -1 (none) or at least 1.</summary>
     public static bool RowLimit(BindableObject bindable, object? value) => value is int rows && (rows == -1 || rows >= 1);
 
@@ -125,6 +138,9 @@ internal static class SkUiValidate
 
     /// <summary>A size limit: not negative, possibly infinite (no limit).</summary>
     public static bool SizeLimit(BindableObject bindable, object? value) => value is double number && !double.IsNaN(number) && number >= 0;
+
+    /// <summary>A defined <see cref="Microsoft.Maui.Controls.Shapes.PenLineCap"/>.</summary>
+    public static bool LineCap(BindableObject bindable, object? value) => value is Microsoft.Maui.Controls.Shapes.PenLineCap cap && Enum.IsDefined(cap);
 
     /// <summary>A defined <see cref="SkUiCenterStrategy"/>.</summary>
     public static bool CenterStrategy(BindableObject bindable, object? value) => value is SkUiCenterStrategy strategy && Enum.IsDefined(strategy);

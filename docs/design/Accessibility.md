@@ -90,6 +90,15 @@ Tests: `PickerWheelSemanticsTests` (one element per wheel, names, hints, values,
 - **Invalidation:** every committed frame (`SkUiFrameRenderer.PresentFrame`), every scroll offset change (`SkUiScrollController.UpdateState`, also render-thread motion reported back), MAUI semantic property changes (`SkUiView.OnPropertyChanged`), Core semantic setters, focus changes, the end of a render-thread `AnimateAsync` (the tree built while it ran saw the start values, and its acknowledged end commits no frame). The tree is rebuilt lazily on the next read.
 - **Reports:** while the bridge listens, changes are coalesced over 100 ms (`ReportDelay`) and diffed against the last reported tree (`Diff`: structure changed, ids whose content changed). Headless, without a dispatcher, `Flush` reports on demand.
 
+## Live regions and announcements (1.18)
+
+- **API:** `SkUiAccessibility.LiveRegion` (attached, `SkUiLiveRegion`: `None`, `Polite`, `Assertive`) on drawn views, `SetLiveRegion` on Core nodes; on a container it applies to the elements inside (the builder passes the nearest region down; a live text absorbed into a button makes the button live). `SkUiAccessibility.Announce(anchor, text, politeness)` reads text tied to no element; `SkUiAccessibility.UpdatesFrequently` (attached) / `SetUpdatesFrequently` marks values that change often.
+- **Detection** is on `SkUiSemanticsOwner`, platform-neutral, after each report (`DetectLiveChanges`): a live element whose spoken text (`SpokenText`: name and value) differs from what was last read is due `LiveRegionDelay` (300 ms) after its first change; later changes within it replace the text, a return to the read text cancels it (`ReadDueLiveRegions`). Only elements in the tree are read, so a hidden, scrolled-out or clipped element is not, and neither will the page behind a modal pane once the sheet takes it out of the tree (phase S). The tree that shows when a reader starts is the baseline (nothing is read); an element that appears with a region, or comes back, is read once. Results go out through `Announcement` (the element, its text, how). Nothing exists while no screen reader listens.
+- **Android:** the virtual node's `LiveRegion`; a live element's changes are not reported while its text waits (`IsLivePending`), then once with `CONTENT_CHANGE_TYPE_TEXT`, so TalkBack reads the settled text. `Announce` goes through a hidden live-region node of the surface (1 px at its corner, listed for 3 s), not the deprecated `announceForAccessibility`. `UpdatesFrequently` elements are reported at most once a second.
+- **Apple:** VoiceOver has no live regions: the settled text is an announcement (`UIAccessibilitySpeechAttributeQueueAnnouncement` when polite, interrupting when assertive); `UpdatesFrequently` is the element trait (progress bars keep theirs).
+- **Windows:** the peer's `LiveSetting` and a `LiveRegionChanged` event (after its name change); `Announce` raises a notification event on the surface peer (`ImportantMostRecent` when assertive, else `All`).
+- *Check:* `LiveRegionTests` headless; TalkBack, VoiceOver and Narrator by hand on the [verification backlog](Roadmap.md#verification-backlog) (the demo's Accessibility page: Clock in / out, the timer, Announce "Saved").
+
 ## Cost and switching it off
 
 **Unused** (no assistive technology reads the surface), the semantics tree does not exist: a committed frame costs a null check, a scroll offset change a walk to the root, a property change a few name comparisons; every `SkUiView` subscribes one event at construction, every Core node carries ~30 bytes of focus and `Tag` fields. Keyboard focus is always on (one manager per surface; detach / hide checks return at once unless something is focused).
@@ -156,7 +165,7 @@ MAUI's `Semantics` mapping of the root view is replaced (`SkUiViewHandler` mappe
 
 ## Left open
 
-- Links inside HTML / span text as their own elements (they are read as part of the label), live regions / announcements of drawn content.
+- Links inside HTML / span text as their own elements (they are read as part of the label).
 - Custom actions exist internally (`SkUiSemanticsInfo.CustomActions`: Android's custom `AccessibilityActionCompat`s, UIKit's `UIAccessibilityCustomAction`; none on Windows, where UI Automation has no custom actions) and are used by reorderable collection view items ("Move up" / "Move down"). Since 1.18 a swipe view offers its visible, enabled items as custom actions (named by their text). Not yet public, and not yet on refresh views.
 - Arrow-key navigation between radio buttons of a group, and XY (spatial) focus navigation.
 - A picker's popup takes keyboard focus when shown and gives it back to the field when it closes (as a native combo box); not yet checked with hardware keyboards on devices. Android has no expanded state on its nodes before API 36 (the expand / collapse actions stand for it).

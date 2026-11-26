@@ -20,6 +20,8 @@ public partial class SkUiCoreNode : ISkUiAccessibleNode
         public SemanticHeadingLevel HeadingLevel;
         public bool? IsInAccessibleTree;
         public bool ExcludedWithChildren;
+        public SkUiLiveRegion LiveRegion;
+        public bool UpdatesFrequently;
     }
 
     /// <summary>
@@ -42,6 +44,27 @@ public partial class SkUiCoreNode : ISkUiAccessibleNode
 
     /// <summary>Hides the node and its whole subtree from screen readers (MAUI's <c>AutomationProperties.ExcludedWithChildren</c>).</summary>
     public bool ExcludedWithChildren { get => _semantics?.ExcludedWithChildren ?? false; set => SetExcludedWithChildren(value); }
+
+    /// <summary>
+    /// Makes the node a live region: a screen reader reads its new text when it changes (<see cref="SkUiAccessibility.LiveRegionProperty"/>,
+    /// which says when and how). On a container it applies to the elements inside.
+    /// </summary>
+    public SkUiLiveRegion LiveRegion { get => _semantics?.LiveRegion ?? SkUiLiveRegion.None; set => SetLiveRegion(value); }
+
+    /// <summary>The node's value changes often (<see cref="SkUiAccessibility.UpdatesFrequentlyProperty"/>).</summary>
+    public bool UpdatesFrequently { get => _semantics?.UpdatesFrequently ?? false; set => SetUpdatesFrequently(value); }
+
+    /// <summary>Sets <see cref="LiveRegion"/>.</summary>
+    public SkUiCoreNode SetLiveRegion(SkUiLiveRegion value)
+    {
+        if (!Enum.IsDefined(value))
+            throw new ArgumentOutOfRangeException(nameof(value), value, "Not a defined live region.");
+        return SetSemantic(LiveRegion, value, static (semantics, region) => semantics.LiveRegion = region, nameof(LiveRegion));
+    }
+
+    /// <summary>Sets <see cref="UpdatesFrequently"/>.</summary>
+    public SkUiCoreNode SetUpdatesFrequently(bool value) =>
+        SetSemantic(UpdatesFrequently, value, static (semantics, frequent) => semantics.UpdatesFrequently = frequent, nameof(UpdatesFrequently));
 
     /// <summary>Sets <see cref="SemanticDescription"/>.</summary>
     public SkUiCoreNode SetSemanticDescription(string? value) =>
@@ -183,6 +206,8 @@ public partial class SkUiCoreNode : ISkUiAccessibleNode
             info.HeadingLevel = semantics.HeadingLevel;
             info.IsInAccessibleTree = semantics.IsInAccessibleTree;
             info.ExcludedWithChildren = semantics.ExcludedWithChildren;
+            info.LiveRegion = semantics.LiveRegion;
+            info.UpdatesFrequently = semantics.UpdatesFrequently;
         }
         info.AutomationId = AutomationId;
     }
@@ -192,6 +217,11 @@ public partial class SkUiCoreNode : ISkUiAccessibleNode
     bool ISkUiAccessibleNode.SetSemanticsValue(double value) => IsInteractionEnabled && OnSemanticsSetValue(value);
 
     bool ISkUiAccessibleNode.PerformSemanticsPartAction(int part, SkUiSemanticsActions action) => IsInteractionEnabled && OnSemanticsPartAction(part, action);
+
+    bool ISkUiAccessibleNode.PerformSemanticsCustomAction(int index) => IsInteractionEnabled && OnSemanticsCustomAction(index);
+
+    /// <summary>A screen reader performs the named action at <paramref name="index"/> that <see cref="OnPopulateSemantics"/> offered (<see cref="SkUiSemanticsInfo.CustomActions"/>).</summary>
+    internal virtual bool OnSemanticsCustomAction(int index) => false;
 
     bool ISkUiAccessibleNode.IsKeyboardFocusable => _isVisible && _isTabStop && IsInteractionEnabled && TakesKeyboardFocus;
 

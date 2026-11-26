@@ -36,14 +36,51 @@ internal sealed class SkUiAccessibilityBridge
     private bool _detached;
 
     /// <summary>The tree; empty once the bridge is detached (clients may still hold peers of it).</summary>
-    internal SkUiSemanticsTree Tree => _detached ? SkUiSemanticsTree.Empty : (_owner ??= new SkUiSemanticsOwner(_root)).Tree;
+    internal SkUiSemanticsTree Tree => _detached ? SkUiSemanticsTree.Empty : EnsureOwner().Tree;
+
+    private SkUiSemanticsOwner EnsureOwner()
+    {
+        if (_owner is null)
+        {
+            _owner = new SkUiSemanticsOwner(_root);
+            _owner.Announcement += OnAnnouncement;
+        }
+        return _owner;
+    }
+
+    /// <summary>
+    /// A live element's settled text (its peer's <c>LiveSetting</c> says how; Narrator reads its name), or an app's announcement
+    /// (a notification event of the surface's peer).
+    /// </summary>
+    private void OnAnnouncement(SkUiSemanticsNode? node, string text, SkUiLiveRegion politeness)
+    {
+        if (node is not null)
+        {
+            var peer = PeerOf(node.Id);
+            peer.RaiseChanges(node);
+            // Narrator reads a live region's name: when the text has more (a value), the whole text as the element's notification.
+            if (text == node.Label)
+            {
+                if (AutomationPeer.ListenerExists(AutomationEvents.LiveRegionChanged))
+                    peer.RaiseAutomationEvent(AutomationEvents.LiveRegionChanged);
+            }
+            else
+                peer.RaiseNotificationEvent(AutomationNotificationKind.Other, Processing(politeness), text, "SkUiLiveRegion");
+            return;
+        }
+        if (FrameworkElementAutomationPeer.FromElement(_container) is { } surface)
+            surface.RaiseNotificationEvent(AutomationNotificationKind.Other, Processing(politeness), text, "SkUiAnnouncement");
+    }
+
+    private static AutomationNotificationProcessing Processing(SkUiLiveRegion politeness) =>
+        politeness == SkUiLiveRegion.Assertive ? AutomationNotificationProcessing.ImportantMostRecent : AutomationNotificationProcessing.All;
 
     /// <summary>A client reads the surface's children: report changes from now on while it listens.</summary>
     internal void UpdateListening()
     {
         if (_detached)
             return;
-        _owner ??= new SkUiSemanticsOwner(_root);
+        EnsureOwner();
         Listen(HasListeners);
     }
 
@@ -151,7 +188,10 @@ internal sealed class SkUiAccessibilityBridge
                 surface.RaiseStructureChangedEvent(AutomationStructureChangeType.ChildrenInvalidated, surface);
         foreach (var id in changed)
             if (_peers.TryGetValue(id, out var peer) && tree.Find(id) is { } node)
-                peer.RaiseChanges(node);
+                // A live element's new text waits to be read once it settles (OnAnnouncement raises its changes then), so clients
+                // watching its name do not hear each step either.
+                if (_owner?.IsLivePending(id) != true)
+                    peer.RaiseChanges(node);
     }
 
     /// <summary>The peer of the drawn element with keyboard focus (the field the hidden text box types into), while a client listens.</summary>
@@ -281,6 +321,14 @@ internal sealed partial class SkUiElementAutomationPeer(SkUiAccessibilityBridge 
 
     /// <inheritdoc />
     protected override string GetHelpTextCore() => Node?.Hint ?? string.Empty;
+
+    /// <inheritdoc />
+    protected override AutomationLiveSetting GetLiveSettingCore() => Node?.LiveRegion switch
+    {
+        SkUiLiveRegion.Polite => AutomationLiveSetting.Polite,
+        SkUiLiveRegion.Assertive => AutomationLiveSetting.Assertive,
+        _ => AutomationLiveSetting.Off
+    };
 
     /// <inheritdoc />
     protected override string GetAutomationIdCore() => Node?.AutomationId ?? string.Empty;

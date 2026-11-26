@@ -354,7 +354,7 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
     {
         var enabled = IsVisualStateEnabled;
         var state = !enabled ? VisualStateManager.CommonStates.Disabled
-            : _isSelectedItem ? VisualStateManager.CommonStates.Selected
+            : IsInSelectedVisualState ? VisualStateManager.CommonStates.Selected
             : IsPointerOver ? VisualStateManager.CommonStates.PointerOver : VisualStateManager.CommonStates.Normal;
         // A group without the state stays in the one it was in (MAUI's VSM): an item deselected under the pointer would keep
         // its Selected look, a view enabled under it its Disabled look. Normal stands in for a missing PointerOver.
@@ -365,6 +365,9 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
     }
 
     private bool _isSelectedItem;
+
+    /// <summary>Whether <c>CommonStates</c> is <c>Selected</c> while enabled: a selected collection item's root, a selected chip.</summary>
+    private protected virtual bool IsInSelectedVisualState => _isSelectedItem;
 
     /// <summary>
     /// This view is the root of a selected collection item (<see cref="SkUiCollectionView"/>): <c>CommonStates</c> is

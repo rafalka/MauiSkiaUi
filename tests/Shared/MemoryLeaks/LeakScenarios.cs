@@ -60,6 +60,7 @@ public static class LeakScenarios
         new("CoreCarouselSwiped", Scrolling, "SkUiCoreCarouselView over a long-lived collection with a long-lived shared cover flow effect, an item factory and a linked SkUiCoreIndicatorView: swiped forward past the middle of its looping strip, the indicator set (a tap), the position set, items added and removed, pages of two, the effect switched, looping turned off and the end reached; closed mid-fling.", () => new CoreCarouselRun()),
         new("TabViewSwiped", Scrolling, "SkUiTabView with four tabs (a scrolled list, a template pane, a badge, a disabled tab with a long-lived icon) over a long-lived collection and command: swiped and flung across the panes, headers tapped, the selection set by code, a tab added and one removed, the strip moved to the bottom with content widths; closed mid-fling.", () => new TabViewRun()),
         new("CoreTabViewSwiped", Scrolling, "SkUiCoreTabView with four tabs (a list of buttons with a long-lived command, a factory pane, a badge, a disabled tab with a long-lived icon): swiped and flung across the panes, the selection set by code, a tab added and one removed, the strip moved to the bottom with content widths; closed mid-fling.", () => new CoreTabViewRun()),
+        new("ChipsShown", Controls, "SkUiChipGroup and SkUiCoreChipGroup over a long-lived collection (input chips removed through a long-lived command and ChipRemoved, a filter group selecting several, a single-choice group in a scrolling row with edge padding), and chips with a long-lived icon, a badge and a long-lived command: chips tapped and removed, items added, the selection set by code, a group switched between wrapping and scrolling; closed with chips pressed.", () => new ChipsRun()),
         new("SegmentedControlShown", Controls, "SkUiSegmentedControl and SkUiCoreSegmentedControl with segments (one with a long-lived icon) and a long-lived command, and over a long-lived collection (a long-lived display binding / a display function): segments tapped (the marker sliding), the selection set by code, a segment added, disabled and removed, an item added and one removed, the items replaced; closed while a marker slides.", () => new SegmentedControlRun()),
         new("PickerOpened", Controls, "SkUiPicker and SkUiCorePicker over a long-lived collection (a display binding, an item template), opened on a long-lived presenter that keeps the last request (as a popup stack does): tapped open and an item chosen in the drawn list, dismissed, closed by IsOpen = false and by hiding the picker, opened by the keyboard, the Core picker chosen; closed with a popup open.", () => new PickerRun()),
         new("DisplayBindingChips", Controls, "Chips an app control builds from view-model items through a long-lived SkUiDisplayBinding over a long-lived binding (as one in app resources), fading on press: texts read from a list, from a sequence and one item alone, chips tapped, the items replaced and read again.", () => new DisplayBindingRun()),
@@ -3409,6 +3410,77 @@ public static class LeakScenarios
 
         public override string? CheckInteraction() =>
             _changes >= 4 ? null : $"The selection changed {_changes} times (expected 4 or more).";
+    }
+
+    private sealed class ChipsRun : LeakScenarioRun
+    {
+        private readonly List<SkUiChipGroup> _groups = [];
+        private SkUiCoreChipGroup? _core;
+        private SkUiChip? _badged;
+        private int _events;
+
+        public override View Build(LeakScenarioContext context)
+        {
+            LeakItems.Shared.Clear();
+            foreach (var item in new[] { "One", "Two", "Three", "Four" })
+                LeakItems.Shared.Add(item);
+            var stack = new SkUiVerticalStackLayout { Spacing = 12 };
+            var input = context.Track(new SkUiChipGroup { ItemsSource = LeakItems.Shared, ChipKind = SkUiChipKind.Input, SelectionMode = SkUiChipSelectionMode.None },
+                "input chip group");
+            input.ChipRemoved += (_, args) =>
+            {
+                _events++;
+                LeakItems.Shared.Remove((string)args.Item!);
+            };
+            var filters = context.Track(new SkUiChipGroup { ItemsSource = new[] { "Approved", "Pending", "Rejected" } }, "filter chip group");
+            filters.SelectionChanged += (_, _) => _events++;
+            var single = context.Track(new SkUiChipGroup
+            {
+                ItemsSource = LeakItems.Shared, SelectionMode = SkUiChipSelectionMode.Single, Wraps = false, Padding = new Thickness(16, 0)
+            }, "scrolling chip group");
+            single.SelectionChanged += (_, _) => _events++;
+            _groups.AddRange([input, filters, single]);
+            _badged = context.Track(new SkUiChip { Text = "Inbox", BadgeText = "12", ImageSource = LeakIcons.Shared, Command = LeakCommands.Shared }, "badged chip");
+            _badged.RemoveCommand = LeakCommands.Shared;
+            _core = context.Track(new SkUiCoreChipGroup().SetItemsSource(LeakItems.Shared).SetItemDisplay(static item => $"Item {item}"), "core chip group");
+            _core.SelectionChanged += (_, _) => _events++;
+            var coreChip = context.Track(new SkUiCoreChip().SetKind(SkUiChipKind.Input).SetRemoveCommand(LeakCommands.Shared), "core chip");
+            coreChip.SetImageSource(LeakIcons.Shared);
+            coreChip.SetText("Core");
+            var nodes = new SkUiCoreVerticalStackLayout().SetSpacing(12);
+            nodes.Add(_core);
+            nodes.Add(coreChip);
+            foreach (var group in _groups)
+                stack.Children.Add(group);
+            stack.Children.Add(_badged);
+            stack.Children.Add(new SkUiCoreHost().SetContent(nodes));
+            return Root(stack);
+        }
+
+        public override async Task InteractAsync(LeakScenarioContext context)
+        {
+            await context.SettleAsync();
+            foreach (var chip in _groups[1].Chips.Concat(_groups[2].Chips))
+            {
+                await context.TapAsync(chip);
+                await context.WaitAsync(40);
+            }
+            await context.TapAsync(_badged!);
+            _groups[0].Chips[0].Remove();
+            _core!.Chips[0].Remove();
+            LeakItems.Shared.Add("Five");
+            _groups[2].SelectedItem = "Five";
+            _core.SetSelectedItems(["Two"]);
+            await context.SettleAsync();
+            _groups[1].Wraps = false;
+            _groups[2].Wraps = true;
+            _core.SetWraps(false);
+            await context.SettleAsync();
+            await context.LongPressAsync(_groups[1].Chips[0], release: false); // closes with a chip held
+        }
+
+        public override string? CheckInteraction() =>
+            _events >= 6 ? null : $"Chips raised {_events} selection and removal events (expected 6 or more).";
     }
 
     private sealed class SegmentedControlRun : LeakScenarioRun

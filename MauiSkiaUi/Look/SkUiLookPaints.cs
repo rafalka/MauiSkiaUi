@@ -1,3 +1,4 @@
+using Microsoft.Maui.Controls.Shapes;
 using SkiaSharp;
 
 namespace MauiSkiaUi;
@@ -39,6 +40,68 @@ public readonly record struct SkUiSliderPaint(
 /// <param name="IsEnabled">The control is enabled.</param>
 public readonly record struct SkUiProgressBarPaint(
     SKRect Bounds, float Progress, bool IsIndeterminate, SKColor Track, SKColor Fill, float SegmentFraction, bool IsEnabled);
+
+/// <summary>
+/// What a look draws for a ProgressRing (<see cref="SkUiLook.DrawProgressRing"/>). Colors already reflect the enabled state.
+/// </summary>
+/// <param name="Bounds">The ring's square, centred in the control; the stroke lies inside it.</param>
+/// <param name="Progress">Drawn completed fraction (0–1; follows the <see cref="SkUiTransitionKind.Progress"/> transition); unused when <see cref="IsIndeterminate"/>.</param>
+/// <param name="IsIndeterminate">Draw the track and one arc of <see cref="Sweep"/> (the compositor turns it).</param>
+/// <param name="Track">Track (remaining) color.</param>
+/// <param name="Fill">Progress color.</param>
+/// <param name="Thickness">Stroke thickness in DIPs.</param>
+/// <param name="StartAngle">Where the progress starts, in degrees clockwise from 3 o'clock (-90: the top).</param>
+/// <param name="IsClockwise">The progress grows clockwise; otherwise counterclockwise.</param>
+/// <param name="LineCap">The ends of the progress arc.</param>
+/// <param name="Sweep">Indeterminate arc length in degrees (<see cref="SkUiLook.IndeterminateProgressRingSweep"/>).</param>
+/// <param name="IsEnabled">The control is enabled.</param>
+public readonly record struct SkUiProgressRingPaint(
+    SKRect Bounds, float Progress, bool IsIndeterminate, SKColor Track, SKColor Fill, float Thickness, float StartAngle, bool IsClockwise,
+    PenLineCap LineCap, float Sweep, bool IsEnabled);
+
+/// <summary>One part of a StackedBar as drawn: where it starts and ends, as fractions of the bar (0–1), and its color.</summary>
+/// <param name="Start">Where the part starts (0: the bar's start).</param>
+/// <param name="End">Where it ends (at least <see cref="Start"/>; 1: the bar's end).</param>
+/// <param name="Color">Its color, already reflecting the enabled state.</param>
+public readonly record struct SkUiStackedBarPart(float Start, float End, SKColor Color);
+
+/// <summary>
+/// What a look draws for a StackedBar (<see cref="SkUiLook.DrawStackedBar"/>), in left-to-right coordinates. Colors already
+/// reflect the enabled state.
+/// </summary>
+/// <param name="Bounds">The bar's rectangle.</param>
+/// <param name="Parts">The parts with a width, in order from the start (the values as drawn, mid-animation too).</param>
+/// <param name="Track">Color after the last part, up to the maximum.</param>
+/// <param name="Spacing">Gap between parts in DIPs.</param>
+/// <param name="CornerRadius">Radius of the bar's outer ends in DIPs.</param>
+/// <param name="IsEnabled">The control is enabled.</param>
+public readonly record struct SkUiStackedBarPaint(
+    SKRect Bounds, ArraySegment<SkUiStackedBarPart> Parts, SKColor Track, float Spacing, float CornerRadius, bool IsEnabled);
+
+/// <summary>
+/// What a look draws for a chip (<see cref="SkUiLook.DrawChip"/>): its shape, the press feedback, the check of a selected filter
+/// chip, the badge's pill and the remove button. The control draws the image, the text and the badge's text. Colors already
+/// reflect the selected and enabled states; rectangles are empty when the part is not shown, and already mirrored in
+/// right-to-left layouts.
+/// </summary>
+/// <param name="Bounds">The chip's rectangle.</param>
+/// <param name="CornerRadii">Its corner radii.</param>
+/// <param name="Kind">What the chip is for.</param>
+/// <param name="IsSelected">The chip is selected.</param>
+/// <param name="Fill">Its background (transparent: outlined only).</param>
+/// <param name="Stroke">Its outline (transparent: none).</param>
+/// <param name="StrokeWidth">The outline's width in DIPs.</param>
+/// <param name="Foreground">The text's color, for the check and the ×.</param>
+/// <param name="Press">The press feedback.</param>
+/// <param name="CheckBounds">Where the check of a selected filter chip goes (empty: none).</param>
+/// <param name="BadgeBounds">The badge's pill (empty: no badge).</param>
+/// <param name="BadgeFill">The badge's color.</param>
+/// <param name="RemoveBounds">The remove button's × (empty: none).</param>
+/// <param name="IsRemovePressed">The press is on the remove button.</param>
+/// <param name="IsEnabled">The chip is enabled.</param>
+public readonly record struct SkUiChipPaint(
+    SKRect Bounds, CornerRadius CornerRadii, SkUiChipKind Kind, bool IsSelected, SKColor Fill, SKColor Stroke, float StrokeWidth, SKColor Foreground,
+    SkUiPressVisual Press, SKRect CheckBounds, SKRect BadgeBounds, SKColor BadgeFill, SKRect RemoveBounds, bool IsRemovePressed, bool IsEnabled);
 
 /// <summary>
 /// What a look draws for a dragger (<see cref="SkUiLook.DrawDragger"/>, also a grid splitter): a line through the middle of

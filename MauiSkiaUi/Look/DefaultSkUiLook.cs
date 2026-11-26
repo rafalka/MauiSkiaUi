@@ -1,3 +1,4 @@
+using Microsoft.Maui.Controls.Shapes;
 using SkiaSharp;
 
 namespace MauiSkiaUi;
@@ -377,6 +378,7 @@ public partial class DefaultSkUiLook : SkUiLook
         SkUiTransitionKind.ImageFadeIn => SkUiTransition.FromMilliseconds(200, Easing.CubicOut),
         SkUiTransitionKind.CalendarPage => SkUiTransition.FromMilliseconds(280, Easing.CubicOut),
         SkUiTransitionKind.SegmentSelection => SkUiTransition.FromMilliseconds(250, Easing.CubicInOut),
+        SkUiTransitionKind.StackedBar => SkUiTransition.FromMilliseconds(250, Easing.CubicOut),
         // Determinate progress follows Progress at once, as MAUI's ProgressBar (ProgressTo animates).
         _ => SkUiTransition.None
     };
@@ -982,6 +984,97 @@ public partial class DefaultSkUiLook : SkUiLook
         DrawRoundedBox(canvas, new SKRect(trackStart, bounds.Top, bounds.Right, bounds.Bottom), radius, bar.Track, SKColors.Transparent, 0);
         if (ProgressBarHasStopIndicator && bounds.Right - trackStart > bounds.Height)
             canvas.DrawCircle(bounds.Right - bounds.Height / 2, bounds.MidY, bounds.Height / 2, Paint(bar.Fill));
+    }
+
+    /// <inheritdoc />
+    protected override void DrawProgressRingCore(SKCanvas canvas, SkUiProgressRingPaint ring)
+    {
+        var bounds = ring.Bounds;
+        if (bounds.Width <= 0 || bounds.Height <= 0) return;
+        var thickness = Math.Clamp(ring.Thickness, 0, bounds.Width / 2);
+        if (thickness <= 0) return;
+        var arc = SKRect.Inflate(bounds, -thickness / 2, -thickness / 2);
+        var paint = Paint(ring.Track);
+        Stroke(paint, ring.Track, thickness);
+        var sign = ring.IsClockwise ? 1 : -1;
+        var progress = ring.IsIndeterminate ? 0 : Math.Clamp(ring.Progress, 0, 1);
+        var sweep = 360 * progress;
+        var cap = ring.LineCap switch
+        {
+            PenLineCap.Round => SKStrokeCap.Round,
+            PenLineCap.Square => SKStrokeCap.Square,
+            _ => SKStrokeCap.Butt
+        };
+        // Material 3's gap between the fill and the rest of the track (round caps reach past the arc's ends).
+        var gap = ring.IsIndeterminate || ProgressRingGap <= 0 || progress <= 0 || progress >= 1
+            ? 0
+            : (ProgressRingGap + (cap == SKStrokeCap.Butt ? 0 : thickness)) / (arc.Width / 2) * 180 / MathF.PI;
+        if (ring.Track.Alpha > 0)
+        {
+            if (gap <= 0)
+                canvas.DrawOval(arc, paint);
+            else if (360 - sweep - 2 * gap > 0)
+            {
+                paint.StrokeCap = cap;
+                canvas.DrawArc(arc, ring.StartAngle + sign * (sweep + gap), sign * (360 - sweep - 2 * gap), false, paint);
+            }
+        }
+        if (ring.IsIndeterminate)
+            sweep = Math.Clamp(ring.Sweep, 0, 360);
+        if (sweep <= 0) return;
+        paint.Color = ring.Fill;
+        if (sweep >= 360)
+        {
+            paint.StrokeCap = SKStrokeCap.Butt;
+            canvas.DrawOval(arc, paint);
+            return;
+        }
+        paint.StrokeCap = cap;
+        canvas.DrawArc(arc, ring.StartAngle, sign * sweep, false, paint);
+    }
+
+    /// <summary>The gap between a determinate progress ring's arc and the rest of its track, DIPs (default 0; Material 3: 4).</summary>
+    public virtual float ProgressRingGap => 0;
+
+    /// <summary>The least room after a stacked bar's last part, as a fraction of the bar, that shows the track.</summary>
+    private const float TrackTolerance = 1e-4f;
+
+    /// <inheritdoc />
+    protected override void DrawStackedBarCore(SKCanvas canvas, SkUiStackedBarPaint bar)
+    {
+        var bounds = bar.Bounds;
+        if (bounds.Width <= 0 || bounds.Height <= 0) return;
+        var save = canvas.Save();
+        var radius = Math.Clamp(bar.CornerRadius, 0, Math.Min(bounds.Width, bounds.Height) / 2);
+        if (radius > 0)
+        {
+            var clip = _roundRect ??= new SKRoundRect();
+            clip.SetRect(bounds, radius, radius);
+            canvas.ClipRoundRect(clip, antialias: true);
+        }
+        var paint = Paint(SKColors.Transparent);
+        var parts = bar.Parts;
+        var spacing = Math.Max(0, bar.Spacing);
+        var last = parts.Count > 0 ? parts[^1].End : 0;
+        var hasTrack = last < 1 - TrackTolerance && bar.Track.Alpha > 0; // a painter's own rounding of the parts does not make a track
+        for (var i = 0; i < parts.Count; i++)
+        {
+            var part = parts[i];
+            var left = bounds.Left + bounds.Width * part.Start;
+            var right = bounds.Left + bounds.Width * part.End;
+            // The gap is cut from the end of each part that something follows.
+            if (i < parts.Count - 1 || hasTrack)
+                right -= spacing;
+            if (right <= left) continue;
+            paint.Color = part.Color;
+            canvas.DrawRect(new SKRect(left, bounds.Top, right, bounds.Bottom), paint);
+        }
+        if (hasTrack)
+        {
+            paint.Color = bar.Track;
+            canvas.DrawRect(new SKRect(bounds.Left + bounds.Width * last, bounds.Top, bounds.Right, bounds.Bottom), paint);
+        }
+        canvas.RestoreToCount(save);
     }
 
     /// <inheritdoc />
