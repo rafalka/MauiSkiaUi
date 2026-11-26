@@ -110,6 +110,44 @@ public sealed class FontFeatureTests
     }
 
     [Fact]
+    public void KnownFeaturesHaveANameADescriptionAndADefault()
+    {
+        var tabular = SkUiFontFeature.Describe("tnum");
+        Assert.Equal(("tnum", "Tabular figures", SkUiFontFeatureDefault.Off), (tabular?.Tag, tabular?.Name, tabular?.Default));
+        Assert.False(string.IsNullOrWhiteSpace(tabular?.Description));
+        Assert.Equal(SkUiFontFeatureDefault.On, SkUiFontFeature.Kerning.Info?.Default);
+        Assert.Equal(SkUiFontFeatureDefault.On, SkUiFontFeature.StandardLigatures.Disabled.Info?.Default); // the tag's, whatever the value
+        Assert.Equal(SkUiFontFeatureDefault.Required, SkUiFontFeature.Describe("ccmp")?.Default);
+        Assert.Equal("Stylistic set 7", SkUiFontFeature.StylisticSet(7).Info?.Name);
+        Assert.Equal("Character variant 42", SkUiFontFeature.CharacterVariant(42).Info?.Name);
+        Assert.Null(SkUiFontFeature.Describe("cv00"));
+        Assert.Null(SkUiFontFeature.Describe("cv+1"));
+        Assert.Null(SkUiFontFeature.Describe("abcd"));
+        Assert.Null(default(SkUiFontFeature).Info);
+        Assert.Throws<ArgumentNullException>(() => SkUiFontFeature.Describe(null!));
+        // Every listed tag once, valid, described; every named member and every tag of the bundled fonts is known.
+        var known = SkUiFontFeature.Known;
+        Assert.Equal(known.Count, known.Select(info => info.Tag).Distinct().Count());
+        Assert.All(known, info =>
+        {
+            Assert.Equal(info.Tag, new SkUiFontFeature(info.Tag).Tag);
+            Assert.False(string.IsNullOrWhiteSpace(info.Name));
+            Assert.EndsWith(".", info.Description);
+        });
+        Assert.Contains(known, info => info.Tag == "ss20");
+        SkUiFontFeature[] named = [SkUiFontFeature.Kerning, SkUiFontFeature.StandardLigatures, SkUiFontFeature.ContextualLigatures,
+            SkUiFontFeature.DiscretionaryLigatures, SkUiFontFeature.ContextualAlternates, SkUiFontFeature.StylisticAlternates, SkUiFontFeature.Swash,
+            SkUiFontFeature.TabularFigures, SkUiFontFeature.ProportionalFigures, SkUiFontFeature.LiningFigures, SkUiFontFeature.OldstyleFigures,
+            SkUiFontFeature.SlashedZero, SkUiFontFeature.Fractions, SkUiFontFeature.Ordinals, SkUiFontFeature.Superscript, SkUiFontFeature.Subscript,
+            SkUiFontFeature.SmallCaps, SkUiFontFeature.CapitalsToSmallCaps, SkUiFontFeature.CaseSensitiveForms];
+        Assert.All(named, feature => Assert.NotNull(feature.Info));
+        using var lobster = UseLobster();
+        using var mono = SkUiTestHelpers.UseBundledFont();
+        Assert.All(SkUiFontFeatures.SupportedBy(LobsterFamily).Concat(SkUiFontFeatures.SupportedBy(SkUiTestHelpers.BundledFontFamily)),
+            tag => Assert.NotNull(SkUiFontFeature.Describe(tag)));
+    }
+
+    [Fact]
     public void TheConverterReadsTheTextFormAndBlankIsNone()
     {
         var converter = new SkUiFontFeaturesConverter();

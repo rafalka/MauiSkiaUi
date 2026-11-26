@@ -44,29 +44,6 @@ public sealed class LabelDemoPage : ComponentDemoPage
         },
     };
 
-    private const string NoFontFeatures = "None";
-
-    /// <summary>
-    /// <see cref="SkUiLabel.FontFeatures"/> to try, named by their text form; whether one shows depends on the font (Open Sans
-    /// has tabular, old-style figures and fractions; Lobster ligatures and kerning; Roboto Mono small capitals).
-    /// </summary>
-    internal static readonly Dictionary<string, SkUiFontFeatures?> FontFeatureSamples = new()
-    {
-        [NoFontFeatures] = null,
-        ["tnum"] = [SkUiFontFeature.TabularFigures],
-        ["-liga, -kern"] = [SkUiFontFeature.StandardLigatures.Disabled, SkUiFontFeature.Kerning.Disabled],
-        ["smcp"] = [SkUiFontFeature.SmallCaps],
-        ["frac"] = [SkUiFontFeature.Fractions],
-        ["onum"] = [SkUiFontFeature.OldstyleFigures],
-    };
-
-    /// <summary>The <see cref="FontFeatureSamples"/> name of <paramref name="features"/> (its text form when it is none of them).</summary>
-    internal static string FontFeaturesName(SkUiFontFeatures? features)
-    {
-        features = SkUiFontFeatures.OrNull(features); // an empty list is none too
-        return FontFeatureSamples.FirstOrDefault(entry => Equals(entry.Value, features)).Key ?? features?.ToString() ?? NoFontFeatures;
-    }
-
     private const string NoFormattedText = "None (Text)";
 
     private static readonly string[] FormattedSamples = [NoFormattedText, "Styles", "Links", "Sizes", "Mixed RTL"];
@@ -146,13 +123,9 @@ public sealed class LabelDemoPage : ComponentDemoPage
         Number(nameof(SkUiLabel.MaxLines), -1, 6, -1, value => { skia.MaxLines = (int)value; native.MaxLines = (int)value; }, () => skia.MaxLines, () => native.MaxLines, whole: true);
         Number(nameof(SkUiLabel.LineHeight), 0.5, 3, 1, value => { skia.LineHeight = value; native.LineHeight = value; }, () => skia.LineHeight, () => native.LineHeight);
         Number(nameof(SkUiLabel.CharacterSpacing), -2, 10, 0, value => { skia.CharacterSpacing = value; native.CharacterSpacing = value; }, () => skia.CharacterSpacing, () => native.CharacterSpacing);
-        // SkiaUi only (MAUI's Label has none): OpenType features; try the "Figures and ligatures" script sample, Lobster for
-        // the ligatures and kerning, Roboto Mono for small caps.
-        Choice(nameof(SkUiLabel.FontFeatures), FontFeatureSamples.Keys.ToArray(), NoFontFeatures, value => skia.FontFeatures = FontFeatureSamples[value],
-            () => FontFeaturesName(skia.FontFeatures));
-        // The features the label's font has (SkUiFontFeatures.SupportedBy): a feature it lacks draws nothing different.
-        ActionButton("List the font's features", () =>
-            Feedback($"{skia.FontFamily ?? DefaultFontFamily}: {string.Join(", ", SkUiFontFeatures.SupportedBy(skia.FontFamily, skia.FontAttributes))}"));
+        // SkiaUi only (MAUI's Label has none): the OpenType features the label's font has; try the "Figures and ligatures"
+        // script sample with Open Sans (figures, fractions), Lobster (ligatures, kerning) or Roboto Mono (small caps).
+        FontFeaturesEditor(() => skia.FontFamily, () => skia.FontAttributes, value => skia.FontFeatures = value, () => skia.FontFeatures);
         Choice(nameof(SkUiLabel.TextDecorations), new[] { TextDecorations.None, TextDecorations.Underline, TextDecorations.Strikethrough, TextDecorations.Underline | TextDecorations.Strikethrough }, TextDecorations.None,
             value => { skia.TextDecorations = value; native.TextDecorations = value; }, () => skia.TextDecorations, () => native.TextDecorations);
         Choice(nameof(SkUiLabel.TextTransform), Enum.GetValues<TextTransform>(), TextTransform.Default, value => { skia.TextTransform = value; native.TextTransform = value; }, () => skia.TextTransform, () => native.TextTransform);

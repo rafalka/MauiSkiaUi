@@ -43,6 +43,19 @@ first: without one there is nothing to space.
 Whether the buttons' `Command` can execute. When it cannot, the button is disabled as MAUI's is: dimmed, and taps are
 ignored (`IsEnabled` stays as set).
 
+## LabelDemoPage.FontFeatures
+
+The OpenType features the label's font has (`SkUiFontFeatures.SupportedBy`), each with its name and description
+(`SkUiFontFeature.Info`); pick any number. Features the font applies by default (kerning, ligatures) are offered turned off;
+those the shaper needs for a script are not listed. The list follows the `FontFamily` editor: try Open Sans (figures,
+fractions), Lobster (ligatures, kerning) or Roboto Mono (small caps) with the "Figures and ligatures" script sample. In code:
+`label.FontFeatures = [SkUiFontFeature.TabularFigures, SkUiFontFeature.Kerning.Disabled]`.
+
+## EntryDemoPage.FontFeatures
+
+The OpenType features of the field's font (`SkUiFontFeatures.SupportedBy`), with their names and descriptions; pick any
+number. Tabular figures (`tnum`) keep a typed amount from shifting as digits change.
+
 ## LabelDemoPage.Script
 
 Sample texts in other scripts, written into the `Text` editor: Arabic and Hebrew (right to left, and mixed with Latin),

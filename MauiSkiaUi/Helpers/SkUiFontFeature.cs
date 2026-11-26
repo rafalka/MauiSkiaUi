@@ -45,6 +45,26 @@ public readonly struct SkUiFontFeature : IEquatable<SkUiFontFeature>
 
     internal bool IsDefault => _tag is null;
 
+    /// <summary>The feature's name, description and default (<see cref="Describe"/>); <c>null</c> for a tag outside the registry.</summary>
+    public SkUiFontFeatureInfo? Info => IsDefault ? null : SkUiFontFeatureRegistry.Describe(Tag);
+
+    /// <summary>
+    /// The name, one-sentence description and default of the feature <paramref name="tag"/> (<c>"tnum"</c>: "Tabular figures",
+    /// off by default), for a picker or a tooltip; also the stylistic sets and character variants. <c>null</c> for a tag outside
+    /// the OpenType registry (a font's private one).
+    /// </summary>
+    public static SkUiFontFeatureInfo? Describe(string tag)
+    {
+        ArgumentNullException.ThrowIfNull(tag);
+        return SkUiFontFeatureRegistry.Describe(tag);
+    }
+
+    /// <summary>
+    /// The registered features with their names, descriptions and defaults, the stylistic sets <c>ss01</c>–<c>ss20</c> included
+    /// (character variants, <c>cv01</c>–<c>cv99</c>, are left out; <see cref="Describe"/> knows them).
+    /// </summary>
+    public static IReadOnlyList<SkUiFontFeatureInfo> Known => SkUiFontFeatureRegistry.Known;
+
     /// <summary>The feature <paramref name="tag"/>, on.</summary>
     public static SkUiFontFeature Enable(string tag) => new(tag);
 

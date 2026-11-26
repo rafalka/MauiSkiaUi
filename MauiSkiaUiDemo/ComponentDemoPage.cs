@@ -853,6 +853,117 @@ public abstract class ComponentDemoPage : ContentPage
 
     protected void OnReset(Action action) => _resets.Add(action);
 
+    /// <summary>
+    /// A <c>FontFeatures</c> editor: a multiple-choice list of the features the control's font has
+    /// (<see cref="SkUiFontFeatures.SupportedBy"/>), each row with its name and description (<see cref="SkUiFontFeature.Info"/>).
+    /// A feature the font applies by default is offered turned off; those the shaper needs for the script are left out. The list
+    /// follows the font (<paramref name="fontFamily"/>, <paramref name="fontAttributes"/>); chosen features the font lacks stay
+    /// listed, marked.
+    /// </summary>
+    protected void FontFeaturesEditor(Func<string?> fontFamily, Func<FontAttributes> fontAttributes, Action<SkUiFontFeatures?> apply,
+        Func<SkUiFontFeatures?> skia)
+    {
+        const string name = nameof(SkUiLabel.FontFeatures);
+        var picker = new SkUiPicker
+        {
+            Title = name, SelectionMode = SkUiSelectionMode.Multiple, FillColor = Colors.White, TextColor = Ink, TitleColor = DemoColors.Caption,
+            AutomationId = "Edit" + name, ItemTemplate = new DataTemplate(() => new FontFeatureRow())
+        };
+        var updating = false; // the editor writes the picker or the property: no echo back
+        HashSet<SkUiFontFeature> Chosen() => [.. picker.SelectedItems.OfType<FontFeatureItem>().Select(item => item.Feature)];
+        void Rebuild()
+        {
+            var current = SkUiFontFeatures.OrNull(skia());
+            var items = SkUiFontFeatures.SupportedBy(fontFamily(), fontAttributes()).Select(FontFeatureItem.For).OfType<FontFeatureItem>()
+                .OrderBy(item => item.Title, StringComparer.CurrentCulture).ToList();
+            foreach (var feature in current ?? SkUiFontFeatures.Empty)
+                if (!items.Exists(item => item.Feature == feature))
+                    items.Add(FontFeatureItem.NotInFont(feature));
+            updating = true;
+            try
+            {
+                picker.ItemsSource = items;
+                picker.SelectedItems = [.. items.Where(item => current?.Contains(item.Feature) == true)];
+            }
+            finally { updating = false; }
+        }
+        picker.SelectionChanged += (_, _) =>
+        {
+            if (updating)
+                return;
+            var chosen = picker.SelectedItems.OfType<FontFeatureItem>().Select(item => item.Feature).ToArray();
+            updating = true;
+            try { apply(chosen.Length == 0 ? null : SkUiFontFeatures.Create(chosen)); }
+            finally { updating = false; }
+        };
+        AddEditor(name, picker);
+        // A new font has other features; a value set elsewhere shows.
+        foreach (var watched in new[] { nameof(SkUiLabel.FontFamily), nameof(SkUiLabel.FontAttributes), name })
+        {
+            if (!_syncs.TryGetValue(watched, out var syncs))
+                _syncs[watched] = syncs = [];
+            syncs.Add(fromNative =>
+            {
+                if (!fromNative && !updating)
+                    Rebuild();
+            });
+        }
+        _resets.Add(() =>
+        {
+            apply(null);
+            Rebuild();
+        });
+        _checks.Add((name, () => Chosen().SetEquals(skia() ?? SkUiFontFeatures.Empty)));
+        Rebuild();
+    }
+
+    /// <summary>A row of the <c>FontFeatures</c> editor: the feature it adds and what it is; the field shows the features' text.</summary>
+    private sealed record FontFeatureItem(SkUiFontFeature Feature, string Title, string Description)
+    {
+        /// <summary>The row of a font's feature <paramref name="tag"/>; <c>null</c> for one the shaper applies for the script.</summary>
+        public static FontFeatureItem? For(string tag)
+        {
+            var info = SkUiFontFeature.Describe(tag);
+            return info?.Default switch
+            {
+                SkUiFontFeatureDefault.Required => null,
+                SkUiFontFeatureDefault.On => new(SkUiFontFeature.Disable(tag), $"{info.Name} off", info.Description + " On by default."),
+                null => new(SkUiFontFeature.Enable(tag), tag, "The font's own feature (not in the OpenType registry)."),
+                _ => new(SkUiFontFeature.Enable(tag), info.Name, info.Description)
+            };
+        }
+
+        /// <summary>The row of a chosen <paramref name="feature"/> the current font lacks.</summary>
+        public static FontFeatureItem NotInFont(SkUiFontFeature feature) =>
+            new(feature, (feature.Info?.Name ?? feature.Tag) + (feature.IsEnabled ? "" : " off"), "Not in this font: it draws nothing different.");
+
+        public override string ToString() => Feature.ToString();
+    }
+
+    /// <summary>The look of a <see cref="FontFeatureItem"/> in the list: its name and text form, its description under it.</summary>
+    private sealed class FontFeatureRow : SkUiVerticalStackLayout
+    {
+        private readonly SkUiLabel _title = new() { FontSize = 15, TextColor = DemoColors.Ink };
+        private readonly SkUiLabel _description = new() { FontSize = 12, TextColor = DemoColors.Caption, LineBreakMode = LineBreakMode.WordWrap };
+
+        public FontFeatureRow()
+        {
+            Spacing = 1;
+            Padding = new Thickness(0, 4);
+            Children.Add(_title);
+            Children.Add(_description);
+        }
+
+        protected override void OnBindingContextChanged()
+        {
+            base.OnBindingContextChanged();
+            if (BindingContext is not FontFeatureItem item)
+                return;
+            _title.Text = $"{item.Title} ({item.Feature})";
+            _description.Text = item.Description;
+        }
+    }
+
     /// <summary>A <c>PressedScale</c> editor: the look's (-1), none (1) or a scale down; <paramref name="skia"/> reads it back.</summary>
     protected void PressedScaleChoice(Action<double> apply, Func<double> skia) =>
         Choice(nameof(SkUiView.PressedScale), PressedScales.Keys.ToArray(), LookPressedScale, name => apply(PressedScales[name]),
