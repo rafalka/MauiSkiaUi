@@ -293,6 +293,9 @@ internal sealed class SkUiTextFieldSteps : ISkUiStepButtons
         return new Point(deltaX, 0);
     }
 
+    /// <summary>Whether <see cref="Wheel"/> would use this delta (it does whenever the field is focused).</summary>
+    public static bool TakesWheel(double deltaY, bool focused) => focused && deltaY != 0;
+
     /// <summary>A screen reader's increment and decrement, while the value can move.</summary>
     public void PopulateSemantics(SkUiSemanticsInfo info)
     {

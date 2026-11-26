@@ -218,7 +218,8 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
         {
             _gpu = new SkUiMetalView
             {
-                TouchHandler = WeakTouchHandler(WeakSelf), NativeGestureState = WeakNativeGestureState(WeakSelf), NativeTapState = WeakNativeTapState(WeakSelf)
+                TouchHandler = WeakTouchHandler(WeakSelf), NativeGestureState = WeakNativeGestureState(WeakSelf), NativeTapState = WeakNativeTapState(WeakSelf),
+                WheelTaken = WeakWheelTaken(WeakSelf)
             };
             surfaceNative = _gpu;
         }
@@ -293,16 +294,13 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
         platformSurface.AddGestureRecognizer(_mauiDeliverer);
         // Wheel and trackpad scrolling (the Metal view has its own). Weak: the view retains the recognizer natively.
         var weak = WeakSelf;
-        platformSurface.AddGestureRecognizer(new UIKit.UIPanGestureRecognizer(recognizer =>
-        {
-            if (weak.TryGetTarget(out var handler))
-                handler.OnAppleScroll(recognizer);
-        })
-        {
-            AllowedScrollTypesMask = UIKit.UIScrollTypeMask.All,
-            AllowedTouchTypes = [],
-            CancelsTouchesInView = false
-        });
+        platformSurface.AddGestureRecognizer(SkUiWheelRecognizer.Create(
+            recognizer =>
+            {
+                if (weak.TryGetTarget(out var handler))
+                    handler.OnAppleScroll(recognizer);
+            },
+            WeakWheelTaken(weak)));
         platformSurface.UserInteractionEnabled = true;
 #endif
 #if WINDOWS
@@ -857,6 +855,7 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
             _gpu.Surface.Renderer = null;
             _gpu.TouchHandler = null;
             _gpu.NativeGestureState = null;
+            _gpu.WheelTaken = null;
             // The view retains its tap gate natively, which would keep this handler rooted through the callback.
             _gpu.NativeTapState = null;
             _gpu.RemoveFromSuperview();
@@ -1205,6 +1204,9 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
 
     private static Func<SkUiTouchEvent, bool> WeakTouchHandler(WeakReference<SkUiViewHandler> weak) =>
         touch => weak.TryGetTarget(out var handler) && handler.OnSurfaceTouch(touch);
+
+    private static Func<Point, double, double, bool> WeakWheelTaken(WeakReference<SkUiViewHandler> weak) =>
+        (location, deltaX, deltaY) => weak.TryGetTarget(out var handler) && handler._renderer?.TakesWheelDips(location, deltaX, deltaY) == true;
 
     private static Func<SkUiNativeGestureState> WeakNativeGestureState(WeakReference<SkUiViewHandler> weak) =>
         () => weak.TryGetTarget(out var handler) ? handler.GetNativeGestureState() : SkUiNativeGestureState.None;

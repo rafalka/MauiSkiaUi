@@ -220,6 +220,16 @@ internal sealed class SkUiFrameRenderer : IDisposable
     /// <summary>UI thread: dispatches a touch in surface DIPs (<see cref="DipsToRoot"/>).</summary>
     internal bool TouchDips(SkUiTouchEvent touch) => TouchRoot(touch with { Position = DipsToRoot(touch.Position) });
 
+    /// <summary>UI thread: whether the drawn tree would use a wheel or trackpad delta at a surface point in DIPs (<see cref="SkUiPointerRouter.TakesWheel"/>).</summary>
+    internal bool TakesWheelDips(Point point, double deltaX, double deltaY)
+    {
+        if (_disposed)
+            return false;
+        var root = DipsToRoot(point);
+        var position = new Point(root.X + _root.Frame.X, root.Y + _root.Frame.Y);
+        return SkUiView.MapPoint(_root, position, out var local) && _root.Router.TakesWheel(local, deltaX, deltaY);
+    }
+
     /// <summary>UI thread: dispatches a touch in root DIPs.</summary>
     private bool TouchRoot(SkUiTouchEvent touch)
     {

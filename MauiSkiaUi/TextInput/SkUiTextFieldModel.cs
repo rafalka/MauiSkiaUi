@@ -1967,7 +1967,7 @@ internal sealed class SkUiTextFieldModel : ISkUiTextInputClient, ISkUiTextEditor
     {
         if (!IsMultiline || delta == 0)
             return delta;
-        var target = Math.Clamp(_scrollY + (float)delta, 0, MaxScrollY);
+        var target = ScrollTarget(delta);
         var used = target - _scrollY;
         if (Math.Abs(used) < float.Epsilon)
             return delta;
@@ -1978,6 +1978,9 @@ internal sealed class SkUiTextFieldModel : ISkUiTextInputClient, ISkUiTextEditor
         _proxy?.GeometryChanged(this);
         return delta - used;
     }
+
+    /// <summary>Where scrolling the text by <paramref name="delta"/> (positive: down) would take it, within its range.</summary>
+    private float ScrollTarget(double delta) => Math.Clamp(_scrollY + (float)delta, 0, MaxScrollY);
 
     // The user scrolled the text: the caret is not pulled back into view until it moves.
     private bool _manualScroll;
@@ -1991,6 +1994,14 @@ internal sealed class SkUiTextFieldModel : ISkUiTextInputClient, ISkUiTextEditor
             return new Point(deltaX, deltaY);
         var rest = ScrollBy(-deltaY);
         return new Point(deltaX, -rest);
+    }
+
+    /// <summary>Whether <see cref="Wheel"/> would use any of this delta now, without scrolling or stepping.</summary>
+    internal bool TakesWheel(double deltaY)
+    {
+        if (Steps is not null)
+            return IsEnabled && SkUiTextFieldSteps.TakesWheel(deltaY, _owner.IsFocused);
+        return IsMultiline && deltaY != 0 && Math.Abs(ScrollTarget(-deltaY) - _scrollY) >= float.Epsilon;
     }
 
     /// <summary>Whether an editor can scroll its text by <paramref name="delta"/> (a drag deciding between the editor and its scroller).</summary>

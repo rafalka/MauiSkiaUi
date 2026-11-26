@@ -892,6 +892,8 @@ public abstract class SkUiInputView : SkUiView, ISkUiFontElement, ISkUiFieldChro
 
     Point ISkUiWheelHandler.OnWheel(double deltaX, double deltaY) => Model.Wheel(deltaX, deltaY);
 
+    bool ISkUiWheelHandler.TakesWheel(double deltaX, double deltaY) => Model.TakesWheel(deltaY);
+
     bool ISkUiTextInputNode.CanTakeTextFocus => IsVisible && IsEnabled;
 
     bool ISkUiTextInputNode.HitsTextHandle(Point local) => Model.HandleAt(local) != 0;

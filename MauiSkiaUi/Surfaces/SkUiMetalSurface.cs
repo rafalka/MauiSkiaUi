@@ -39,17 +39,13 @@ internal sealed class SkUiMetalView : UIView
         _surface = new SkUiMetalSurface(layer);
         // Weak: the view retains the recognizer natively, and a strong callback would root this view (and its layer).
         var weak = new WeakReference<SkUiMetalView>(this);
-        var scroll = new UIPanGestureRecognizer(recognizer =>
-        {
-            if (weak.TryGetTarget(out var view))
-                view.OnScrollGesture(recognizer);
-        })
-        {
-            AllowedScrollTypesMask = UIScrollTypeMask.All,
-            AllowedTouchTypes = [],
-            CancelsTouchesInView = false
-        };
-        AddGestureRecognizer(scroll);
+        AddGestureRecognizer(SkUiWheelRecognizer.Create(
+            recognizer =>
+            {
+                if (weak.TryGetTarget(out var view))
+                    view.OnScrollGesture(recognizer);
+            },
+            (location, deltaX, deltaY) => weak.TryGetTarget(out var view) && view.WheelTaken?.Invoke(location, deltaX, deltaY) == true));
         _gate = new SkUiNativeGestureGate();
         AddGestureRecognizer(_gate);
         _tapGate = new SkUiNativeGestureGate(taps: true);
@@ -78,6 +74,9 @@ internal sealed class SkUiMetalView : UIView
 
     /// <summary>UI thread: raw touches in DIPs; return value is ignored on Apple (UIKit keeps delivering).</summary>
     internal Func<SkUiTouchEvent, bool>? TouchHandler { get; set; }
+
+    /// <summary>UI thread: whether the drawn tree would use a wheel or trackpad scroll (DIPs; see <see cref="SkUiWheelRecognizer"/>).</summary>
+    internal Func<Point, double, double, bool>? WheelTaken { get; set; }
 
     public override void LayoutSubviews()
     {
@@ -155,6 +154,47 @@ internal sealed class SkUiMetalView : UIView
         if (disposing)
             _surface.Dispose();
         base.Dispose(disposing);
+    }
+}
+
+/// <summary>
+/// Wheel and trackpad scrolling over an Apple surface: a pan recognizer for scroll events only (no touches) that delivers the
+/// deltas to the drawn tree. It begins only when the drawn tree would use the scroll at the pointer in its first direction (a
+/// drawn scroller there can still move that way, a focused stepper field, a zoom view not at its limit); otherwise it fails,
+/// so a native scroller around the surface (a MAUI <c>ScrollView</c>) takes the gesture, as it does over native views. Once
+/// begun it keeps the gesture (as macOS latches a scroll gesture to one scroller): a drawn list scrolled to its end stops, and
+/// the next gesture scrolls the page.
+/// </summary>
+internal static class SkUiWheelRecognizer
+{
+    /// <param name="scrolled">Called as the gesture changes (read and reset its translation).</param>
+    /// <param name="takes">Whether the drawn tree would use a scroll at a point of the view (DIPs) by these deltas (positive towards the start).</param>
+    public static UIPanGestureRecognizer Create(Action<UIPanGestureRecognizer> scrolled, Func<Point, double, double, bool> takes) =>
+        new(scrolled)
+        {
+            AllowedScrollTypesMask = UIScrollTypeMask.All,
+            AllowedTouchTypes = [],
+            CancelsTouchesInView = false,
+            Delegate = new WheelDelegate(takes)
+        };
+
+    // Holds only the callback, which holds its owner weakly: the recognizer (natively retained by the view) keeps the delegate.
+    private sealed class WheelDelegate(Func<Point, double, double, bool> takes) : UIGestureRecognizerDelegate
+    {
+        public override bool ShouldBegin(UIGestureRecognizer recognizer)
+        {
+            if (recognizer is not UIPanGestureRecognizer pan || pan.View is not { } view)
+                return true;
+            // What the gesture moved before beginning, else its velocity (exact zero: no movement yet). Positive moves the
+            // content right / down: towards the start, as wheel deltas.
+            var direction = pan.TranslationInView(view);
+            if (direction.X == 0 && direction.Y == 0)
+                direction = pan.VelocityInView(view);
+            if (direction.X == 0 && direction.Y == 0)
+                return true;
+            var location = pan.LocationInView(view);
+            return takes(new Point(location.X, location.Y), direction.X, direction.Y);
+        }
     }
 }
 

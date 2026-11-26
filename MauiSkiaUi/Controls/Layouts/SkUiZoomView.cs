@@ -156,4 +156,6 @@ public class SkUiZoomView : SkUiContentView, ISkUiZoomTarget, ISkUiWheelHandler
     }
 
     Point ISkUiWheelHandler.OnWheel(double deltaX, double deltaY) => Zoom.OnWheel(deltaX, deltaY);
+
+    bool ISkUiWheelHandler.TakesWheel(double deltaX, double deltaY) => Zoom.TakesWheel(deltaY);
 }
