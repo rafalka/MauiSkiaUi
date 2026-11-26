@@ -400,6 +400,13 @@ public partial class SkUiLook
     /// </summary>
     public virtual double PressedContentOpacity => 0.4;
 
+    /// <summary>
+    /// The scale pressed views and nodes shrink to (more than 0; default 1: none) when they leave <c>PressedScale</c> at -1,
+    /// with the look's press and release transitions: an app's standard press (0.97) for every button and tapped card. Not
+    /// with reduced motion (<see cref="SkUiMotion.IsMotionReduced"/>).
+    /// </summary>
+    public virtual double PressedScale => 1;
+
     /// <summary>Optional Button painter (fill, border and press feedback behind the text); replaces <see cref="DrawButtonCore"/>.</summary>
     public Action<SKCanvas, SkUiButtonPaint>? ButtonPainter { get; set; }
 

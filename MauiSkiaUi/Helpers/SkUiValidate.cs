@@ -103,6 +103,19 @@ internal static class SkUiValidate
             throw new ArgumentException($"'{value}' is not a list of OpenType features (for example \"tnum, -liga\").", name);
     }
 
+    /// <summary>A press scale: -1 (the look's) or finite and more than 0.</summary>
+    public static bool PressedScale(BindableObject bindable, object? value) => value is double scale && IsPressedScale(scale);
+
+    /// <summary>Whether <paramref name="scale"/> is -1 (the look's) or finite and more than 0.</summary>
+    public static bool IsPressedScale(double scale) => scale == -1 || double.IsFinite(scale) && scale > 0; // exact: -1 is a sentinel
+
+    /// <summary>Throws unless <paramref name="value"/> is -1 (the look's) or finite and more than 0.</summary>
+    public static void ThrowIfNotPressedScale(double value, string name)
+    {
+        if (!IsPressedScale(value))
+            throw new ArgumentOutOfRangeException(name, value, "Expected -1 (the look's) or a finite scale more than 0.");
+    }
+
     public static bool Orientation(BindableObject bindable, object? value) => value is StackOrientation orientation && Enum.IsDefined(orientation);
 
     /// <summary>A defined <see cref="SkUiPressFeedback"/>.</summary>

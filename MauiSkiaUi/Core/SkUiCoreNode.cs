@@ -963,6 +963,7 @@ public partial class SkUiCoreNode : ISkUiCoreNode, INotifyPropertyChanged, ISkUi
         props.AnchorY = (float)_anchorY;
         props.Opacity = (float)_opacity;
         props.PressOpacity = PressOpacity;
+        props.PressScale = PressScale;
         props.IsVisible = _isVisible;
         props.ClipToBounds = _clipToBounds;
         props.Pinned = IsPinned;
@@ -1436,6 +1437,7 @@ public partial class SkUiCoreNode : ISkUiCoreNode, INotifyPropertyChanged, ISkUi
         if (IsPressed == value) return;
         IsPressed = value;
         UpdatePressEffect(value);
+        UpdatePressScale(value);
         OnPropertyChanged(nameof(IsPressed));
         OnPressedChanged();
         InvalidatePaint();
@@ -1447,6 +1449,44 @@ public partial class SkUiCoreNode : ISkUiCoreNode, INotifyPropertyChanged, ISkUi
     private bool _showsPressEffect;
     private SkUiPressFeedback _pressFeedback;
     private SkUiPressAnimator? _pressEffect;
+    private double _pressedScale = -1;
+    private SkUiPressAnimator? _pressScaleEffect;
+
+    /// <summary>
+    /// The scale the node and its children shrink to while pressed, about the anchor, with the look's press and release
+    /// transitions; -1 (default): the look's <see cref="SkUiLook.PressedScale"/> (1, none, in the built-in looks). Shown
+    /// whenever the node is pressed, with or without <see cref="ShowsPressEffect"/> (see <see cref="SkUiView.PressedScale"/>).
+    /// </summary>
+    public double PressedScale
+    {
+        get => _pressedScale;
+        set => SetPressedScale(value);
+    }
+
+    /// <summary>Sets <see cref="PressedScale"/> (-1, or finite and more than 0).</summary>
+    public SkUiCoreNode SetPressedScale(double value)
+    {
+        SkUiValidate.ThrowIfNotPressedScale(value, nameof(value));
+        if (!SetProperty(ref _pressedScale, value, nameof(PressedScale))) return this;
+        InvalidateRender(SkUiRenderDirty.Props);
+        return this;
+    }
+
+    /// <summary>The press scale this node shows: its own <see cref="PressedScale"/>, or the look's.</summary>
+    private double EffectivePressedScale => _pressedScale > 0 ? _pressedScale : Math.Max(double.Epsilon, SkUiLookScope.Resolve(this).PressedScale);
+
+    /// <summary>The press scale's factor on the node's scale (1 unless it is pressed or releasing with a scale).</summary>
+    private float PressScale => _pressScaleEffect is { Pressed: > 0 } press ? SkUiPressAnimator.ScaledBy(press.Pressed, EffectivePressedScale) : 1;
+
+    /// <summary>Starts or releases the press scale when the node's pressed state changes (none under reduced motion).</summary>
+    private void UpdatePressScale(bool pressed)
+    {
+        // Exact: 1 is no scale.
+        if (_pressScaleEffect is null && (!pressed || EffectivePressedScale == 1 || SkUiMotion.IsMotionReduced))
+            return;
+        (_pressScaleEffect ??= SkUiPressAnimator.Fade(this, () => InvalidateRender(SkUiRenderDirty.Props)))
+            .SetPressed(pressed && !SkUiMotion.IsMotionReduced, PressPosition);
+    }
 
     /// <summary>
     /// Draws the look's press feedback (<see cref="SkUiLook.DrawPressOverlay"/>: a dim or a ripple from the press point)

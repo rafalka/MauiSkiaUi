@@ -213,6 +213,12 @@ internal sealed class SkUiPressAnimator
     public static float FadedOpacity(float pressed, SkUiLook look) =>
         1 - pressed * (1 - (float)Math.Clamp(look.PressedContentOpacity, 0, 1));
 
+    /// <summary>
+    /// The scale factor of a press scale at press amount <paramref name="pressed"/> (0–1), toward <paramref name="target"/>
+    /// (a view's <c>PressedScale</c>, or the look's <see cref="SkUiLook.PressedScale"/>).
+    /// </summary>
+    public static float ScaledBy(float pressed, double target) => 1 - pressed * (1 - (float)target);
+
     /// <summary>The press feedback to draw.</summary>
     public SkUiPressVisual Visual => new(_pressed.Value, _origin, _ripple?.Value ?? 0, _fade?.Value ?? 1);
 

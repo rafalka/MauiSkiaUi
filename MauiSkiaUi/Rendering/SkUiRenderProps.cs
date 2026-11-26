@@ -20,6 +20,12 @@ internal record struct SkUiRenderProps
     public float PressOpacity;
 
     /// <summary>
+    /// A factor on <see cref="ScaleX"/> and <see cref="ScaleY"/> from the press scale (<c>PressedScale</c>), 1 = none, about the
+    /// anchor like them. Apart from them, so a scale animation and the press neither cancel nor overwrite each other.
+    /// </summary>
+    public float PressScale;
+
+    /// <summary>
     /// Turns the node about its vertical axis through the anchor, in perspective, in degrees (positive: its right edge goes
     /// away); 0 = none. Applied before <see cref="ScaleX"/> / <see cref="ScaleY"/> and <see cref="Rotation"/>.
     /// </summary>
@@ -142,7 +148,7 @@ internal record struct SkUiRenderProps
 
     public static SkUiRenderProps Default => new()
     {
-        ScaleX = 1, ScaleY = 1, AnchorX = 0.5f, AnchorY = 0.5f, Opacity = 1, PressOpacity = 1, IsVisible = true, ClipToBounds = true,
+        ScaleX = 1, ScaleY = 1, AnchorX = 0.5f, AnchorY = 0.5f, Opacity = 1, PressOpacity = 1, PressScale = 1, IsVisible = true, ClipToBounds = true,
         ChildrenScaleX = 1, ChildrenScaleY = 1
     };
 
@@ -237,9 +243,11 @@ internal record struct SkUiRenderProps
     public readonly SKMatrix GetMatrix(in SkUiRenderLinkValues links) =>
         GetMatrix(TranslationX + links.TranslationX, TranslationY + links.TranslationY, ScaleX * links.ScaleX, ScaleY * links.ScaleY);
 
-    /// <summary><see cref="Matrix"/> with another translation and scale.</summary>
+    /// <summary><see cref="Matrix"/> with another translation and scale (times <see cref="PressScale"/>).</summary>
     public readonly SKMatrix GetMatrix(float translationX, float translationY, float scaleX, float scaleY)
     {
+        scaleX *= PressScale;
+        scaleY *= PressScale;
         // Exact comparisons: identity values are the common case and skip the matrix products.
         if (translationX == 0 && translationY == 0 && Rotation == 0 && scaleX == 1 && scaleY == 1 && RotationX == 0 && RotationY == 0)
             return SKMatrix.CreateTranslation(X, Y);
