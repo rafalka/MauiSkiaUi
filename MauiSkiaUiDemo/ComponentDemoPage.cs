@@ -874,16 +874,24 @@ public abstract class ComponentDemoPage : ContentPage
         void Rebuild()
         {
             var current = SkUiFontFeatures.OrNull(skia());
-            var items = SkUiFontFeatures.SupportedBy(fontFamily(), fontAttributes()).Select(FontFeatureItem.For).OfType<FontFeatureItem>()
-                .OrderBy(item => item.Title, StringComparer.CurrentCulture).ToList();
+            var fontTags = SkUiFontFeatures.SupportedBy(fontFamily(), fontAttributes());
+            var items = fontTags.Select(FontFeatureItem.For).OfType<FontFeatureItem>().ToList();
+            // One row per tag: a value set in code (kern on, salt=2, a script feature) takes its tag's row.
             foreach (var feature in current ?? SkUiFontFeatures.Empty)
-                if (!items.Exists(item => item.Feature == feature))
-                    items.Add(FontFeatureItem.NotInFont(feature));
+            {
+                if (items.Exists(item => item.Feature == feature))
+                    continue;
+                items.RemoveAll(item => item.Feature.Tag == feature.Tag);
+                items.Add(FontFeatureItem.Set(feature, inFont: fontTags.Contains(feature.Tag)));
+            }
+            items.Sort((first, second) => StringComparer.CurrentCulture.Compare(first.Title, second.Title));
             updating = true;
             try
             {
                 picker.ItemsSource = items;
                 picker.SelectedItems = [.. items.Where(item => current?.Contains(item.Feature) == true)];
+                picker.Title = items.Count > 0 ? name : "No OpenType features in this font";
+                picker.IsEnabled = items.Count > 0;
             }
             finally { updating = false; }
         }
@@ -910,7 +918,9 @@ public abstract class ComponentDemoPage : ContentPage
         }
         _resets.Add(() =>
         {
-            apply(null);
+            updating = true;
+            try { apply(null); }
+            finally { updating = false; }
             Rebuild();
         });
         _checks.Add((name, () => Chosen().SetEquals(skia() ?? SkUiFontFeatures.Empty)));
@@ -933,9 +943,10 @@ public abstract class ComponentDemoPage : ContentPage
             };
         }
 
-        /// <summary>The row of a chosen <paramref name="feature"/> the current font lacks.</summary>
-        public static FontFeatureItem NotInFont(SkUiFontFeature feature) =>
-            new(feature, (feature.Info?.Name ?? feature.Tag) + (feature.IsEnabled ? "" : " off"), "Not in this font: it draws nothing different.");
+        /// <summary>The row of a <paramref name="feature"/> set elsewhere that no font row offers: a value of its own, or a tag the font lacks.</summary>
+        public static FontFeatureItem Set(SkUiFontFeature feature, bool inFont) =>
+            new(feature, (feature.Info?.Name ?? feature.Tag) + feature.Value switch { 0 => " off", 1 => " on", var value => $" {value}" },
+                inFont ? feature.Info?.Description ?? "The font's own feature." : "Not in this font: it draws nothing different.");
 
         public override string ToString() => Feature.ToString();
     }

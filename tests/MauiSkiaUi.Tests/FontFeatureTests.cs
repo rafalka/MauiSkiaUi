@@ -118,6 +118,9 @@ public sealed class FontFeatureTests
         Assert.Equal(SkUiFontFeatureDefault.On, SkUiFontFeature.Kerning.Info?.Default);
         Assert.Equal(SkUiFontFeatureDefault.On, SkUiFontFeature.StandardLigatures.Disabled.Info?.Default); // the tag's, whatever the value
         Assert.Equal(SkUiFontFeatureDefault.Required, SkUiFontFeature.Describe("ccmp")?.Default);
+        Assert.Equal(SkUiFontFeatureDefault.On, SkUiFontFeature.Describe("rand")?.Default); // HarfBuzz randomizes unless told not to
+        Assert.Equal(SkUiFontFeatureDefault.Required, SkUiFontFeature.Describe("vert")?.Default); // vertical only: not for horizontal text
+        Assert.NotNull(SkUiFontFeature.Describe("apkn"));
         Assert.Equal("Stylistic set 7", SkUiFontFeature.StylisticSet(7).Info?.Name);
         Assert.Equal("Character variant 42", SkUiFontFeature.CharacterVariant(42).Info?.Name);
         Assert.Null(SkUiFontFeature.Describe("cv00"));
