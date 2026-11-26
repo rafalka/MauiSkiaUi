@@ -206,7 +206,10 @@ public class SkUiChipGroup : SkUiView, ISkUiKeyHandler
         _selectionMode = value;
         // What a later multiple-selection change reports as before.
         _lastSelection = value == SkUiChipSelectionMode.Multiple ? SelectedItems.ToArray() : [];
-        SyncChips();
+        if (_selectionMode == SkUiChipSelectionMode.None)
+            ClearChips();
+        else
+            SyncChips();
         foreach (var chip in _chips)
             chip.OnGroupModeChanged(); // a check shows or goes; read as a toggle or a button
         InvalidateSemantics();
@@ -366,9 +369,27 @@ public class SkUiChipGroup : SkUiView, ISkUiKeyHandler
         _ => false
     };
 
+    /// <summary>The selection mode became None: no chip stays selected.</summary>
+    private void ClearChips()
+    {
+        _syncing = true;
+        try
+        {
+            foreach (var chip in _chips)
+                chip.SelectByUser(false);
+        }
+        finally
+        {
+            _syncing = false;
+        }
+    }
+
     /// <summary>The chips show the selection.</summary>
     private void SyncChips()
     {
+        // Without selection the group leaves the chips alone (an app may set one); a change to None clears them once.
+        if (_selectionMode == SkUiChipSelectionMode.None)
+            return;
         _syncing = true;
         try
         {

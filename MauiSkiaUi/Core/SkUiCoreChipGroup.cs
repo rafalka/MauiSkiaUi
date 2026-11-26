@@ -116,7 +116,10 @@ public class SkUiCoreChipGroup : SkUiCoreNode, ISkUiKeyHandler
             throw new ArgumentOutOfRangeException(nameof(value), value, "Not a defined selection mode.");
         if (!SetProperty(ref _selectionMode, value, nameof(SelectionMode)))
             return this;
-        SyncChips();
+        if (_selectionMode == SkUiChipSelectionMode.None)
+            ClearChips();
+        else
+            SyncChips();
         foreach (var chip in _chips)
             chip.OnGroupModeChanged(); // a check shows or goes; read as a toggle or a button
         InvalidateSemantics();
@@ -275,8 +278,26 @@ public class SkUiCoreChipGroup : SkUiCoreNode, ISkUiKeyHandler
         _ => false
     };
 
+    /// <summary>The selection mode became None: no chip stays selected.</summary>
+    private void ClearChips()
+    {
+        _syncing = true;
+        try
+        {
+            foreach (var chip in _chips)
+                chip.SetIsSelected(false);
+        }
+        finally
+        {
+            _syncing = false;
+        }
+    }
+
     private void SyncChips()
     {
+        // Without selection the group leaves the chips alone (an app may set one); a change to None clears them once.
+        if (_selectionMode == SkUiChipSelectionMode.None)
+            return;
         _syncing = true;
         try
         {

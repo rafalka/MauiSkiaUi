@@ -16,6 +16,7 @@ internal sealed class SkUiChipChrome(object owner)
     private float _measuredLook;
     private double _measuredLookFontSize;
     private int _measuredScaleVersion = -1;
+    private double _measuredFontScale;
     private SKSize _badgeSize;
 
     /// <summary>The badge's font: a family (<c>null</c>: the default), a size (-1: the look's <see cref="SkUiLook.ChipBadgeFontSize"/>) and attributes.</summary>
@@ -53,9 +54,10 @@ internal sealed class SkUiChipChrome(object owner)
         var look = SkUiLook.Current;
         var icon = look.ChipIconSize;
         // Exact comparisons: cache keys.
-        var scaleVersion = SkUiFontScaling.Version; // the system text size and the look's FontScale
+        // The system text size and the app look (Version), and the look measuring now (a subtree's FontScale).
+        var scaleVersion = SkUiFontScaling.Version;
         if (text != _measuredBadge || font != _measuredFont || scaled != _measuredScaled || icon != _measuredLook || look.ChipBadgeFontSize != _measuredLookFontSize
-            || scaleVersion != _measuredScaleVersion)
+            || scaleVersion != _measuredScaleVersion || look.FontScale != _measuredFontScale)
         {
             // The layout keeps its lines by style and width, not by text: a new text is broken again.
             var layout = _badgeLayout ??= new SkUiTextLayout(owner);
@@ -64,8 +66,8 @@ internal sealed class SkUiChipChrome(object owner)
             var height = Math.Max(icon, (float)Math.Ceiling(size.Height) + 2);
             // A pill: the text with half its height of room on each side, at least a circle.
             _badgeSize = new SKSize(Math.Max(height, (float)Math.Ceiling(size.Width) + height * 0.6f), height);
-            (_measuredBadge, _measuredFont, _measuredScaled, _measuredLook, _measuredLookFontSize, _measuredScaleVersion) =
-                (text, font, scaled, icon, look.ChipBadgeFontSize, scaleVersion);
+            (_measuredBadge, _measuredFont, _measuredScaled, _measuredLook, _measuredLookFontSize, _measuredScaleVersion, _measuredFontScale) =
+                (text, font, scaled, icon, look.ChipBadgeFontSize, scaleVersion, look.FontScale);
         }
         return _badgeSize;
     }

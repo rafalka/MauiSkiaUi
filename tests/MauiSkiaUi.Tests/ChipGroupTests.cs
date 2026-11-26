@@ -126,7 +126,7 @@ public class ChipGroupTests
     [Fact]
     public void ChangingTheModeClearsOrResizesTheChips()
     {
-        using var _ = SkUiTestHelpers.UseBundledFont();
+        // Widths compared are the check's room, not text: no font needed (Linux CI measures text 0 wide).
         var group = Group(["Approved", "Pending"]);
         Tap(group, group.Chips[0]);
         SkUiTestHelpers.Arrange(group, 300, 400);
@@ -139,6 +139,10 @@ public class ChipGroupTests
         Assert.False(group.Chips[0].IsSelected);
         Assert.True(group.Chips[0].Width < checkedWidth, $"{checkedWidth} → {group.Chips[0].Width}");
         Assert.All(SkUiSemanticsTree.Build(group).Flatten(), node => Assert.Equal(SkUiSemanticsRole.Button, node.Role));
+        group.Chips[1].IsSelected = true; // the app, while the group selects nothing: kept across the group's changes
+        group.SelectedItem = "Pending";
+        Assert.True(group.Chips[1].IsSelected);
+        group.Chips[1].IsSelected = false;
 
         var changes = new List<SkUiSelectionChangedEventArgs>();
         group.SelectionChanged += (_, args) => changes.Add(args);
