@@ -141,7 +141,7 @@ price.SetFontFeatures(SkUiFontFeatures.Parse("tnum, -liga"));           // the t
   `SkUiFontFeatures`, not text.
 - **What a feature is:** `SkUiFontFeature.Describe("tnum")` (or `feature.Info`) gives a short name ("Tabular figures"), a
   one-sentence description and whether text has it by default (`SkUiFontFeatureDefault`: `Off`; `On`, as kerning and
-  ligatures, which a list turns off; `Required`, applied by the shaper for a script). `SkUiFontFeature.Known` lists every
+  ligatures, which a list turns off; `Required`, applied by the shaper for a script or layout, or of no use to horizontal text, as vertical forms). `SkUiFontFeature.Known` lists every
   registered feature: with `SupportedBy`, enough for a feature picker (the demo's label page has one).
 - **What a font has:** `SkUiFontFeatures.SupportedBy("OpenSansRegular")` lists the tags of the font's substitution and
   positioning tables, sorted. A feature the font lacks draws nothing different; text that falls back to another font (another

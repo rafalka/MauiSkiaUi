@@ -881,7 +881,7 @@ public abstract class ComponentDemoPage : ContentPage
             {
                 if (items.Exists(item => item.Feature == feature))
                     continue;
-                items.RemoveAll(item => item.Feature.Tag == feature.Tag);
+                items.RemoveAll(item => item.Feature.Tag == feature.Tag && !current!.Contains(item.Feature)); // rows of the list stay
                 items.Add(FontFeatureItem.Set(feature, inFont: fontTags.Contains(feature.Tag)));
             }
             items.Sort((first, second) => StringComparer.CurrentCulture.Compare(first.Title, second.Title));
