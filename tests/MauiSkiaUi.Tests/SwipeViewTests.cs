@@ -763,6 +763,131 @@ public class SwipeViewTests
         Assert.Equal(200, list.ScrollView.ScrollY);
     }
 
+    #region 1.18: groups, CloseAsync, closing a list's rows, custom actions
+
+    [Fact]
+    public void OpeningAViewOfAGroupClosesTheOthersOfItsGroupOnItsSurfaceOnly()
+    {
+        var (scroller, rows) = ScrolledRows();
+        foreach (var row in rows)
+            row.ExclusiveGroup = "rows";
+        rows[3].ExclusiveGroup = null;
+        rows[0].Open(OpenSwipeItem.RightItems, animated: false);
+        rows[3].Open(OpenSwipeItem.RightItems, animated: false);
+        Assert.True(rows[0].IsOpen && rows[3].IsOpen);
+
+        // A swipe on row 1 closes row 0 (same group), not row 3 (none).
+        Drag(scroller, new Point(250, 90), new Point(100, 90));
+        Assert.True(rows[1].IsOpen);
+        Assert.False(rows[0].IsOpen);
+        Assert.True(rows[3].IsOpen);
+
+        // Open() does it too.
+        rows[2].Open(OpenSwipeItem.RightItems, animated: false);
+        Assert.False(rows[1].IsOpen);
+        Assert.True(rows[2].IsOpen);
+
+        // A view of the same group on another surface is left alone.
+        var elsewhere = Swipe(out _);
+        elsewhere.RightItems = TwoItems();
+        elsewhere.ExclusiveGroup = "rows";
+        SkUiTestHelpers.Arrange(elsewhere, 300, 60);
+        elsewhere.Open(OpenSwipeItem.RightItems, animated: false);
+        Assert.True(rows[2].IsOpen);
+        Assert.True(elsewhere.IsOpen);
+        Assert.Equal("rows", elsewhere.SetExclusiveGroup("rows").ExclusiveGroup);
+        Assert.Null(new SkUiSwipeView().ExclusiveGroup);
+    }
+
+    [Fact]
+    public async Task CloseAsyncCompletesWhenTheContentIsBack()
+    {
+        var swipe = Swipe(out _);
+        swipe.RightItems = TwoItems();
+        using var surface = new SkUiTestSurface(swipe, 300, 60);
+        surface.Frame(0);
+        await swipe.CloseAsync(); // nothing shows: done at once
+
+        swipe.Open(OpenSwipeItem.RightItems, animated: false);
+        surface.Frame(1);
+        var closing = swipe.CloseAsync();
+        Assert.False(closing.IsCompleted);
+        surface.Root.AnimationClock.Tick(TimeSpan.FromMilliseconds(100));
+        Assert.False(closing.IsCompleted);
+        surface.Root.AnimationClock.Tick(TimeSpan.FromMilliseconds(500));
+        await closing.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Null(swipe.ShownSide);
+
+        // Opened again before it closed: nothing left to wait for.
+        swipe.Open(OpenSwipeItem.RightItems, animated: false);
+        closing = swipe.CloseAsync();
+        swipe.Open(OpenSwipeItem.RightItems);
+        await closing.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.True(swipe.IsOpen);
+
+        // Not animated: done at once.
+        await swipe.CloseAsync(animated: false).WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Null(swipe.ShownSide);
+    }
+
+    [Fact]
+    public void CloseSwipeViewsClosesEveryOpenRealizedRow()
+    {
+        var list = new SkUiCollectionView
+        {
+            ItemsSource = new ObservableCollection<int>(Enumerable.Range(0, 100)),
+            ItemTemplate = new DataTemplate(() =>
+            {
+                var row = Swipe(out _);
+                row.RightItems = TwoItems();
+                return row;
+            }),
+            VerticalScrollBarVisibility = ScrollBarVisibility.Never,
+            Overscroll = SkUiOverscrollMode.None
+        };
+        SkUiTestHelpers.Arrange(list, 300, 300);
+        var first = (SkUiSwipeView)list.GetRealizedView(0)!;
+        var third = (SkUiSwipeView)list.GetRealizedView(2)!;
+        first.Open(OpenSwipeItem.RightItems, animated: false);
+        third.Open(OpenSwipeItem.RightItems, animated: false);
+        list.CloseSwipeViews(animated: false);
+        Assert.False(first.IsOpen);
+        Assert.False(third.IsOpen);
+        Assert.Null(first.ShownSide);
+        Assert.Null(third.ShownSide);
+    }
+
+    [Fact]
+    public void SwipeItemsAreCustomActionsOfTheRow()
+    {
+        var log = new List<string>();
+        var swipe = Swipe(out _);
+        swipe.RightItems = TwoItems(log);
+        var hidden = new SwipeItem { Text = "Hidden", IsVisible = false };
+        var unnamed = new SwipeItem();
+        swipe.LeftItems = [new SwipeItem { Text = "Pin" }, hidden, unnamed];
+        SkUiTestHelpers.Arrange(swipe, 300, 60);
+
+        List<string> Actions()
+        {
+            var info = new SkUiSemanticsInfo();
+            ((ISkUiAccessibleNode)swipe).GetSemantics(info);
+            return info.CustomActions?.ToList() ?? [];
+        }
+
+        Assert.Equal(["Pin", Archive, Delete], Actions());
+        Assert.True(((ISkUiAccessibleNode)swipe).PerformSemanticsCustomAction(2));
+        Assert.Equal([Delete], log);
+        Assert.Null(swipe.ShownSide); // invoked without opening
+        Assert.False(((ISkUiAccessibleNode)swipe).PerformSemanticsCustomAction(3));
+
+        // The row is an element of its own, offering them.
+        var tree = SkUiSemanticsTree.Build(swipe);
+        Assert.Contains(tree.Flatten(), node => node.CustomActions is ["Pin", Archive, Delete]);
+    }
+
+    #endregion
+
     [Fact]
     public void ADisabledSwipeViewDoesNotSwipe()
     {

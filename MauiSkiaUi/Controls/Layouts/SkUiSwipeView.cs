@@ -89,6 +89,11 @@ public partial class SkUiSwipeView : SkUiView
     private Thickness _padding;
     private Rect _contentRect;
     private List<SkUiScrollController>? _watchedScrollers;
+    private string? _exclusiveGroup;
+    private List<TaskCompletionSource>? _closeWaiters; // CloseAsync calls waiting for the content to be back
+    private List<ISwipeItem>? _semanticsItems; // the items offered as custom actions, in the order last reported
+    // The views of this UI thread with items shown: an opening view of a group closes the others (ExclusiveGroup).
+    [ThreadStatic] private static List<WeakReference<SkUiSwipeView>>? _shownViews;
     private readonly Action<bool> _ancestorMovingChanged;
 
     /// <summary>Bindable <see cref="Content"/>.</summary>
@@ -122,6 +127,11 @@ public partial class SkUiSwipeView : SkUiView
     public static readonly BindableProperty PaddingProperty = BindableProperty.Create(
         nameof(Padding), typeof(Thickness), typeof(SkUiSwipeView), default(Thickness),
         propertyChanged: (bindable, _, newValue) => ((SkUiSwipeView)bindable).OnPaddingChanged((Thickness)newValue));
+
+    /// <summary>Bindable <see cref="ExclusiveGroup"/>.</summary>
+    public static readonly BindableProperty ExclusiveGroupProperty = BindableProperty.Create(
+        nameof(ExclusiveGroup), typeof(string), typeof(SkUiSwipeView), null,
+        propertyChanged: (bindable, _, newValue) => ((SkUiSwipeView)bindable)._exclusiveGroup = string.IsNullOrEmpty((string?)newValue) ? null : (string)newValue);
 
     private static readonly BindablePropertyKey IsOpenPropertyKey = BindableProperty.CreateReadOnly(
         nameof(IsOpen), typeof(bool), typeof(SkUiSwipeView), false);
@@ -207,6 +217,20 @@ public partial class SkUiSwipeView : SkUiView
         set => SetValue(PaddingProperty, value);
     }
 
+    /// <summary>
+    /// A name the swipe views that open one at a time share (SkiaUi; <c>null</c>, default: none). When a view of a group starts
+    /// showing its items (a swipe, <see cref="Open"/>), the other views of that group on the same drawn surface that show theirs
+    /// close, animated: the rows of a list share one name so only one stays open.
+    /// </summary>
+    public string? ExclusiveGroup
+    {
+        get => (string?)GetValue(ExclusiveGroupProperty);
+        set => SetValue(ExclusiveGroupProperty, value);
+    }
+
+    /// <summary>Sets <see cref="ExclusiveGroup"/> (same as the property setter).</summary>
+    public SkUiSwipeView SetExclusiveGroup(string? value) { ExclusiveGroup = value; return this; }
+
     /// <summary>Whether items are open (or opening): set when a swipe or <see cref="Open"/> opens them, cleared when they close.</summary>
     public bool IsOpen => (bool)GetValue(IsOpenProperty);
 
@@ -257,6 +281,66 @@ public partial class SkUiSwipeView : SkUiView
     {
         if (_shownPart is not null)
             Settle(open: false, animated);
+    }
+
+    /// <summary>
+    /// Closes open (or revealed) items as <see cref="Close"/> does; completes when the content is back in its place (at once
+    /// when nothing shows), or when the view opens again before that.
+    /// </summary>
+    public Task CloseAsync(bool animated = true)
+    {
+        if (_shownPart is null)
+            return Task.CompletedTask;
+        var waiter = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        (_closeWaiters ??= []).Add(waiter);
+        Settle(open: false, animated);
+        return waiter.Task;
+    }
+
+    /// <summary>Completes the <see cref="CloseAsync"/> calls waiting: the view closed, or opens again.</summary>
+    private void ReleaseCloseWaiters()
+    {
+        if (_closeWaiters is not { Count: > 0 } waiters)
+            return;
+        _closeWaiters = null;
+        foreach (var waiter in waiters)
+            waiter.TrySetResult();
+    }
+
+    /// <summary>Closes the other views of this view's <see cref="ExclusiveGroup"/> on its surface that show their items.</summary>
+    private void CloseOthersOfGroup()
+    {
+        if (_exclusiveGroup is not { } group || _shownViews is not { } views)
+            return;
+        var root = SurfaceRoot(this);
+        for (var index = views.Count - 1; index >= 0; index--)
+        {
+            if (!views[index].TryGetTarget(out var other))
+            {
+                views.RemoveAt(index);
+                continue;
+            }
+            if (!ReferenceEquals(other, this) && other._exclusiveGroup == group && other._shownPart is not null && !other._dragging
+                && ReferenceEquals(SurfaceRoot(other), root))
+                other.Close();
+        }
+    }
+
+    private static ISkUiRenderable SurfaceRoot(ISkUiRenderable node)
+    {
+        while (node.RenderParent is { } parent)
+            node = parent;
+        return node;
+    }
+
+    private void TrackShown(bool shown)
+    {
+        var views = _shownViews ??= [];
+        for (var index = views.Count - 1; index >= 0; index--)
+            if (!views[index].TryGetTarget(out var view) || ReferenceEquals(view, this))
+                views.RemoveAt(index);
+        if (shown)
+            views.Add(new WeakReference<SkUiSwipeView>(this));
     }
 
     /// <summary>The content's host, moved while swiping (tests).</summary>
@@ -388,6 +472,7 @@ public partial class SkUiSwipeView : SkUiView
     /// <summary>A side's items changed (collection, mode, an item's visibility): the shown side follows.</summary>
     internal void OnSideItemsChanged(OpenSwipeItem side)
     {
+        InvalidateSemantics(); // the custom actions follow the items
         var part = _parts[(int)side];
         part?.InvalidateItems();
         if (part is null || !ReferenceEquals(part, _shownPart))
@@ -434,10 +519,16 @@ public partial class SkUiSwipeView : SkUiView
                 _shown = 0;
                 _shownPart.IsVisible = false;
             }
+            var wasClosed = _shownPart is null;
             _shownPart = part;
             part.IsVisible = true;
             _contentPart.InputTransparent = true; // taps on the content close the view instead
             WatchScrollers(true);
+            if (wasClosed)
+            {
+                TrackShown(true);
+                CloseOthersOfGroup();
+            }
         }
         LayoutPart(part);
     }
@@ -448,6 +539,8 @@ public partial class SkUiSwipeView : SkUiView
         if (_shownPart is not { } part)
             return;
         SetIsOpen(open);
+        if (open)
+            ReleaseCloseWaiters(); // opened again: nothing to wait for
         var target = open ? part.OpenDistance : 0;
         var length = animated && !SkUiMotion.IsMotionReduced ? SettleLength : 0;
         var distance = Math.Abs(target - _shown);
@@ -472,6 +565,8 @@ public partial class SkUiSwipeView : SkUiView
         _contentPart.InputTransparent = false;
         _contentPart.TranslationX = _contentPart.TranslationY = 0;
         WatchScrollers(false);
+        TrackShown(false);
+        ReleaseCloseWaiters();
     }
 
     private void SetIsOpen(bool value)
@@ -604,6 +699,41 @@ public partial class SkUiSwipeView : SkUiView
                 || (propertyName == nameof(IsVisible) && !IsVisible)
                 || (propertyName == nameof(InputTransparent) && InputTransparent)))
             Close(animated: false);
+    }
+
+    /// <inheritdoc />
+    protected override void OnPopulateSemantics(SkUiSemanticsInfo info)
+    {
+        base.OnPopulateSemantics(info);
+        // Each visible, enabled item is an action of the row, so a screen reader reaches it without the gesture.
+        _semanticsItems?.Clear();
+        foreach (var side in Sides)
+            foreach (var item in GetItems(side))
+            {
+                if (!IsItemVisible(item) || !IsItemEnabled(item) || ActionLabel(item) is not { } label)
+                    continue;
+                (_semanticsItems ??= []).Add(item);
+                info.AddCustomAction(label);
+            }
+    }
+
+    /// <summary>What a screen reader offers for <paramref name="item"/>: its text, or its description; <c>null</c> for neither.</summary>
+    private static string? ActionLabel(ISwipeItem item)
+    {
+        var label = item is SwipeItem { Text: { } text } ? text : item is BindableObject bindable ? SemanticProperties.GetDescription(bindable) : null;
+        return string.IsNullOrWhiteSpace(label) ? null : label;
+    }
+
+    /// <inheritdoc />
+    internal override bool OnSemanticsCustomAction(int index)
+    {
+        if (_semanticsItems is not { } items || index < 0 || index >= items.Count)
+            return false;
+        var item = items[index];
+        if (!IsItemVisible(item) || !IsItemEnabled(item))
+            return false;
+        InvokeItem(item);
+        return true;
     }
 
     /// <summary>An item was tapped: it is invoked, and the view closes unless its items remain open.</summary>

@@ -250,6 +250,23 @@ public partial class SkUiCollectionView : SkUiView, ISkUiItemsView, ISkUiRefresh
     }
 
     /// <summary>
+    /// Closes the swipe views among the realized rows (and their headers and footers) that show their items: before the
+    /// list changes or the page navigates away. Rows that are not realized show none.
+    /// </summary>
+    public void CloseSwipeViews(bool animated = true)
+    {
+        var pending = new Stack<ISkUiView>(SkiaChildren);
+        while (pending.TryPop(out var view))
+        {
+            if (view is SkUiSwipeView swipe)
+                swipe.Close(animated);
+            if (view is SkUiView drawn)
+                foreach (var child in drawn.SkiaChildren)
+                    pending.Push(child);
+        }
+    }
+
+    /// <summary>
     /// Scrolls so the item at <paramref name="index"/> shows at <paramref name="position"/>
     /// (<see cref="ScrollToPosition.MakeVisible"/> scrolls only when it is not fully visible), animated on the render thread or
     /// at once; see <see cref="SkUiVirtualVerticalStackLayoutBase.ScrollToIndex"/>. It lands in the part sticky views do not
