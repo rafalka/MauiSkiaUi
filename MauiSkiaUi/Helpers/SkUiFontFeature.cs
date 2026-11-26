@@ -157,7 +157,7 @@ public readonly struct SkUiFontFeature : IEquatable<SkUiFontFeature>
     /// Whether <paramref name="tag"/> is four ASCII letters or digits. Registered feature tags are; the rule keeps every tag
     /// written back by <see cref="ToString"/> readable by <see cref="Parse"/>, and refuses the short tags HarfBuzz would pad.
     /// </summary>
-    private static bool IsTag(string tag)
+    internal static bool IsTag(string tag)
     {
         if (tag.Length != 4)
             return false;
