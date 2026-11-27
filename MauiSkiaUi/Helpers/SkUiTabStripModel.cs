@@ -89,6 +89,7 @@ internal sealed class SkUiTabStripModel(ISkUiTabStripOwner owner, ISkUiTransitio
     private double[] _widths = [];
     private int[] _partIds = [];
     private bool _prepared;
+    private bool _segmentsLaidOut; // the engine holds the headers' segments for the current widths (cleared by Prepare)
     private int _geometryVersion;
     private (SkUiLook Look, SkUiColorScheme Scheme, SkUiTabStripColors Colors)? _colors;
     private SkUiRenderLink[]? _links;
@@ -182,6 +183,7 @@ internal sealed class SkUiTabStripModel(ISkUiTabStripOwner owner, ISkUiTransitio
                 (header.Icon ??= new SkUiIconSlot(host, iconChanged)).Show(icon);
         }
         _prepared = false;
+        _segmentsLaidOut = false;
         _colors = null;
     }
 
@@ -225,7 +227,9 @@ internal sealed class SkUiTabStripModel(ISkUiTabStripOwner owner, ISkUiTransitio
             {
                 if (_headers[index].IsCustom)
                 {
-                    views = Math.Max(views, Math.Ceiling(headers.MeasureHeaderView(index, double.PositiveInfinity, double.PositiveInfinity).Height));
+                    // At the width its header gets once the headers are laid out (an equal share can wrap it), else as wide as it likes.
+                    var width = _segmentsLaidOut && index < _engine.Count ? _engine.Segment(index).Width : double.PositiveInfinity;
+                    views = Math.Max(views, Math.Ceiling(headers.MeasureHeaderView(index, width, double.PositiveInfinity).Height));
                     continue;
                 }
                 tallest = Math.Max(tallest, TextSize(index, style).Height);
@@ -292,6 +296,7 @@ internal sealed class SkUiTabStripModel(ISkUiTabStripOwner owner, ISkUiTransitio
         _engine.Mirrored = owner.IsRightToLeft;
         _engine.SetContentWidths(_widths.AsSpan(0, count));
         _prepared = true;
+        _segmentsLaidOut = false;
     }
 
     /// <summary>The strip's length in a tab view <paramref name="viewport"/> wide: that width, or the headers' when they overflow it.</summary>
@@ -301,6 +306,7 @@ internal sealed class SkUiTabStripModel(ISkUiTabStripOwner owner, ISkUiTransitio
         if (!double.IsFinite(viewport))
             return _engine.DesiredWidth();
         _engine.Arrange(viewport, DesiredHeight);
+        _segmentsLaidOut = true;
         return _engine.Length;
     }
 
@@ -311,6 +317,7 @@ internal sealed class SkUiTabStripModel(ISkUiTabStripOwner owner, ISkUiTransitio
         if (!_prepared || _engine.Mirrored != owner.IsRightToLeft)
             Prepare();
         _engine.Arrange(double.IsFinite(viewport) ? Math.Min(viewport, width) : width, height);
+        _segmentsLaidOut = true;
         _geometryVersion++;
         var rtl = owner.IsRightToLeft;
         for (var index = 0; index < _headers.Count && index < _engine.Count; index++)
@@ -580,14 +587,15 @@ internal sealed class SkUiTabStripModel(ISkUiTabStripOwner owner, ISkUiTransitio
     /// The color the look gives tab <paramref name="index"/>'s header text now (selected, unselected or disabled, with the tab
     /// view's colors over the look's): what a header view of the app's binds to look like the drawn headers.
     /// </summary>
-    public Color CurrentTextColor(int index)
+    /// <remarks><paramref name="current"/> (the tab's color so far) comes back when the color is the same: no allocation.</remarks>
+    public Color CurrentTextColor(int index, Color? current)
     {
         using var lookScope = EnterLook();
         var look = SkUiLook.Current;
         var colors = LookColors(look);
         var color = look.GetTabHeaderTextColor(ToSk(owner.HeaderTextColor ?? colors.Text), ToSk(owner.SelectedHeaderTextColor ?? colors.SelectedText),
             index == owner.SelectedIndex ? 1 : 0, IsTabEnabled(index));
-        return Color.FromRgba(color.Red, color.Green, color.Blue, color.Alpha);
+        return current is not null && ToSk(current) == color ? current : Color.FromRgba(color.Red, color.Green, color.Blue, color.Alpha);
     }
 
     private static SKColor ToSk(Color color) => SkUiToggleDrawing.ToSkColor(color);

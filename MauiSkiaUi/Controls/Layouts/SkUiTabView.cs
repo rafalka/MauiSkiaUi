@@ -142,7 +142,8 @@ public partial class SkUiTabView : SkUiView, ISkUiFontElement, ISkUiKeyHandler, 
 
     /// <summary>
     /// Makes a header view of the app's for every tab without its own <see cref="SkUiTabItem.HeaderTemplate"/> (a drawn view,
-    /// made once per tab; a <see cref="DataTemplateSelector"/> chooses by the tab item); <c>null</c> (default): the look draws the
+    /// made once per tab; a <see cref="DataTemplateSelector"/> chooses by the tab item, asked again when the strip changes, so it
+    /// returns cached templates); <c>null</c> (default): the look draws the
     /// headers. A header view's binding context is its tab item; it fills its header (as wide as it measures with content
     /// widths, the widest with equal ones), over the look's strip and indicator. See <see cref="SkUiTabItem.HeaderTemplate"/>.
     /// </summary>

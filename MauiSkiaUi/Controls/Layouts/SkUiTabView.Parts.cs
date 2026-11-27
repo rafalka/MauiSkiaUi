@@ -452,7 +452,7 @@ public partial class SkUiTabView
             for (var index = 0; index < tabs.Count; index++)
             {
                 var tab = tabs[index];
-                tab.SetHeaderState(index == selected, Model.CurrentTextColor(index));
+                tab.SetHeaderState(index == selected, Model.CurrentTextColor(index, tab.CurrentTextColor));
                 if (_headerCells.Count > 0 && _headerCells.TryGetValue(tab, out var cell) && cell.Content is SkUiView root)
                     root.IsSelectedItem = index == selected;
             }

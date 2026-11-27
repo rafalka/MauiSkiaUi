@@ -105,9 +105,13 @@ public sealed class SkUiCoreTabItem : INotifyPropertyChanged
     /// <summary>Sets <see cref="HeaderContent"/>.</summary>
     public SkUiCoreTabItem SetHeaderContent(SkUiCoreNode? value) => Set(ref _headerContent, value);
 
+    /// <summary>The tab view that last told the tab its header state: one it left doesn't clear the state another gave.</summary>
+    internal object? HeaderStateOwner { get; private set; }
+
     /// <summary>The tab view tells the tab whether it is selected and its header's text color (<c>null</c>: it left).</summary>
-    internal void SetHeaderState(bool selected, Color? textColor)
+    internal void SetHeaderState(bool selected, Color? textColor, object? owner)
     {
+        HeaderStateOwner = owner;
         if (_isSelected != selected)
         {
             _isSelected = selected;

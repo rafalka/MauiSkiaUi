@@ -1859,16 +1859,20 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
     {
         if (oldValue is not null && !ReferenceEquals(oldValue, newValue) && ReferenceEquals(oldValue.Parent, this))
             oldValue.Parent = null;
-        if (newValue is not null)
+        if (newValue is not null && !OwnedByTab(newValue))
             newValue.Parent = this;
     }
 
     /// <summary>Gives a bindable value that is not a child (a source, brush, geometry, definition) this view's binding context.</summary>
     private protected void InheritBindingContext(BindableObject? value)
     {
-        if (value is not null)
+        if (value is not null && !(value is ImageSource source && OwnedByTab(source)))
             SetInheritedBindingContext(value, BindingContext);
     }
+
+    // A tab's icon stays the tab's when a view shows it too (a tab header view binds to Icon): bindings inside it keep
+    // resolving against the tab, and the tab keeps it after that view goes.
+    private static bool OwnedByTab(ImageSource source) => source.Parent is SkUiTabItem;
 
     /// <summary>Takes this view's binding context back from a value it no longer uses (a context set on the value itself stays).</summary>
     private protected static void ReleaseBindingContext(BindableObject? value)

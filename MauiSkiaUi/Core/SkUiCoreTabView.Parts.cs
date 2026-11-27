@@ -419,7 +419,7 @@ public partial class SkUiCoreTabView
             var tabs = _owner._tabs;
             var selected = _owner._selectedIndex;
             for (var index = 0; index < tabs.Count; index++)
-                tabs[index].SetHeaderState(index == selected, Model.CurrentTextColor(index));
+                tabs[index].SetHeaderState(index == selected, Model.CurrentTextColor(index, tabs[index].CurrentTextColor), _owner);
         }
 
         private HeaderCell? CellAt(int index) =>

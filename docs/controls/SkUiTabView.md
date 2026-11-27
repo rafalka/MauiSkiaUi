@@ -24,12 +24,12 @@ Tabbed content inside a page: a strip of tab headers and, below (or above) it, o
 
 ## Custom headers
 
-`SkUiTabView.HeaderTemplate` gives every tab a header view of the app's, `SkUiTabItem.HeaderTemplate` one tab (it wins over the strip's); a template that is a `DataTemplateSelector` chooses by the tab item. Without either, the look draws the header as before, so a strip can mix both.
+`SkUiTabView.HeaderTemplate` gives every tab a header view of the app's, `SkUiTabItem.HeaderTemplate` one tab (it wins over the strip's); a template that is a `DataTemplateSelector` chooses by the tab item (it is asked again whenever the strip changes, so it returns the same template instances, as MAUI's selectors for collection views do: a new instance makes the view again). Without either, the look draws the header as before, so a strip can mix both.
 
 - **Binding context.** A header view's binding context is its tab item: `{Binding Header}`, `{Binding Icon}`, `{Binding BadgeText}`, and two read-only properties the tab view keeps up to date: `IsSelected` and `CurrentTextColor`, the color the look gives this tab's text now (selected, unselected or dimmed when disabled, with `HeaderTextColor` / `SelectedHeaderTextColor` over the look's). Bind a label's `TextColor` to it to match the drawn headers. The tab's view model is `{Binding BindingContext.X}` (with `x:DataType="sk:SkUiTabItem"`, cast it).
 - **States.** The view's root is in the `Selected` state of `CommonStates` while its tab is selected (as a selected collection item's root), and `Disabled` while the tab is disabled (the view is disabled with it). The state changes when the selection does (a tap at once, a swipe when the panes come to rest), not while the panes move.
-- **Size.** A header view fills its header's rectangle, laid out by its own `HorizontalOptions` / `VerticalOptions` (MAUI's rules: `Fill` by default, `Center` to center it). With `TabWidthMode="Content"` the header is as wide as the view measures, with no look padding added (the view brings its own); with `Equal` the headers share the strip as before, and the strip asks for the widest. The strip is as tall as the tallest header view when that is taller than the look's height. A view whose size changes (a bound text) lays the strip out again.
-- **What the look keeps.** The strip's background and divider, and the indicator, which sits under the header views (a pill behind them). Where the look sizes the indicator to the label (Material 3's underline), it takes the view's measured width within the header. The look draws no text, icon or badge for a tab with a header view: a view that wants the icon or the badge binds to them.
+- **Size.** A header view fills its header's rectangle, laid out by its own `HorizontalOptions` / `VerticalOptions` (MAUI's rules: `Fill` by default, `Center` to center it). With `TabWidthMode="Content"` the header is as wide as the view measures, with no look padding added (the view brings its own); with `Equal` the headers share the strip as before, and the strip asks for the widest. The strip is as tall as the tallest header view when that is taller than the look's height, each measured at its header's width (a label that wraps in an equal share makes the strip taller). A view whose size changes (a bound text) lays the strip out again.
+- **What the look keeps.** The strip's background and divider, and the indicator, which sits under the header views (a pill behind them). Where the look sizes the indicator to the label (Material 3's underline), it takes the view's measured width within the header. The look draws no text, icon or badge for a tab with a header view: a view that wants the icon or the badge binds to them. An icon a header view shows stays the tab's: bindings inside it (a glyph, a color) resolve against the tab's binding context.
 - **Input and screen readers.** A header view takes no input, keyboard focus or screen reader of its own: a tap anywhere on it selects its tab (a button inside does not take it), the strip stays one tab stop, and screen readers read the tab's `Header` (an icon or a view alone: the tab's `SemanticProperties.Description`) as one element of the tab list, as before. Set `Header` even when the template shows something else.
 - **Performance.** Header views are drawn views on the strip's surface: each records its own content and re-records only when it changes (a bound property, its visual state). Swiping and the indicator stay on the render thread.
 
@@ -55,6 +55,8 @@ Tabbed content inside a page: a strip of tab headers and, below (or above) it, o
 tabs.SetHeaderFactory(tab =>
 {
     var title = new SkUiCoreLabel().SetText(tab.Header).SetFontAttributes(FontAttributes.Bold);
+    if (tab.CurrentTextColor is { } now)
+        title.SetTextColor(now); // a factory set later finds the color already there: no change is raised for it
     tab.PropertyChanged += (_, args) =>
     {
         if (args.PropertyName == nameof(SkUiCoreTabItem.CurrentTextColor) && tab.CurrentTextColor is { } color)
@@ -63,6 +65,8 @@ tabs.SetHeaderFactory(tab =>
     return title;
 });
 ```
+
+The handler keeps the node for as long as the tab lives; when the factory is replaced or the tab view goes while the tabs stay, unsubscribe (keep the handler with the node) or use a weak subscription.
 
 ## Looks
 
@@ -159,7 +163,7 @@ Decided on 27 November 2026 for the roadmap's open questions:
 
 1. **Shape.** A `DataTemplate` (a view per tab, made once) on the tab view for the whole strip and on the tab item for one tab, the tab's winning; a `DataTemplateSelector` chooses by the tab. No view property on the tab item: a template keeps one way for both and a binding context that is always the tab item. Core: a node on the tab item and a factory on the tab view.
 2. **Binding context and states.** The tab item, with read-only `IsSelected` and `CurrentTextColor` on it (both layers); the view's root in the `Selected` / `Disabled` visual states (SkUi). The state follows `SelectedIndex`, so it changes when the selection does, not while the panes move.
-3. **Measuring.** Content widths: the view's measured width, no look padding. Equal widths: the engine's equal share, the widest asked for unbounded. The strip's height: at least the look's, the tallest view's when taller.
+3. **Measuring.** Content widths: the view's measured width, no look padding. Equal widths: the engine's equal share, the widest asked for unbounded. The strip's height: at least the look's, the tallest view's when taller, each measured at its header's width once the headers are laid out (unbounded before). A selector is asked again when the strip changes and returns cached templates.
 4. **What the look keeps.** The strip and the indicator; the look draws nothing else for a tab with a header view. The look's color for the tab's state is offered as `CurrentTextColor`, not applied to the view.
 5. **Indicator.** Laid out on the header's rectangle as for drawn headers; the label width a look may use is the view's measured width, clamped to the header. The scroll-linked channels are unchanged (they read the indicator bounds).
 6. **Semantics and input.** The header stays one element of the tab list, read from `Header` (or the tab's description); the view is excluded from the semantics tree with its subtree, takes no pointer input (taps go to the strip) and no keyboard focus.

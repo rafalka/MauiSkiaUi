@@ -236,7 +236,8 @@ public partial class SkUiCoreTabView : SkUiCoreNode, ISkUiFontElement, ISkUiKeyH
                 tab.PropertyChanged -= OnTabPropertyChanged;
                 _attached.Remove(tab);
                 _panes.Forget(tab);
-                tab.SetHeaderState(false, null);
+                if (tab.HeaderStateOwner is null || ReferenceEquals(tab.HeaderStateOwner, this))
+                    tab.SetHeaderState(false, null, null); // not when the tab went on to another tab view
             }
         foreach (var tab in _tabs)
             if (_attached.Add(tab))

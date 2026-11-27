@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using MauiSkiaUi;
 using MauiSkiaUi.Core;
 
@@ -23,8 +24,13 @@ public sealed class CoreTabViewDemoPage : ComponentDemoPage
             value => tabs.SetIndicatorStyle(value), () => tabs.IndicatorStyle);
         Toggle(nameof(SkUiCoreTabView.IsSwipeEnabled), true, value => tabs.SetIsSwipeEnabled(value), () => tabs.IsSwipeEnabled);
         Toggle("Info tab enabled", false, value => tabs.Tabs[2].SetIsEnabled(value), () => tabs.Tabs[2].IsEnabled);
-        Toggle("Header nodes", false, value => tabs.SetHeaderFactory(value ? HeaderNode : null), () => tabs.HeaderFactory is not null);
+        Toggle("Header nodes", false, value => tabs.SetHeaderFactory(value ? HeaderNodeOf : null), () => tabs.HeaderFactory is not null);
     }
+
+    // One header node per tab, made again neither when the toggle is turned on again nor with another handler on the tab.
+    private readonly ConditionalWeakTable<SkUiCoreTabItem, SkUiCoreNode> _headerNodes = new();
+
+    private SkUiCoreNode HeaderNodeOf(SkUiCoreTabItem tab) => _headerNodes.GetValue(tab, HeaderNode);
 
     /// <summary>A bold title over its count, in the look's text color for the tab's state, updated from the tab's changes.</summary>
     private static SkUiCoreNode HeaderNode(SkUiCoreTabItem tab)

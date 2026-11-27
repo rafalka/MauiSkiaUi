@@ -315,4 +315,73 @@ public class TabHeaderTests
         core.SetHeaderFactory(null);
         Assert.Null(core.HeaderNodeOf(0));
     }
+    [Fact]
+    public void ATabsIconShownByItsHeaderViewStaysTheTabsAndKeepsItsBindingContext()
+    {
+        using var dispatcher = SkUiTestHelpers.UseTestDispatcher();
+        var tabs = TabView();
+        var icon = ImageSource.FromStream(() => new MemoryStream(ImageLoadingTests.Png(SKColors.Red)));
+        var model = new object();
+        var tab = tabs.Tabs[1];
+        tab.BindingContext = model;
+        tab.Icon = icon;
+        tabs.HeaderTemplate = new DataTemplate(() =>
+        {
+            var image = new SkUiImage();
+            image.SetBinding(SkUiImage.SourceProperty, static (SkUiTabItem item) => item.Icon);
+            return image;
+        });
+        using var surface = new SkUiTestSurface(tabs, 300, 200);
+        surface.Frame(0);
+
+        Assert.Same(icon, ((SkUiImage)tabs.HeaderViewOf(1)!).Source);
+        // Bindings inside the icon resolve against the tab's context, not the header view's (the tab item).
+        Assert.Same(tab, icon.Parent);
+        Assert.Same(model, icon.BindingContext);
+
+        tabs.HeaderTemplate = null; // the view goes: the tab keeps its icon
+        surface.Frame(16);
+        Assert.Same(tab, icon.Parent);
+        Assert.Same(model, icon.BindingContext);
+    }
+
+    [Fact]
+    public void AHeaderViewThatWrapsInItsEqualShareMakesTheStripTallEnough()
+    {
+        using var _ = SkUiTestHelpers.UseBundledFont();
+        var tabs = TabView("A", "B", "C", "D");
+        tabs.Tabs[0].HeaderTemplate = new DataTemplate(() =>
+            new SkUiLabel { FontFamily = SkUiTestHelpers.BundledFontFamily, Text = "One two three four", LineBreakMode = LineBreakMode.WordWrap });
+        using var surface = new SkUiTestSurface(tabs, 200, 300);
+        surface.Frame(0);
+
+        var share = tabs.HeaderBounds(0);
+        Assert.Equal(50, share.Width, 1);
+        var needed = ((IView)tabs.HeaderViewOf(0)!).Measure(share.Width, double.PositiveInfinity).Height;
+        Assert.True(needed > 44, $"{needed}"); // it wraps: taller than the look's strip
+        Assert.True(share.Height >= needed - 0.5, $"{share.Height} < {needed}");
+    }
+
+    [Fact]
+    public void ACoreTabThatMovesToAnotherTabViewKeepsTheStateThatViewGivesIt()
+    {
+        var first = new SkUiCoreTabView();
+        var second = new SkUiCoreTabView();
+        var tab = new SkUiCoreTabItem("Moving", new SkUiCoreBox());
+        first.AddTab(new SkUiCoreTabItem("Stays", new SkUiCoreBox())).AddTab(tab);
+        Assert.False(tab.IsSelected);
+        var color = tab.CurrentTextColor;
+        Assert.NotNull(color);
+        first.Tabs[0].SetHeader("Still stays"); // the strip changes, the color doesn't: the same instance
+        Assert.Same(color, tab.CurrentTextColor);
+
+        second.AddTab(tab);
+        first.Tabs.Remove(tab);
+
+        Assert.True(tab.IsSelected); // the only tab of the second view
+        Assert.NotNull(tab.CurrentTextColor);
+        second.Tabs.Remove(tab);
+        Assert.False(tab.IsSelected);
+        Assert.Null(tab.CurrentTextColor);
+    }
 }
