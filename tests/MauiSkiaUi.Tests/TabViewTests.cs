@@ -159,8 +159,12 @@ public class TabViewTests
         tabs.Touch(new(id, SkUiTouchAction.Pressed, new Point(start, 200), TimeSpan.FromMilliseconds(1600)));
         tabs.Touch(new(id, SkUiTouchAction.Moved, new Point(near, 200), TimeSpan.FromMilliseconds(1700)));
         tabs.Touch(new(id, SkUiTouchAction.Moved, new Point(far, 200), TimeSpan.FromMilliseconds(1800)));
+        surface.Frame(1800);
+        // Towards the last tab: offset 600, or 0 right to left.
+        Assert.True(rightToLeft ? tabs.PaneScrollViewForTests.ScrollX < 299 : tabs.PaneScrollViewForTests.ScrollX > 301, $"{tabs.PaneScrollViewForTests.ScrollX}");
         tabs.Touch(new(id, SkUiTouchAction.Released, new Point(far, 200), TimeSpan.FromMilliseconds(2200)));
         Run(surface, 2200, 3500);
+        Assert.Equal(300, tabs.PaneScrollViewForTests.ScrollX, 1);
         Assert.Equal(1, tabs.SelectedIndex);
         Assert.Equal([(0, 1)], changes);
     }

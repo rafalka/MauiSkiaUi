@@ -364,7 +364,7 @@ public sealed class TimeClockSample : SamplePage, ISample
     private void SetState(ClockState state)
     {
         if (state == ClockState.Working && _state == ClockState.Out)
-            _clockedInAt = _now; // back from a break keeps the morning's time
+            _clockedInAt = _now; // clocking in starts a new session; ending a break keeps this time
         _state = state;
         _since = _now;
         if (state != ClockState.OnBreak)

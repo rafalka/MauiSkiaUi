@@ -113,6 +113,13 @@ public sealed class TimeClockSamplesTests : IDisposable
         Assert.All(shown, shift => Assert.Equal("Night", shift.Kind));
         Assert.Contains(Descendants(root).OfType<SkUiLabel>(), label => label.Text == $"{shown.Count} shifts · {shown.Count * 8} h (filtered)");
 
+        // Weekend narrows the kinds: weekend nights only (which days those are depends on today).
+        filters.Chips.Single(chip => chip.Text == "Weekend").IsSelected = true;
+        var weekendNights = list.ItemsSource is IEnumerable<ShiftsAndLeaveSample.ShiftWeek> weeks ? weeks.SelectMany(week => week).ToList() : [];
+        Assert.All(weekendNights, shift => Assert.True(shift.Kind == "Night" && shift.IsWeekend));
+        Assert.Equal(shown.Count(shift => shift.IsWeekend), weekendNights.Count);
+        filters.Chips.Single(chip => chip.Text == "Weekend").IsSelected = false;
+
         // Claiming an open shift moves it to My shifts: both counts change.
         tabs.SelectedIndex = 1;
         Settle(surface);
