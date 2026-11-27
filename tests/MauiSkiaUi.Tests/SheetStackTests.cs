@@ -435,4 +435,36 @@ public class SheetStackTests
         Assert.Equal([lower, upper], root.SurfaceOverlay.Shown); // under the one opened after it
         Assert.Same(upper, root.ModalPane);
     }
+
+    [Fact]
+    public void BackAndEscapeCloseANonModalSheetOpenedOverTheModalPane()
+    {
+        var modal = new SkUiSheet { Content = new SkUiButton { Text = "Modal" } };
+        var above = new SkUiSheet { Content = new SkUiButton { Text = "Above" }, IsModal = false, Detents = [SkUiSheetDetent.FitContent] };
+        var root = new SkUiGrid { Children = { new SkUiButton { Text = "Page" }, modal, above } };
+        using var surface = new SkUiTestSurface(root, Width, Height);
+        var time = 0d;
+        surface.Frame(time);
+        modal.IsOpen = true;
+        Settle(surface, ref time);
+        above.IsOpen = true;
+        Settle(surface, ref time);
+        Assert.Same(modal, root.ModalPane);
+        Assert.Equal([modal, above], root.SurfaceOverlay.Shown);
+
+        Assert.True(modal.OnBackPressed()); // the press reaches the modal pane; the sheet drawn above it closes
+        Settle(surface, ref time);
+        Assert.False(above.IsOpen);
+        Assert.True(modal.IsOpen);
+
+        above.IsOpen = true;
+        Settle(surface, ref time);
+        root.FocusManager.Focus((SkUiButton)modal.Content!); // keyboard focus is in the modal pane
+        Assert.True(root.FocusManager.KeyDown(SkUiKey.Escape));
+        Settle(surface, ref time);
+        Assert.False(above.IsOpen);
+        Assert.True(modal.IsOpen);
+        Assert.True(modal.OnBackPressed());
+        Assert.False(modal.IsOpen);
+    }
 }

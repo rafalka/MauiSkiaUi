@@ -45,7 +45,9 @@ public sealed class SkUiSheetPopupPresenter : ISkUiPopupPresenter
             closed.TrySetResult();
         };
         root.SurfaceOverlay.Add(sheet);
-        // A token can be cancelled on any thread; the sheet closes on the UI thread.
+        sheet.IsOpen = true;
+        // A token can be cancelled on any thread; the sheet closes on the UI thread. Registered once open: a token cancelled meanwhile
+        // closes it right here.
         var dispatcher = Microsoft.Maui.Dispatching.Dispatcher.GetForCurrentThread();
         await using var registration = cancellationToken.Register(() =>
         {
@@ -54,7 +56,6 @@ public sealed class SkUiSheetPopupPresenter : ISkUiPopupPresenter
             else
                 _ = sheet.CloseAsync();
         });
-        sheet.IsOpen = true;
         await closed.Task.ConfigureAwait(true);
     }
 }

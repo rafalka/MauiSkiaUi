@@ -96,6 +96,36 @@ public class SheetResultTests
     }
 
     [Fact]
+    public async Task ATokenCancelledBeforeItOpensClosesIt()
+    {
+        // Cancelled after the check at the start but before the sheet opens (here: while it is configured).
+        var (root, anchor) = Page();
+        using var surface = new SkUiTestSurface(root, Width, Height);
+        var time = 0d;
+        surface.Frame(time);
+        using var cancel = new CancellationTokenSource();
+        var task = SkUiSheet.ShowAsync<string>(anchor, new SkUiBox(), _ => cancel.Cancel(), cancel.Token);
+        Settle(surface, ref time);
+        Assert.Null(await task.WaitAsync(TimeSpan.FromSeconds(5)));
+        Assert.False(root.SurfaceOverlay.HasViews);
+    }
+
+    [Fact]
+    public async Task ShowAsyncCompletesWhenTheSurfaceIsReleased()
+    {
+        var (root, anchor) = Page();
+        var surface = new SkUiTestSurface(root, Width, Height);
+        var time = 0d;
+        surface.Frame(time);
+        var task = SkUiSheet.ShowAsync<string>(anchor, new SkUiBox(), sheet => sheet.Presentation = SkUiSheetPresentation.Dialog);
+        Settle(surface, ref time);
+        Assert.False(task.IsCompleted);
+        surface.Dispose(); // the page is gone
+        Assert.Null(await task.WaitAsync(TimeSpan.FromSeconds(5)));
+        Assert.False(root.SurfaceOverlay.HasViews);
+    }
+
+    [Fact]
     public void HeaderAndActionsSitAroundTheContent()
     {
         var content = new SkUiBox { HeightRequest = 100 };

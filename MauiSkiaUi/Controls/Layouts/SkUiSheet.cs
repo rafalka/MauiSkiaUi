@@ -451,8 +451,9 @@ public partial class SkUiSheet : SkUiView, ISkUiKeyHandler
         panel.Opacity = show ? 1 : 0;
         panel.TranslationY = show ? 0 : DialogSlide;
         scrim.Opacity = show ? 1 : 0;
-        if (transition.IsNone)
+        if (transition.IsNone || !SurfaceIsLive)
         {
+            // No frames to run a fade (none asked for, or the surface is gone): done at once.
             _moving = false;
             OnRest();
             return;
@@ -588,6 +589,18 @@ public partial class SkUiSheet : SkUiView, ISkUiKeyHandler
             return;
         }
         _moving = false;
+        OnRest();
+    }
+
+    /// <summary>
+    /// The track came to rest, also after wheel or trackpad scrolling paused (it never sets moving, and lands on a detent or closed
+    /// without a spring when it is already there).
+    /// </summary>
+    private void OnTrackCameToRest()
+    {
+        var controller = TrackView.Controller;
+        if (_requesting || _moving || controller.IsMoving || controller.Dragging || controller.IsCatching)
+            return;
         OnRest();
     }
 
@@ -895,9 +908,14 @@ public partial class SkUiSheet : SkUiView, ISkUiKeyHandler
     /// </summary>
     private bool Hoist()
     {
-        if (_hoistedOn is not null || _state == SheetState.Closed || Parent is SkUiSurfaceOverlay || SkiaParent is null
+        if (_state == SheetState.Closed || Parent is SkUiSurfaceOverlay || SkiaParent is null
             || SkUiDiagnostics.GetSurfaceRoot(this) is not { } root || ReferenceEquals(root, this) || IsHidden)
             return false;
+        // Only on a surface that draws: a layout around the sheet that is not in its page yet is not a root for good. Drawn on another
+        // root's layer (its layout was moved, or joined a page after the sheet hoisted), it moves to this one's.
+        if (!root.HasLiveSurface || _hoistedOn is not null && ReferenceEquals(_hoistedOn, root.OverlayIfAny))
+            return false;
+        Unhoist();
         var overlay = root.SurfaceOverlay;
         _hoistedOn = overlay; // first: what it marks from now on reaches the layer
         overlay.Hoist(this); // its look stays its layout's: drawn nodes resolve looks through logical parents
@@ -933,6 +951,10 @@ public partial class SkUiSheet : SkUiView, ISkUiKeyHandler
         {
             Unhoist();
             LeaveModal();
+            // On an overlay layer whose surface is released (its page is gone): nothing can close it any more, so it closes dismissed at
+            // once, and what awaits it (ShowAsync, a popup request) completes.
+            if (Parent is SkUiSurfaceOverlay && SkUiDiagnostics.GetSurfaceRoot(this)?.HasLiveSurface != true)
+                Dismiss();
         }
     }
 
@@ -1037,7 +1059,7 @@ public partial class SkUiSheet : SkUiView, ISkUiKeyHandler
     {
         if (key.Key != SkUiKey.Escape || key.HasCommandModifier || _state is SheetState.Closed or SheetState.Closing)
             return false;
-        Dismiss();
+        DismissTopmost();
         return true;
     }
 
@@ -1046,8 +1068,27 @@ public partial class SkUiSheet : SkUiView, ISkUiKeyHandler
     {
         if (_state is SheetState.Closed or SheetState.Closing || _modalRoot is not { } root || !ReferenceEquals(root.ModalPane, this))
             return false;
-        Dismiss();
+        DismissTopmost();
         return true;
+    }
+
+    /// <summary>
+    /// Back or Escape reached this sheet: the topmost open sheet on its surface closes, which is a non-modal sheet opened after this one
+    /// when one is drawn above it (else it would stay over the page with no key to close it), or this one.
+    /// </summary>
+    private void DismissTopmost()
+    {
+        if (SurfaceOverlayShowing is { } overlay)
+        {
+            var shown = overlay.Shown;
+            for (var index = shown.Count - 1; index >= 0 && !ReferenceEquals(shown[index], this); index--)
+                if (shown[index] is SkUiSheet { _state: SheetState.Opening or SheetState.Open } above && above.OpenedAt > OpenedAt)
+                {
+                    above.Dismiss();
+                    return;
+                }
+        }
+        Dismiss();
     }
 
     /// <inheritdoc />
@@ -1144,6 +1185,8 @@ public partial class SkUiSheet : SkUiView, ISkUiKeyHandler
             done.TrySetResult();
         };
         root.SurfaceOverlay.Add(sheet);
+        sheet.IsOpen = true;
+        // Registered once open: a token cancelled meanwhile closes it right here (a dismiss of a closed sheet would do nothing).
         var dispatcher = Microsoft.Maui.Dispatching.Dispatcher.GetForCurrentThread();
         await using var registration = cancellationToken.Register(() =>
         {
@@ -1152,7 +1195,6 @@ public partial class SkUiSheet : SkUiView, ISkUiKeyHandler
             else
                 sheet.Dismiss();
         });
-        sheet.IsOpen = true;
         await done.Task.ConfigureAwait(true);
         return result;
     }

@@ -7,6 +7,9 @@ public partial class SkUiSheet
 {
     private Track TrackView => _track ??= new Track(this);
 
+    /// <summary>The scroller whose offset is the sheet's position (tests drive wheel input through it).</summary>
+    internal SkUiScrollController TrackController => TrackView.Controller;
+
     private Strip StripView => _strip ??= new Strip(this);
 
     private Panel PanelView => _panel ??= new Panel(this);
@@ -39,6 +42,7 @@ public partial class SkUiSheet
             var controller = Controller;
             controller.SnapTargetResolver = owner.SnapTarget;
             controller.MovingChanged += owner.OnTrackMovingChanged;
+            controller.CameToRest += owner.OnTrackCameToRest; // also wheel / trackpad scrolling, which never moves
             controller.Stepper = this; // arrow and page keys never move the sheet
         }
 

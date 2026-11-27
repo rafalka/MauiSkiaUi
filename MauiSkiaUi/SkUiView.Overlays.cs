@@ -13,7 +13,7 @@ public partial class SkUiView
 
     private SurfaceRootState? _surfaceRoot;
 
-    private SkUiSurfaceOverlay? OverlayIfAny => _surfaceRoot?.Overlay;
+    internal SkUiSurfaceOverlay? OverlayIfAny => _surfaceRoot?.Overlay;
 
     private List<ISkUiRenderable>? ModalPaneList => _surfaceRoot?.ModalPanes;
 
@@ -30,6 +30,10 @@ public partial class SkUiView
                 return overlay;
             overlay = (_surfaceRoot ??= new SurfaceRootState()).Overlay = new SkUiSurfaceOverlay();
             AttachChild(overlay);
+            // Created after the root's last layout pass (an open sheet joining the surface): laid out now, as the next pass may not come
+            // (an unarranged layer has no bounds: screen readers would read nothing on it).
+            if (_laidOut)
+                ArrangeSurfaceOverlay(Frame.Size);
             return overlay;
         }
     }

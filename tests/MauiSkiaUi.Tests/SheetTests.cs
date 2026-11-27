@@ -509,6 +509,17 @@ public class SheetTests
         Assert.Null(inner.ModalPane);
         Assert.Equal(400, sheet.Position, 1);
         Assert.DoesNotContain(SkUiSemanticsTree.Build(root).Flatten(), node => node.Label == "Page");
+        // Drawn, hit and read on the page's overlay layer, not on the layer of the grid it was in before the grid joined the page.
+        Assert.Equal([sheet], root.SurfaceOverlay.Shown);
+        var inside = (SkUiButton)sheet.Content!;
+        Assert.Contains(SkUiSemanticsTree.Build(root).Flatten(), node => node.Label == "Inside");
+        var bounds = SkUiDiagnostics.GetRootBounds(inside)!.Value;
+        var at = new Point(bounds.Center.X, bounds.Top + 20); // the sheet rests at its half detent: the button's top part shows
+        Assert.Same(inside, SkUiDiagnostics.HitTest(root, at));
+        var taps = 0;
+        inside.Clicked += (_, _) => taps++;
+        Tap(root, at);
+        Assert.Equal(1, taps);
 
         // Moved to another surface while open: the modal pane goes with it.
         var other = new SkUiGrid();
@@ -625,5 +636,41 @@ public class SheetTests
         Assert.True(sheet.IsOpen);
         Assert.Equal(0, closed);
         Assert.Equal(400, sheet.Position, 1);
+    }
+
+    [Fact]
+    public void WheeledClosedItCloses()
+    {
+        // Wheel and trackpad scrolling never sets the track moving; landing closed needs no spring, so the rest comes from the wheel's
+        // pause (what its idle delay calls: headless tests have no dispatcher).
+        var root = Page(out var sheet, out _);
+        using var surface = new SkUiTestSurface(root, Width, Height);
+        var time = 0d;
+        surface.Frame(time);
+        sheet.IsOpen = true;
+        Settle(surface, ref time);
+        var closed = new List<SkUiSheetClosedEventArgs>();
+        sheet.Closed += (_, args) => closed.Add(args);
+        sheet.TrackController.Wheel(0, 500);
+        sheet.TrackController.OnWheelRest();
+        Settle(surface, ref time);
+        Assert.False(sheet.IsOpen);
+        Assert.True(Assert.Single(closed).IsDismissed);
+        Assert.Null(root.ModalPane);
+    }
+
+    [Fact]
+    public async Task ADialogClosedAfterItsSurfaceIsGoneCloses()
+    {
+        var root = Page(out var sheet, out _);
+        sheet.Presentation = SkUiSheetPresentation.Dialog;
+        var surface = new SkUiTestSurface(root, Width, Height);
+        var time = 0d;
+        surface.Frame(time);
+        sheet.IsOpen = true;
+        Settle(surface, ref time);
+        surface.Dispose(); // the page is gone: no more frames
+        await sheet.CloseAsync().WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.False(sheet.IsOpen);
     }
 }
