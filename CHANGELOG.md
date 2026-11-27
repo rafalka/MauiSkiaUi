@@ -13,6 +13,8 @@ Publishing (the NuGet publish workflow, [docs/Releasing.md](docs/Releasing.md)) 
 
 ## Unreleased
 
+## 1.18.0
+
 ### New features
 
 - **OpenType font features:** `FontFeatures` on `SkUiLabel`, `SkUiCoreLabel`, spans (`SkUiSpan.FontFeatures` on MAUI's `Span`, `SkUiCoreSpan.FontFeatures`) and the text inputs of both layers (`SkUiEntry`, `SkUiEditor` and those built on them) shapes the text with the OpenType features listed. The value is an `SkUiFontFeatures` list of `SkUiFontFeature`s: in code a collection expression of named features, `label.FontFeatures = [SkUiFontFeature.TabularFigures]` (digits of one width, so a clock or a countdown no longer jitters as it ticks), `[SkUiFontFeature.StandardLigatures.Disabled, SkUiFontFeature.StylisticSet(1)]`, or any registered tag (`new SkUiFontFeature("salt", 2)`); in XAML and styles CSS's `font-feature-settings` text, `FontFeatures="tnum, -liga"` (a type converter; `SkUiFontFeatures.Parse` in code). `SkUiFontFeatures.SupportedBy(fontFamily)` lists the features a font has, and `SkUiFontFeature.Describe(tag)` / `Known` give each registered feature a name, a description and its default (off, on, or required by the script), for pickers; a font without a feature draws as before. Spans take the label's unless they set their own. Text with features is always shaped with HarfBuzz, also with `TextRendering="Simple"`. Issue #132.
