@@ -339,10 +339,19 @@ public class TabHeaderTests
         Assert.Same(tab, icon.Parent);
         Assert.Same(model, icon.BindingContext);
 
-        tabs.HeaderTemplate = null; // the view goes: the tab keeps its icon
+        // A new icon while the view shows it: the tab's too, and the old one is let go.
+        var next = ImageSource.FromStream(() => new MemoryStream(ImageLoadingTests.Png(SKColors.Blue)));
+        tab.Icon = next;
         surface.Frame(16);
-        Assert.Same(tab, icon.Parent);
-        Assert.Same(model, icon.BindingContext);
+        Assert.Same(next, ((SkUiImage)tabs.HeaderViewOf(1)!).Source);
+        Assert.Same(tab, next.Parent);
+        Assert.Same(model, next.BindingContext);
+        Assert.Null(icon.Parent);
+
+        tabs.HeaderTemplate = null; // the view goes: the tab keeps its icon
+        surface.Frame(32);
+        Assert.Same(tab, next.Parent);
+        Assert.Same(model, next.BindingContext);
     }
 
     [Fact]
@@ -360,6 +369,35 @@ public class TabHeaderTests
         var needed = ((IView)tabs.HeaderViewOf(0)!).Measure(share.Width, double.PositiveInfinity).Height;
         Assert.True(needed > 44, $"{needed}"); // it wraps: taller than the look's strip
         Assert.True(share.Height >= needed - 0.5, $"{share.Height} < {needed}");
+    }
+
+    [Fact]
+    public void ATabViewInAStackAsksForItsWrappedHeaderOnBothLayers()
+    {
+        using var _ = SkUiTestHelpers.UseBundledFont();
+        const string Wrapping = "One two three four";
+        const double Pane = 10;
+        var tabs = new SkUiTabView { FontFamily = SkUiTestHelpers.BundledFontFamily };
+        foreach (var header in new[] { "A", "B", "C", "D" })
+            tabs.AddTab(new SkUiTabItem(header, new SkUiBox { HeightRequest = Pane }));
+        tabs.Tabs[0].HeaderTemplate = new DataTemplate(() =>
+            new SkUiLabel { FontFamily = SkUiTestHelpers.BundledFontFamily, Text = Wrapping, LineBreakMode = LineBreakMode.WordWrap });
+        var stack = new SkUiVerticalStackLayout { tabs };
+        using var surface = new SkUiTestSurface(stack, 200, 400);
+        surface.Frame(0);
+
+        var needed = Math.Ceiling(((IView)tabs.HeaderViewOf(0)!).Measure(50, double.PositiveInfinity).Height); // the strip rounds up
+        Assert.True(needed > 44, $"{needed}");
+        // The stack gives it room for the wrapped strip and the panes, and the panes keep their height.
+        Assert.Equal(needed + Pane, tabs.DesiredSize.Height, 1);
+        Assert.Equal(needed, tabs.HeaderBounds(0).Height, 1);
+
+        var core = new SkUiCoreTabView().SetFontFamily(SkUiTestHelpers.BundledFontFamily);
+        foreach (var header in new[] { "A", "B", "C", "D" })
+            core.AddTab(new SkUiCoreTabItem(header, new SkUiCoreBox().SetHeight(Pane)));
+        core.Tabs[0].SetHeaderContent(new SkUiCoreLabel().SetFontFamily(SkUiTestHelpers.BundledFontFamily).SetText(Wrapping)
+            .SetLineBreakMode(LineBreakMode.WordWrap));
+        Assert.Equal(needed + Pane, core.Measure(200, double.PositiveInfinity).Height, 1);
     }
 
     [Fact]

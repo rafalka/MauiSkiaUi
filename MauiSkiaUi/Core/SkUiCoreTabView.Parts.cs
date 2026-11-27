@@ -479,7 +479,7 @@ public partial class SkUiCoreTabView
         }
 
         protected override Size MeasureContent(double widthConstraint, double heightConstraint) =>
-            new(Model.Measure(ViewportWidth), Math.Min(heightConstraint, Model.DesiredHeight));
+            new(Model.Measure(ViewportWidth), Math.Min(heightConstraint, Model.DesiredHeightIn(ViewportWidth)));
 
         protected override void ArrangeContent(Size size)
         {

@@ -89,7 +89,7 @@ internal sealed class SkUiTabStripModel(ISkUiTabStripOwner owner, ISkUiTransitio
     private double[] _widths = [];
     private int[] _partIds = [];
     private bool _prepared;
-    private bool _segmentsLaidOut; // the engine holds the headers' segments for the current widths (cleared by Prepare)
+    private double _segmentsViewport = double.NaN; // the viewport the engine's segments are laid out in (NaN: none, or for widths since changed)
     private int _geometryVersion;
     private (SkUiLook Look, SkUiColorScheme Scheme, SkUiTabStripColors Colors)? _colors;
     private SkUiRenderLink[]? _links;
@@ -183,7 +183,7 @@ internal sealed class SkUiTabStripModel(ISkUiTabStripOwner owner, ISkUiTransitio
                 (header.Icon ??= new SkUiIconSlot(host, iconChanged)).Show(icon);
         }
         _prepared = false;
-        _segmentsLaidOut = false;
+        _segmentsViewport = double.NaN;
         _colors = null;
     }
 
@@ -214,32 +214,48 @@ internal sealed class SkUiTabStripModel(ISkUiTabStripOwner owner, ISkUiTransitio
         }
     }
 
-    /// <summary>The strip's height: the look's, taller with icons, and as tall as the tallest header view of the app's.</summary>
-    public double DesiredHeight
+    /// <summary>
+    /// The strip's height in a tab view <paramref name="viewport"/> wide: the look's, taller with icons, and as tall as the
+    /// tallest header view of the app's, each measured at the width its header gets there (unbounded when the viewport is not).
+    /// </summary>
+    public double DesiredHeightIn(double viewport)
     {
-        get
+        using var lookScope = EnterLook();
+        var metrics = Metrics;
+        var style = TextStyle;
+        var (tallest, icons, views) = (0d, false, 0d);
+        for (var index = 0; index < _headers.Count; index++)
         {
-            using var lookScope = EnterLook();
-            var metrics = Metrics;
-            var style = TextStyle;
-            var (tallest, icons, views) = (0d, false, 0d);
-            for (var index = 0; index < _headers.Count; index++)
+            if (_headers[index].IsCustom)
             {
-                if (_headers[index].IsCustom)
-                {
-                    // At the width its header gets once the headers are laid out (an equal share can wrap it), else as wide as it likes.
-                    var width = _segmentsLaidOut && index < _engine.Count ? _engine.Segment(index).Width : double.PositiveInfinity;
-                    views = Math.Max(views, Math.Ceiling(headers.MeasureHeaderView(index, width, double.PositiveInfinity).Height));
-                    continue;
-                }
-                tallest = Math.Max(tallest, TextSize(index, style).Height);
-                icons |= _headers[index].HasIcon;
+                // At the width its header gets in the viewport (an equal share can wrap it), else as wide as it likes.
+                var width = LayOutSegments(viewport) && index < _engine.Count ? _engine.Segment(index).Width : double.PositiveInfinity;
+                views = Math.Max(views, Math.Ceiling(headers.MeasureHeaderView(index, width, double.PositiveInfinity).Height));
+                continue;
             }
-            // Larger text (a font size, the system's text size) makes the strip taller than the look's height.
-            var content = !icons ? tallest
-                : metrics.IconAbove ? metrics.IconSize + (tallest > 0 ? metrics.IconSpacing + tallest : 0) : Math.Max(tallest, metrics.IconSize);
-            return Math.Max(views, Math.Max(icons ? metrics.IconHeight : metrics.Height, Math.Ceiling(content + 2 * HeaderInset)));
+            tallest = Math.Max(tallest, TextSize(index, style).Height);
+            icons |= _headers[index].HasIcon;
         }
+        // Larger text (a font size, the system's text size) makes the strip taller than the look's height.
+        var content = !icons ? tallest
+            : metrics.IconAbove ? metrics.IconSize + (tallest > 0 ? metrics.IconSpacing + tallest : 0) : Math.Max(tallest, metrics.IconSize);
+        return Math.Max(views, Math.Max(icons ? metrics.IconHeight : metrics.Height, Math.Ceiling(content + 2 * HeaderInset)));
+    }
+
+    /// <summary>The engine's segments for the headers' current widths in <paramref name="viewport"/>, laid out if they aren't; false when it is unbounded.</summary>
+    private bool LayOutSegments(double viewport)
+    {
+        if (!double.IsFinite(viewport))
+            return false;
+        if (!_prepared)
+            Prepare();
+        // Exact: the same viewport as the one laid out in (not computed). The segments' widths don't depend on the height.
+        if (_segmentsViewport != viewport)
+        {
+            _engine.Arrange(viewport, _engine.Height); // only the widths are new: the height stays until the strip's arrange
+            _segmentsViewport = viewport;
+        }
+        return true;
     }
 
     /// <summary>Header <paramref name="index"/>'s rectangle in the strip (physical), after <see cref="Arrange"/>.</summary>
@@ -296,7 +312,7 @@ internal sealed class SkUiTabStripModel(ISkUiTabStripOwner owner, ISkUiTransitio
         _engine.Mirrored = owner.IsRightToLeft;
         _engine.SetContentWidths(_widths.AsSpan(0, count));
         _prepared = true;
-        _segmentsLaidOut = false;
+        _segmentsViewport = double.NaN;
     }
 
     /// <summary>The strip's length in a tab view <paramref name="viewport"/> wide: that width, or the headers' when they overflow it.</summary>
@@ -305,8 +321,8 @@ internal sealed class SkUiTabStripModel(ISkUiTabStripOwner owner, ISkUiTransitio
         Prepare();
         if (!double.IsFinite(viewport))
             return _engine.DesiredWidth();
-        _engine.Arrange(viewport, DesiredHeight);
-        _segmentsLaidOut = true;
+        _engine.Arrange(viewport, DesiredHeightIn(viewport));
+        _segmentsViewport = viewport;
         return _engine.Length;
     }
 
@@ -316,8 +332,8 @@ internal sealed class SkUiTabStripModel(ISkUiTabStripOwner owner, ISkUiTransitio
         using var lookScope = EnterLook();
         if (!_prepared || _engine.Mirrored != owner.IsRightToLeft)
             Prepare();
-        _engine.Arrange(double.IsFinite(viewport) ? Math.Min(viewport, width) : width, height);
-        _segmentsLaidOut = true;
+        _segmentsViewport = double.IsFinite(viewport) ? Math.Min(viewport, width) : width;
+        _engine.Arrange(_segmentsViewport, height);
         _geometryVersion++;
         var rtl = owner.IsRightToLeft;
         for (var index = 0; index < _headers.Count && index < _engine.Count; index++)

@@ -642,7 +642,7 @@ public partial class SkUiTabView : SkUiView, ISkUiFontElement, ISkUiKeyHandler, 
     }
 
     /// <summary>The strip's height: the look's, taller with icons.</summary>
-    private double StripHeight => Strip.Model.DesiredHeight;
+    private double StripHeight(double width) => Strip.Model.DesiredHeightIn(width);
 
     /// <inheritdoc />
     internal override IEnumerable<ISkUiView> SkiaChildren
@@ -659,7 +659,7 @@ public partial class SkUiTabView : SkUiView, ISkUiFontElement, ISkUiKeyHandler, 
     /// <inheritdoc />
     protected override Size MeasureContent(double widthConstraint, double heightConstraint)
     {
-        var strip = StripHeight;
+        var strip = StripHeight(widthConstraint);
         var bounded = double.IsFinite(widthConstraint);
         var paneHeight = Math.Max(0, heightConstraint - strip);
         var width = bounded ? widthConstraint : Math.Max(Strip.Model.DesiredWidth, Panes.UnboundedWidth(paneHeight));
@@ -687,7 +687,7 @@ public partial class SkUiTabView : SkUiView, ISkUiFontElement, ISkUiKeyHandler, 
     /// <inheritdoc />
     protected override void ArrangeContent(Size size)
     {
-        var strip = Math.Min(StripHeight, size.Height);
+        var strip = Math.Min(StripHeight(size.Width), size.Height);
         var top = TabStripPlacement == SkUiTabStripPlacement.Top;
         var stripBounds = new Rect(0, top ? 0 : size.Height - strip, size.Width, strip);
         var paneBounds = new Rect(0, top ? strip : 0, size.Width, Math.Max(0, size.Height - strip));

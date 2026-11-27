@@ -450,7 +450,7 @@ public partial class SkUiCoreTabView : SkUiCoreNode, ISkUiFontElement, ISkUiKeyH
     /// <inheritdoc />
     protected override Size MeasureContent(double widthConstraint, double heightConstraint)
     {
-        var strip = _strip.Model.DesiredHeight;
+        var strip = _strip.Model.DesiredHeightIn(widthConstraint);
         var bounded = double.IsFinite(widthConstraint);
         var paneHeight = Math.Max(0, heightConstraint - strip);
         var width = bounded ? widthConstraint : Math.Max(_strip.Model.DesiredWidth, _panes.UnboundedWidth(paneHeight));
@@ -478,7 +478,7 @@ public partial class SkUiCoreTabView : SkUiCoreNode, ISkUiFontElement, ISkUiKeyH
     /// <inheritdoc />
     protected override void ArrangeContent(Size size)
     {
-        var strip = Math.Min(_strip.Model.DesiredHeight, size.Height);
+        var strip = Math.Min(_strip.Model.DesiredHeightIn(size.Width), size.Height);
         SetStripViewport(size.Width);
         _stripScroller.Measure(size.Width, strip);
         _stripScroller.Arrange(new Rect(0, IsTop ? 0 : size.Height - strip, size.Width, strip));
