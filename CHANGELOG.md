@@ -34,10 +34,12 @@ Publishing (the NuGet publish workflow, [docs/Releasing.md](docs/Releasing.md)) 
   - With content widths a header is as wide as its view measures (the view brings its own padding); with equal widths the headers share the strip as before. The tallest header view makes the strip taller than the look's; a view whose size changes lays the strip out again. Where the look sizes the indicator to the label (Material 3's underline), it takes the view's width.
   - A header view takes no input, keyboard focus or screen reader of its own: a tap anywhere on it selects the tab, and screen readers read the tab's `Header` (or its `SemanticProperties.Description`) as one element of the tab list, as before.
   - Core: `SkUiCoreTabItem.HeaderContent` (a node) and `SkUiCoreTabView.HeaderFactory` (`Func<SkUiCoreTabItem, SkUiCoreNode?>`, called once per tab; `null` keeps the look's header), with `IsSelected` and `CurrentTextColor` raising `PropertyChanged`; drawn as the SkUi tab view's.
+  - A swipe now selects its tab when it is released (the panes spring there), on both layers, so the header views and the strip show it at once instead of once the spring's tail has run out (about a second later).
 
 ### Other
 
 - **Nested scrolling:** a drag handed over by a scroller at its edge no longer moves an outer scroller the user cannot drag (a carousel with `IsSwipeEnabled="False"`, a tab view without swiping).
+- **Samples:** two examples of the 1.18 controls on one employee app: "Time clock" (a progress ring with the running time in tabular figures, a live-region status, a break picked in a `ShowAsync` sheet with chips, clock-out in a dialog, stacked bars of the day and the week, press scale and a minimum touch target) and "Shifts and leave" (a tab view with header views of its own and counts, filter chips over swipe rows that open one at a time, open shifts claimed with chips, leave balances as rings and a stacked bar, a request form in a placed sheet whose date picker opens in a sheet over it).
 
 ### Fixes
 

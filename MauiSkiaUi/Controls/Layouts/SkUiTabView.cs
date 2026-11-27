@@ -304,6 +304,24 @@ public partial class SkUiTabView : SkUiView, ISkUiFontElement, ISkUiKeyHandler, 
         };
         // The controller's event, not the view's PropertyChanged: that one allocates its arguments for every offset of a fling.
         ((ISkUiScrollHost)_paneScroller).Scroller.MovingChanged += _ => OnPanesMovingChanged();
+        ((ISkUiScrollHost)_paneScroller).Scroller.SnapStarted += OnPanesSnapStarted;
+    }
+
+    /// <summary>
+    /// A swipe was released and the panes spring to a tab: it is selected now, so the strip and header views show it while the panes
+    /// settle, not once the spring's tail has run out. The panes are not scrolled again; where they come to rest is checked then
+    /// (<see cref="OnPanesMovingChanged"/>), so a swipe caught on the way still ends on the tab it rests on.
+    /// </summary>
+    private void OnPanesSnapStarted(Point target)
+    {
+        if (_requestingScroll || _scrollingTo >= 0 || !Panes.HasGeometry || Tabs.Count == 0)
+            return;
+        var index = Panes.IndexAt(target.X, _applied);
+        if (index < 0 || index >= Tabs.Count || index == SelectedIndex)
+            return;
+        _keepsPlace = true;
+        try { WriteBack(SelectedIndexProperty, index); }
+        finally { _keepsPlace = false; }
     }
 
     /// <summary>The panes' scroll controller.</summary>
