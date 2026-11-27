@@ -25,8 +25,14 @@ namespace MauiSkiaUi;
 /// </summary>
 internal sealed class SkUiAndroidTextInput(SkUiOverlayContainer container) : ISkUiTextInputProxy, ISkUiAutofillHost, IDisposable
 {
-    private readonly InputMethodManager? _imm = container.Context?.GetSystemService(Context.InputMethodService) as InputMethodManager;
+    private InputMethodManager? _imm;
     private SkUiInputConnection? _connection;
+
+    /// <summary>
+    /// The input method manager, looked up again when its peer was disposed: it is one peer for the whole app, and others dispose
+    /// it (MAUI's native fields until 11.0.10, issue #140).
+    /// </summary>
+    internal InputMethodManager? Imm => SkUiAndroidServices.Get(ref _imm, container.Context, Context.InputMethodService);
 
     /// <summary>The attached field.</summary>
     internal ISkUiTextInputClient? Client { get; private set; }
@@ -39,7 +45,7 @@ internal sealed class SkUiAndroidTextInput(SkUiOverlayContainer container) : ISk
         Client = client;
         client.InputAttached(this);
         _connection = null;
-        _imm?.RestartInput(container);
+        Imm?.RestartInput(container);
         // Focus alone: an implicit request, which the input method may decline (a hardware keyboard attached).
         Show(client, ShowFlags.Implicit);
         // As a native field's focus: autofill offers what fits the form (asking for the structure the first time).
@@ -58,10 +64,10 @@ internal sealed class SkUiAndroidTextInput(SkUiOverlayContainer container) : ISk
             autofill.NotifyViewExited(container, (int)id);
         _connection?.Disconnect();
         _connection = null;
-        _imm?.RestartInput(container);
+        Imm?.RestartInput(container);
         // Focus moving on to another field keeps the keyboard.
         if (container.KeyboardFocus?.Focused is not ISkUiTextInputNode { WantsTextInput: true })
-            _imm?.HideSoftInputFromWindow(container.WindowToken, HideSoftInputFlags.None);
+            Imm?.HideSoftInputFromWindow(container.WindowToken, HideSoftInputFlags.None);
     }
 
     /// <summary>The user asked for the keyboard (a tap on the field, a screen reader's activation): explicit, as <c>TextView</c> asks on a tap.</summary>
@@ -75,14 +81,14 @@ internal sealed class SkUiAndroidTextInput(SkUiOverlayContainer container) : ISk
         container.Post(() =>
         {
             if (ReferenceEquals(Client, client))
-                _imm?.ShowSoftInput(container, flags);
+                Imm?.ShowSoftInput(container, flags);
         });
     }
 
     public void HideKeyboard(ISkUiTextInputClient client)
     {
         if (ReferenceEquals(Client, client))
-            _imm?.HideSoftInputFromWindow(container.WindowToken, HideSoftInputFlags.None);
+            Imm?.HideSoftInputFromWindow(container.WindowToken, HideSoftInputFlags.None);
     }
 
     public void StateChanged(ISkUiTextInputClient client, bool textChanged)
@@ -96,7 +102,7 @@ internal sealed class SkUiAndroidTextInput(SkUiOverlayContainer container) : ISk
         if (!ReferenceEquals(Client, client))
             return;
         _connection = null;
-        _imm?.RestartInput(container);
+        Imm?.RestartInput(container);
     }
 
     public void GeometryChanged(ISkUiTextInputClient client)
@@ -192,11 +198,11 @@ internal sealed class SkUiAndroidTextInput(SkUiOverlayContainer container) : ISk
     private readonly List<ISkUiTextInputClient> _formFields = [];
     private readonly int[] _location = new int[2];
     private int _lastAutofillId;
+    private AutofillManager? _autofill;
 
     /// <summary>The window's autofill manager (API 26+), or <c>null</c>.</summary>
     [SupportedOSPlatform("android26.0")]
-    private AutofillManager? AutofillManager =>
-        field ??= container.Context?.GetSystemService(Java.Lang.Class.FromType(typeof(AutofillManager))) as AutofillManager;
+    private AutofillManager? AutofillManager => SkUiAndroidServices.Get(ref _autofill, container.Context);
 
     /// <summary>The virtual id of <paramref name="client"/> in the container's autofill structure; the field reports to this surface from now on.</summary>
     private int AutofillIdOf(ISkUiTextInputClient client)
@@ -363,7 +369,7 @@ internal sealed class SkUiAndroidTextInput(SkUiOverlayContainer container) : ISk
         if (Client is not { } client || info is null)
             return null;
         Configure(info, client);
-        _connection = new SkUiInputConnection(container, client, _imm);
+        _connection = new SkUiInputConnection(container, client, this);
         return _connection;
     }
 
@@ -491,7 +497,7 @@ internal sealed class SkUiInputConnection : BaseInputConnection
 {
     private readonly View _view;
     private readonly ISkUiTextInputClient _client;
-    private readonly InputMethodManager? _imm;
+    private readonly SkUiAndroidTextInput _input;
     private readonly SpannableStringBuilder _editable;
     private int _batch;
     private bool _pushing;
@@ -507,11 +513,11 @@ internal sealed class SkUiInputConnection : BaseInputConnection
     private (int, int, int, int, int, int, float) _anchorState;
     private Rect _anchorCaret;
 
-    public SkUiInputConnection(View view, ISkUiTextInputClient client, InputMethodManager? imm) : base(view, true)
+    public SkUiInputConnection(View view, ISkUiTextInputClient client, SkUiAndroidTextInput input) : base(view, true)
     {
         _view = view;
         _client = client;
-        _imm = imm;
+        _input = input;
         _editable = new SpannableStringBuilder(client.Editor.Text);
         CopySelection();
     }
@@ -641,13 +647,13 @@ internal sealed class SkUiInputConnection : BaseInputConnection
     /// <summary>Tells the input method where the selection and composition are (and the extracted text and caret, when it asked).</summary>
     private void Report()
     {
-        if (_imm is null || !_connected)
+        if (!_connected || _input.Imm is not { } imm)
             return;
         var editor = _client.Editor;
-        _imm.UpdateSelection(_view, editor.SelectionStart, editor.SelectionEnd,
+        imm.UpdateSelection(_view, editor.SelectionStart, editor.SelectionEnd,
             editor.HasComposition ? editor.CompositionStart : -1, editor.HasComposition ? editor.CompositionEnd : -1);
         if (_extractRequest is { } request)
-            _imm.UpdateExtractedText(_view, request.Token, Extract());
+            imm.UpdateExtractedText(_view, request.Token, Extract());
         UpdateCursorAnchor(force: false);
     }
 
@@ -748,7 +754,7 @@ internal sealed class SkUiInputConnection : BaseInputConnection
     /// <summary>The caret and composition in screen pixels for the input method's candidate window (when it monitors them).</summary>
     internal void UpdateCursorAnchor(bool force)
     {
-        if (_imm is null || !_connected || (!force && !_monitorCursor))
+        if (!_connected || (!force && !_monitorCursor) || _input.Imm is not { } imm)
             return;
         var editor = _client.Editor;
         var density = _view.Resources?.DisplayMetrics?.Density ?? 1f;
@@ -771,7 +777,7 @@ internal sealed class SkUiInputConnection : BaseInputConnection
         builder.SetMatrix(matrix);
         builder.SetInsertionMarkerLocation((float)caret.X, (float)caret.Y, (float)caret.Bottom, (float)caret.Bottom,
             CursorAnchorFlags.HasVisibleRegion);
-        _imm.UpdateCursorAnchorInfo(_view, builder.Build());
+        imm.UpdateCursorAnchorInfo(_view, builder.Build());
     }
 }
 /// <summary>Android: the window's <c>AutofillManager</c> commits or cancels its autofill session.</summary>
