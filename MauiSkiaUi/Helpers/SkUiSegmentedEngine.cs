@@ -43,6 +43,9 @@ internal sealed class SkUiSegmentedEngine
     /// <summary>The row's length after <see cref="Arrange"/>: the arranged width, or more when the segments overflow.</summary>
     public double Length { get; private set; }
 
+    /// <summary>The height the segments were last arranged at.</summary>
+    public double Height => _height;
+
     /// <summary>The segments' content widths (the look's measure of each segment's text and icon, with its padding).</summary>
     public void SetContentWidths(ReadOnlySpan<double> widths)
     {

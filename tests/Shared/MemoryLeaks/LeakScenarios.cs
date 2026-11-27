@@ -58,8 +58,8 @@ public static class LeakScenarios
         new("CarouselSwiped", Scrolling, "SkUiCarouselView over a long-lived collection with a long-lived shared cover flow effect, a long-lived position command and a linked indicator view: swiped and flung forward past the middle of its looping strip (moved back by corrections), an indicator tapped, the position set by code, items added and removed, the effect switched, looping turned off and the end reached (load-more command); closed mid-fling.", () => new CarouselRun()),
         new("CarouselAutoPlay", Scrolling, "SkUiCarouselView with autoplay (a short interval) over a long-lived collection, a linked indicator view and a long-lived position command: steps on its own a few times; closed while a step animates (its timer pending).", () => new CarouselAutoPlayRun()),
         new("CoreCarouselSwiped", Scrolling, "SkUiCoreCarouselView over a long-lived collection with a long-lived shared cover flow effect, an item factory and a linked SkUiCoreIndicatorView: swiped forward past the middle of its looping strip, the indicator set (a tap), the position set, items added and removed, pages of two, the effect switched, looping turned off and the end reached; closed mid-fling.", () => new CoreCarouselRun()),
-        new("TabViewSwiped", Scrolling, "SkUiTabView with four tabs (a scrolled list, a template pane, a badge, a disabled tab with a long-lived icon) over a long-lived collection and command: swiped and flung across the panes, headers tapped, the selection set by code, a tab added and one removed, the strip moved to the bottom with content widths; closed mid-fling.", () => new TabViewRun()),
-        new("CoreTabViewSwiped", Scrolling, "SkUiCoreTabView with four tabs (a list of buttons with a long-lived command, a factory pane, a badge, a disabled tab with a long-lived icon): swiped and flung across the panes, the selection set by code, a tab added and one removed, the strip moved to the bottom with content widths; closed mid-fling.", () => new CoreTabViewRun()),
+        new("TabViewSwiped", Scrolling, "SkUiTabView with four tabs (a scrolled list, a template pane, a badge, a disabled tab with a long-lived icon) over a long-lived collection and command, header views from a strip template and one tab's own: swiped and flung across the panes, headers tapped, the selection set by code, a tab added and one removed (with its header view), the strip template replaced, the strip moved to the bottom with content widths; closed mid-fling.", () => new TabViewRun()),
+        new("CoreTabViewSwiped", Scrolling, "SkUiCoreTabView with four tabs (a list of buttons with a long-lived command, a factory pane, a badge, a disabled tab with a long-lived icon), header nodes from a factory and one tab's own: swiped and flung across the panes, the selection set by code, a tab added and one removed (with its header node), the factory replaced, the strip moved to the bottom with content widths; closed mid-fling.", () => new CoreTabViewRun()),
         new("ChipsShown", Controls, "SkUiChipGroup and SkUiCoreChipGroup over a long-lived collection (input chips removed through a long-lived command and ChipRemoved, a filter group selecting several, a single-choice group in a scrolling row with edge padding), and chips with a long-lived icon, a badge and a long-lived command: chips tapped and removed, items added, the selection set by code, a group switched between wrapping and scrolling; closed with chips pressed.", () => new ChipsRun()),
         new("SheetOpenedAndClosed", Controls, "SkUiSheet placed on a page (a scrolled list inside, a title, an action button with a long-lived command, a one-way binding to a long-lived source) and sheets opened by SkUiSheet.ShowAsync over the surface: opened, dragged to the full detent and flung back, the inner list scrolled and handed over, a sheet placed before it opened over it and a dialog from that one's content, closed by the scrim, by Escape and with a result; a dialog shown and closed with a result; a picker opened through SkUiSheetPopupPresenter and dismissed; closed with a sheet open mid-motion.", () => new SheetRun()),
         new("SegmentedControlShown", Controls, "SkUiSegmentedControl and SkUiCoreSegmentedControl with segments (one with a long-lived icon) and a long-lived command, and over a long-lived collection (a long-lived display binding / a display function): segments tapped (the marker sliding), the selection set by code, a segment added, disabled and removed, an item added and one removed, the items replaced; closed while a marker slides.", () => new SegmentedControlRun()),
@@ -3382,7 +3382,16 @@ public static class LeakScenarios
             _tabs.AddTab(new SkUiTabItem("List", list));
             _tabs.AddTab(new SkUiTabItem { Header = "Template", BadgeText = "3", ContentTemplate = new DataTemplate(() => context.Track(Text("Made once", 18), "template pane")) });
             _tabs.AddTab(new SkUiTabItem("Off", Text("Disabled", 18)) { IsEnabled = false, Icon = LeakIcons.Shared });
-            _tabs.AddTab(new SkUiTabItem("Last", Text("Last pane", 18)));
+            _tabs.AddTab(new SkUiTabItem("Last", Text("Last pane", 18))
+            {
+                HeaderTemplate = new DataTemplate(() => context.Track(new SkUiButton { Text = "Own header", Command = LeakCommands.Shared }, "own tab header"))
+            });
+            _tabs.HeaderTemplate = new DataTemplate(() =>
+            {
+                var header = context.Track(new SkUiLabel { Padding = new Thickness(12, 0) }, "tab header");
+                header.SetBinding(SkUiLabel.TextProperty, static (SkUiTabItem tab) => tab.Header);
+                return header;
+            });
             return Root(_tabs);
         }
 
@@ -3403,6 +3412,7 @@ public static class LeakScenarios
             tabs.Tabs.RemoveAt(3);
             tabs.SelectedIndex = tabs.Tabs.Count - 1;
             await context.WaitAsync(400);
+            tabs.HeaderTemplate = new DataTemplate(() => context.Track(Text("Replaced header", 14), "replaced tab header"));
             tabs.TabStripPlacement = SkUiTabStripPlacement.Bottom;
             tabs.TabWidthMode = SkUiSegmentWidthMode.Content;
             await context.SettleAsync();
@@ -3679,7 +3689,9 @@ public static class LeakScenarios
             _tabs.AddTab(new SkUiCoreTabItem("List", context.Track(new SkUiCoreScrollView(), "core tab list").SetContent(list)));
             _tabs.AddTab(new SkUiCoreTabItem("Factory", () => context.Track(new SkUiCoreLabel().SetText("Made once"), "factory pane")).SetBadgeText("3"));
             _tabs.AddTab(new SkUiCoreTabItem("Off", new SkUiCoreLabel().SetText("Disabled")).SetIsEnabled(false).SetIcon(LeakIcons.Shared));
-            _tabs.AddTab(new SkUiCoreTabItem("Last", new SkUiCoreLabel().SetText("Last pane")));
+            _tabs.AddTab(new SkUiCoreTabItem("Last", new SkUiCoreLabel().SetText("Last pane"))
+                .SetHeaderContent(context.Track(new SkUiCoreButton().SetCommand(LeakCommands.Shared).SetText("Own header"), "own core tab header")));
+            _tabs.SetHeaderFactory(tab => context.Track(new SkUiCoreLabel().SetText(tab.Header), "core tab header"));
             return Root(new SkUiCoreHost().SetContent(_tabs));
         }
 
@@ -3700,6 +3712,7 @@ public static class LeakScenarios
             tabs.Tabs.RemoveAt(3);
             tabs.SetSelectedIndex(tabs.Tabs.Count - 1);
             await context.WaitAsync(400);
+            tabs.SetHeaderFactory(tab => context.Track(new SkUiCoreLabel().SetText("Replaced " + tab.Header), "replaced core tab header"));
             tabs.SetTabStripPlacement(SkUiTabStripPlacement.Bottom).SetTabWidthMode(SkUiSegmentWidthMode.Content);
             await context.SettleAsync();
             await context.DragAsync(tabs, 220, 0, durationMs: 60); // closes mid-fling

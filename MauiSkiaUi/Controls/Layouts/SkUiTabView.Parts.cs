@@ -329,16 +329,21 @@ public partial class SkUiTabView
         }
     }
 
-    /// <summary>The strip of headers (<see cref="SkUiTabStripModel"/>): its background, the indicator over it, and the labels over that.</summary>
-    private sealed class TabStrip : SkUiView, ISkUiKeyHandler
+    /// <summary>
+    /// The strip of headers (<see cref="SkUiTabStripModel"/>): its background, the indicator over it, and the labels and the
+    /// app's header views over that.
+    /// </summary>
+    private sealed class TabStrip : SkUiView, ISkUiKeyHandler, ISkUiTabHeaderHost
     {
         private readonly SkUiTabView _owner;
+        private readonly Dictionary<SkUiTabItem, HeaderCell> _headerCells = [];
+        private List<HeaderCell> _headerOrder = []; // in the tabs' order: drawing
         private bool _laidOut;
 
         public TabStrip(SkUiTabView owner)
         {
             _owner = owner;
-            Model = new SkUiTabStripModel(owner, this, () => Labels!.InvalidatePaint());
+            Model = new SkUiTabStripModel(owner, this, this, () => Labels!.InvalidatePaint());
             Indicator = new TabIndicator(owner, Model);
             Labels = new TabLabels(Model);
             AttachChild(Indicator);
@@ -357,6 +362,7 @@ public partial class SkUiTabView
 
         public void TabsChanged()
         {
+            SyncHeaders();
             Model.Invalidate();
             InvalidateMeasureOverride();
             InvalidatePaint();
@@ -364,6 +370,7 @@ public partial class SkUiTabView
             InvalidateSemantics();
             Indicator.InvalidateRender(SkUiRenderDirty.Props);
             Indicator.InvalidatePaint(); // its style may have changed
+            UpdateHeaderStates();
         }
 
         public void SemanticsChanged() => InvalidateSemantics();
@@ -373,6 +380,7 @@ public partial class SkUiTabView
             Labels.InvalidatePaint(); // the selected header's color: only the labels re-record
             InvalidateSemantics();
             KeepInView(index, _owner.IsShown && !SkUiMotion.IsMotionReduced);
+            UpdateHeaderStates();
         }
 
         public void ColorsChanged()
@@ -380,7 +388,96 @@ public partial class SkUiTabView
             InvalidatePaint();
             Labels.InvalidatePaint();
             Indicator.InvalidatePaint();
+            UpdateHeaderStates();
         }
+
+        #region Header views
+
+        /// <summary>
+        /// The tabs, their header templates or the tab view's changed: each tab with a template has a header view made from it
+        /// (made again when its template changes), the others none.
+        /// </summary>
+        private void SyncHeaders()
+        {
+            var tabs = _owner._tabs;
+            if (_headerCells.Count == 0 && (tabs is null || !HasAnyTemplate(tabs)))
+                return;
+            var kept = new List<HeaderCell>();
+            for (var index = 0; tabs is not null && index < tabs.Count; index++)
+            {
+                var tab = tabs[index];
+                if (_owner.HeaderTemplateOf(tab) is not { } template)
+                    continue;
+                if (!_headerCells.TryGetValue(tab, out var cell))
+                {
+                    cell = new HeaderCell(tab);
+                    _headerCells[tab] = cell;
+                    AddLogicalChild(cell);
+                }
+                if (!ReferenceEquals(cell.Template, template))
+                {
+                    cell.Template = template;
+                    cell.Content = template.CreateContent() as ISkUiView
+                        ?? throw new InvalidOperationException($"A tab header template must make a drawn (SkUi*) view.");
+                }
+                cell.IsEnabled = tab.IsEnabled;
+                kept.Add(cell);
+            }
+            foreach (var cell in _headerOrder)
+                if (!kept.Contains(cell) && _headerCells.Remove(cell.Tab))
+                {
+                    cell.Content = null;
+                    RemoveLogicalChild(cell);
+                }
+            _headerOrder = kept;
+            InvalidateRender(SkUiRenderDirty.Children);
+
+            bool HasAnyTemplate(IList<SkUiTabItem> items)
+            {
+                if (_owner.HeaderTemplate is not null)
+                    return items.Count > 0;
+                foreach (var item in items)
+                    if (item.HeaderTemplate is not null)
+                        return true;
+                return false;
+            }
+        }
+
+        /// <summary>Each tab learns whether it is selected and its header's text color; a header view's root is in the <c>Selected</c> visual state with it.</summary>
+        private void UpdateHeaderStates()
+        {
+            if (_owner._tabs is not { } tabs)
+                return;
+            var selected = _owner.SelectedIndex;
+            for (var index = 0; index < tabs.Count; index++)
+            {
+                var tab = tabs[index];
+                tab.SetHeaderState(index == selected, Model.CurrentTextColor(index, tab.CurrentTextColor));
+                if (_headerCells.Count > 0 && _headerCells.TryGetValue(tab, out var cell) && cell.Content is SkUiView root)
+                    root.IsSelectedItem = index == selected;
+            }
+        }
+
+        private HeaderCell? CellAt(int index) =>
+            _headerCells.Count > 0 && _owner._tabs is { } tabs && index >= 0 && index < tabs.Count && _headerCells.TryGetValue(tabs[index], out var cell) ? cell : null;
+
+        /// <summary>Tab <paramref name="index"/>'s header view (tests).</summary>
+        public ISkUiView? HeaderViewOf(int index) => CellAt(index)?.Content;
+
+        bool ISkUiTabHeaderHost.HasHeaderView(int index) => CellAt(index) is not null;
+
+        Size ISkUiTabHeaderHost.MeasureHeaderView(int index, double widthConstraint, double heightConstraint) =>
+            CellAt(index) is IView cell ? cell.Measure(widthConstraint, heightConstraint) : Size.Zero;
+
+        void ISkUiTabHeaderHost.ArrangeHeaderView(int index, Rect bounds)
+        {
+            if (CellAt(index) is not IView cell)
+                return;
+            cell.Measure(bounds.Width, bounds.Height);
+            cell.Arrange(bounds);
+        }
+
+        #endregion
 
         /// <summary>The strip's scroller was arranged: after a new layout of the headers, the selected one is brought into view.</summary>
         public void AfterArrange()
@@ -414,11 +511,13 @@ public partial class SkUiTabView
             {
                 yield return Indicator;
                 yield return Labels;
+                foreach (var cell in _headerOrder)
+                    yield return cell;
             }
         }
 
         protected override Size MeasureContent(double widthConstraint, double heightConstraint) =>
-            new(Model.Measure(ViewportWidth), Math.Min(heightConstraint, Model.DesiredHeight));
+            new(Model.Measure(ViewportWidth), Math.Min(heightConstraint, Model.DesiredHeightIn(ViewportWidth)));
 
         protected override void ArrangeContent(Size size)
         {
@@ -462,6 +561,26 @@ public partial class SkUiTabView
             base.ReleaseDrawingResources();
             Model.ReleaseDrawingResources();
         }
+    }
+
+    /// <summary>
+    /// Hosts a tab's header view of the app's (1.18 T), over the indicator: its binding context is the tab item. Taps go through
+    /// to the strip, keyboard focus does not go in, and screen readers read the strip's header element instead.
+    /// </summary>
+    private sealed class HeaderCell : SkUiContentView
+    {
+        public HeaderCell(SkUiTabItem tab)
+        {
+            Tab = tab;
+            InputTransparent = true;
+            AutomationProperties.SetExcludedWithChildren(this, true);
+            BindingContext = tab;
+        }
+
+        public SkUiTabItem Tab { get; }
+
+        /// <summary>The template the view was made from (a selector's choice).</summary>
+        public DataTemplate? Template { get; set; }
     }
 
     /// <summary>The strip's headers, a layer of their own over the indicator; taps go through to the strip.</summary>

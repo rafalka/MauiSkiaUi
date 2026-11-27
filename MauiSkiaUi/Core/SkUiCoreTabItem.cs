@@ -5,7 +5,7 @@ namespace MauiSkiaUi.Core;
 
 /// <summary>
 /// One tab of a <see cref="SkUiCoreTabView"/> (the Core form of <see cref="SkUiTabItem"/>): its header (<see cref="Header"/>,
-/// <see cref="Icon"/>, <see cref="BadgeText"/>) and its pane (<see cref="Content"/>, or <see cref="ContentFactory"/>, called once
+/// <see cref="Icon"/>, <see cref="BadgeText"/>, drawn by the look, or a node of the app's: <see cref="HeaderContent"/>) and its pane (<see cref="Content"/>, or <see cref="ContentFactory"/>, called once
 /// when the pane first comes into view). A plain object with change notification.
 /// </summary>
 public sealed class SkUiCoreTabItem : INotifyPropertyChanged
@@ -18,6 +18,12 @@ public sealed class SkUiCoreTabItem : INotifyPropertyChanged
     private Func<SkUiCoreNode>? _contentFactory;
     private string? _automationId;
     private string? _semanticDescription;
+    private SkUiCoreNode? _headerContent;
+    private bool _isSelected;
+    private Color? _currentTextColor;
+
+    private static readonly PropertyChangedEventArgs IsSelectedChangedArgs = new(nameof(IsSelected));
+    private static readonly PropertyChangedEventArgs CurrentTextColorChangedArgs = new(nameof(CurrentTextColor));
 
     /// <summary>Creates an empty tab.</summary>
     public SkUiCoreTabItem() { }
@@ -52,6 +58,23 @@ public sealed class SkUiCoreTabItem : INotifyPropertyChanged
     /// <summary>What screen readers call the tab when it has no <see cref="Header"/> (an icon alone).</summary>
     public string? SemanticDescription { get => _semanticDescription; set => SetSemanticDescription(value); }
 
+    /// <summary>
+    /// A header node of the app's for this tab, in place of the look's text, icon and badge (a node without a parent);
+    /// <c>null</c> (default): the tab view's <see cref="SkUiCoreTabView.HeaderFactory"/>, else the look's header. It takes no
+    /// input, focus or screen reader of its own: a tap selects the tab, and screen readers read <see cref="Header"/>. It follows
+    /// <see cref="IsSelected"/> and <see cref="CurrentTextColor"/> through <see cref="PropertyChanged"/>.
+    /// </summary>
+    public SkUiCoreNode? HeaderContent { get => _headerContent; set => SetHeaderContent(value); }
+
+    /// <summary>Whether the tab is the selected one (set by its tab view; raises <see cref="PropertyChanged"/>).</summary>
+    public bool IsSelected => _isSelected;
+
+    /// <summary>
+    /// The color the look gives this tab's header text now (selected, unselected or disabled, with the tab view's colors over
+    /// the look's); <c>null</c> outside a tab view. See <see cref="SkUiTabItem.CurrentTextColor"/>.
+    /// </summary>
+    public Color? CurrentTextColor => _currentTextColor;
+
     /// <inheritdoc />
     public event PropertyChangedEventHandler? PropertyChanged;
 
@@ -78,6 +101,28 @@ public sealed class SkUiCoreTabItem : INotifyPropertyChanged
 
     /// <summary>Sets <see cref="SemanticDescription"/>.</summary>
     public SkUiCoreTabItem SetSemanticDescription(string? value) => Set(ref _semanticDescription, value);
+
+    /// <summary>Sets <see cref="HeaderContent"/>.</summary>
+    public SkUiCoreTabItem SetHeaderContent(SkUiCoreNode? value) => Set(ref _headerContent, value);
+
+    /// <summary>The tab view that last told the tab its header state: one it left doesn't clear the state another gave.</summary>
+    internal object? HeaderStateOwner { get; private set; }
+
+    /// <summary>The tab view tells the tab whether it is selected and its header's text color (<c>null</c>: it left).</summary>
+    internal void SetHeaderState(bool selected, Color? textColor, object? owner)
+    {
+        HeaderStateOwner = owner;
+        if (_isSelected != selected)
+        {
+            _isSelected = selected;
+            PropertyChanged?.Invoke(this, IsSelectedChangedArgs);
+        }
+        if (!Equals(_currentTextColor, textColor))
+        {
+            _currentTextColor = textColor;
+            PropertyChanged?.Invoke(this, CurrentTextColorChangedArgs);
+        }
+    }
 
     private SkUiCoreTabItem Set<T>(ref T field, T value, [CallerMemberName] string? setter = null)
     {

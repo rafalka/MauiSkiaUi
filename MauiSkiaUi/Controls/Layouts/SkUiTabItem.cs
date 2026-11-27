@@ -1,9 +1,10 @@
 namespace MauiSkiaUi;
 
 /// <summary>
-/// One tab of a <see cref="SkUiTabView"/>: its header (<see cref="Header"/>, <see cref="Icon"/>, <see cref="BadgeText"/>) and its
-/// pane (<see cref="Content"/>, a drawn view, or <see cref="ContentTemplate"/>, made once). The pane is created when it first
-/// comes into view and kept after that. A tab item takes the tab view's binding context.
+/// One tab of a <see cref="SkUiTabView"/>: its header (<see cref="Header"/>, <see cref="Icon"/>, <see cref="BadgeText"/>, drawn by
+/// the look, or a view of the app's from <see cref="HeaderTemplate"/>) and its pane (<see cref="Content"/>, a drawn view, or
+/// <see cref="ContentTemplate"/>, made once). The pane is created when it first comes into view and kept after that. A tab item
+/// takes the tab view's binding context.
 /// </summary>
 [ContentProperty(nameof(Content))]
 public class SkUiTabItem : Element
@@ -26,6 +27,19 @@ public class SkUiTabItem : Element
 
     /// <summary>Bindable property for <see cref="ContentTemplate"/>.</summary>
     public static readonly BindableProperty ContentTemplateProperty = BindableProperty.Create(nameof(ContentTemplate), typeof(DataTemplate), typeof(SkUiTabItem), null);
+
+    /// <summary>Bindable property for <see cref="HeaderTemplate"/>.</summary>
+    public static readonly BindableProperty HeaderTemplateProperty = BindableProperty.Create(nameof(HeaderTemplate), typeof(DataTemplate), typeof(SkUiTabItem), null);
+
+    private static readonly BindablePropertyKey IsSelectedPropertyKey = BindableProperty.CreateReadOnly(nameof(IsSelected), typeof(bool), typeof(SkUiTabItem), false);
+
+    /// <summary>Bindable property for <see cref="IsSelected"/> (read-only).</summary>
+    public static readonly BindableProperty IsSelectedProperty = IsSelectedPropertyKey.BindableProperty;
+
+    private static readonly BindablePropertyKey CurrentTextColorPropertyKey = BindableProperty.CreateReadOnly(nameof(CurrentTextColor), typeof(Color), typeof(SkUiTabItem), null);
+
+    /// <summary>Bindable property for <see cref="CurrentTextColor"/> (read-only).</summary>
+    public static readonly BindableProperty CurrentTextColorProperty = CurrentTextColorPropertyKey.BindableProperty;
 
     /// <summary>Creates an empty tab.</summary>
     public SkUiTabItem() { }
@@ -55,6 +69,25 @@ public class SkUiTabItem : Element
     /// <summary>Makes the pane when it is first shown, when <see cref="Content"/> is not set.</summary>
     public DataTemplate? ContentTemplate { get => (DataTemplate?)GetValue(ContentTemplateProperty); set => SetValue(ContentTemplateProperty, value); }
 
+    /// <summary>
+    /// Makes a header view of the app's for this tab (a drawn view, made once), in place of the look's text, icon and badge;
+    /// <c>null</c> (default): the tab view's <see cref="SkUiTabView.HeaderTemplate"/>, else the look's header. The view's binding
+    /// context is this tab item (<c>{Binding Header}</c>, <c>{Binding IsSelected}</c>, <c>{Binding CurrentTextColor}</c>), and its
+    /// root is in the <c>Selected</c> visual state while the tab is selected (<c>Disabled</c> while it is disabled). It takes no
+    /// input, focus or screen reader of its own: a tap selects the tab, and screen readers read <see cref="Header"/>.
+    /// </summary>
+    public DataTemplate? HeaderTemplate { get => (DataTemplate?)GetValue(HeaderTemplateProperty); set => SetValue(HeaderTemplateProperty, value); }
+
+    /// <summary>Whether the tab is the selected one (set by its tab view): for header views and triggers.</summary>
+    public bool IsSelected { get => (bool)GetValue(IsSelectedProperty); private set => SetValue(IsSelectedPropertyKey, value); }
+
+    /// <summary>
+    /// The color the look gives this tab's header text now: selected, unselected or disabled, with the tab view's
+    /// <see cref="SkUiTabView.HeaderTextColor"/> / <see cref="SkUiTabView.SelectedHeaderTextColor"/> over the look's; <c>null</c>
+    /// outside a tab view. A header view of the app's binds to it to look like the drawn headers.
+    /// </summary>
+    public Color? CurrentTextColor { get => (Color?)GetValue(CurrentTextColorProperty); private set => SetValue(CurrentTextColorPropertyKey, value); }
+
     /// <summary>Sets <see cref="Header"/> (same as the property setter).</summary>
     public SkUiTabItem SetHeader(string? value) { Header = value; return this; }
 
@@ -72,6 +105,16 @@ public class SkUiTabItem : Element
 
     /// <summary>Sets <see cref="ContentTemplate"/> (same as the property setter).</summary>
     public SkUiTabItem SetContentTemplate(DataTemplate? value) { ContentTemplate = value; return this; }
+
+    /// <summary>Sets <see cref="HeaderTemplate"/> (same as the property setter).</summary>
+    public SkUiTabItem SetHeaderTemplate(DataTemplate? value) { HeaderTemplate = value; return this; }
+
+    /// <summary>The tab view tells the tab whether it is selected and its header's text color (<c>null</c>: it left).</summary>
+    internal void SetHeaderState(bool selected, Color? textColor)
+    {
+        IsSelected = selected;
+        CurrentTextColor = textColor;
+    }
 
     private void OnIconChanged(ImageSource? previous)
     {

@@ -283,18 +283,25 @@ public partial class SkUiCoreTabView
         }
     }
 
-    /// <summary>The strip of headers (<see cref="SkUiTabStripModel"/>): its background, the indicator over it, and the labels over that.</summary>
-    private sealed class TabStrip : SkUiCoreNode, ISkUiKeyHandler
+    /// <summary>
+    /// The strip of headers (<see cref="SkUiTabStripModel"/>): its background, the indicator over it, and the labels and the
+    /// app's header nodes over that.
+    /// </summary>
+    private sealed class TabStrip : SkUiCoreNode, ISkUiKeyHandler, ISkUiTabHeaderHost
     {
         private readonly SkUiCoreTabView _owner;
         private readonly TabIndicator _indicator;
         private readonly TabLabels _labels;
+        private readonly Dictionary<SkUiCoreTabItem, HeaderCell> _headerCells = [];
+        private readonly HashSet<SkUiCoreTabItem> _declined = []; // the factory made no header for them
+        private List<HeaderCell> _headerOrder = []; // in the tabs' order: drawing
+        private Func<SkUiCoreTabItem, SkUiCoreNode?>? _factory; // the one that made the nodes
         private bool _laidOut;
 
         public TabStrip(SkUiCoreTabView owner)
         {
             _owner = owner;
-            Model = new SkUiTabStripModel(owner, this, () => _labels!.InvalidatePaint());
+            Model = new SkUiTabStripModel(owner, this, this, () => _labels!.InvalidatePaint());
             _indicator = new TabIndicator(owner, Model);
             _labels = new TabLabels(Model);
             _indicator.AttachTo(this);
@@ -310,6 +317,7 @@ public partial class SkUiCoreTabView
 
         public void TabsChanged()
         {
+            SyncHeaders();
             Model.Invalidate();
             InvalidateMeasure();
             InvalidatePaint();
@@ -317,6 +325,7 @@ public partial class SkUiCoreTabView
             InvalidateSemantics();
             _indicator.InvalidateRender(SkUiRenderDirty.Props);
             _indicator.InvalidatePaint(); // its style may have changed
+            UpdateHeaderStates();
         }
 
         public void SemanticsChanged() => InvalidateSemantics();
@@ -326,6 +335,7 @@ public partial class SkUiCoreTabView
             _labels.InvalidatePaint(); // the selected header's color: only the labels re-record
             InvalidateSemantics();
             KeepInView(index, _owner.IsShownNow() && !SkUiMotion.IsMotionReduced);
+            UpdateHeaderStates();
         }
 
         public void ColorsChanged()
@@ -333,7 +343,105 @@ public partial class SkUiCoreTabView
             InvalidatePaint();
             _labels.InvalidatePaint();
             _indicator.InvalidatePaint();
+            UpdateHeaderStates();
         }
+
+        #region Header nodes
+
+        /// <summary>
+        /// The tabs, their header nodes or the tab view's factory changed: each tab's header node is its own, else the factory's
+        /// (made once per tab and factory), else none.
+        /// </summary>
+        private void SyncHeaders()
+        {
+            var tabs = _owner._tabs;
+            var factory = _owner._headerFactory;
+            if (!ReferenceEquals(factory, _factory))
+            {
+                _factory = factory;
+                _declined.Clear();
+                foreach (var cell in _headerOrder)
+                    if (cell.Source is not SkUiCoreNode)
+                        cell.Source = null; // made again by the new factory
+            }
+            if (_headerCells.Count == 0 && (factory is null || tabs.Count == 0) && !AnyOwnHeader())
+                return;
+            var kept = new List<HeaderCell>();
+            foreach (var tab in tabs)
+            {
+                _headerCells.TryGetValue(tab, out var cell);
+                var source = tab.HeaderContent is { } own ? own : (object?)factory;
+                if (source is null || (cell is null && ReferenceEquals(source, factory) && _declined.Contains(tab)))
+                    continue;
+                if (!ReferenceEquals(cell?.Source, source))
+                {
+                    var node = tab.HeaderContent ?? factory!(tab);
+                    if (node is null)
+                    {
+                        _declined.Add(tab);
+                        continue;
+                    }
+                    if (cell is null)
+                    {
+                        cell = new HeaderCell(tab);
+                        _headerCells[tab] = cell;
+                        cell.AttachTo(this);
+                    }
+                    cell.SetContent(null); // the old node lets go first: the new one may be the same
+                    cell.SetContent(node);
+                    cell.Source = source;
+                }
+                cell.SetIsEnabled(tab.IsEnabled);
+                kept.Add(cell);
+            }
+            foreach (var cell in _headerOrder)
+                if (!kept.Contains(cell) && _headerCells.Remove(cell.Tab))
+                {
+                    cell.SetContent(null);
+                    cell.AttachTo(null);
+                }
+            _declined.RemoveWhere(tab => !tabs.Contains(tab));
+            _headerOrder = kept;
+            InvalidateRender(SkUiRenderDirty.Children);
+
+            bool AnyOwnHeader()
+            {
+                foreach (var tab in tabs)
+                    if (tab.HeaderContent is not null)
+                        return true;
+                return false;
+            }
+        }
+
+        /// <summary>Each tab learns whether it is selected and its header's text color.</summary>
+        private void UpdateHeaderStates()
+        {
+            var tabs = _owner._tabs;
+            var selected = _owner._selectedIndex;
+            for (var index = 0; index < tabs.Count; index++)
+                tabs[index].SetHeaderState(index == selected, Model.CurrentTextColor(index, tabs[index].CurrentTextColor), _owner);
+        }
+
+        private HeaderCell? CellAt(int index) =>
+            _headerCells.Count > 0 && index >= 0 && index < _owner._tabs.Count && _headerCells.TryGetValue(_owner._tabs[index], out var cell) ? cell : null;
+
+        /// <summary>Tab <paramref name="index"/>'s header node (tests).</summary>
+        public SkUiCoreNode? HeaderNodeOf(int index) => CellAt(index)?.Content;
+
+        bool ISkUiTabHeaderHost.HasHeaderView(int index) => CellAt(index) is not null;
+
+        Size ISkUiTabHeaderHost.MeasureHeaderView(int index, double widthConstraint, double heightConstraint) =>
+            CellAt(index) is { } cell ? cell.Measure(widthConstraint, heightConstraint) : Size.Zero;
+
+        void ISkUiTabHeaderHost.ArrangeHeaderView(int index, Rect bounds)
+        {
+            if (CellAt(index) is not { } cell)
+                return;
+            cell.Measure(bounds.Width, bounds.Height);
+            cell.Arrange(bounds);
+        }
+
+        #endregion
 
         /// <summary>The strip's scroller was arranged: after a new layout of the headers, the selected one is brought into view.</summary>
         public void AfterArrange()
@@ -361,16 +469,17 @@ public partial class SkUiCoreTabView
                 _ = scroller.ScrollToAsync(target, 0, animated);
         }
 
-        internal override IReadOnlyList<IVisualTreeElement> VisualChildren => [_indicator, _labels];
+        internal override IReadOnlyList<IVisualTreeElement> VisualChildren => [_indicator, _labels, .. _headerOrder];
 
         internal override void AddRenderChildren(List<ISkUiRenderable> children)
         {
             children.Add(_indicator);
             children.Add(_labels);
+            children.AddRange(_headerOrder);
         }
 
         protected override Size MeasureContent(double widthConstraint, double heightConstraint) =>
-            new(Model.Measure(ViewportWidth), Math.Min(heightConstraint, Model.DesiredHeight));
+            new(Model.Measure(ViewportWidth), Math.Min(heightConstraint, Model.DesiredHeightIn(ViewportWidth)));
 
         protected override void ArrangeContent(Size size)
         {
@@ -410,6 +519,25 @@ public partial class SkUiCoreTabView
             base.ReleaseDrawingResources();
             Model.ReleaseDrawingResources();
         }
+    }
+
+    /// <summary>
+    /// Hosts a tab's header node of the app's (1.18 T), over the indicator. Taps go through to the strip, keyboard focus does
+    /// not go in, and screen readers read the strip's header element instead.
+    /// </summary>
+    private sealed class HeaderCell : SkUiCoreContentView
+    {
+        public HeaderCell(SkUiCoreTabItem tab)
+        {
+            Tab = tab;
+            SetInputTransparent(true);
+            SetExcludedWithChildren(true);
+        }
+
+        public SkUiCoreTabItem Tab { get; }
+
+        /// <summary>The tab's own header node, or the factory that made it.</summary>
+        public object? Source { get; set; }
     }
 
     /// <summary>The strip's headers, a layer of their own over the indicator; taps go through to the strip.</summary>
