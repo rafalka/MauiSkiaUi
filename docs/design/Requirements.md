@@ -106,6 +106,7 @@ Status: **Shipped** (in the current release line), **Partly** (shipped, with ope
 | FR-37 | Segmented control and tab view, on both layers | Built for 1.17 | [SkUiSegmentedControl](../controls/SkUiSegmentedControl.md), [SkUiTabView](../controls/SkUiTabView.md) |
 | FR-38 | Progress ring with content and a stacked bar of several parts, on both layers | Built for 1.18 (`1.18-plk`) | [SkUiProgressRing](../controls/SkUiProgressRing.md), [SkUiStackedBar](../controls/SkUiStackedBar.md) |
 | FR-39 | Chips and chip groups (action, filter, input, suggestion; wrapping or one scrolling row), on both layers | Built for 1.18 (`1.18-plk`) | [SkUiChip](../controls/SkUiChip.md) |
+| FR-40 | A sheet inside the surface: bottom and side sheets on detents, a dialog presentation, a scrim, stacking, a modal pane for focus and screen readers, `ShowAsync<TResult>`, a popup presenter for the pickers; SkUi\* only (a drawn container, not a popup window) | Built for 1.18 (`1.18-sheet`) | [SkUiSheet](../controls/SkUiSheet.md) |
 
 ### Core layer (FR-C)
 

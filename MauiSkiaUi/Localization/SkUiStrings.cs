@@ -220,6 +220,9 @@ public class SkUiStrings
     /// <summary>The screen-reader action that moves a reorderable collection view item one place right. Default "Move right".</summary>
     public virtual string MoveRightText { get; set => Set(ref field, value); } = "Move right";
 
+    /// <summary>A sheet's grabber, read by screen readers (it moves the sheet to its next height).</summary>
+    public virtual string SheetGrabberText { get; set => Set(ref field, value); } = "Drag handle";
+
     /// <summary>
     /// The day names a calendar shows above its columns in the <see cref="SkUiCalendarDayNameFormat.Abbreviated"/> format
     /// ("Mon"), seven names from Sunday; <c>null</c> (default): the current culture's.

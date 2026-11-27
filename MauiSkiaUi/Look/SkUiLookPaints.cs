@@ -59,6 +59,24 @@ public readonly record struct SkUiProgressRingPaint(
     SKRect Bounds, float Progress, bool IsIndeterminate, SKColor Track, SKColor Fill, float Thickness, float StartAngle, bool IsClockwise,
     PenLineCap LineCap, float Sweep, bool IsEnabled);
 
+/// <summary>
+/// What a look draws for a Sheet's surface (<see cref="SkUiLook.DrawSheet"/>): the panel that holds the sheet's header, content and
+/// actions. Colors already reflect the enabled state.
+/// </summary>
+/// <param name="Bounds">The sheet's rectangle (for a sheet resting on a lower detent, its whole length: part of it is off the surface).</param>
+/// <param name="Background">The surface color.</param>
+/// <param name="CornerRadius">The corners, resolved for the edge it comes from: a bottom sheet's top corners, a side sheet's inner ones, every corner of a dialog.</param>
+/// <param name="IsDialog">The sheet shows as a centered card (<see cref="SkUiSheetPresentation.Dialog"/>).</param>
+/// <param name="IsEnabled">The sheet is enabled.</param>
+public readonly record struct SkUiSheetPaint(SKRect Bounds, SKColor Background, CornerRadius CornerRadius, bool IsDialog, bool IsEnabled);
+
+/// <summary>What a look draws for a Sheet's grabber (<see cref="SkUiLook.DrawSheetGrabber"/>), the handle at the edge a sheet is dragged by.</summary>
+/// <param name="Bounds">The grabber's band (its touch target); the look draws the handle of <see cref="SkUiLook.SheetGrabberSize"/> centered in it.</param>
+/// <param name="Color">The handle's color.</param>
+/// <param name="IsVertical">The handle stands upright (a side sheet's, along its inner edge); otherwise it lies across a bottom sheet's top.</param>
+/// <param name="IsPressed">The grabber is pressed.</param>
+public readonly record struct SkUiSheetGrabberPaint(SKRect Bounds, SKColor Color, bool IsVertical, bool IsPressed);
+
 /// <summary>One part of a StackedBar as drawn: where it starts and ends, as fractions of the bar (0–1), and its color.</summary>
 /// <param name="Start">Where the part starts (0: the bar's start).</param>
 /// <param name="End">Where it ends (at least <see cref="Start"/>; 1: the bar's end).</param>

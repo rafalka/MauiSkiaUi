@@ -116,7 +116,12 @@ Leave as MAUI animations (and say so in the report): animations of `WidthRequest
 
 - **CommunityToolkit.Maui (`Popup`):** add the `SkiaUi.Maui.CommunityToolkit` package (same version as SkiaUi.Maui) and register it: `builder.UseMauiCommunityToolkit().UseSkiaUi().UseSkiaUiCommunityToolkit()`.
 - **Another popup library, a popup navigation service of the app's:** write a presenter on it (one method: show `request.Content` at `request.Bounds`, close it when the token is cancelled, return when it is gone; a sketch in `SkUiPicker.md`).
+- **No popup library, and the pickers sit in drawn pages with no native views to cover:** `new SkUiSheetPopupPresenter()` as `UseSkiaUi(options => options.PopupPresenter = …)` (SkiaUi 1.18): popups in a drawn sheet on the picker's surface.
 - **Nothing:** pickers open MAUI's action sheet (plain item texts); tell the user and suggest a presenter.
+
+## Bottom sheets and dialogs inside a page
+
+A vendor bottom sheet (The49 `BottomSheet`, `Plugin.Maui.BottomSheet`) in a drawn page → `sk:SkUiSheet` (SkiaUi 1.18) as the last child of a grid filling the page: content → `Content`; detents → `Detents` (`"Fit, 50%, 100%"`), the current one → `SelectedDetentIndex`; shown → `IsOpen` (two-way) or `OpenAsync` / `CloseAsync`; dimming → `IsModal` / `ScrimColor`; tap outside → `DismissOnScrimTap`; drag → `IsDragEnabled`; handle → `HasGrabber`; events → `Opened`, `Closed`, `DetentChanged`. A popup page that returns a value → `await SkUiSheet.ShowAsync<T>(anchor, content, sheet => …)` with `sheet.Close(result)`; a centered dialog → `Presentation = Dialog`. The sheet is drawn inside the surface: ask before converting one that must cover native views or the Shell tab bar, and keep `DisplayAlert` / `DisplayActionSheet` unless the user wants drawn ones.
 
 A presenter that shows a picker UI of its own instead reads `SkUiListPopupRequest` (`Items`, `SelectedIndex`) and calls `request.Complete(index)` (or `SetSelectedIndex(index)` while it stays open), or, for a custom picker class, derive from `sk:SkUiPicker` and override `SelectItemsAsync(selection, token)` (items in, chosen items out; `ShowPopupAsync(request, token)` for wheels and dates); for several choices and wheels it reads `SkUiMultiListPopupRequest` / `SkUiColumnsPopupRequest` and calls `SetSelection(indices)` as the user changes them.
 

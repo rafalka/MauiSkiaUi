@@ -61,6 +61,7 @@ public static class LeakScenarios
         new("TabViewSwiped", Scrolling, "SkUiTabView with four tabs (a scrolled list, a template pane, a badge, a disabled tab with a long-lived icon) over a long-lived collection and command: swiped and flung across the panes, headers tapped, the selection set by code, a tab added and one removed, the strip moved to the bottom with content widths; closed mid-fling.", () => new TabViewRun()),
         new("CoreTabViewSwiped", Scrolling, "SkUiCoreTabView with four tabs (a list of buttons with a long-lived command, a factory pane, a badge, a disabled tab with a long-lived icon): swiped and flung across the panes, the selection set by code, a tab added and one removed, the strip moved to the bottom with content widths; closed mid-fling.", () => new CoreTabViewRun()),
         new("ChipsShown", Controls, "SkUiChipGroup and SkUiCoreChipGroup over a long-lived collection (input chips removed through a long-lived command and ChipRemoved, a filter group selecting several, a single-choice group in a scrolling row with edge padding), and chips with a long-lived icon, a badge and a long-lived command: chips tapped and removed, items added, the selection set by code, a group switched between wrapping and scrolling; closed with chips pressed.", () => new ChipsRun()),
+        new("SheetOpenedAndClosed", Controls, "SkUiSheet placed on a page (a scrolled list inside, a title, an action button with a long-lived command, a one-way binding to a long-lived source) and sheets opened by SkUiSheet.ShowAsync over the surface: opened, dragged to the full detent and flung back, the inner list scrolled and handed over, a sheet placed before it opened over it and a dialog from that one's content, closed by the scrim, by Escape and with a result; a dialog shown and closed with a result; a picker opened through SkUiSheetPopupPresenter and dismissed; closed with a sheet open mid-motion.", () => new SheetRun()),
         new("SegmentedControlShown", Controls, "SkUiSegmentedControl and SkUiCoreSegmentedControl with segments (one with a long-lived icon) and a long-lived command, and over a long-lived collection (a long-lived display binding / a display function): segments tapped (the marker sliding), the selection set by code, a segment added, disabled and removed, an item added and one removed, the items replaced; closed while a marker slides.", () => new SegmentedControlRun()),
         new("PickerOpened", Controls, "SkUiPicker and SkUiCorePicker over a long-lived collection (a display binding, an item template), opened on a long-lived presenter that keeps the last request (as a popup stack does): tapped open and an item chosen in the drawn list, dismissed, closed by IsOpen = false and by hiding the picker, opened by the keyboard, the Core picker chosen; closed with a popup open.", () => new PickerRun()),
         new("DisplayBindingChips", Controls, "Chips an app control builds from view-model items through a long-lived SkUiDisplayBinding over a long-lived binding (as one in app resources), fading on press: texts read from a list, from a sequence and one item alone, chips tapped, the items replaced and read again.", () => new DisplayBindingRun()),
@@ -3481,6 +3482,112 @@ public static class LeakScenarios
 
         public override string? CheckInteraction() =>
             _events >= 6 ? null : $"Chips raised {_events} selection and removal events (expected 6 or more).";
+    }
+
+    /// <summary>Long-lived sheet options a placed sheet binds to (a view model that outlives its pages).</summary>
+    private sealed class LeakSheetOptions
+    {
+        public bool Dismissible => true;
+    }
+
+    private sealed class SheetRun : LeakScenarioRun
+    {
+        private static readonly LeakSheetOptions Options = new();
+
+        private SkUiSheet? _sheet;
+        private SkUiSheet? _earlier;
+        private SkUiButton? _open;
+        private SkUiPicker? _picker;
+        private int _closes;
+        private object? _result;
+
+        public override View Build(LeakScenarioContext context)
+        {
+            var list = new SkUiVerticalStackLayout();
+            for (var row = 0; row < 30; row++)
+                list.Children.Add(new SkUiButton { Text = $"Row {row}", Command = LeakCommands.Shared });
+            _open = context.Track(new SkUiButton { Text = "Open" }, "page button");
+            _picker = context.Track(new SkUiPicker { Title = "Fruit", ItemsSource = new[] { "Apple", "Pear" }, PopupPresenter = new SkUiSheetPopupPresenter() },
+                "picker on the sheet presenter");
+            _sheet = context.Track(new SkUiSheet
+            {
+                Title = "Breaks",
+                Content = new SkUiScrollView { Content = list },
+                Actions = new SkUiButton { Text = "Done", Command = LeakCommands.Shared }
+            }, "placed sheet");
+            _sheet.SetBinding(SkUiSheet.DismissOnScrimTapProperty, new Binding(nameof(LeakSheetOptions.Dismissible), BindingMode.OneWay, source: Options));
+            _sheet.Closed += (_, _) => _closes++;
+            // A sheet placed before the first one, opened from it: drawn over it while open.
+            _earlier = context.Track(new SkUiSheet
+            {
+                Title = "More", Content = new SkUiButton { Text = "Over the first sheet", Command = LeakCommands.Shared }, Detents = [SkUiSheetDetent.FitContent]
+            },
+                "sheet opened from a sheet");
+            var page = new SkUiVerticalStackLayout { Children = { _open, _picker } };
+            return Root(new SkUiGrid { Children = { page, _earlier, _sheet } });
+        }
+
+        public override async Task InteractAsync(LeakScenarioContext context)
+        {
+            var sheet = _sheet!;
+            await context.SettleAsync();
+            sheet.IsOpen = true;
+            await context.WaitAsync(400);
+            sheet.SelectedDetentIndex = 1;
+            await context.WaitAsync(400);
+            await context.DragAsync(sheet.Content!, 0, -200); // the list scrolls
+            await context.DragAsync(sheet.Content!, 0, 500); // back to its top, then the sheet
+            await context.WaitAsync(1000); // the sheet settles (dragged away, it closes)
+            // Opened from the open sheet: one placed earlier, then a dialog from the sheet's content, each over the one before.
+            sheet.IsOpen = true;
+            await context.WaitAsync(400);
+            _earlier!.IsOpen = true;
+            await context.WaitAsync(400);
+            _stackState = $"first open={sheet.IsOpen}, second open={_earlier.IsOpen}, shown=[{string.Join(", ", SkUiDiagnostics.GetSurfaceRoot(_open!)?.SurfaceOverlay.Shown.Select(view => ((SkUiSheet)view).Title ?? "?") ?? [])}]";
+            _sawStack = sheet.IsOpen && SkUiDiagnostics.GetSurfaceRoot(_open!) is { } stackRoot && stackRoot.SurfaceOverlay.Shown.Count >= 2
+                && ReferenceEquals(stackRoot.SurfaceOverlay.Shown[^1], _earlier);
+            var nested = SkUiSheet.ShowAsync<bool>(_earlier.Content as SkUiView ?? _open!, new SkUiLabel { Text = "Sure?" },
+                configured => configured.Presentation = SkUiSheetPresentation.Dialog);
+            await context.WaitAsync(300);
+            if (SkUiDiagnostics.GetSurfaceRoot(_open!) is { } nestedRoot && nestedRoot.SurfaceOverlay.Views.Count > 0
+                && nestedRoot.SurfaceOverlay.Views[^1] is SkUiSheet dialogOverSheets)
+                dialogOverSheets.Close(true);
+            await context.WaitForAsync(nested);
+            _earlier.Dismiss();
+            await context.WaitAsync(400);
+            sheet.Dismiss(); // as the scrim
+            await context.WaitAsync(400);
+
+            var shown = SkUiSheet.ShowAsync<string>(_open!, new SkUiButton { Text = "Pick", Command = LeakCommands.Shared },
+                configured => configured.Title = "Shown");
+            await context.WaitAsync(400);
+            if (SkUiDiagnostics.GetSurfaceRoot(_open!) is { } root && root.SurfaceOverlay.Views.Count > 0 && root.SurfaceOverlay.Views[0] is SkUiSheet over)
+                over.Close("chosen");
+            await context.WaitForAsync(shown);
+            _result = shown.IsCompletedSuccessfully ? shown.Result : null;
+
+            var dialog = SkUiSheet.ShowAsync<bool>(_open!, new SkUiLabel { Text = "Delete?" }, configured => configured.Presentation = SkUiSheetPresentation.Dialog);
+            await context.WaitAsync(300);
+            if (SkUiDiagnostics.GetSurfaceRoot(_open!) is { } dialogRoot && dialogRoot.SurfaceOverlay.Views.Count > 0
+                && dialogRoot.SurfaceOverlay.Views[0] is SkUiSheet card)
+                card.Close(true);
+            await context.WaitForAsync(dialog);
+
+            _picker!.IsOpen = true;
+            await context.WaitAsync(400);
+            _picker.IsOpen = false;
+            await context.WaitAsync(400);
+
+            sheet.IsOpen = true; // closed mid-motion
+            await context.WaitAsync(50);
+        }
+
+        public override string? CheckInteraction() =>
+            _closes >= 1 && Equals(_result, "chosen") && _sawStack ? null
+            : $"The sheet closed {_closes} times, ShowAsync gave '{_result}' and the sheet opened from a sheet was {(_sawStack ? "" : "not ")}on top ({_stackState}; expected a close, 'chosen' and on top).";
+
+        private bool _sawStack;
+        private string? _stackState;
     }
 
     private sealed class SegmentedControlRun : LeakScenarioRun

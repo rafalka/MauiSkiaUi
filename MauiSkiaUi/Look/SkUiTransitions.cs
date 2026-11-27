@@ -64,7 +64,14 @@ public enum SkUiTransitionKind
     /// </summary>
     SegmentSelection,
     /// <summary>A stacked bar's parts move to new values (or a new maximum): each part's value tweens from what is drawn.</summary>
-    StackedBar
+    StackedBar,
+    /// <summary>
+    /// A sheet opens, closes or moves to another detent by code (<c>IsOpen</c>, <c>SelectedDetentIndex</c>, the scrim tapped, Back,
+    /// Escape); a released drag springs to its detent instead.
+    /// </summary>
+    Sheet,
+    /// <summary>A sheet shown as a dialog fades and scales in, or out.</summary>
+    SheetDialog
     // New members go last: the values are compiled into callers (a look built against an earlier 1.x keeps its meaning).
 }
 

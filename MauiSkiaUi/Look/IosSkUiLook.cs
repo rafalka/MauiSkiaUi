@@ -32,6 +32,22 @@ public class IosSkUiLook : DefaultSkUiLook
     public override bool PickerPaneShowsWheel => true;
 
     /// <inheritdoc />
+    /// <remarks>iOS: 10.</remarks>
+    public override double DefaultSheetCornerRadius => 10;
+
+    /// <inheritdoc />
+    /// <remarks>iOS: the page shows 10 below the status bar behind a full sheet.</remarks>
+    public override double SheetTopMargin => 10;
+
+    /// <inheritdoc />
+    /// <remarks>iOS's grabber: 36 × 5.</remarks>
+    public override Size SheetGrabberSize => new(36, 5);
+
+    /// <inheritdoc />
+    /// <remarks>iOS: the grabber 5 below the top.</remarks>
+    public override double SheetGrabberBandHeight => 15;
+
+    /// <inheritdoc />
     /// <remarks>Apple's rubber-band bounce.</remarks>
     public override SkUiOverscrollMode BaseOverscroll => SkUiOverscrollMode.Bounce;
 

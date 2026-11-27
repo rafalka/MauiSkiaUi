@@ -67,6 +67,8 @@ public static class ComponentDemos
         new(typeof(SkUiContentView), typeof(ContentViewDemoPage), nameof(ContentView), ComponentCategory.Layouts, () => new ContentViewDemoPage()),
         new(typeof(SkUiZoomView), typeof(ZoomViewDemoPage), ComponentDemo.SkUiOnlyCounterpart, ComponentCategory.Layouts, () => new ZoomViewDemoPage()),
         new(typeof(SkUiTabView), typeof(TabViewDemoPage), ComponentDemo.SkUiOnlyCounterpart, ComponentCategory.Layouts, () => new TabViewDemoPage()),
+        new(typeof(SkUiSheet), typeof(SheetDemoPage), ComponentDemo.SkUiOnlyCounterpart, ComponentCategory.Layouts, () => new SheetDemoPage(),
+            Scenario: "bottom sheet, dialog, action sheet, form"),
         new(typeof(SkUiAlternateContentView), typeof(AlternateContentViewDemoPage), ComponentDemo.SkUiOnlyCounterpart, ComponentCategory.Layouts, () => new AlternateContentViewDemoPage()),
         new(typeof(SkUiShimmer), typeof(ShimmerDemoPage), ComponentDemo.SkUiOnlyCounterpart, ComponentCategory.Layouts, () => new ShimmerDemoPage(),
             Scenario: "skeleton animations"),

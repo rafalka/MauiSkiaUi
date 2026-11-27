@@ -686,6 +686,24 @@ internal sealed class SkUiScrollController(ISkUiRenderable owner, Action<SkUiRen
     }
 
     /// <summary>
+    /// Scrolls to an offset with a render-thread tween of <paramref name="transition"/>'s length and easing (a sheet moving to a
+    /// detent); at once for a transition of no length. Completes when the motion ends, cancelled when another scroll or a drag takes over.
+    /// </summary>
+    internal Task ScrollToAsync(double x, double y, SkUiTransition transition)
+    {
+        if (transition.IsNone)
+            return ScrollToAsync(x, y, animated: false);
+        StopMotion();
+        DropPendingTarget();
+        ClearOverscroll();
+        EnsureFinite(x, y);
+        var completion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        _scrollCompletion = completion;
+        StartTween(x, y, transition.Duration, completion, easing: transition.Easing ?? Easing.Linear);
+        return completion.Task;
+    }
+
+    /// <summary>
     /// Scrolls to the offset <paramref name="resolve"/> computes from the laid-out tree; before the scroller's first
     /// arrange the request waits for it (as MAUI's). A newer request, a content change or unloading cancels the task.
     /// </summary>
@@ -967,8 +985,16 @@ internal sealed class SkUiScrollController(ISkUiRenderable owner, Action<SkUiRen
         return OutsideEndSnapRanges(horizontal, SnapPointTarget(horizontal, current, velocity, origin, projected), current);
     }
 
+    /// <summary>
+    /// Where a drag or fling released at an offset comes to rest, in place of the nearest snap point (a sheet's detents): the axis
+    /// (<c>true</c>: horizontal), the offset, the velocity (offset DIPs per second) and the drag's origin give the offset to settle on.
+    /// </summary>
+    internal Func<bool, double, double, double, double>? SnapTargetResolver { get; set; }
+
     private double SnapPointTarget(bool horizontal, double current, double velocity, double origin, double projected)
     {
+        if (SnapTargetResolver is { } resolver)
+            return resolver(horizontal, current, velocity, origin);
         // The snap points the motion can reach, with a viewport of room on either side (a virtual carousel lists only those).
         var viewport = horizontal ? Viewport.Width : Viewport.Height;
         var points = SnapOffsets(horizontal,
@@ -1433,13 +1459,14 @@ internal sealed class SkUiScrollController(ISkUiRenderable owner, Action<SkUiRen
 
     #endregion
 
-    private SkUiRenderAnimation StartTween(double x, double y, TimeSpan duration, TaskCompletionSource? completion, Func<Point>? retarget = null)
+    private SkUiRenderAnimation StartTween(double x, double y, TimeSpan duration, TaskCompletionSource? completion, Func<Point>? retarget = null,
+        Easing? easing = null)
     {
         SkUiRenderTween? tween = null;
         tween = new SkUiRenderTween(
             [SkUiRenderProperty.ChildrenOffsetX, SkUiRenderProperty.ChildrenOffsetY],
             [(float)Math.Clamp(x, 0, MaxX), (float)Math.Clamp(y, 0, MaxY)],
-            duration, Easing.CubicOut)
+            duration, easing ?? Easing.CubicOut)
         {
             Report = (reportedX, reportedY) => { if (ReferenceEquals(_motion, tween)) ApplyRenderScroll(reportedX, reportedY, 0, 0); },
             Finished = (animation, completed) =>
@@ -1770,7 +1797,8 @@ internal sealed class SkUiScrollGestureRecognizer(SkUiScrollController scroller)
     private IEnumerable<SkUiScrollController> OuterScrollers()
     {
         for (var node = Node?.RenderParent; node is not null; node = node.RenderParent)
-            if (node is ISkUiScrollHost { IsHitTestVisible: true, HitTestsSelf: true, IsInputEnabled: true } host)
+            // A scroller the user cannot drag (a carousel without swipes, a sheet that is not dragged) is not moved by drags handed over either.
+            if (node is ISkUiScrollHost { IsHitTestVisible: true, HitTestsSelf: true, IsInputEnabled: true, Scroller.IsUserScrollEnabled: true } host)
                 yield return host.Scroller;
     }
 }

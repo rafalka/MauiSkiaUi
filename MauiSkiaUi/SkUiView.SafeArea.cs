@@ -49,6 +49,9 @@ public partial class SkUiView
         SetValue(SafeAreaInsetsPropertyKey, WindowInsetsFor(frame));
     }
 
+    /// <summary>On a surface root: how far the window's insets reach into it now (zero inside a surface), asked of the platform on each read.</summary>
+    internal Thickness SurfaceWindowInsets => WindowInsetsFor(Frame);
+
     /// <summary>How far the window's insets reach into a surface root arranged to <paramref name="frame"/>.</summary>
     private Thickness WindowInsetsFor(Rect frame)
     {

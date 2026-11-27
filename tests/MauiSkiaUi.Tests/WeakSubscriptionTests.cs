@@ -51,6 +51,19 @@ public class WeakSubscriptionTests
     }
 
     [Fact]
+    public void LongLivedDetentListsDoNotKeepSheetsAlive()
+    {
+        // A view model's list of detents, as Detents="{Binding Detents}".
+        var detents = new System.Collections.ObjectModel.ObservableCollection<SkUiSheetDetent> { SkUiSheetDetent.FitContent };
+        var references = Create(detents);
+        Collect(references);
+        Assert.All(references, reference => Assert.False(reference.IsAlive));
+
+        static WeakReference[] Create(IList<SkUiSheetDetent> detents) =>
+            [.. Enumerable.Range(0, 4).Select(_ => new WeakReference(new SkUiSheet { Detents = detents }))];
+    }
+
+    [Fact]
     public void LongLivedCommandsDoNotKeepTheirViewsAlive()
     {
         var canExecute = true;

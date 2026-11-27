@@ -99,6 +99,16 @@ Tests: `PickerWheelSemanticsTests` (one element per wheel, names, hints, values,
 - **Windows:** the peer's `LiveSetting` and a `LiveRegionChanged` event (after its name change); `Announce` raises a notification event on the surface peer (`ImportantMostRecent` when assertive, else `All`).
 - *Check:* `LiveRegionTests` headless; TalkBack, VoiceOver and Narrator by hand on the [verification backlog](Roadmap.md#verification-backlog) (the demo's Accessibility page: Clock in / out, the timer, Announce "Saved").
 
+## Modal panes (1.18)
+
+An open modal sheet ([SkUiSheet.md](../controls/SkUiSheet.md)) is its surface root's **modal pane** (`SkUiView.ModalPane`, the topmost of `AddModalPane` / `RemoveModalPane`; only open modal sheets register, once laid out open):
+
+- **Semantics:** the builder visits only the pane's subtree below its ancestors (`SkUiSemanticsTree`'s `_modalPath`), so the page behind leaves the tree: screen readers read nothing behind it, live regions included (they are read only while in the tree). On open, the screen reader's focus moves to the sheet's title (`SetSemanticFocus`).
+- **Keyboard focus:** `SkUiFocusManager` collects, offers keys and looks for scrollers inside the pane (`Scope`), a node outside it is not live (focus on the page is let go of when the pane opens, and it cannot be focused while the pane is there), and Tab goes round inside the pane instead of leaving the surface. Keyboard focus moves in when the page had it or a screen reader runs, and goes back to the node that had it when the sheet closes. Escape reaches the sheet as a key handler.
+- **Back:** Android's back button and gesture close the topmost modal sheet through an `OnBackPressedCallback` on the activity's dispatcher (registered after MAUI's, so it comes first), one per open modal sheet, which passes the press on when its sheet is not the topmost.
+- **Pointers** need nothing of the pane: the sheet's scrim covers the page.
+- *Not done:* a pane title of the platform (Android's `paneTitle`, Windows' landmark) and VoiceOver's escape gesture; the title is read as the first element.
+
 ## Cost and switching it off
 
 **Unused** (no assistive technology reads the surface), the semantics tree does not exist: a committed frame costs a null check, a scroll offset change a walk to the root, a property change a few name comparisons; every `SkUiView` subscribes one event at construction, every Core node carries ~30 bytes of focus and `Tag` fields. Keyboard focus is always on (one manager per surface; detach / hide checks return at once unless something is focused).

@@ -966,6 +966,83 @@ public partial class SkUiLook
 
     #endregion
 
+    #region Sheet
+
+    /// <summary>A sheet's corner radius on the edge it opens from (every corner of a dialog), in DIPs (the control's <c>CornerRadius</c> of <c>-1</c>).</summary>
+    public virtual double DefaultSheetCornerRadius => 16;
+
+    /// <summary>
+    /// The room a full sheet leaves at the top of the surface, below the window's top inset, in DIPs (default 0; iOS: 10, so the page
+    /// shows behind).
+    /// </summary>
+    public virtual double SheetTopMargin => 0;
+
+    /// <summary>The widest a bottom sheet is, in DIPs; on a wider surface it is centered (default 640, Material 3's).</summary>
+    public virtual double SheetMaximumWidth => 640;
+
+    /// <summary>The widest a side sheet is, in DIPs, plus the window's inset on its edge (default 400); on narrower surfaces it leaves 56 DIPs of the page showing.</summary>
+    public virtual double SideSheetMaximumWidth => 400;
+
+    /// <summary>The widest a sheet shown as a dialog is, in DIPs (default 560, Material 3's).</summary>
+    public virtual double SheetDialogMaximumWidth => 560;
+
+    /// <summary>
+    /// The surface width from which a sheet with <see cref="SkUiSheetPresentation.Auto"/> shows as a dialog, in DIPs (default 600,
+    /// Material's compact width).
+    /// </summary>
+    public virtual double SheetDialogBreakpoint => 600;
+
+    /// <summary>The least room around a sheet shown as a dialog, inside the window's safe area, in DIPs (default 24).</summary>
+    public virtual Thickness SheetDialogMargin => new(24);
+
+    /// <summary>The size of a sheet's grabber handle lying across a bottom sheet, in DIPs (default 36 × 4).</summary>
+    public virtual Size SheetGrabberSize => new(36, 4);
+
+    /// <summary>The band a sheet's grabber takes at the edge it is dragged by, in DIPs (its touch target's height; default 20).</summary>
+    public virtual double SheetGrabberBandHeight => 20;
+
+    /// <summary>The color a modal sheet dims the page with (the control's <c>ScrimColor</c> of <c>null</c>; default the window popups').</summary>
+    public virtual Color SheetScrimColor => GetPopupOverlayColor(SkUiPopupPlacement.Window) ?? Colors.Transparent;
+
+    /// <summary>The shadow under a sheet, or <c>null</c> for none (default: under a dialog, the window popups'; none under a sheet).</summary>
+    public virtual Shadow? GetSheetShadow(bool isDialog) => isDialog ? GetPopupShadow(SkUiPopupPlacement.Window) : null;
+
+    /// <summary>Optional sheet painter; when set, replaces <see cref="DrawSheetCore"/>.</summary>
+    public Action<SKCanvas, SkUiSheetPaint>? SheetPainter { get; set; }
+
+    /// <summary>Optional sheet grabber painter; when set, replaces <see cref="DrawSheetGrabberCore"/>.</summary>
+    public Action<SKCanvas, SkUiSheetGrabberPaint>? SheetGrabberPainter { get; set; }
+
+    /// <summary>Draws a sheet's surface (delegate or <see cref="DrawSheetCore"/>): its background, rounded on the corners the paint gives.</summary>
+    public void DrawSheet(SKCanvas canvas, SkUiSheetPaint sheet)
+    {
+        if (SheetPainter is { } painter)
+        {
+            painter(canvas, sheet);
+            return;
+        }
+        DrawSheetCore(canvas, sheet);
+    }
+
+    /// <summary>Default sheet surface.</summary>
+    protected virtual void DrawSheetCore(SKCanvas canvas, SkUiSheetPaint sheet) { }
+
+    /// <summary>Draws a sheet's grabber (delegate or <see cref="DrawSheetGrabberCore"/>): a handle centered in its band.</summary>
+    public void DrawSheetGrabber(SKCanvas canvas, SkUiSheetGrabberPaint grabber)
+    {
+        if (SheetGrabberPainter is { } painter)
+        {
+            painter(canvas, grabber);
+            return;
+        }
+        DrawSheetGrabberCore(canvas, grabber);
+    }
+
+    /// <summary>Default sheet grabber.</summary>
+    protected virtual void DrawSheetGrabberCore(SKCanvas canvas, SkUiSheetGrabberPaint grabber) { }
+
+    #endregion
+
     #region Dragger
 
     /// <summary>

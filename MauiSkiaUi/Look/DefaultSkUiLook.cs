@@ -379,6 +379,8 @@ public partial class DefaultSkUiLook : SkUiLook
         SkUiTransitionKind.CalendarPage => SkUiTransition.FromMilliseconds(280, Easing.CubicOut),
         SkUiTransitionKind.SegmentSelection => SkUiTransition.FromMilliseconds(250, Easing.CubicInOut),
         SkUiTransitionKind.StackedBar => SkUiTransition.FromMilliseconds(250, Easing.CubicOut),
+        SkUiTransitionKind.Sheet => SkUiTransition.FromMilliseconds(300, Easing.CubicOut),
+        SkUiTransitionKind.SheetDialog => SkUiTransition.FromMilliseconds(200, Easing.CubicOut),
         // Determinate progress follows Progress at once, as MAUI's ProgressBar (ProgressTo animates).
         _ => SkUiTransition.None
     };
@@ -415,6 +417,7 @@ public partial class DefaultSkUiLook : SkUiLook
 
     [ThreadStatic] private static SKPaint? _paint;
     [ThreadStatic] private static SKRoundRect? _roundRect;
+    [ThreadStatic] private static SKPoint[]? _radii;
 
     /// <summary>Per-thread reusable fill paint (recording is single-threaded per surface; pictures copy paint state).</summary>
     private protected static SKPaint Paint(SKColor color)
@@ -1035,6 +1038,46 @@ public partial class DefaultSkUiLook : SkUiLook
 
     /// <summary>The gap between a determinate progress ring's arc and the rest of its track, DIPs (default 0; Material 3: 4).</summary>
     public virtual float ProgressRingGap => 0;
+
+    /// <inheritdoc />
+    protected override void DrawSheetCore(SKCanvas canvas, SkUiSheetPaint sheet)
+    {
+        var bounds = sheet.Bounds;
+        if (bounds.Width <= 0 || bounds.Height <= 0 || sheet.Background.Alpha == 0) return;
+        var paint = Paint(sheet.Background);
+        if (!SkUiCornerRadii.HasAny(sheet.CornerRadius))
+        {
+            canvas.DrawRect(bounds, paint);
+            return;
+        }
+        var shape = _roundRect ??= new SKRoundRect();
+        var limit = Math.Min(bounds.Width, bounds.Height) / 2;
+        float Radius(double value) => (float)Math.Clamp(value, 0, limit);
+        var topLeft = Radius(sheet.CornerRadius.TopLeft);
+        var topRight = Radius(sheet.CornerRadius.TopRight);
+        var bottomRight = Radius(sheet.CornerRadius.BottomRight);
+        var bottomLeft = Radius(sheet.CornerRadius.BottomLeft);
+        var radii = _radii ??= new SKPoint[4];
+        radii[0] = new SKPoint(topLeft, topLeft);
+        radii[1] = new SKPoint(topRight, topRight);
+        radii[2] = new SKPoint(bottomRight, bottomRight);
+        radii[3] = new SKPoint(bottomLeft, bottomLeft);
+        shape.SetRectRadii(bounds, radii);
+        canvas.DrawRoundRect(shape, paint);
+    }
+
+    /// <inheritdoc />
+    protected override void DrawSheetGrabberCore(SKCanvas canvas, SkUiSheetGrabberPaint grabber)
+    {
+        var size = SheetGrabberSize;
+        var (width, height) = grabber.IsVertical ? ((float)size.Height, (float)size.Width) : ((float)size.Width, (float)size.Height);
+        var bounds = grabber.Bounds;
+        if (bounds.Width <= 0 || bounds.Height <= 0 || width <= 0 || height <= 0) return;
+        var handle = SKRect.Create(bounds.MidX - width / 2, bounds.MidY - height / 2, width, height);
+        var radius = Math.Min(width, height) / 2;
+        var color = grabber.IsPressed ? grabber.Color.WithAlpha((byte)Math.Min(255, grabber.Color.Alpha * 1.6f)) : grabber.Color;
+        canvas.DrawRoundRect(handle, radius, radius, Paint(color));
+    }
 
     /// <summary>The least room after a stacked bar's last part, as a fraction of the bar, that shows the track.</summary>
     private const float TrackTolerance = 1e-4f;

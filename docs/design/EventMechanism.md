@@ -45,7 +45,9 @@ SkUiPointerRouter (one per surface root)
         │         → topmost node that participates (has recognizers) or blocks (disabled)
         │           (a node with HitTestsChildren = false, a shimmer's content skeleton, is tried without its subtree)
         │           inside each node's arranged rectangle, or where it reaches past it (HitsOutsideBounds: a thin
-        │           dragger's touch area, a text field's message below a fixed height)
+        │           dragger's touch area, a text field's message below a fixed height); a node whose own rectangle
+        │           is larger than what it draws hits itself only where HitsSelfAt says (a sheet's track: over the
+        │           sheet), so the search goes on underneath elsewhere (the scrim, the page)
         │         → then, only while some node has a hit slop (HitSlop / MinimumTouchTargetSize, tracked weakly per UI
         │           thread by SkUiHitSlop), the node whose slop holds the point, if the search found nothing there or an
         │           ancestor of it (a row, a scroller); cut by its ancestors' clips; the nearest of several wins
@@ -131,6 +133,8 @@ The drawn arena runs inside one platform view. Native ancestors (a MAUI `ScrollV
 | `None` | Nothing drawn wants a continuous gesture (taps only, or past the slop without a claim, e.g. a drawn scroller at its edge) | disallow released → the native parent may intercept | Gate *Failed* → ancestors proceed immediately |
 
 This gives native "nested scrolling" too: a drawn scroller inside a native one scrolls first, and the native one takes over at the drawn edge.
+
+Between drawn scrollers, a scroller at its edge hands the rest of a drag to the drawn scrollers around it that the user can drag (`IsUserScrollEnabled`; since 1.18 one that cannot, a carousel without swipes or a sheet with `IsDragEnabled="False"`, is skipped). A sheet is such an outer scroller: a list inside it hands a drag down over at its top, and the sheet follows the finger ([SkUiSheet.md](../controls/SkUiSheet.md)).
 
 The exception is a scroller with `SkUiScrollController.KeepsDrags` (internal; picker wheels since 1.12, through `SkUiCarouselView.KeepsDrags`). It claims every drag along its axis past the slop, also at its edge or when it cannot scroll, so native ancestors fail through the `Claimed` state. Neither the drag's rest nor its fling chains to outer drawn scrollers; at the edge the drag pulls (overscroll) instead. Drags across its axis and mouse wheel or trackpad scrolling are unchanged, so a wheel inside a sheet never scrolls the sheet by a vertical drag, but a horizontal swipe or the mouse wheel past its end still reaches it. Tests: `PickerWheelsTests.DragsOnAWheelAtItsEndDoNotScrollThePage`.
 

@@ -58,6 +58,18 @@ public class AndroidMaterial3SkUiLook : AndroidSkUiLook
     public override double DefaultButtonCornerRadius => 18;
 
     /// <inheritdoc />
+    /// <remarks>Material 3: 28.</remarks>
+    public override double DefaultSheetCornerRadius => 28;
+
+    /// <inheritdoc />
+    /// <remarks>Material 3's drag handle: 32 × 4.</remarks>
+    public override Size SheetGrabberSize => new(32, 4);
+
+    /// <inheritdoc />
+    /// <remarks>Material 3: the handle 22 below the top, 48 tall as a touch target, half of it inside the sheet's top padding.</remarks>
+    public override double SheetGrabberBandHeight => 36;
+
+    /// <inheritdoc />
     /// <remarks>Material 3's slider: a 16 dp track with a 4 × 44 dp bar handle.</remarks>
     public override SkUiSliderStyle SliderStyle => SkUiSliderStyle.Handle;
 
