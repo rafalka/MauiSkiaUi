@@ -23,9 +23,9 @@ internal static class SkUiScreenReader
 #if IOS || MACCATALYST
         return UIKit.UIAccessibility.IsVoiceOverRunning;
 #elif ANDROID
-        _manager ??= Android.App.Application.Context.GetSystemService(Android.Content.Context.AccessibilityService)
-            as Android.Views.Accessibility.AccessibilityManager;
-        return _manager is { IsEnabled: true, IsTouchExplorationEnabled: true };
+        // Looked up again if something disposed the shared peer (as the input method's, issue #140).
+        return SkUiAndroidServices.Get(ref _manager, Android.App.Application.Context, Android.Content.Context.AccessibilityService)
+            is { IsEnabled: true, IsTouchExplorationEnabled: true };
 #elif WINDOWS
         try
         {

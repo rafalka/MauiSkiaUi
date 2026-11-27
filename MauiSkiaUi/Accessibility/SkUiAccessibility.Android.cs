@@ -19,7 +19,7 @@ internal sealed class SkUiAccessibilityHelper : ExploreByTouchHelper
 {
     private readonly AView _host;
     private readonly SkUiView _root;
-    private readonly AccessibilityManager? _manager;
+    private AccessibilityManager? _manager;
     private SkUiSemanticsOwner? _owner;
     private readonly int[] _location = new int[2];
     private HostNodeProvider? _provider;
@@ -28,10 +28,12 @@ internal sealed class SkUiAccessibilityHelper : ExploreByTouchHelper
     {
         _host = host;
         _root = root;
-        _manager = host.Context?.GetSystemService(Android.Content.Context.AccessibilityService) as AccessibilityManager;
         root.SemanticFocusRequested = RequestAccessibilityFocus;
         root.FocusManager.FocusChanged += OnKeyboardFocusChanged;
     }
+
+    /// <summary>The accessibility manager, looked up again if something disposed its shared peer (as the input method's, issue #140).</summary>
+    private AccessibilityManager? Manager => SkUiAndroidServices.Get(ref _manager, _host.Context, Android.Content.Context.AccessibilityService);
 
     private float Density => _host.Resources?.DisplayMetrics?.Density ?? 1;
 
@@ -42,7 +44,7 @@ internal sealed class SkUiAccessibilityHelper : ExploreByTouchHelper
         {
             if (_owner is null)
             {
-                if (_manager is not { IsEnabled: true })
+                if (Manager is not { IsEnabled: true })
                     return null;
                 _owner = new SkUiSemanticsOwner(_root);
                 _owner.Changed += OnSemanticsChanged;
@@ -66,7 +68,7 @@ internal sealed class SkUiAccessibilityHelper : ExploreByTouchHelper
 
     private void OnSemanticsChanged(bool structureChanged, IReadOnlyList<int> changed)
     {
-        if (_manager is not { IsEnabled: true })
+        if (Manager is not { IsEnabled: true })
         {
             // The service was turned off: stop rebuilding until one asks again.
             _owner?.Detach();
@@ -133,7 +135,7 @@ internal sealed class SkUiAccessibilityHelper : ExploreByTouchHelper
 
     private void OnAnnouncement(SkUiSemanticsNode? node, string text, SkUiLiveRegion politeness)
     {
-        if (_manager is not { IsEnabled: true })
+        if (Manager is not { IsEnabled: true })
             return;
         if (node is not null)
         {

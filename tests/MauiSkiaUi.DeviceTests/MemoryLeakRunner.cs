@@ -25,7 +25,7 @@ public sealed record LeakResult(string Name, LeakStatus Status, string? Details 
 /// <c>--autorun</c> (<see cref="RunForAutomationAsync"/>) results go to the console for scripts/device_tests.sh:
 /// <c>SKUILEAK_START</c>, <c>SKUILEAK_RENDER {json}</c> (<see cref="RenderCheck"/>), <c>SKUILEAK_HOSTED {json}</c>
 /// (<see cref="HostedControlsCheck"/>), <c>SKUILEAK_SURFACE {json}</c> (<see cref="SurfaceStateCheck"/>), <c>SKUILEAK_REVEAL {json}</c> (<see cref="PasswordRevealCheck"/>),
-/// <c>SKUILEAK_DETECTOR {json}</c>, one
+/// <c>SKUILEAK_SERVICES {json}</c> (<see cref="SharedServicesCheck"/>), <c>SKUILEAK_DETECTOR {json}</c>, one
 /// <c>SKUILEAK {json}</c> per scenario, <c>SKUILEAK_DONE</c>.
 /// </summary>
 public static class MemoryLeakRunner
@@ -94,6 +94,10 @@ public static class MemoryLeakRunner
             var reveal = await PasswordRevealCheck.RunAsync();
             Console.WriteLine("SKUILEAK_REVEAL " + JsonSerializer.Serialize(reveal, LeakJson.Default.LeakResult));
             if (reveal.Status != LeakStatus.Pass)
+                failed++;
+            var services = await SharedServicesCheck.RunAsync();
+            Console.WriteLine("SKUILEAK_SERVICES " + JsonSerializer.Serialize(services, LeakJson.Default.LeakResult));
+            if (services.Status != LeakStatus.Pass)
                 failed++;
             var detector = await CheckDetectorAsync();
             Console.WriteLine("SKUILEAK_DETECTOR " + JsonSerializer.Serialize(detector, LeakJson.Default.LeakResult));
