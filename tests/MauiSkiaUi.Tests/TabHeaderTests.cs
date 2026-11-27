@@ -422,4 +422,39 @@ public class TabHeaderTests
         Assert.False(tab.IsSelected);
         Assert.Null(tab.CurrentTextColor);
     }
+    [Fact]
+    public void AHeaderViewThatWidensOnItsOwnLeavesTheTabViewAsTallAsItsStripOnBothLayers()
+    {
+        using var _ = SkUiTestHelpers.UseBundledFont();
+        const double Pane = 10;
+        const string Grown = "Hello world";
+        // Content widths: the short header is stretched to a narrow share; grown, the headers overflow and it gets its own
+        // width, on one line. Measured at the old share it would wrap, and the tab view would ask for too much.
+        var tabs = new SkUiTabView { FontFamily = SkUiTestHelpers.BundledFontFamily, TabWidthMode = SkUiSegmentWidthMode.Content };
+        foreach (var header in new[] { "A", "B", "C", "D" })
+            tabs.AddTab(new SkUiTabItem(header, new SkUiBox { HeightRequest = Pane }));
+        var label = new SkUiLabel { FontFamily = SkUiTestHelpers.BundledFontFamily, FontSize = 30, Text = "Hi", LineBreakMode = LineBreakMode.WordWrap };
+        tabs.Tabs[0].HeaderTemplate = new DataTemplate(() => label);
+        using var surface = new SkUiTestSurface(new SkUiVerticalStackLayout { tabs }, 200, 400);
+        surface.Frame(0);
+
+        label.Text = Grown; // the label's own text: not the tab's, so the tabs don't change
+        surface.Frame(16);
+
+        var line = Math.Ceiling(((IView)label).Measure(double.PositiveInfinity, double.PositiveInfinity).Height);
+        Assert.True(tabs.HeaderBounds(0).Width > 150, $"{tabs.HeaderBounds(0).Width}");
+        Assert.Equal(Math.Max(44, line), tabs.HeaderBounds(0).Height, 1);
+        Assert.Equal(tabs.HeaderBounds(0).Height + Pane, tabs.DesiredSize.Height, 1);
+
+        var core = new SkUiCoreTabView().SetFontFamily(SkUiTestHelpers.BundledFontFamily).SetTabWidthMode(SkUiSegmentWidthMode.Content);
+        foreach (var header in new[] { "A", "B", "C", "D" })
+            core.AddTab(new SkUiCoreTabItem(header, new SkUiCoreBox().SetHeight(Pane)));
+        var coreLabel = new SkUiCoreLabel().SetFontFamily(SkUiTestHelpers.BundledFontFamily).SetFontSize(30).SetText("Hi")
+            .SetLineBreakMode(LineBreakMode.WordWrap);
+        core.Tabs[0].SetHeaderContent(coreLabel);
+        var size = core.Measure(200, double.PositiveInfinity);
+        core.Arrange(new Rect(0, 0, 200, size.Height));
+        coreLabel.SetText(Grown);
+        Assert.Equal(Math.Max(44, line) + Pane, core.Measure(200, double.PositiveInfinity).Height, 1);
+    }
 }
