@@ -22,6 +22,10 @@ public class WindowsSkUiLook : DefaultSkUiLook
     public override bool PopupAcceptButtonFirst => true;
 
     /// <inheritdoc />
+    /// <remarks>Fluent's overlay corner radius: 8.</remarks>
+    public override double DefaultSheetCornerRadius => 8;
+
+    /// <inheritdoc />
     /// <remarks>Fluent's quick, decelerating motion.</remarks>
     protected override SkUiTransition GetTransitionCore(SkUiTransitionKind kind) => kind switch
     {

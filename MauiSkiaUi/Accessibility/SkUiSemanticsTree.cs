@@ -311,6 +311,20 @@ internal sealed class SkUiSemanticsTree
     {
         private readonly SkUiSemanticsInfo _info = new();
         private readonly List<ISkUiRenderable> _children = [];
+        // The topmost modal pane (an open modal sheet) and its ancestors up to the root: only the pane's own subtree is visited, so the
+        // rest of the surface leaves the tree (screen readers read and announce nothing behind the pane). Null without one.
+        private readonly ISkUiRenderable? _modal = root.ModalPane;
+        private readonly HashSet<ISkUiRenderable>? _modalPath = ModalPath(root.ModalPane);
+
+        private static HashSet<ISkUiRenderable>? ModalPath(ISkUiRenderable? modal)
+        {
+            if (modal is null)
+                return null;
+            var path = new HashSet<ISkUiRenderable>(ReferenceEqualityComparer.Instance);
+            for (var current = modal.RenderParent; current is not null; current = current.RenderParent)
+                path.Add(current);
+            return path;
+        }
 
         /// <summary>
         /// An element that reads its descendants' text as its name: <see cref="Merged"/> collects the text, or (with a
@@ -430,11 +444,15 @@ internal sealed class SkUiSemanticsTree
             var start = _children.Count;
             node.GetRenderChildren(_children);
             var end = _children.Count;
+            // Above the modal pane, only the way down to it.
+            var onModalPath = _modalPath is not null && _modalPath.Contains(node);
             try
             {
                 for (var index = start; index < end; index++)
                 {
                     var child = _children[index];
+                    if (onModalPath && !ReferenceEquals(child, _modal) && !_modalPath!.Contains(child))
+                        continue;
                     var childProps = GetProps(child);
                     if (childProps.Pinned)
                         Visit(child, childProps, toRoot, ownClip, element, childAbsorber, childrenEnabled, live);

@@ -242,7 +242,10 @@ internal sealed class SkUiFocusManager(SkUiView root)
     /// Whether any node of the surface takes keyboard focus now (UIKit asks on focus searches): stops at the first one, no
     /// order is built.
     /// </summary>
-    public bool HasFocusableNodes => SkUiAccessibility.IsEnabled && AnyFocusable(root);
+    public bool HasFocusableNodes => SkUiAccessibility.IsEnabled && AnyFocusable(Scope);
+
+    /// <summary>Where focus can be: the topmost modal pane (an open modal sheet, which traps focus), else the whole surface.</summary>
+    private ISkUiRenderable Scope => root.ModalPane ?? root;
 
     private bool AnyFocusable(ISkUiRenderable node)
     {
@@ -489,7 +492,7 @@ internal sealed class SkUiFocusManager(SkUiView root)
     /// <summary>Offers <paramref name="key"/> to the focused node's key handlers, innermost first (the root's without focus).</summary>
     private bool OfferKey(in SkUiKeyEvent key)
     {
-        for (ISkUiRenderable? current = _focused ?? (ISkUiRenderable)root; current is not null; current = current.RenderParent)
+        for (ISkUiRenderable? current = _focused ?? Scope; current is not null; current = current.RenderParent)
             if (current is ISkUiKeyHandler handler && handler.OnKeyDown(key))
                 return true;
         return false;
@@ -511,6 +514,9 @@ internal sealed class SkUiFocusManager(SkUiView root)
         BuildOrder();
         var index = _focused is null ? -1 : _order.IndexOf(_focused);
         var next = index < 0 ? (forward ? 0 : _order.Count - 1) : index + (forward ? 1 : -1);
+        // A modal pane traps focus: past either end, Tab goes round to the other.
+        if (root.ModalPane is not null && _order.Count > 0)
+            next = (next + _order.Count) % _order.Count;
         var target = next >= 0 && next < _order.Count ? _order[next] : null;
         // The order is rebuilt each time: keeping it would keep removed nodes alive.
         _order.Clear();
@@ -661,7 +667,7 @@ internal sealed class SkUiFocusManager(SkUiView root)
         for (ISkUiRenderable? current = _focused; current is not null; current = current.RenderParent)
             if (current is ISkUiScrollHost { HitTestsSelf: true } host && Fits(host.Scroller))
                 return host.Scroller;
-        return _focused is null ? FirstScroller(root, horizontal) : null;
+        return _focused is null ? FirstScroller(Scope, horizontal) : null;
     }
 
     private SkUiScrollController? FirstScroller(ISkUiRenderable node, bool horizontal)
@@ -689,7 +695,7 @@ internal sealed class SkUiFocusManager(SkUiView root)
     private void BuildOrder()
     {
         _order.Clear();
-        Collect(root);
+        Collect(Scope);
         // Stable: equal tab indexes keep tree order (the position breaks ties; List.Sort itself is not stable).
         for (var index = 0; index < _order.Count; index++)
             _sorted.Add((_order[index].TabIndex, index, _order[index]));
@@ -723,7 +729,7 @@ internal sealed class SkUiFocusManager(SkUiView root)
     /// Adds the surface's text fields that can be typed in now (visible and enabled, also with accessibility off) to
     /// <paramref name="fields"/>, in tree order: the form the platform's autofill sees (D14).
     /// </summary>
-    internal void CollectTextFields(List<ISkUiTextInputClient> fields) => CollectTextFields(root, fields);
+    internal void CollectTextFields(List<ISkUiTextInputClient> fields) => CollectTextFields(Scope, fields);
 
     private void CollectTextFields(ISkUiRenderable node, List<ISkUiTextInputClient> fields)
     {
@@ -745,15 +751,21 @@ internal sealed class SkUiFocusManager(SkUiView root)
         }
     }
 
-    /// <summary>Whether <paramref name="node"/> is under this surface's root, with no hidden, disabled or detached ancestor.</summary>
+    /// <summary>
+    /// Whether <paramref name="node"/> is under this surface's root, with no hidden, disabled or detached ancestor, and inside the
+    /// topmost modal pane when there is one.
+    /// </summary>
     private bool IsLive(ISkUiRenderable node, bool textInput = false)
     {
+        var modal = root.ModalPane;
+        var inScope = modal is null;
         for (ISkUiRenderable? current = node; current is not null; current = current.RenderParent)
         {
             if (IsBlocked(current, textInput))
                 return false;
+            inScope |= ReferenceEquals(current, modal);
             if (ReferenceEquals(current, root))
-                return true;
+                return inScope;
         }
         return false;
     }

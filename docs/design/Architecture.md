@@ -97,6 +97,8 @@ One loader and cache for both layers (`MauiSkiaUi/Imaging`): MAUI image sources 
 
 SkiaUi ships no pages or popup windows. Since 1.12 apps can write pickers of their own on the same engine ([CustomPickers.md](../controls/CustomPickers.md)). Drawn controls that need a popup (the pickers) ask the app's popup system through `ISkUiPopupPresenter`, with a request that carries the anchor, its bounds through every drawn transform, a placement and ready content. Details: [Popups.md](Popups.md).
 
+Since 1.18 a surface root has an internal **overlay layer** drawn over its content (hit, read and focused first): `SkUiSheet.ShowAsync` and `SkUiSheetPopupPresenter` put drawn sheets there, inside the surface ([SkUiSheet.md](../controls/SkUiSheet.md)). An open modal sheet is the surface's **modal pane**: the semantics tree and keyboard focus keep to it.
+
 ## Accessibility and localization
 
 Each surface builds a **semantics tree** lazily from the render tree (both layers) and MAUI's `SemanticProperties` / `AutomationProperties`, and bridges it to TalkBack, VoiceOver and Narrator; keyboard focus and OS font scaling are handled by SkiaUi too. Details: [Accessibility.md](Accessibility.md). SkiaUi's own texts (button texts, screen-reader states) are in `SkUiStrings`: [Localization.md](Localization.md).

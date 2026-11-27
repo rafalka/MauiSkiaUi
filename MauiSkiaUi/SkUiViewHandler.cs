@@ -927,14 +927,14 @@ public sealed class SkUiViewHandler : ViewHandler<SkUiView, PlatformView>
     private static void NotifyRootAttached(SkUiView node)
     {
         if (node is SkUiMauiContentView overlay) overlay.NotifyRootAttached();
-        foreach (var child in node.SkiaChildren)
+        foreach (var child in node.SkiaChildrenWithOverlay)
             if (child is SkUiView view) NotifyRootAttached(view);
     }
 
     private static void NotifyRootDetached(SkUiView node)
     {
         if (node is SkUiMauiContentView overlay) overlay.NotifyRootDetached();
-        foreach (var child in node.SkiaChildren)
+        foreach (var child in node.SkiaChildrenWithOverlay)
             if (child is SkUiView view) NotifyRootDetached(view);
     }
 

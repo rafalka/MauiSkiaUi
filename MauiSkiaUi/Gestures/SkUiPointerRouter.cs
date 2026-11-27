@@ -36,6 +36,13 @@ internal interface ISkUiInputNode : ISkUiRenderable
     bool HitsOutsideBounds(Point local) => false;
 
     /// <summary>
+    /// Whether <paramref name="local"/> (node coordinates, inside the node's arranged rectangle) hits the node itself, once none of its
+    /// children took it: <c>false</c> lets the search go on underneath there (a sheet's track outside the sheet, a layer over a whole
+    /// surface). Only read while <see cref="HitTestsSelf"/>.
+    /// </summary>
+    bool HitsSelfAt(Point local) => true;
+
+    /// <summary>
     /// How far past its arranged rectangle the node is pressed, at its current size (<c>HitSlop</c>,
     /// <c>MinimumTouchTargetSize</c>; tracked by <see cref="SkUiHitSlop"/> while not zero). Found only where the ordinary search
     /// finds no node or an ancestor of this one.
@@ -912,7 +919,7 @@ internal sealed class SkUiPointerRouter(ISkUiInputNode root)
         if (!isRoot && !props.LinksAllowHit(local))
             return null;
         var hitTestsSelf = node.HitTestsSelf;
-        if (!node.IsInputEnabled && hitTestsSelf)
+        if (!node.IsInputEnabled && hitTestsSelf && node.HitsSelfAt(new Point(local.X, local.Y)))
             return node;
         var clip = props.ChildrenClipRect;
         var insideClip = clip.IsEmpty || clip.Contains(local.X, local.Y);
@@ -941,7 +948,7 @@ internal sealed class SkUiPointerRouter(ISkUiInputNode root)
         {
             _children.RemoveRange(start, _children.Count - start);
         }
-        if (!hitTestsSelf)
+        if (!hitTestsSelf || !node.HitsSelfAt(new Point(local.X, local.Y)))
             return null;
         if (!requireParticipant)
             return node;

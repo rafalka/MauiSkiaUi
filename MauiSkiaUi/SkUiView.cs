@@ -531,7 +531,7 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
     private void NotifyAnimationRootChanged(bool subtreeDetached)
     {
         OnAnimationRootChanged(subtreeDetached);
-        foreach (var child in SkiaChildren)
+        foreach (var child in SkiaChildrenWithOverlay)
         {
             if (child is SkUiView view)
                 view.NotifyAnimationRootChanged(subtreeDetached);
@@ -805,7 +805,10 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
             frame = new Rect(parent.ChildrenSpaceWidth - frame.Right, frame.Y, frame.Width, frame.Height);
         Frame = frame;
         if (_arrangeDirty || previousSize != Frame.Size)
+        {
             ArrangeContent(Frame.Size);
+            ArrangeSurfaceOverlay(Frame.Size);
+        }
         // Descendants keep their cached frames, but their root-relative position changed (native overlays follow), or the
         // clip of native views below this view did (a scroller passes on its own: its clip also changes with its gutter).
         var clipResized = previousSize != Frame.Size && ClipToBounds && this is not SkUiScrollView;
@@ -1172,7 +1175,13 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
 
     internal SkUiRenderState RenderState => _renderState ??= new SkUiRenderState();
 
-    ISkUiRenderable? ISkUiRenderable.RenderParent => SkiaParent;
+    ISkUiRenderable? ISkUiRenderable.RenderParent => RenderHost ?? SkiaParent;
+
+    /// <summary>
+    /// Where the view is drawn when not in its logical parent: an open sheet placed in a layout is drawn, hit and read on its surface
+    /// root's overlay layer (above every sheet opened before it); <c>null</c> for every other view.
+    /// </summary>
+    private protected virtual SkUiView? RenderHost => null;
 
     private SkUiTreeLookCache _treeLook;
 
@@ -1422,7 +1431,19 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
             DrawFocusRing(canvas);
     }
 
-    void ISkUiRenderable.GetRenderChildren(List<ISkUiRenderable> children) => AddRenderChildren(children);
+    void ISkUiRenderable.GetRenderChildren(List<ISkUiRenderable> children)
+    {
+        var start = children.Count;
+        AddRenderChildren(children);
+        // An open sheet drawn on the overlay layer is not drawn in its layout (one check per walk while none is).
+        if (SkUiSurfaceOverlay.HoistedCount > 0)
+            for (var index = children.Count - 1; index >= start; index--)
+                if (children[index] is SkUiView { RenderHost: { } host } && !ReferenceEquals(host, this))
+                    children.RemoveAt(index);
+        // A surface root's overlay layer goes over everything (drawn last, hit, read and focused first).
+        if (ShownSurfaceOverlay is { } overlay)
+            children.Add(overlay);
+    }
 
     /// <summary>Appends drawn children in paint order; defaults to <see cref="SkiaChildren"/>.</summary>
     internal virtual void AddRenderChildren(List<ISkUiRenderable> children)
@@ -1882,6 +1903,11 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
     internal virtual bool HitTestsChildren => true;
 
     bool ISkUiInputNode.HitsOutsideBounds(Point local) => HitsOutsideBounds(local);
+
+    bool ISkUiInputNode.HitsSelfAt(Point local) => HitsSelfAt(local);
+
+    /// <inheritdoc cref="ISkUiInputNode.HitsSelfAt" />
+    internal virtual bool HitsSelfAt(Point local) => true;
 
     /// <inheritdoc cref="ISkUiInputNode.HitsOutsideBounds" />
     internal virtual bool HitsOutsideBounds(Point local) => false;

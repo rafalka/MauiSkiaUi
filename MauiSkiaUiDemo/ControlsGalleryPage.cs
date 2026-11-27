@@ -183,6 +183,7 @@ public sealed class ControlsGalleryPage : ContentPage
         _ when type == typeof(SkUiStepper) => new SkUiStepper { Value = 3, Maximum = 10 },
         _ when type == typeof(SkUiSegmentedControl) => SegmentedControlDemoPage.CreateControl(),
         _ when type == typeof(SkUiTabView) => Framed(TabViewDemoPage.CreateSample(), 300, 220),
+        _ when type == typeof(SkUiSheet) => Framed(SheetSample(), 300, 220),
         _ when type == typeof(SkUiStepper<decimal>) => new SkUiStepper<decimal> { Maximum = 10, Increment = 0.25m, Value = 1.5m },
         _ when type == typeof(SkUiProgressBar) => new SkUiProgressBar { Progress = 0.6, WidthRequest = 200 },
         _ when type == typeof(SkUiProgressRing) => new SkUiProgressRing { Progress = 0.65, Thickness = 6, WidthRequest = 64, HeightRequest = 64,
@@ -392,6 +393,17 @@ public sealed class ControlsGalleryPage : ContentPage
         };
         ((SkUiButton)view.Content).Clicked += (_, _) => view.ShowsAlternate = true;
         return view;
+    }
+
+    /// <summary>A page with a sheet open over it, fitted to a short list.</summary>
+    private static SkUiGrid SheetSample()
+    {
+        var sheet = new SkUiSheet
+        {
+            Title = "Take a break", Detents = [SkUiSheetDetent.FitContent], IsOpen = true,
+            Content = new SkUiVerticalStackLayout { Padding = new Thickness(16, 0, 16, 12), Children = { new SkUiLabel { Text = "Lunch" }, new SkUiLabel { Text = "Coffee" } } }
+        };
+        return new SkUiGrid { Children = { new SkUiLabel { Text = "Thursday", Margin = new Thickness(16) }, sheet } };
     }
 
     private static SkUiSwipeView SwipeView()

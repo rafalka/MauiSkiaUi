@@ -17,7 +17,8 @@ internal struct SkUiTreeLookCache
         var version = SkUiLook.TreeLookVersion + 1;
         if (_version != version)
         {
-            _look = node.LookOverride ?? node.RenderParent?.TreeLook;
+            // A view drawn away from its logical parent (an open sheet on the overlay layer) keeps the looks of its logical ancestors.
+            _look = node.LookOverride ?? (node is SkUiView view ? view.SkiaParent : node.RenderParent)?.TreeLook;
             _version = version;
         }
         return _look;

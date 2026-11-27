@@ -161,7 +161,7 @@ internal static class SkUiShownTracker
                 }
             }
         }
-        foreach (var child in node.SkiaChildren.ToArray())
+        foreach (var child in node.SkiaChildrenWithOverlay.ToArray())
             if (child is SkUiView view && _states.TryGetValue(view, out var childState) && childState.Watchers > 0)
                 Refresh(view, childState, shown, ref failure);
     }

@@ -12,7 +12,7 @@ You replace a **subtree** of a page with drawn controls. Everything around it st
 
 | Stays as it is | Changes |
 | --- | --- |
-| Pages, Shell, navigation, popups | The controls inside the drawn region: `Label` → `SkUiLabel`, `Grid` → `SkUiGrid`, … |
+| Pages, Shell, navigation, platform popups | The controls inside the drawn region: `Label` → `SkUiLabel`, `Grid` → `SkUiGrid`, … |
 | View models, commands, `INotifyPropertyChanged` | Styles get a new `TargetType` (`sk:SkUiLabel`) |
 | Bindings, `x:DataType`, converters, triggers, `VisualStateManager` | Gestures: MAUI's tap, swipe, pan, pinch and pointer recognizers keep working; drag and drop and `TouchBehavior` become gesture events or stay native |
 | Resources, `StaticResource` / `DynamicResource`, `AppThemeBinding` | Native-only controls (WebView, maps, media, third-party controls) are wrapped in `SkUiMauiContentView` |
@@ -469,6 +469,15 @@ MAUI has none of them; these replace third-party controls and hand-made ones (1.
 - **A circular progress view** (third-party, or an arc drawn in a `GraphicsView`) → `sk:SkUiProgressRing`: the value → `Progress` (0–1) or `ProgressTo`; the text in the middle → its `Content`; the stroke → `Thickness`, `ProgressColor`, `TrackColor`, `LineCap`; spinning → `IsIndeterminate`.
 - **A bar of several parts** (a `Grid` of boxes with star widths computed in the view model) → `sk:SkUiStackedBar` with an `sk:SkUiBarSegment` per part (`Value`, `Color`, `Label` for screen readers); the total → `Maximum` (the sum by default); the legend stays app layout.
 
+## Bottom sheets and dialogs
+
+MAUI has no sheet inside a page: modal pages, `DisplayAlert` / `DisplayActionSheet` and the Community Toolkit's `Popup` are platform windows, and vendor bottom sheets (The49 `BottomSheet`, `Plugin.Maui.BottomSheet`) are native views. `sk:SkUiSheet` (1.18, [SkUiSheet.md](controls/SkUiSheet.md)) is a drawn sheet inside the surface: it moves on the render thread and follows the look, but cannot cover native views or native chrome outside the surface. Keep platform popups for those.
+
+- **A vendor bottom sheet** → `sk:SkUiSheet` as the last child of a grid that fills the page: its content → `Content`; its detents → `Detents` (`SkUiSheetDetent.Fraction` / `.Height` / `.FitContent`, or `"Fit, 50%, 100%"` in XAML) and the current one → `SelectedDetentIndex` (two-way); showing it → `IsOpen` (two-way), `OpenAsync()`, `CloseAsync()`; a dimmed page → `IsModal` (default on) and `ScrimColor`; dismissing on a tap outside → `DismissOnScrimTap`; dragging → `IsDragEnabled`; the handle → `HasGrabber`; corner radius → `CornerRadius`; events → `Opened`, `Closed` (`IsDismissed`, `Result`), `DetentChanged`. A side sheet → `Edge="Start"` or `"End"`.
+- **A popup or modal page that returns a value** → `await SkUiSheet.ShowAsync<T>(anchor, content, sheet => …)`, with `sheet.Close(result)` from the content's buttons; a centered dialog → `Presentation = Dialog`, the tablet form sheet → `Presentation = Auto`. Its title and buttons → `Title`, `Description`, `Actions`.
+- **`DisplayActionSheet` with a destructive button** → `ShowAsync<string>` over a column of buttons (the destructive one red) with `Detents = [SkUiSheetDetent.FitContent]`; **`DisplayAlert`** → a dialog with two buttons in `Actions`. MAUI's own stay fine where a platform alert is wanted.
+- **Pickers' popups without a popup library** → `SkUiSheetPopupPresenter` as the app's presenter (see [Pickers](#pickers-picker)).
+
 ## Pickers (`Picker`)
 
 `SkUiPicker` ([SkUiPicker.md](controls/SkUiPicker.md)) keeps MAUI's `Picker` API: change the prefix. Same `ItemsSource` / `Items`, `ItemDisplayBinding`, `SelectedIndex` / `SelectedItem` (two-way, MAUI's selection rules), `SelectedIndexChanged`, `Title` / `TitleColor`, `TextColor`, the font properties, `CharacterSpacing`, the text alignments, `IsOpen` / `Opened` / `Closed`.
@@ -478,6 +487,7 @@ What differs is where the list shows. SkiaUi has no popup windows: the picker dr
 - **CommunityToolkit.Maui:** add the **SkiaUi.Maui.CommunityToolkit** package and call `UseSkiaUiCommunityToolkit()` after `UseSkiaUi()`.
 - **A popup control or navigation service of your own:** one method to write, `ShowAsync(request, token)`: show `request.Content` at `request.Bounds` (or relative to `request.PlatformAnchor` with `request.AnchorBoundsInPlatformAnchor`), close it when the token is cancelled, return when it is gone. Sketches in [SkUiPicker.md](controls/SkUiPicker.md#presenter-examples).
 - **A picker UI of your own** (a wheel, a searchable list): the presenter reads `SkUiListPopupRequest` (`Items`, `SelectedIndex`, `Title`) and calls `request.Complete(index)` (or `SetSelectedIndex(index)` as the user goes, for a UI that stays open). For one picker type rather than the whole app, derive the picker and override `SelectItemsAsync(selection, token)`: the items in, the chosen items out (or `ShowPopupAsync(request, token)` for wheels and dates).
+- **No popup library:** `SkUiSheetPopupPresenter` (1.18) shows the popups in a drawn sheet fitted to them, on the picker's surface (a dialog on wide screens): `UseSkiaUi(options => options.PopupPresenter = new SkUiSheetPopupPresenter())`. It cannot cover native views or chrome outside the surface.
 - **Nothing registered:** the list opens in MAUI's action sheet (plain item texts, MAUI's UI), with one trace line.
 
 Platform differences go: the list is the same drawn list everywhere, anchored to the field as a combo box on desktops and tablets and in the window on phones (`PopupPlacement` and the look decide). To keep iOS's wheel picker, set `PopupPlacement="BottomPane"`: docked to the window's bottom edge, drawn as a wheel with `IosSkUiLook` (a list in the pane with other looks; [The bottom pane](controls/SkUiPicker.md#the-bottom-pane)). `ios:Picker.UpdateMode="WhenFinished"` becomes `UpdateMode="WhenFinished"` on the picker itself, on every platform: the choice waits for an OK button (texts translated with SkiaUi's other texts in `SkUiStrings`, [Localization.md](design/Localization.md), or per picker). New: `ItemTemplate` (drawn rows), `MaxPopupHeight`, keyboard navigation and type-ahead on every platform, a search field that filters the list (`IsSearchEnabled`), several choices (`SelectionMode="Multiple"`, `SelectedItems`: a replacement for a multi-select combo box) and, as a control of its own, wheels of several columns ([SkUiMultiColumnPicker](controls/SkUiMultiColumnPicker.md): a replacement for a multi-column wheel picker).
