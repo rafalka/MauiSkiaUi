@@ -16,7 +16,7 @@ namespace MauiSkiaUiSamples.Samples.Controls.TimeClock;
 /// <see cref="SkUiAccessibility.Announce(SkUiView, string, SkUiLiveRegion)"/> says so once.</item>
 /// <item>"Take a break" opens a sheet fitted to its content with <see cref="SkUiSheet.ShowAsync{TResult}"/>: a chip group picks
 /// the length, a row picks the type and closes the sheet with both. "Clock out" asks in a dialog (the same call with
-/// <c>Presentation = Dialog</c>), which completes with <c>true</c>, <c>false</c> or <c>false</c> when dismissed.</item>
+/// <c>Presentation = Dialog</c>), which completes with the button's <c>true</c> or <c>false</c>, or <c>default</c> (<c>false</c>) when dismissed.</item>
 /// <item><see cref="SkUiStackedBar"/>s show the day (worked, breaks, still to work) and the week (regular hours, overtime per day).
 /// Each change tweens the parts with the look's transition.</item>
 /// <item>The big buttons shrink a little while pressed (<see cref="SkUiView.PressedScale"/>); the small "?" is drawn 26 DIPs
@@ -86,7 +86,8 @@ public sealed class TimeClockSample : SamplePage, ISample
     // The simulated day.
     private DateTime _now = DateTime.Today.Add(new TimeSpan(13, 46, 5));
     private ClockState _state = ClockState.Working;
-    private DateTime _since = DateTime.Today.Add(new TimeSpan(8, 2, 0));
+    private DateTime _clockedInAt = DateTime.Today.Add(new TimeSpan(8, 2, 0));
+    private DateTime _since = DateTime.Today.Add(new TimeSpan(8, 2, 0)); // when the current state began (a break's start)
     private TimeSpan _worked = new(5, 14, 5);
     private TimeSpan _breaks = TimeSpan.FromMinutes(30);
     private BreakPlan? _break;
@@ -107,7 +108,7 @@ public sealed class TimeClockSample : SamplePage, ISample
     private readonly SkUiGrid _week = new() { ColumnSpacing = 10, RowSpacing = 8 };
     private readonly SkUiLabel _weekTotal = new() { FontSize = 13, TextColor = SampleColors.Caption, FontFeatures = Tabular };
     private readonly TimeSpan[] _weekHours = new TimeSpan[7];
-    private readonly (SkUiBarSegment Regular, SkUiBarSegment Overtime, SkUiLabel Hours)[] _weekRows = new (SkUiBarSegment, SkUiBarSegment, SkUiLabel)[7];
+    private readonly (SkUiBarSegment Regular, SkUiBarSegment Overtime, SkUiLabel? Hours)[] _weekRows = new (SkUiBarSegment, SkUiBarSegment, SkUiLabel?)[7];
     private readonly int _today = ((int)DateTime.Today.DayOfWeek - (int)DayOfWeek.Monday + 7) % 7;
 
     public TimeClockSample() : base(Info)
@@ -237,7 +238,7 @@ public sealed class TimeClockSample : SamplePage, ISample
                 if (_break is { } plan && !_breakOverAnnounced && _now - _since >= TimeSpan.FromMinutes(plan.Minutes))
                 {
                     _breakOverAnnounced = true;
-                    // Once, tied to no element: the status stays as it is, so its live region says nothing.
+                    // Once, anchored on the status without changing its text, so its live region says nothing more.
                     SkUiAccessibility.Announce(_status, $"Your {plan.Minutes}-minute {plan.Type.ToLowerInvariant()} break is over.", SkUiLiveRegion.Assertive);
                 }
                 break;
@@ -362,6 +363,8 @@ public sealed class TimeClockSample : SamplePage, ISample
 
     private void SetState(ClockState state)
     {
+        if (state == ClockState.Working && _state == ClockState.Out)
+            _clockedInAt = _now; // back from a break keeps the morning's time
         _state = state;
         _since = _now;
         if (state != ClockState.OnBreak)
@@ -376,7 +379,7 @@ public sealed class TimeClockSample : SamplePage, ISample
         // Assigning the same text is no change: the live region reads only new text.
         _status.Text = _state switch
         {
-            ClockState.Working => $"Clocked in at {since}",
+            ClockState.Working => $"Clocked in at {_clockedInAt.ToString("t", CultureInfo.CurrentCulture)}",
             ClockState.OnBreak => $"On a {_break?.Type.ToLowerInvariant()} break since {since}",
             _ => $"Clocked out at {since}"
         };

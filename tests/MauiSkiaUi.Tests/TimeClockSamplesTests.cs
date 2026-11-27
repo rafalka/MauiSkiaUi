@@ -55,6 +55,7 @@ public sealed class TimeClockSamplesTests : IDisposable
         Assert.Equal("5:14:05", time.Text);
         Assert.Contains(SkUiFontFeature.TabularFigures, time.FontFeatures!);
         Assert.Equal(SkUiLiveRegion.Polite, SkUiAccessibility.GetLiveRegion(status));
+        var clockedIn = status.Text;
         Assert.True(SkUiAccessibility.GetUpdatesFrequently(ring));
 
         // Half an hour later: the time, the ring and the day's bar follow.
@@ -87,7 +88,7 @@ public sealed class TimeClockSamplesTests : IDisposable
 
         // Ending the break goes back to work; the worked time did not grow during it.
         await page.StartOrEndBreakAsync();
-        Assert.StartsWith("Clocked in at", status.Text);
+        Assert.Equal(clockedIn, status.Text); // still the morning's clock-in, not the break's end
         Assert.Equal("5:44:05", time.Text);
     }
 

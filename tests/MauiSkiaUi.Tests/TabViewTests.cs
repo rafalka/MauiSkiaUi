@@ -123,19 +123,23 @@ public class TabViewTests
         Assert.Equal(600, tabs.PaneScrollViewForTests.ScrollX, 1);
     }
 
-    [Fact]
-    public void ASwipeSelectsItsTabWhenReleasedNotWhenThePanesComeToRest()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ASwipeSelectsItsTabWhenReleasedNotWhenThePanesComeToRest(bool rightToLeft)
     {
         using var _ = SkUiTestHelpers.UseBundledFont();
         var tabs = TabView();
         tabs.HeaderTemplate = new DataTemplate(() => new SkUiLabel { Text = "Tab" });
+        tabs.FlowDirection = rightToLeft ? FlowDirection.RightToLeft : FlowDirection.LeftToRight;
         var changes = new List<(int, int)>();
         tabs.SelectionChanged += (_, args) => changes.Add((args.PreviousIndex, args.CurrentIndex));
         using var surface = new SkUiTestSurface(tabs, 300, 400);
         surface.Frame(0);
 
         // The release starts the spring to the next tab: the tab, its header view and the event follow at once, while the panes move.
-        Swipe(tabs, new Point(250, 200), new Point(50, 200), 0);
+        // The next tab is to the right, or to the left right to left.
+        Swipe(tabs, new Point(rightToLeft ? 50 : 250, 200), new Point(rightToLeft ? 250 : 50, 200), 0);
         Run(surface, 30, 46);
         Assert.True(((ISkUiScrollHost)tabs.PaneScrollViewForTests).Scroller.IsMoving);
         Assert.Equal(1, tabs.SelectedIndex);
@@ -151,10 +155,11 @@ public class TabViewTests
 
         // A slow drag that springs back keeps the tab.
         var id = ++_pointer;
-        tabs.Touch(new(id, SkUiTouchAction.Pressed, new Point(250, 200), TimeSpan.FromMilliseconds(1600)));
-        tabs.Touch(new(id, SkUiTouchAction.Moved, new Point(220, 200), TimeSpan.FromMilliseconds(1700)));
-        tabs.Touch(new(id, SkUiTouchAction.Moved, new Point(200, 200), TimeSpan.FromMilliseconds(1800)));
-        tabs.Touch(new(id, SkUiTouchAction.Released, new Point(200, 200), TimeSpan.FromMilliseconds(2200)));
+        var (start, near, far) = rightToLeft ? (50d, 80d, 100d) : (250d, 220d, 200d);
+        tabs.Touch(new(id, SkUiTouchAction.Pressed, new Point(start, 200), TimeSpan.FromMilliseconds(1600)));
+        tabs.Touch(new(id, SkUiTouchAction.Moved, new Point(near, 200), TimeSpan.FromMilliseconds(1700)));
+        tabs.Touch(new(id, SkUiTouchAction.Moved, new Point(far, 200), TimeSpan.FromMilliseconds(1800)));
+        tabs.Touch(new(id, SkUiTouchAction.Released, new Point(far, 200), TimeSpan.FromMilliseconds(2200)));
         Run(surface, 2200, 3500);
         Assert.Equal(1, tabs.SelectedIndex);
         Assert.Equal([(0, 1)], changes);

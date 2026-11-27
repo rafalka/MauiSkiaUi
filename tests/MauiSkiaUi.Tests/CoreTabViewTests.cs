@@ -267,18 +267,21 @@ public class CoreTabViewTests
 
     #region Selection
 
-    [Fact]
-    public void ASwipeSelectsItsTabWhenReleasedNotWhenThePanesComeToRest()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ASwipeSelectsItsTabWhenReleasedNotWhenThePanesComeToRest(bool rightToLeft)
     {
         using var _ = SkUiTestHelpers.UseBundledFont();
         var tabs = TabView();
         var changes = new List<(int, int)>();
         tabs.SelectionChanged += (_, args) => changes.Add((args.PreviousIndex, args.CurrentIndex));
-        var root = Host(tabs);
+        var root = Host(tabs, rightToLeft);
         using var surface = new SkUiTestSurface(root, 300, 400);
         surface.Frame(0);
 
-        Swipe(root, new Point(250, 200), new Point(50, 200), 0);
+        // The next tab is to the right, or to the left right to left.
+        Swipe(root, new Point(rightToLeft ? 50 : 250, 200), new Point(rightToLeft ? 250 : 50, 200), 0);
         Run(surface, 30, 46);
         var controller = ((ISkUiScrollHost)tabs.PaneScrollViewForTests).Scroller;
         Assert.True(controller.IsMoving);
@@ -288,7 +291,7 @@ public class CoreTabViewTests
 
         Run(surface, 62, 1500);
         Assert.False(controller.IsMoving);
-        Assert.Equal(300, tabs.PaneScrollViewForTests.ScrollX, 1);
+        Assert.Equal(300, tabs.PaneScrollViewForTests.ScrollX, 1); // the middle tab, mirrored or not
         Assert.Equal([(0, 1)], changes);
     }
 

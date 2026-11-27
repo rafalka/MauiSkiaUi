@@ -276,7 +276,9 @@ public sealed class ShiftsAndLeaveSample : SamplePage, ISample
     private void ShowMyShifts()
     {
         var shown = _myShifts
-            .Where(shift => _filters.Count == 0 || _filters.Contains(shift.Kind) || (_filters.Contains(Weekend) && shift.IsWeekend))
+            // Kinds are "any of"; Weekend narrows them (Morning + Weekend: weekend mornings).
+            .Where(shift => (!_filters.Any(filter => filter is Morning or Late or Night) || _filters.Contains(shift.Kind))
+                            && (!_filters.Contains(Weekend) || shift.IsWeekend))
             .OrderBy(shift => shift.Start)
             .ToList();
         var monday = MondayOf(DateTime.Today);
@@ -285,7 +287,7 @@ public sealed class ShiftsAndLeaveSample : SamplePage, ISample
             .Select(week => new ShiftWeek(week.Key switch { 0 => "This week", 1 => "Next week", _ => $"Week of {monday.AddDays(7 * week.Key):d MMM}" }, week))
             .ToList();
         var hours = shown.Aggregate(TimeSpan.Zero, (sum, shift) => sum + shift.Length);
-        _summary.Text = $"{shown.Count} shifts · {(int)hours.TotalHours} h" + (_filters.Count > 0 ? " (filtered)" : string.Empty);
+        _summary.Text = $"{shown.Count} {(shown.Count == 1 ? "shift" : "shifts")} · {(int)hours.TotalHours} h" + (_filters.Count > 0 ? " (filtered)" : string.Empty);
         _myShiftsTab.BadgeText = _myShifts.Count.ToString(CultureInfo.CurrentCulture);
     }
 
