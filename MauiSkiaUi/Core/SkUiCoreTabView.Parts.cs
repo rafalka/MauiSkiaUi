@@ -71,6 +71,9 @@ public partial class SkUiCoreTabView
 
         public int CurrentIndex(int keep) => Engine.CurrentIndex(LogicalOffset, keep);
 
+        /// <summary>The tab whose pane shows at scroll offset <paramref name="offset"/> (the nearest; <paramref name="keep"/> on a tie).</summary>
+        public int IndexAt(double offset, int keep) => Engine.CurrentIndex(Engine.Logical(offset), keep);
+
         public int Position => Math.Clamp(_owner._requested, 0, Math.Max(0, Engine.Count - 1));
 
         /// <summary>How wide the panes are when nothing bounds them: as the first created (the selected one's, to begin with) asks for.</summary>

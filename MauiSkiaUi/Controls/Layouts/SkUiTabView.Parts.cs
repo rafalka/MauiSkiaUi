@@ -145,6 +145,9 @@ public partial class SkUiTabView
 
         public int CurrentIndex(int keep) => _engine.CurrentIndex(LogicalOffset, keep);
 
+        /// <summary>The tab whose pane shows at scroll offset <paramref name="offset"/> (the nearest; <paramref name="keep"/> on a tie).</summary>
+        public int IndexAt(double offset, int keep) => _engine.CurrentIndex(_engine.Logical(offset), keep);
+
         public Task ScrollToIndex(int index, bool animated)
         {
             var logical = LogicalOffset;

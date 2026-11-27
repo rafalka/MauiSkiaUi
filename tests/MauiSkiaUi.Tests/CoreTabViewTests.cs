@@ -267,6 +267,34 @@ public class CoreTabViewTests
 
     #region Selection
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ASwipeSelectsItsTabWhenReleasedNotWhenThePanesComeToRest(bool rightToLeft)
+    {
+        using var _ = SkUiTestHelpers.UseBundledFont();
+        var tabs = TabView();
+        var changes = new List<(int, int)>();
+        tabs.SelectionChanged += (_, args) => changes.Add((args.PreviousIndex, args.CurrentIndex));
+        var root = Host(tabs, rightToLeft);
+        using var surface = new SkUiTestSurface(root, 300, 400);
+        surface.Frame(0);
+
+        // The next tab is to the right, or to the left right to left.
+        Swipe(root, new Point(rightToLeft ? 50 : 250, 200), new Point(rightToLeft ? 250 : 50, 200), 0);
+        Run(surface, 30, 46);
+        var controller = ((ISkUiScrollHost)tabs.PaneScrollViewForTests).Scroller;
+        Assert.True(controller.IsMoving);
+        Assert.Equal(1, tabs.SelectedIndex);
+        Assert.True(tabs.Tabs[1].IsSelected);
+        Assert.Equal([(0, 1)], changes);
+
+        Run(surface, 62, 1500);
+        Assert.False(controller.IsMoving);
+        Assert.Equal(300, tabs.PaneScrollViewForTests.ScrollX, 1); // the middle tab, mirrored or not
+        Assert.Equal([(0, 1)], changes);
+    }
+
     [Fact]
     public void SwipesAndTapsSelectAndSwipingCanBeTurnedOff()
     {
@@ -435,9 +463,9 @@ public class CoreTabViewTests
         var recorded = surface.RecordedPictures;
         var from = tabs.PaneScrollViewForTests.ScrollX;
         for (var ms = 2046d; ms <= 2200; ms += 16)
-            surface.Frame(ms); // mid-fling: the selection has not settled
+            surface.Frame(ms); // mid-fling
         Assert.NotEqual(from, tabs.PaneScrollViewForTests.ScrollX); // it moved
-        Assert.Equal(0, tabs.SelectedIndex); // and has not settled
+        Assert.Equal(1, tabs.SelectedIndex); // selected when released, before the frames above
         Assert.Equal(recorded, surface.RecordedPictures);
     }
 

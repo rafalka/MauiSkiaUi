@@ -58,6 +58,7 @@ public partial class SkUiCoreTabView : SkUiCoreNode, ISkUiFontElement, ISkUiKeyH
                 _scrollingTo = -1; // a drag takes over from a scroll to a tab
         };
         _controller.MovingChanged += _ => OnPanesMovingChanged();
+        _controller.SnapStarted += OnPanesSnapStarted;
         _tabs.CollectionChanged += OnTabsChanged;
 
         T NewScroller<T>(T scroller, SkUiCoreNode content) where T : SkUiCoreScrollView
@@ -403,6 +404,21 @@ public partial class SkUiCoreTabView : SkUiCoreNode, ISkUiFontElement, ISkUiKeyH
         }
         if (_panes.TakeDisturbed() && _applied == target && !_controller.IsMoving && !_controller.IsCatching && !_panes.RestsOn(target))
             ScrollToTab(target, animate: true);
+    }
+
+    /// <summary>
+    /// A swipe was released and the panes spring to a tab: it is selected now, so the strip and header nodes show it while the panes
+    /// settle (as <see cref="SkUiTabView"/>). Where they come to rest is checked then, so a swipe caught on the way still ends right.
+    /// </summary>
+    private void OnPanesSnapStarted(Point target)
+    {
+        if (_requestingScroll || _scrollingTo >= 0 || !_panes.Engine.HasGeometry || _tabs.Count == 0)
+            return;
+        var index = _panes.IndexAt(target.X, _applied);
+        if (index < 0 || index >= _tabs.Count || index == _selectedIndex)
+            return;
+        _requested = index;
+        Apply(index, scroll: false, animate: false);
     }
 
     private void ScrollToTab(int index, bool animate)

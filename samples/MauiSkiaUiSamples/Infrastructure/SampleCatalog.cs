@@ -2,6 +2,7 @@ using MauiSkiaUiSamples.Samples.Controls;
 using MauiSkiaUiSamples.Samples.Controls.Calendar;
 using MauiSkiaUiSamples.Samples.Controls.Contacts;
 using MauiSkiaUiSamples.Samples.Controls.Pickers;
+using MauiSkiaUiSamples.Samples.Controls.TimeClock;
 using MauiSkiaUiSamples.Samples.Core;
 using MauiSkiaUiSamples.Samples.Customisation;
 using MauiSkiaUiSamples.Samples.GettingStarted;
@@ -27,6 +28,8 @@ public static class SampleCatalog
         SampleEntry.For<StagedLoadingSample>(),
         SampleEntry.For<ContactsSample>(),
         SampleEntry.For<TripScrollEffectsSample>(),
+        SampleEntry.For<TimeClockSample>(),
+        SampleEntry.For<ShiftsAndLeaveSample>(),
         SampleEntry.For<PlanPickerSample>(),
         SampleEntry.For<SignInFormSample>(),
         SampleEntry.For<PickerPopupsSample>(),

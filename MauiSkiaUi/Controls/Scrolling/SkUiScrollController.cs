@@ -973,6 +973,7 @@ internal sealed class SkUiScrollController(ISkUiRenderable owner, Action<SkUiRen
         BeginMotion(spring);
         UpdateMoving();
         SkUiRenderInvalidation.Enqueue(owner, spring);
+        SnapStarted?.Invoke(new Point(x, y));
         return true;
     }
 
@@ -990,6 +991,12 @@ internal sealed class SkUiScrollController(ISkUiRenderable owner, Action<SkUiRen
     /// (<c>true</c>: horizontal), the offset, the velocity (offset DIPs per second) and the drag's origin give the offset to settle on.
     /// </summary>
     internal Func<bool, double, double, double, double>? SnapTargetResolver { get; set; }
+
+    /// <summary>
+    /// Raised when a release (or a wheel pause) starts the spring to a snap point, with the offset it settles on: what will show is
+    /// known now, while <see cref="MovingChanged"/> turns false only once the spring's tail has run out (a pager selects its page here).
+    /// </summary>
+    internal event Action<Point>? SnapStarted;
 
     private double SnapPointTarget(bool horizontal, double current, double velocity, double origin, double projected)
     {

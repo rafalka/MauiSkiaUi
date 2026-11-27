@@ -401,6 +401,35 @@ public class SheetTests
     }
 
     [Fact]
+    public async Task OpaqueContentIsClippedToThePanelsCorners()
+    {
+        // A popup on SkUiSheetPopupPresenter brings its own opaque background: it must not square off the panel's corners.
+        var root = Page(out var sheet, out _, new SkUiBox { Color = Colors.Red, HeightRequest = 120 });
+        sheet.Presentation = SkUiSheetPresentation.Dialog;
+        sheet.CornerRadius = 24;
+        using var surface = new SkUiTestSurface(root, Width, Height);
+        var time = 0d;
+        surface.Frame(time);
+        var opening = sheet.OpenAsync();
+        Settle(surface, ref time);
+        await opening.WaitAsync(TimeSpan.FromSeconds(5));
+        var panel = (SkUiView)((SkUiView)((SkUiView)sheet.SkiaChildren.ElementAt(1)).SkiaChildren.First()).SkiaChildren.First();
+        var top = (int)Math.Ceiling(panel.Y);
+        var left = (int)Math.Ceiling(panel.X);
+        static bool IsRed(SkiaSharp.SKColor color) => color.Red > 200 && color.Green < 60 && color.Blue < 60;
+
+        var bitmap = surface.Frame(time += 16);
+        Assert.True(IsRed(bitmap.GetPixel(Width / 2, top + 2))); // the content reaches the panel's top edge
+        Assert.False(IsRed(bitmap.GetPixel(left + 1, top + 1)), $"corner: {bitmap.GetPixel(left + 1, top + 1)}");
+        Assert.False(IsRed(bitmap.GetPixel(Width - left - 2, top + 1)));
+
+        // Square corners: the clip follows the new shape at the same size.
+        sheet.CornerRadius = 0;
+        bitmap = surface.Frame(time += 16);
+        Assert.True(IsRed(bitmap.GetPixel(left + 1, top + 1)));
+    }
+
+    [Fact]
     public void ModalSheetTrapsFocusAndEscapeClosesIt()
     {
         var root = Page(out var sheet, out var page);

@@ -149,6 +149,8 @@ public partial class SkUiSheet
         private Thickness _padding;
         private double _grabberBand;
         private bool? _shadowForDialog;
+        private SKPath? _childrenClip;
+        private (float Width, float Height, CornerRadius Corners, SkUiLook Look) _childrenClipKey;
 
         public Panel(SkUiSheet owner)
         {
@@ -331,19 +333,60 @@ public partial class SkUiSheet
             ((IView)Grabber).Arrange(grabber);
         }
 
-        protected override void OnPaintBackground(SKCanvas canvas)
+        /// <summary>The panel's rounded corners: every corner of a dialog, the inner edge's of a sheet.</summary>
+        private CornerRadius Corners(SkUiLook look)
         {
-            var look = SkUiLook.Current;
             var radius = _owner.CornerRadius < 0 ? look.DefaultSheetCornerRadius : _owner.CornerRadius;
-            var corners = _owner._isDialog ? new CornerRadius(radius) : _owner._physical switch
+            return _owner._isDialog ? new CornerRadius(radius) : _owner._physical switch
             {
                 SkUiSheetEdgePhysical.Left => new CornerRadius(0, radius, 0, radius),
                 SkUiSheetEdgePhysical.Right => new CornerRadius(radius, 0, radius, 0),
                 _ => new CornerRadius(radius, radius, 0, 0)
             };
+        }
+
+        /// <summary>The corners, the presentation or the edge changed: the panel is drawn again and its children clipped anew.</summary>
+        public void InvalidateShape()
+        {
+            InvalidatePaint();
+            InvalidateRender(SkUiRenderDirty.Props);
+        }
+
+        protected override void OnPaintBackground(SKCanvas canvas)
+        {
+            var look = SkUiLook.Current;
             var color = _owner.BackgroundColor ?? (_owner.Background as SolidColorBrush)?.Color ?? SkUiColors.DefaultBackground;
-            look.DrawSheet(canvas, new SkUiSheetPaint(new SKRect(0, 0, (float)Width, (float)Height), ToSkColor(color), corners, _owner._isDialog,
+            look.DrawSheet(canvas, new SkUiSheetPaint(new SKRect(0, 0, (float)Width, (float)Height), ToSkColor(color), Corners(look), _owner._isDialog,
                 _owner.IsEnabled));
+        }
+
+        /// <summary>
+        /// Clips the children to the panel's rounded shape (applied by the compositor), so opaque content (a picker popup's background
+        /// on <see cref="SkUiSheetPopupPresenter"/>, an app's colored header) follows the corners instead of covering them. The path is
+        /// kept while the size, the corners and the look stay; the compositor disposes a replaced one.
+        /// </summary>
+        internal override void OnGetRenderProps(ref SkUiRenderProps props)
+        {
+            var look = SkUiLook.Current;
+            var corners = Corners(look);
+            if (!SkUiCornerRadii.HasAny(corners))
+            {
+                _childrenClip = null;
+                return;
+            }
+            var key = (props.Width, props.Height, corners, look);
+            if (_childrenClip is null || key != _childrenClipKey)
+            {
+                _childrenClipKey = key;
+                _childrenClip = look.CreateRoundRectPath(new SKRect(0, 0, props.Width, props.Height), corners);
+            }
+            props.ChildrenClipPath = _childrenClip;
+        }
+
+        internal override void ReleaseDrawingResources()
+        {
+            base.ReleaseDrawingResources();
+            _childrenClip = null; // committed: the compositor owns and disposes it
         }
 
         /// <summary>The panel's shape for its shadow: the drawn corners.</summary>

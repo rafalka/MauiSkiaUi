@@ -123,6 +123,52 @@ public class TabViewTests
         Assert.Equal(600, tabs.PaneScrollViewForTests.ScrollX, 1);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ASwipeSelectsItsTabWhenReleasedNotWhenThePanesComeToRest(bool rightToLeft)
+    {
+        using var _ = SkUiTestHelpers.UseBundledFont();
+        var tabs = TabView();
+        tabs.HeaderTemplate = new DataTemplate(() => new SkUiLabel { Text = "Tab" });
+        tabs.FlowDirection = rightToLeft ? FlowDirection.RightToLeft : FlowDirection.LeftToRight;
+        var changes = new List<(int, int)>();
+        tabs.SelectionChanged += (_, args) => changes.Add((args.PreviousIndex, args.CurrentIndex));
+        using var surface = new SkUiTestSurface(tabs, 300, 400);
+        surface.Frame(0);
+
+        // The release starts the spring to the next tab: the tab, its header view and the event follow at once, while the panes move.
+        // The next tab is to the right, or to the left right to left.
+        Swipe(tabs, new Point(rightToLeft ? 50 : 250, 200), new Point(rightToLeft ? 250 : 50, 200), 0);
+        Run(surface, 30, 46);
+        Assert.True(((ISkUiScrollHost)tabs.PaneScrollViewForTests).Scroller.IsMoving);
+        Assert.Equal(1, tabs.SelectedIndex);
+        Assert.True(tabs.Tabs[1].IsSelected);
+        Assert.True(((SkUiView)tabs.HeaderViewOf(1)!).IsSelectedItem);
+        Assert.Equal([(0, 1)], changes);
+
+        // Coming to rest there changes nothing more.
+        Run(surface, 62, 1500);
+        Assert.False(((ISkUiScrollHost)tabs.PaneScrollViewForTests).Scroller.IsMoving);
+        Assert.Equal(300, tabs.PaneScrollViewForTests.ScrollX, 1);
+        Assert.Equal([(0, 1)], changes);
+
+        // A slow drag that springs back keeps the tab.
+        var id = ++_pointer;
+        var (start, near, far) = rightToLeft ? (50d, 80d, 100d) : (250d, 220d, 200d);
+        tabs.Touch(new(id, SkUiTouchAction.Pressed, new Point(start, 200), TimeSpan.FromMilliseconds(1600)));
+        tabs.Touch(new(id, SkUiTouchAction.Moved, new Point(near, 200), TimeSpan.FromMilliseconds(1700)));
+        tabs.Touch(new(id, SkUiTouchAction.Moved, new Point(far, 200), TimeSpan.FromMilliseconds(1800)));
+        surface.Frame(1800);
+        // Towards the last tab: offset 600, or 0 right to left.
+        Assert.True(rightToLeft ? tabs.PaneScrollViewForTests.ScrollX < 299 : tabs.PaneScrollViewForTests.ScrollX > 301, $"{tabs.PaneScrollViewForTests.ScrollX}");
+        tabs.Touch(new(id, SkUiTouchAction.Released, new Point(far, 200), TimeSpan.FromMilliseconds(2200)));
+        Run(surface, 2200, 3500);
+        Assert.Equal(300, tabs.PaneScrollViewForTests.ScrollX, 1);
+        Assert.Equal(1, tabs.SelectedIndex);
+        Assert.Equal([(0, 1)], changes);
+    }
+
     [Fact]
     public void AsASurfacesRootItDrawsOnTheGpuAsTheOtherScrollingControls() =>
         Assert.Equal((true, true, true), (new SkUiTabView().HwAccelerated, new SkUiCarouselView().HwAccelerated, new SkUiCollectionView().HwAccelerated));
@@ -259,7 +305,7 @@ public class TabViewTests
         surface.Frame(2030);
         var recorded = surface.RecordedPictures;
         for (var ms = 2046d; ms <= 2200; ms += 16)
-            surface.Frame(ms); // mid-fling: the selection has not settled
+            surface.Frame(ms); // mid-fling (the tab was selected when released, before these frames)
         Assert.True(tabs.PaneScrollViewForTests.IsScrolling, "still flinging");
         Assert.Equal(recorded, surface.RecordedPictures);
     }

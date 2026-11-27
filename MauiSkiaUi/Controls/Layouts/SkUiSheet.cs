@@ -120,7 +120,7 @@ public partial class SkUiSheet : SkUiView, ISkUiKeyHandler
     /// <summary>Bindable property for <see cref="CornerRadius"/>.</summary>
     public static readonly BindableProperty CornerRadiusProperty = BindableProperty.Create(nameof(CornerRadius), typeof(double), typeof(SkUiSheet), -1d,
         validateValue: SkUiValidate.NonNegativeOrLook,
-        propertyChanged: (view, _, _) => ((SkUiSheet)view).PanelView.InvalidatePaint());
+        propertyChanged: (view, _, _) => ((SkUiSheet)view).PanelView.InvalidateShape());
 
     /// <summary>Bindable property for <see cref="Presentation"/>.</summary>
     public static readonly BindableProperty PresentationProperty = BindableProperty.Create(nameof(Presentation), typeof(SkUiSheetPresentation), typeof(SkUiSheet),
@@ -687,7 +687,7 @@ public partial class SkUiSheet : SkUiView, ISkUiKeyHandler
         if (_physical != PhysicalEdge && _state != SheetState.Closed)
             TrackView.Controller.StopMotion();
         InvalidateMeasureOverride();
-        PanelView.InvalidatePaint();
+        PanelView.InvalidateShape();
     }
 
     private SkUiSheetEdgePhysical PhysicalEdge => Edge switch
@@ -733,7 +733,10 @@ public partial class SkUiSheet : SkUiView, ISkUiKeyHandler
                     || (Presentation == SkUiSheetPresentation.Auto && size.Width >= look.SheetDialogBreakpoint);
         if (wasDialog != _isDialog && _state != SheetState.Closed)
             TrackView.Controller.StopMotion();
+        var wasPhysical = _physical;
         _physical = PhysicalEdge;
+        if (wasDialog != _isDialog || wasPhysical != _physical)
+            PanelView.InvalidateShape(); // other corners, also at the same size
         var insets = WindowInsets();
         var panel = PanelView;
         var grabber = HasGrabber && !_isDialog ? look.SheetGrabberBandHeight : 0;
