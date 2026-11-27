@@ -1,6 +1,6 @@
 # SkUiSegmentedControl
 
-> **Status: built for 1.17** (steps S2 to S6): `SkUiSegmentedControl` and `SkUiCoreSegmentedControl`, with the keys and screen readers. The [review's decisions](#review-decisions) are at the end. The page is the contract for steps S2 to S6 of [ImplementationPlan-1.17.md](../design/ImplementationPlan-1.17.md#phase-s-segmented-control-and-tab-view-f1); the [review's decisions](#review-decisions) are at the end.
+> **Status: built for 1.17** (steps S2 to S6): `SkUiSegmentedControl` and `SkUiCoreSegmentedControl`, with the keys and screen readers. The [review's decisions](#review-decisions) are at the end. The page is the contract for steps S2 to S6 of [ImplementationPlan-1.17.md](../archive/ImplementationPlan-1.17.md#phase-s-segmented-control-and-tab-view-f1); the [review's decisions](#review-decisions) are at the end.
 
 A row of two to about five mutually exclusive options drawn as one control, with the selected one marked: a view switch ("Day · Week · Month"), a filter ("All · Unread"), a mode ("Map · Satellite"). One selection at a time, always visible, no popup.
 

@@ -274,7 +274,7 @@ Two owners share one helper, `SkUiPullToRefresh`: the indicator (the public Core
 
 ## Scroll-linked effects
 
-(1.16) `SkUiScrollEffect` on any view (`SkUiView.ScrollEffects`, `SkUiCoreNode.AddScrollEffect`) maps a scroller's offset, overscroll included, or a `SkUiScrollReveal`'s scroll-direction progress onto translation, scale, opacity or a clip; recipes on [SkUiScrollView](../controls/SkUiScrollView.md#scroll-linked-effects), the plan in [ImplementationPlan-1.16.md](ImplementationPlan-1.16.md).
+(1.16) `SkUiScrollEffect` on any view (`SkUiView.ScrollEffects`, `SkUiCoreNode.AddScrollEffect`) maps a scroller's offset, overscroll included, or a `SkUiScrollReveal`'s scroll-direction progress onto translation, scale, opacity or a clip; recipes on [SkUiScrollView](../controls/SkUiScrollView.md#scroll-linked-effects), the plan in [ImplementationPlan-1.16.md](../archive/ImplementationPlan-1.16.md).
 
 | Part | Design |
 | --- | --- |

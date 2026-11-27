@@ -1,6 +1,6 @@
 # Archive
 
-History of SkiaUi's design: the considerations and decisions that shaped it, reviews, measurements, the plan that took it to 1.0 and the release plans from 1.2 to 1.15. These documents are kept as they were and are **not** updated: names, statuses and links in them may be out of date. The current documentation starts at [docs/README.md](../README.md).
+History of SkiaUi's design: the considerations and decisions that shaped it, reviews, measurements, the plan that took it to 1.0 and the release plans from 1.2 to 1.18. These documents are kept as they were and are **not** updated: names, statuses and links in them may be out of date. The current documentation starts at [docs/README.md](../README.md).
 
 | Document | What it was |
 | --- | --- |
@@ -17,6 +17,9 @@ History of SkiaUi's design: the considerations and decisions that shaped it, rev
 | [ImplementationPlan-1.13.md](ImplementationPlan-1.13.md) | The 1.13 plan for the calendar |
 | [ImplementationPlan-1.14.md](ImplementationPlan-1.14.md) | The 1.14 plan for performance: track A of the November 2026 review, waves 1 to 3 |
 | [ImplementationPlan-1.15.md](ImplementationPlan-1.15.md) | The 1.15 plan: the calendar finished (device checks, the date and time popup, platform looks, other calendar systems) |
+| [ImplementationPlan-1.16.md](ImplementationPlan-1.16.md) | The 1.16 plan for scroll-linked effects (F2 of the November 2026 review) |
+| [ImplementationPlan-1.17.md](ImplementationPlan-1.17.md) | The 1.17 plan: carousel parity, the segmented control and the tab view (F1) |
+| [ImplementationPlan-1.18.md](ImplementationPlan-1.18.md) | The 1.18 plan: the sheet (F3), chips (F5), custom tab headers and the requests from the time-clock screen set (#128 to #136): font features, press scale, swipe view groups, hit slop, progress ring, stacked bar, live regions |
 | [Requirements-1.0.md](Requirements-1.0.md) | The requirement checklists FR-1 – FR-33 and NFR-1 – NFR-6, item by item, and the decisions taken |
 | [CoreRequirements.md](CoreRequirements.md) | The Core layer's requirements, motivation and decisions |
 | [ArchitectureReview-2026-09.md](ArchitectureReview-2026-09.md) | The September 2026 architecture review (findings N1–N13) and the state-change animation measurements |

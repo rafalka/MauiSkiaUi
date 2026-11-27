@@ -94,7 +94,7 @@ Status: **Shipped** (in the current release line), **Partly** (shipped, with ope
 | FR-25 | Progress bar (also indeterminate) | Shipped | [SkUiProgressBar](../controls/SkUiProgressBar.md) |
 | FR-26 | State-change animations drawn by the look | Shipped | [ControlLook](ControlLook.md#state-change-transitions-fr-26) |
 | FR-27 | Composition layouts: flex, wrap, shrink, align stack; draggers and grid splitters (1.3); equal tiles with an overflow tile (1.9); the Community Toolkit's dock and uniform items layouts (1.10) | Shipped | [SkUiFlexLayout](../controls/SkUiFlexLayout.md), [SkUiWrapLayout](../controls/SkUiWrapLayout.md), [SkUiTileLayout](../controls/SkUiTileLayout.md), [SkUiDragger](../controls/SkUiDragger.md), [SkUiGridSplitter](../controls/SkUiGridSplitter.md), [SkUiShrinkLayout](../controls/SkUiShrinkLayout.md), [SkUiDockLayout](../controls/SkUiDockLayout.md), [SkUiUniformItemsLayout](../controls/SkUiUniformItemsLayout.md) |
-| FR-28 | Accessibility, keyboard focus, font scaling; live regions and announcements (1.18) | Shipped (live regions built on `1.18-plk`) | [Accessibility](Accessibility.md) |
+| FR-28 | Accessibility, keyboard focus, font scaling; live regions and announcements (1.18) | Shipped (live regions in 1.18) | [Accessibility](Accessibility.md) |
 | FR-29 | Pickers on the app's popup system; their wheels inline, and pickers of the app's own on the same engine (1.12) | Shipped (1.12 parts on `1.12-implementation`) | [SkUiPicker](../controls/SkUiPicker.md), [Popups](Popups.md), [SkUiPickerWheels](../controls/SkUiPickerWheels.md), [CustomPickers](../controls/CustomPickers.md) |
 | FR-30 | Avatar view | Shipped | [SkUiAvatarView](../controls/SkUiAvatarView.md) |
 | FR-31 | Shimmer (skeleton loading) | Shipped | [SkUiShimmer](../controls/SkUiShimmer.md) |
@@ -102,11 +102,11 @@ Status: **Shipped** (in the current release line), **Partly** (shipped, with ope
 | FR-33 | Calendar | Built for 1.13, with the date pickers' calendar popup and a date range picker | [SkUiCalendar](../controls/SkUiCalendar.md), [SkUiDateRangePicker](../controls/SkUiDateRangePicker.md) |
 | FR-34 | Markdown view, safe with untrusted documents (optional packages) | Built for 1.8 | [SkUiMarkdownView](../controls/SkUiMarkdownView.md) |
 | FR-35 | Zoom view | Built for 1.8 | [SkUiZoomView](../controls/SkUiZoomView.md) |
-| FR-36 | Scroll-linked effects on the render thread: translation, scale, opacity and clips from a scroller's offset (overscroll included) or scroll direction, on both layers | Built for 1.16 | [SkUiScrollView](../controls/SkUiScrollView.md#scroll-linked-effects) |
-| FR-37 | Segmented control and tab view, on both layers | Built for 1.17; custom tab headers for 1.18 | [SkUiSegmentedControl](../controls/SkUiSegmentedControl.md), [SkUiTabView](../controls/SkUiTabView.md) |
-| FR-38 | Progress ring with content and a stacked bar of several parts, on both layers | Built for 1.18 (`1.18-plk`) | [SkUiProgressRing](../controls/SkUiProgressRing.md), [SkUiStackedBar](../controls/SkUiStackedBar.md) |
-| FR-39 | Chips and chip groups (action, filter, input, suggestion; wrapping or one scrolling row), on both layers | Built for 1.18 (`1.18-plk`) | [SkUiChip](../controls/SkUiChip.md) |
-| FR-40 | A sheet inside the surface: bottom and side sheets on detents, a dialog presentation, a scrim, stacking, a modal pane for focus and screen readers, `ShowAsync<TResult>`, a popup presenter for the pickers; SkUi\* only (a drawn container, not a popup window) | Built for 1.18 (`1.18-sheet`) | [SkUiSheet](../controls/SkUiSheet.md) |
+| FR-36 | Scroll-linked effects on the render thread: translation, scale, opacity and clips from a scroller's offset (overscroll included) or scroll direction, on both layers | Shipped in 1.16 | [SkUiScrollView](../controls/SkUiScrollView.md#scroll-linked-effects) |
+| FR-37 | Segmented control and tab view, on both layers | Shipped in 1.17; custom tab headers in 1.18 | [SkUiSegmentedControl](../controls/SkUiSegmentedControl.md), [SkUiTabView](../controls/SkUiTabView.md) |
+| FR-38 | Progress ring with content and a stacked bar of several parts, on both layers | Shipped in 1.18 | [SkUiProgressRing](../controls/SkUiProgressRing.md), [SkUiStackedBar](../controls/SkUiStackedBar.md) |
+| FR-39 | Chips and chip groups (action, filter, input, suggestion; wrapping or one scrolling row), on both layers | Shipped in 1.18 | [SkUiChip](../controls/SkUiChip.md) |
+| FR-40 | A sheet inside the surface: bottom and side sheets on detents, a dialog presentation, a scrim, stacking, a modal pane for focus and screen readers, `ShowAsync<TResult>`, a popup presenter for the pickers; SkUi\* only (a drawn container, not a popup window) | Shipped in 1.18 | [SkUiSheet](../controls/SkUiSheet.md) |
 
 ### Core layer (FR-C)
 

@@ -2,7 +2,7 @@
 
 **Goal:** the review's in-surface sheet (F3) and chips (F5), custom tab headers (placed here on 25 November 2026), and the nine feature requests filed from one real screen set (employee self-service: time clock, breaks, balances, shifts), issues [#128](https://github.com/rafalka/MauiSkiaUi/issues/128) to [#136](https://github.com/rafalka/MauiSkiaUi/issues/136). Each request was checked against the architecture and the code before it was taken in ([review](#review-of-the-requests)).
 
-**Status:** proposed 26 November 2026; the decisions below are to be agreed before their phase starts. Phase A built on `1.18-implementation` (26 November 2026): A1 font features, A2 press scale, A3 swipe view groups, A4 hit slop, each with its tests (`FontFeatureTests`, `PressScaleTests`, `SwipeViewTests`, `HitSlopTests`), docs and changelog; the benches and gallery pages are open. Phase T built 27 November 2026. Where the build differs from the plan, the phase's notes below say so.
+**Status:** released in 1.18.0 (27 November 2026); device checks left open are on the [verification backlog](../design/Roadmap.md#verification-backlog). Before release: proposed 26 November 2026; the decisions below are to be agreed before their phase starts. Phase A built on `1.18-implementation` (26 November 2026): A1 font features, A2 press scale, A3 swipe view groups, A4 hit slop, each with its tests (`FontFeatureTests`, `PressScaleTests`, `SwipeViewTests`, `HitSlopTests`), docs and changelog; the benches and gallery pages are open. Phase T built 27 November 2026. Where the build differs from the plan, the phase's notes below say so.
 
 ## Review of the requests
 
@@ -48,8 +48,8 @@ Proposed 26 November 2026.
   - `CloseAsync(bool animated = true)` completes when the content is back.
   - The swipe items of a row become custom actions of the row (as reorderable items have theirs), so a screen reader reaches "Remove" without the gesture.
   - No new open/close events: `SwipeStarted` and `SwipeEnded.IsOpen` are MAUI's and cover them; the docs say so.
-- **D9 Chips follow the F5 brief** ([ImplementationPlan-PerformanceAndControls.md](ImplementationPlan-PerformanceAndControls.md#f5-chips)), keeping its names: `IsSelected` matches `SelectedItem` / `SelectedItems` and the pickers; `Wraps="False"` is the scrolling row. From the request: `Padding` on the group (the scrolling row's edge insets, scrolled with the chips) and `BadgeText` on a chip (the count), drawn by the look's tab badge painter from 1.17.
-- **D10 The sheet follows the F3 brief** ([ImplementationPlan-PerformanceAndControls.md](ImplementationPlan-PerformanceAndControls.md#f3-in-surface-sheet), D5 there: a drawn container inside a surface, not a window), with these additions:
+- **D9 Chips follow the F5 brief** ([ImplementationPlan-PerformanceAndControls.md](../design/ImplementationPlan-PerformanceAndControls.md#f5-chips)), keeping its names: `IsSelected` matches `SelectedItem` / `SelectedItems` and the pickers; `Wraps="False"` is the scrolling row. From the request: `Padding` on the group (the scrolling row's edge insets, scrolled with the chips) and `BadgeText` on a chip (the count), drawn by the look's tab badge painter from 1.17.
+- **D10 The sheet follows the F3 brief** ([ImplementationPlan-PerformanceAndControls.md](../design/ImplementationPlan-PerformanceAndControls.md#f3-in-surface-sheet), D5 there: a drawn container inside a surface, not a window), with these additions:
   - **`Presentation`** (`SkUiSheetPresentation`: `Sheet`, `Dialog`, `Auto`; default `Sheet`): `Dialog` is a centred card at most `MaximumWidth` wide (the look's), with no detents or drag; `Auto` is a sheet on compact widths and a dialog (the tablet form sheet) above the look's breakpoint.
   - **Header and actions:** `Title`, `Description` and an `Actions` view slot, drawn with `SkUiPopupParts`' title and button row so a picker opened in a sheet looks like the others.
   - **Stacking:** several sheets can be open; the last opened is on top; Back, Escape and a scrim tap close the topmost; only the topmost is a modal pane.
@@ -57,7 +57,7 @@ Proposed 26 November 2026.
   - **No Core twin in 1.18.** A sheet has to be on the surface root to cover the page; a Core tree lives inside an `SkUiCoreHost`. Core content goes into a sheet through a host.
   - **Accessibility:** the modal pane (focus moves in and is trapped, the page behind leaves the tree, the title is read as the pane title); `AutomationId`s on the scrim and the grabber.
   - **Limits** in the docs: inside one surface, so it cannot cover hosted native views (overlay masks, backlog) or native chrome outside the surface (a Shell tab bar); it covers a drawn bottom bar in the same surface.
-- **D11 Custom tab headers** as placed on the [roadmap](Roadmap.md#1180-the-sheet-chips-tab-headers-and-the-time-clock-screen-set-proposed); its open questions are decided in step T1.
+- **D11 Custom tab headers** as placed on the [roadmap](../design/Roadmap.md#1180-the-sheet-chips-tab-headers-and-the-time-clock-screen-set-shipped); its open questions are decided in step T1.
 - **D12 Release:** `1.18.0`. Cut line: phase T (tab headers) moves to 1.19 if the sheet runs long; the other phases ship together.
 
 ## Phase A: small pieces (parallel, in worktrees)
@@ -77,7 +77,7 @@ Independent of each other; each one appends to the look and the gallery, merged 
 ## Phase L: live regions (#131, M)
 
 - **L1** API and the change detection on the semantics owner (platform-neutral, headless-testable through a recording platform sink). **L2** Android, **L3** Apple, **L4** Windows. **L5** `Announce` and `UpdatesFrequently`. *Check:* `LiveRegionTests` (coalescing, hidden and off-screen nodes, appearing nodes, modal pane); device checks with TalkBack, VoiceOver and Narrator on the verification backlog.
-- *Built* on `1.18-plk` (26 November 2026). The platform sink is an owner event, `SkUiSemanticsOwner.Announcement` (the element or none, the text, the politeness); tests drive the report and read timers with `Flush(now)` / `ReadDueLiveRegions(now)`. A region on a container passes to the elements inside, and a live text absorbed into an actionable group makes the group live. The modal pane is not tested yet: no drawn modal pane exists before phase S, whose pane takes the page out of the tree, which is what keeps it from being read. Android: a live element's change is held back while its text waits and then reported once with `CONTENT_CHANGE_TYPE_TEXT`; `Announce`'s hidden node stays listed for 3 s; `UpdatesFrequently` is a throttle (one report a second), as Android has no "update without announcing". Windows `Announce` is a notification event of the surface's peer. All four platform heads compile (Windows on macOS, as [Accessibility.md](Accessibility.md#verification) says); the screen readers themselves are on the verification backlog.
+- *Built* on `1.18-plk` (26 November 2026). The platform sink is an owner event, `SkUiSemanticsOwner.Announcement` (the element or none, the text, the politeness); tests drive the report and read timers with `Flush(now)` / `ReadDueLiveRegions(now)`. A region on a container passes to the elements inside, and a live text absorbed into an actionable group makes the group live. The modal pane is not tested yet: no drawn modal pane exists before phase S, whose pane takes the page out of the tree, which is what keeps it from being read. Android: a live element's change is held back while its text waits and then reported once with `CONTENT_CHANGE_TYPE_TEXT`; `Announce`'s hidden node stays listed for 3 s; `UpdatesFrequently` is a throttle (one report a second), as Android has no "update without announcing". Windows `Announce` is a notification event of the surface's peer. All four platform heads compile (Windows on macOS, as [Accessibility.md](../design/Accessibility.md#verification) says); the screen readers themselves are on the verification backlog.
 
 ## Phase S: the sheet (F3, #136, L)
 
@@ -100,7 +100,7 @@ The brief's seven steps, with D9's `Padding` and `BadgeText`. *Check:* `ChipTest
 
 ## Docs, demo and release
 
-Each phase: its control pages, [Accessibility.md](Accessibility.md) (live regions leave "not done"), [Popups.md](Popups.md) (the sheet presenter), [EventMechanism.md](EventMechanism.md) (hit slop), [SkUiLabel.md](../controls/SkUiLabel.md) (font features), the changelog under `## Unreleased`, [Migration.md](../Migration.md) and the migration skill (`TouchBehavior.PressedScale`, `SwipeView` groups), gallery pages next to the MAUI controls, [Roadmap.md](Roadmap.md) and [Requirements.md](Requirements.md) statuses. A comment on each issue when its phase merges.
+Each phase: its control pages, [Accessibility.md](../design/Accessibility.md) (live regions leave "not done"), [Popups.md](../design/Popups.md) (the sheet presenter), [EventMechanism.md](../design/EventMechanism.md) (hit slop), [SkUiLabel.md](../controls/SkUiLabel.md) (font features), the changelog under `## Unreleased`, [Migration.md](../Migration.md) and the migration skill (`TouchBehavior.PressedScale`, `SwipeView` groups), gallery pages next to the MAUI controls, [Roadmap.md](../design/Roadmap.md) and [Requirements.md](../design/Requirements.md) statuses. A comment on each issue when its phase merges.
 
 ## Order and sizes
 
@@ -120,4 +120,4 @@ Each phase: its control pages, [Accessibility.md](Accessibility.md) (live region
 
 ## Verification
 
-Headless suite green on net10.0 and net11.0, the library at 0 warnings (trim and AOT analyzers included), benches within noise where a phase touches a hot path (text shaping, `FindTarget`, press). Device checks by hand on the [verification backlog](Roadmap.md#verification-backlog): the sheet's drag and fling on the Galaxy S9 and an iPhone, press scale frame times, live regions with each screen reader.
+Headless suite green on net10.0 and net11.0, the library at 0 warnings (trim and AOT analyzers included), benches within noise where a phase touches a hot path (text shaping, `FindTarget`, press). Device checks by hand on the [verification backlog](../design/Roadmap.md#verification-backlog): the sheet's drag and fling on the Galaxy S9 and an iPhone, press scale frame times, live regions with each screen reader.

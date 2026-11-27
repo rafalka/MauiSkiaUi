@@ -36,16 +36,16 @@ Publishing (the NuGet publish workflow, [docs/Releasing.md](docs/Releasing.md)) 
   - Core: `SkUiCoreTabItem.HeaderContent` (a node) and `SkUiCoreTabView.HeaderFactory` (`Func<SkUiCoreTabItem, SkUiCoreNode?>`, called once per tab; `null` keeps the look's header), with `IsSelected` and `CurrentTextColor` raising `PropertyChanged`; drawn as the SkUi tab view's.
   - A swipe now selects its tab when it is released (the panes spring there), on both layers, so the header views and the strip show it at once instead of once the spring's tail has run out (about a second later).
 
-### Other
-
-- **Nested scrolling:** a drag handed over by a scroller at its edge no longer moves an outer scroller the user cannot drag (a carousel with `IsSwipeEnabled="False"`, a tab view without swiping).
-- **Samples:** two examples of the 1.18 controls on one employee app: "Time clock" (a progress ring with the running time in tabular figures, a live-region status, a break picked in a `ShowAsync` sheet with chips, clock-out in a dialog, stacked bars of the day and the week, press scale and a minimum touch target) and "Shifts and leave" (a tab view with header views of its own and counts, filter chips over swipe rows that open one at a time, open shifts claimed with chips, leave balances as rings and a stacked bar, a request form in a placed sheet whose date picker opens in a sheet over it).
-
 ### Fixes
 
 - **Wheel inside a native `ScrollView` on iOS and Mac Catalyst:** the mouse wheel or a trackpad's two-finger scroll over a drawn surface inside a native MAUI `ScrollView` scrolled only drawn scrollers, never the page, so the page scrolled only with the pointer over native views. A surface now takes a scroll gesture only when something drawn under the pointer can use it (a scroller that can still move that way, an editor's text, a focused stepper field, a zoom view); otherwise the page scrolls, as on Windows. A drawn list scrolls to its end, and the next gesture scrolls the page.
 - **Wheel over a disabled drawn control:** the mouse wheel or trackpad over a disabled control (also a button whose command cannot run) was swallowed, so neither a drawn scroller around it nor the page scrolled. It now goes to the scrollers around the control, drawn or native.
 - **Android: crash focusing a drawn field after a native one used the keyboard (#140):** a surface kept the app's `InputMethodManager`, which is one .NET peer for the whole app, and MAUI 10.0.130 to 11.0.10 dispose that peer whenever a native `Entry`, `Editor` or `SearchBar` shows or hides the keyboard, so the next drawn `SkUiEntry` / `SkUiEditor` focus threw `ObjectDisposedException` from the keyboard's posted `showSoftInput` and crashed the app. The input method, autofill and accessibility managers are now looked up again when their kept peer was disposed, by MAUI or any other code. Device check: `SharedServicesCheck`.
+
+### Other
+
+- **Nested scrolling:** a drag handed over by a scroller at its edge no longer moves an outer scroller the user cannot drag (a carousel with `IsSwipeEnabled="False"`, a tab view without swiping).
+- **Samples:** two examples of the 1.18 controls on one employee app: "Time clock" (a progress ring with the running time in tabular figures, a live-region status, a break picked in a `ShowAsync` sheet with chips, clock-out in a dialog, stacked bars of the day and the week, press scale and a minimum touch target) and "Shifts and leave" (a tab view with header views of its own and counts, filter chips over swipe rows that open one at a time, open shifts claimed with chips, leave balances as rings and a stacked bar, a request form in a placed sheet whose date picker opens in a sheet over it).
 
 ## 1.17.0
 

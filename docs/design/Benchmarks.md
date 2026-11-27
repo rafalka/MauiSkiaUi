@@ -248,7 +248,7 @@ Not kept ([D9](ImplementationPlan-PerformanceAndControls.md#decisions): allocati
 
 ### 1.16 scroll-linked effects (23 November 2026)
 
-[ImplementationPlan-1.16.md](ImplementationPlan-1.16.md): `skui-scroll-effects` and `core-scroll-effects` (a 1,000-row list under a 200 DIP header collapsing to 56: clip, parallax, title, fading caption) against their `-none` references (the same page without effects), and `skui-scroll-reveal` (sticky header, sticky footer and floating button hidden by one triggered reveal). Update = a scroll step of 150 DIPs; motion (devices) = an animated scroll. `scripts/bench.sh -n 10 --quiet-gc`, headless, macOS (Apple silicon), net10:
+[ImplementationPlan-1.16.md](../archive/ImplementationPlan-1.16.md): `skui-scroll-effects` and `core-scroll-effects` (a 1,000-row list under a 200 DIP header collapsing to 56: clip, parallax, title, fading caption) against their `-none` references (the same page without effects), and `skui-scroll-reveal` (sticky header, sticky footer and floating button hidden by one triggered reveal). Update = a scroll step of 150 DIPs; motion (devices) = an animated scroll. `scripts/bench.sh -n 10 --quiet-gc`, headless, macOS (Apple silicon), net10:
 
 | Scenario | update (ms) | updatePictures | composite (ms) | generate (ms) | allocKB |
 | --- | --- | --- | --- | --- | --- |
@@ -262,7 +262,7 @@ A scroll step costs the same with effects as without, and records nothing for th
 
 ### 1.16 on the Galaxy S9 and the iPhone 8 (23 November 2026)
 
-[ImplementationPlan-1.16.md](ImplementationPlan-1.16.md): the cost of the branch when no scroll effect is used, and the lag of the event-based alternative. Galaxy S9 (Android 10), net10, Release; iPhone 8 (iOS 16.7), net11, Release, launched through `mlaunch` with Xcode 26.6's device support (`SKUI_MLAUNCH_SDKROOT=/Applications/Xcode-26.6.0.app/Contents/Developer`: Xcode 27 no longer launches on iOS 16).
+[ImplementationPlan-1.16.md](../archive/ImplementationPlan-1.16.md): the cost of the branch when no scroll effect is used, and the lag of the event-based alternative. Galaxy S9 (Android 10), net10, Release; iPhone 8 (iOS 16.7), net11, Release, launched through `mlaunch` with Xcode 26.6's device support (`SKUI_MLAUNCH_SDKROOT=/Applications/Xcode-26.6.0.app/Contents/Developer`: Xcode 27 no longer launches on iOS 16).
 
 **No effects, against `v1.15.1`** (`scripts/bench.sh -t android --baseline v1.15.1 -n 6`): `scroll-fling`, `collection-fling`, `virtual-stack-fling`, `virtual-fling`, `carousel-swipe`, `swipe-rows`, `shimmer-list-scroll`, `skui-labels`, `core-labels`, `skui-buttons` and the `-none` scroll effect page: motion frame rates, render times and first frames within noise. The first run showed `heapKB` 5 MB higher in every motion scenario: a single step of exactly 5,000 KB at one iteration, then flat. A second run (`-r 2`, alternating, `scroll-fling`, `collection-fling`, `carousel-swipe`, `skui-scroll-effects-none`) showed the same step in the baseline too: the Android runtime growing its heap by a block, not memory the branch keeps. With it on both sides, the heap is within noise (+0.2 to +1.2 %); 0 of 39 metrics slower. In `skui-scroll-effects`, the page with effects, against the same page on 1.15.1 (which has none): frame rate and render time within noise, 10 % more allocation (the effects and their links).
 
@@ -284,7 +284,7 @@ The DIPs are for a view moving at half the scroll speed; one that moves with the
 
 ### 1.17 on the Galaxy S9 and the iPhone 8 (25 November 2026)
 
-[ImplementationPlan-1.17.md](ImplementationPlan-1.17.md): net11, Release, `-n 6`, against the 1.16.0 release commit (`e4097b6`); Galaxy S9 (Android 10), iPhone 8 (iOS 16.7, through `mlaunch`).
+[ImplementationPlan-1.17.md](../archive/ImplementationPlan-1.17.md): net11, Release, `-n 6`, against the 1.16.0 release commit (`e4097b6`); Galaxy S9 (Android 10), iPhone 8 (iOS 16.7, through `mlaunch`).
 
 | Scenario | S9 frames/s · avg / max render ms · alloc KB | iPhone 8 frames/s · avg / max render ms · alloc KB |
 | --- | --- | --- |
@@ -298,6 +298,14 @@ The DIPs are for a view moving at half the scroll speed; one that moves with the
 - **Frames per second of a stepped motion** count the pauses between the steps, so they compare only with the same motion: a tab's scroll is shorter than a carousel's, and Mac Catalyst's `skui-tabview-swipe` is 46 as well.
 - **The tab view's allocations** are its list panes coming into view for the first time (cards realized by five collection views); the panes stay, by design, so its heap is 10.6 MB on the S9 (the page with one list: 7.2 MB).
 - **A Core host alone draws in software:** the first run of the two Core scenarios used a `SkUiCoreHost` as the surface root without `HwAccelerated` and showed 30 fps and 8 ms on the S9; the scenarios now set it.
+
+### 1.18 text and press paths, headless (27 November 2026)
+
+[ImplementationPlan-1.18.md](../archive/ImplementationPlan-1.18.md) phase A changed text shaping (font features skip the simple Latin path only when set) and the press path (press scale, hit slop); phase K gave the labels a `ChromeInset` hook. Headless, net11, Release, against the 1.17.0 release commit (`3333769`): `core-labels`, `skui-labels`, `mixed-script-labels`, `core-labels-update`, `skui-labels-update`, `core-buttons`, `skui-buttons` (`-n 6 -r 2`).
+
+- **44 of 46 rows within noise.** `measure` showed +8.3 % on `skui-labels` and +6.5 % on `mixed-script-labels`; with `--quiet-gc` (`-n 8 -r 3`) both are within noise (+1.0 % and −3.6 %), so it was a collection landing in that phase.
+- **Allocations** grow by a constant 70 to 80 KB per scenario (under 2 %) in scenarios that set none of the new options.
+- The pointer path has no headless scenario; press scale frame times are on the [verification backlog](Roadmap.md#verification-backlog).
 
 ## Guidance for agents and reviewers
 
