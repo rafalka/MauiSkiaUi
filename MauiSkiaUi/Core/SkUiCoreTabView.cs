@@ -38,6 +38,7 @@ public partial class SkUiCoreTabView : SkUiCoreNode, ISkUiFontElement, ISkUiKeyH
     private double _fontSize = double.NaN;
     private FontAttributes _fontAttributes;
     private bool _fontAutoScaling = true;
+    private Func<SkUiCoreTabItem, SkUiCoreNode?>? _headerFactory;
 
     /// <summary>Creates a tab view without tabs.</summary>
     public SkUiCoreTabView()
@@ -114,6 +115,13 @@ public partial class SkUiCoreTabView : SkUiCoreNode, ISkUiFontElement, ISkUiKeyH
     /// <summary>Whether the headers follow the system text size (default <c>true</c>).</summary>
     public bool FontAutoScalingEnabled { get => _fontAutoScaling; set => SetFontAutoScalingEnabled(value); }
 
+    /// <summary>
+    /// Makes a header node of the app's for every tab without its own <see cref="SkUiCoreTabItem.HeaderContent"/> (called once
+    /// per tab; <c>null</c> from it: the look's header for that tab); <c>null</c> (default): the look draws the headers. See
+    /// <see cref="SkUiTabView.HeaderTemplate"/>.
+    /// </summary>
+    public Func<SkUiCoreTabItem, SkUiCoreNode?>? HeaderFactory { get => _headerFactory; set => SetHeaderFactory(value); }
+
     /// <summary>Raised after <see cref="SelectedIndex"/> changes, from the user or code.</summary>
     public event EventHandler<SkUiSelectedIndexChangedEventArgs>? SelectionChanged;
 
@@ -168,6 +176,15 @@ public partial class SkUiCoreTabView : SkUiCoreNode, ISkUiFontElement, ISkUiKeyH
     /// <summary>Sets <see cref="StripBackgroundColor"/>.</summary>
     public SkUiCoreTabView SetStripBackgroundColor(Color? value) => SetColor(ref _stripBackgroundColor, value, nameof(StripBackgroundColor));
 
+    /// <summary>Sets <see cref="HeaderFactory"/>; the header nodes it made before are made again.</summary>
+    public SkUiCoreTabView SetHeaderFactory(Func<SkUiCoreTabItem, SkUiCoreNode?>? value)
+    {
+        if (!SetProperty(ref _headerFactory, value, nameof(HeaderFactory)))
+            return this;
+        _strip.TabsChanged();
+        return this;
+    }
+
     /// <summary>Sets <see cref="FontFamily"/>.</summary>
     public SkUiCoreTabView SetFontFamily(string? value) => SetStripLayout(ref _fontFamily, value, nameof(FontFamily));
 
@@ -219,6 +236,7 @@ public partial class SkUiCoreTabView : SkUiCoreNode, ISkUiFontElement, ISkUiKeyH
                 tab.PropertyChanged -= OnTabPropertyChanged;
                 _attached.Remove(tab);
                 _panes.Forget(tab);
+                tab.SetHeaderState(false, null);
             }
         foreach (var tab in _tabs)
             if (_attached.Add(tab))
@@ -264,6 +282,13 @@ public partial class SkUiCoreTabView : SkUiCoreNode, ISkUiFontElement, ISkUiKeyH
         if (args.PropertyName is nameof(SkUiCoreTabItem.AutomationId) or nameof(SkUiCoreTabItem.SemanticDescription))
         {
             _strip.SemanticsChanged();
+            return;
+        }
+        if (args.PropertyName is nameof(SkUiCoreTabItem.IsSelected) or nameof(SkUiCoreTabItem.CurrentTextColor))
+            return; // the tab view's own report
+        if (args.PropertyName is nameof(SkUiCoreTabItem.HeaderContent))
+        {
+            _strip.TabsChanged();
             return;
         }
         _strip.TabsChanged();
@@ -496,6 +521,8 @@ public partial class SkUiCoreTabView : SkUiCoreNode, ISkUiFontElement, ISkUiKeyH
     internal SkUiCoreNode IndicatorNode => _strip.Indicator;
 
     internal Rect HeaderBounds(int index) => _strip.Model.HeaderBounds(index);
+
+    internal SkUiCoreNode? HeaderNodeOf(int index) => _strip.HeaderNodeOf(index);
 
     internal bool IsPaneCreated(int index) => _panes.IsCreated(_tabs[index]);
 

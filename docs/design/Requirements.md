@@ -103,7 +103,7 @@ Status: **Shipped** (in the current release line), **Partly** (shipped, with ope
 | FR-34 | Markdown view, safe with untrusted documents (optional packages) | Built for 1.8 | [SkUiMarkdownView](../controls/SkUiMarkdownView.md) |
 | FR-35 | Zoom view | Built for 1.8 | [SkUiZoomView](../controls/SkUiZoomView.md) |
 | FR-36 | Scroll-linked effects on the render thread: translation, scale, opacity and clips from a scroller's offset (overscroll included) or scroll direction, on both layers | Built for 1.16 | [SkUiScrollView](../controls/SkUiScrollView.md#scroll-linked-effects) |
-| FR-37 | Segmented control and tab view, on both layers | Built for 1.17 | [SkUiSegmentedControl](../controls/SkUiSegmentedControl.md), [SkUiTabView](../controls/SkUiTabView.md) |
+| FR-37 | Segmented control and tab view, on both layers | Built for 1.17; custom tab headers for 1.18 | [SkUiSegmentedControl](../controls/SkUiSegmentedControl.md), [SkUiTabView](../controls/SkUiTabView.md) |
 | FR-38 | Progress ring with content and a stacked bar of several parts, on both layers | Built for 1.18 (`1.18-plk`) | [SkUiProgressRing](../controls/SkUiProgressRing.md), [SkUiStackedBar](../controls/SkUiStackedBar.md) |
 | FR-39 | Chips and chip groups (action, filter, input, suggestion; wrapping or one scrolling row), on both layers | Built for 1.18 (`1.18-plk`) | [SkUiChip](../controls/SkUiChip.md) |
 | FR-40 | A sheet inside the surface: bottom and side sheets on detents, a dialog presentation, a scrim, stacking, a modal pane for focus and screen readers, `ShowAsync<TResult>`, a popup presenter for the pickers; SkUi\* only (a drawn container, not a popup window) | Built for 1.18 (`1.18-sheet`) | [SkUiSheet](../controls/SkUiSheet.md) |

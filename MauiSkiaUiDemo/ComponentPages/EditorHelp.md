@@ -730,3 +730,17 @@ and swipes and arrow keys pass it; the `SelectedIndex` editor can still select i
 
 Whether the third tab (`SkUiCoreTabItem.IsEnabled`) can be selected by the user. A disabled tab's header is dimmed, ignores taps,
 and swipes and arrow keys pass it; the `SelectedIndex` editor can still select it, as code can.
+
+## TabViewDemoPage.Headers
+
+Who draws the tab headers (1.18). **Look:** the look's text, icon and badge. **Strip template:** `SkUiTabView.HeaderTemplate`
+gives every tab a view of the app's, bound to its tab item: the title in `CurrentTextColor` (the look's color for the tab's
+state) over its count (`BadgeText`). **One tab's own:** `SkUiTabItem.HeaderTemplate` on the first tab only, a dot before the
+title that grows in the `Selected` visual state; the other tabs keep the look's headers. Taps on a header view select its tab,
+and screen readers still read the tab's `Header`.
+
+## CoreTabViewDemoPage.Header nodes
+
+Whether `SkUiCoreTabView.HeaderFactory` makes a header node of the app's for every tab (1.18): the title over its count, colored
+from the tab's `CurrentTextColor` through `PropertyChanged`. Off: the look draws the headers. Turning it on again calls the
+factory again for each tab.

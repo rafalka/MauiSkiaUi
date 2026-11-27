@@ -5,7 +5,8 @@ namespace MauiSkiaUiDemo;
 
 /// <summary>
 /// <see cref="SkUiCoreTabView"/> (1.17 S8): the tab view on Core nodes, with a long list that keeps its scroll offset, a pane
-/// made by a factory the first time it shows, a disabled tab and a badge; the editors of <see cref="TabViewDemoPage"/>.
+/// made by a factory the first time it shows, a disabled tab and a badge; the editors of <see cref="TabViewDemoPage"/>, with
+/// header nodes from a factory (1.18 T) that follow the tab's selection and text color.
 /// </summary>
 public sealed class CoreTabViewDemoPage : ComponentDemoPage
 {
@@ -22,6 +23,33 @@ public sealed class CoreTabViewDemoPage : ComponentDemoPage
             value => tabs.SetIndicatorStyle(value), () => tabs.IndicatorStyle);
         Toggle(nameof(SkUiCoreTabView.IsSwipeEnabled), true, value => tabs.SetIsSwipeEnabled(value), () => tabs.IsSwipeEnabled);
         Toggle("Info tab enabled", false, value => tabs.Tabs[2].SetIsEnabled(value), () => tabs.Tabs[2].IsEnabled);
+        Toggle("Header nodes", false, value => tabs.SetHeaderFactory(value ? HeaderNode : null), () => tabs.HeaderFactory is not null);
+    }
+
+    /// <summary>A bold title over its count, in the look's text color for the tab's state, updated from the tab's changes.</summary>
+    private static SkUiCoreNode HeaderNode(SkUiCoreTabItem tab)
+    {
+        var title = new SkUiCoreLabel().SetText(tab.Header).SetFontAttributes(FontAttributes.Bold).SetHorizontalTextAlignment(TextAlignment.Center);
+        var count = new SkUiCoreLabel().SetText(tab.BadgeText is { } badge ? $"{badge} new" : "none new").SetFontSize(11)
+            .SetHorizontalTextAlignment(TextAlignment.Center);
+        void Update()
+        {
+            if (tab.CurrentTextColor is not { } color)
+                return;
+            title.SetTextColor(color);
+            count.SetTextColor(color);
+        }
+        Update();
+        tab.PropertyChanged += (_, args) =>
+        {
+            if (args.PropertyName == nameof(SkUiCoreTabItem.CurrentTextColor))
+                Update();
+        };
+        var stack = new SkUiCoreVerticalStackLayout { Spacing = 2, Padding = new Thickness(12, 6) };
+        stack.Add(title);
+        stack.Add(count);
+        stack.SetVerticalAlignment(LayoutAlignment.Center);
+        return stack;
     }
 
     internal static SkUiCoreHost CreateSample(out SkUiCoreTabView tabs)

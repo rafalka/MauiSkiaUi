@@ -38,15 +38,35 @@ internal interface ISkUiTabStripOwner
 }
 
 /// <summary>
+/// The strip node of a tab view, which hosts the app's own header views (1.18 T): a template's view or a Core node for some
+/// tabs, laid out by the strip in their headers' rectangles.
+/// </summary>
+internal interface ISkUiTabHeaderHost
+{
+    /// <summary>Whether tab <paramref name="index"/> has a header view of the app's (the look draws nothing for it then).</summary>
+    bool HasHeaderView(int index);
+
+    /// <summary>Measures tab <paramref name="index"/>'s header view.</summary>
+    Size MeasureHeaderView(int index, double widthConstraint, double heightConstraint);
+
+    /// <summary>Lays tab <paramref name="index"/>'s header view out in <paramref name="bounds"/> (logical: mirrored right to left by the layers).</summary>
+    void ArrangeHeaderView(int index, Rect bounds);
+}
+
+/// <summary>
 /// The strip of a tab view, shared by <see cref="SkUiTabView"/> and <see cref="Core.SkUiCoreTabView"/>: the headers' texts, icons
 /// and badges laid out by <see cref="SkUiSegmentedEngine"/> and drawn by the look, taps, keys and screen readers, which tab is
 /// next, and the indicator: its bounds for each tab, its drawing, and the scroll-linked channels that move it with the panes
-/// (D8). The layers own the nodes: the strip, the indicator over its background, and the labels over the indicator.
+/// (D8). The layers own the nodes: the strip, the indicator over its background, the labels over the indicator, and the app's
+/// header views (1.18 T) over the indicator too: a header of one's own fills its header's rectangle, measures by its own
+/// content (no look padding), and replaces the look's text, icon and badge for its tab; the strip, its background and the
+/// indicator stay the look's.
 /// </summary>
 /// <param name="owner">The tab view.</param>
 /// <param name="host">The strip's node (text layouts and icons).</param>
+/// <param name="headers">The strip's node again, as the host of the app's header views.</param>
 /// <param name="iconChanged">An icon was loaded: the labels are drawn again.</param>
-internal sealed class SkUiTabStripModel(ISkUiTabStripOwner owner, ISkUiTransitionHost host, Action iconChanged)
+internal sealed class SkUiTabStripModel(ISkUiTabStripOwner owner, ISkUiTransitionHost host, ISkUiTabHeaderHost headers, Action iconChanged)
 {
     private sealed class Header
     {
@@ -56,6 +76,12 @@ internal sealed class SkUiTabStripModel(ISkUiTabStripOwner owner, ISkUiTransitio
 
         public bool HasIcon => Icon?.Source is not null;
         public Size TextSize = new(-1, -1); // negative: not measured yet
+
+        /// <summary>The tab has a header view of the app's: no text, icon or badge of the look's.</summary>
+        public bool IsCustom;
+
+        /// <summary>The header view's width by its content, from the last <see cref="Prepare"/>.</summary>
+        public double CustomWidth;
     }
 
     private readonly SkUiSegmentedEngine _engine = new();
@@ -149,7 +175,9 @@ internal sealed class SkUiTabStripModel(ISkUiTabStripOwner owner, ISkUiTransitio
             header.TextSize = new Size(-1, -1);
             header.Layout?.Invalidate();
             header.BadgeLayout?.Invalidate();
-            var icon = owner.IconOf(index);
+            header.IsCustom = headers.HasHeaderView(index);
+            header.CustomWidth = 0;
+            var icon = header.IsCustom ? null : owner.IconOf(index); // a header view shows the icon itself, if it wants it
             if (icon is not null || header.Icon is not null)
                 (header.Icon ??= new SkUiIconSlot(host, iconChanged)).Show(icon);
         }
@@ -184,7 +212,7 @@ internal sealed class SkUiTabStripModel(ISkUiTabStripOwner owner, ISkUiTransitio
         }
     }
 
-    /// <summary>The strip's height: the look's, taller with icons.</summary>
+    /// <summary>The strip's height: the look's, taller with icons, and as tall as the tallest header view of the app's.</summary>
     public double DesiredHeight
     {
         get
@@ -192,16 +220,21 @@ internal sealed class SkUiTabStripModel(ISkUiTabStripOwner owner, ISkUiTransitio
             using var lookScope = EnterLook();
             var metrics = Metrics;
             var style = TextStyle;
-            var (tallest, icons) = (0d, false);
+            var (tallest, icons, views) = (0d, false, 0d);
             for (var index = 0; index < _headers.Count; index++)
             {
+                if (_headers[index].IsCustom)
+                {
+                    views = Math.Max(views, Math.Ceiling(headers.MeasureHeaderView(index, double.PositiveInfinity, double.PositiveInfinity).Height));
+                    continue;
+                }
                 tallest = Math.Max(tallest, TextSize(index, style).Height);
                 icons |= _headers[index].HasIcon;
             }
             // Larger text (a font size, the system's text size) makes the strip taller than the look's height.
             var content = !icons ? tallest
                 : metrics.IconAbove ? metrics.IconSize + (tallest > 0 ? metrics.IconSpacing + tallest : 0) : Math.Max(tallest, metrics.IconSize);
-            return Math.Max(icons ? metrics.IconHeight : metrics.Height, Math.Ceiling(content + 2 * HeaderInset));
+            return Math.Max(views, Math.Max(icons ? metrics.IconHeight : metrics.Height, Math.Ceiling(content + 2 * HeaderInset)));
         }
     }
 
@@ -217,6 +250,8 @@ internal sealed class SkUiTabStripModel(ISkUiTabStripOwner owner, ISkUiTransitio
         var header = _headers[index];
         if (header.TextSize.Width >= 0)
             return header.TextSize;
+        if (header.IsCustom)
+            return header.TextSize = Size.Zero;
         var text = owner.HeaderOf(index) ?? string.Empty;
         if (text.Length == 0)
             return header.TextSize = Size.Zero;
@@ -241,7 +276,17 @@ internal sealed class SkUiTabStripModel(ISkUiTabStripOwner owner, ISkUiTransitio
         if (_widths.Length < count)
             _widths = new double[count];
         for (var index = 0; index < count; index++)
+        {
+            var header = _headers[index];
+            if (header.IsCustom)
+            {
+                // A header view brings its own padding: it is as wide as it measures.
+                header.CustomWidth = Math.Ceiling(headers.MeasureHeaderView(index, double.PositiveInfinity, double.PositiveInfinity).Width);
+                _widths[index] = header.CustomWidth;
+                continue;
+            }
             _widths[index] = ContentWidth(index, style, metrics) + 2 * metrics.HeaderPadding;
+        }
         _engine.Mode = owner.TabWidthMode;
         _engine.Overflows = owner.TabWidthMode == SkUiSegmentWidthMode.Content;
         _engine.Mirrored = owner.IsRightToLeft;
@@ -267,6 +312,14 @@ internal sealed class SkUiTabStripModel(ISkUiTabStripOwner owner, ISkUiTransitio
             Prepare();
         _engine.Arrange(double.IsFinite(viewport) ? Math.Min(viewport, width) : width, height);
         _geometryVersion++;
+        var rtl = owner.IsRightToLeft;
+        for (var index = 0; index < _headers.Count && index < _engine.Count; index++)
+        {
+            if (!_headers[index].IsCustom)
+                continue;
+            var bounds = _engine.Segment(index); // physical; the layers mirror logical frames right to left
+            headers.ArrangeHeaderView(index, new Rect(rtl ? width - bounds.Right : bounds.Left, bounds.Top, bounds.Width, bounds.Height));
+        }
     }
 
     /// <summary>Where the strip scrolls so header <paramref name="index"/> shows, from <paramref name="scrollX"/>; <c>null</c>: nowhere.</summary>
@@ -288,8 +341,10 @@ internal sealed class SkUiTabStripModel(ISkUiTabStripOwner owner, ISkUiTransitio
     /// <summary>The indicator's rectangle for tab <paramref name="index"/> in the strip.</summary>
     private Rect IndicatorBounds(int index, in SkUiTextStyle style)
     {
+        var header = _headers[index];
         var text = TextSize(index, style).Width;
-        var label = text > 0 ? text : !_headers[index].HasIcon ? 0 : Metrics.IconSize;
+        // A header view's label is the view, as wide as it measures within its header.
+        var label = header.IsCustom ? Math.Min(header.CustomWidth, HeaderBounds(index).Width) : text > 0 ? text : !header.HasIcon ? 0 : Metrics.IconSize;
         return SkUiLook.Current.GetTabIndicatorBounds(HeaderBounds(index), label, owner.IndicatorStyle,
             owner.TabStripPlacement == SkUiTabStripPlacement.Bottom);
     }
@@ -420,6 +475,8 @@ internal sealed class SkUiTabStripModel(ISkUiTabStripOwner owner, ISkUiTransitio
         var selected = owner.SelectedIndex;
         for (var index = 0; index < _headers.Count && index < _engine.Count; index++)
         {
+            if (_headers[index].IsCustom)
+                continue; // the app's header view draws it
             var bounds = _engine.Segment(index);
             var rect = new SKRect((float)bounds.Left, (float)bounds.Top, (float)bounds.Right, (float)bounds.Bottom);
             DrawHeader(canvas, index, rect, look.GetTabHeaderTextColor(text, selectedText, index == selected ? 1 : 0, IsTabEnabled(index)), style, metrics);
@@ -518,6 +575,20 @@ internal sealed class SkUiTabStripModel(ISkUiTabStripOwner owner, ISkUiTransitio
     }
 
     private const double BadgeFontSize = 11;
+
+    /// <summary>
+    /// The color the look gives tab <paramref name="index"/>'s header text now (selected, unselected or disabled, with the tab
+    /// view's colors over the look's): what a header view of the app's binds to look like the drawn headers.
+    /// </summary>
+    public Color CurrentTextColor(int index)
+    {
+        using var lookScope = EnterLook();
+        var look = SkUiLook.Current;
+        var colors = LookColors(look);
+        var color = look.GetTabHeaderTextColor(ToSk(owner.HeaderTextColor ?? colors.Text), ToSk(owner.SelectedHeaderTextColor ?? colors.SelectedText),
+            index == owner.SelectedIndex ? 1 : 0, IsTabEnabled(index));
+        return Color.FromRgba(color.Red, color.Green, color.Blue, color.Alpha);
+    }
 
     private static SKColor ToSk(Color color) => SkUiToggleDrawing.ToSkColor(color);
 

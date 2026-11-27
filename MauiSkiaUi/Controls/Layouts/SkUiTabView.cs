@@ -79,6 +79,10 @@ public partial class SkUiTabView : SkUiView, ISkUiFontElement, ISkUiKeyHandler, 
     public static readonly BindableProperty StripBackgroundColorProperty = BindableProperty.Create(nameof(StripBackgroundColor), typeof(Color), typeof(SkUiTabView),
         null, propertyChanged: (view, _, _) => ((SkUiTabView)view).OnStripColorChanged());
 
+    /// <summary>Bindable property for <see cref="HeaderTemplate"/>.</summary>
+    public static readonly BindableProperty HeaderTemplateProperty = BindableProperty.Create(nameof(HeaderTemplate), typeof(DataTemplate), typeof(SkUiTabView), null,
+        propertyChanged: (view, _, _) => ((SkUiTabView)view).Strip.TabsChanged());
+
     /// <summary>Bindable property for <see cref="FontFamily"/>.</summary>
     public static readonly BindableProperty FontFamilyProperty = BindableProperty.Create(nameof(FontFamily), typeof(string), typeof(SkUiTabView), null,
         propertyChanged: (view, _, _) => ((SkUiTabView)view).OnStripLayoutChanged());
@@ -135,6 +139,14 @@ public partial class SkUiTabView : SkUiView, ISkUiFontElement, ISkUiKeyHandler, 
 
     /// <summary>The strip's background; <c>null</c> (default): the look's.</summary>
     public Color? StripBackgroundColor { get => (Color?)GetValue(StripBackgroundColorProperty); set => SetValue(StripBackgroundColorProperty, value); }
+
+    /// <summary>
+    /// Makes a header view of the app's for every tab without its own <see cref="SkUiTabItem.HeaderTemplate"/> (a drawn view,
+    /// made once per tab; a <see cref="DataTemplateSelector"/> chooses by the tab item); <c>null</c> (default): the look draws the
+    /// headers. A header view's binding context is its tab item; it fills its header (as wide as it measures with content
+    /// widths, the widest with equal ones), over the look's strip and indicator. See <see cref="SkUiTabItem.HeaderTemplate"/>.
+    /// </summary>
+    public DataTemplate? HeaderTemplate { get => (DataTemplate?)GetValue(HeaderTemplateProperty); set => SetValue(HeaderTemplateProperty, value); }
 
     /// <summary>The headers' font family.</summary>
     public string? FontFamily { get => (string?)GetValue(FontFamilyProperty); set => SetValue(FontFamilyProperty, value); }
@@ -201,6 +213,9 @@ public partial class SkUiTabView : SkUiView, ISkUiFontElement, ISkUiKeyHandler, 
 
     /// <summary>Sets <see cref="StripBackgroundColor"/> (same as the property setter).</summary>
     public SkUiTabView SetStripBackgroundColor(Color? value) { StripBackgroundColor = value; return this; }
+
+    /// <summary>Sets <see cref="HeaderTemplate"/> (same as the property setter).</summary>
+    public SkUiTabView SetHeaderTemplate(DataTemplate? value) { HeaderTemplate = value; return this; }
 
     /// <summary>Sets <see cref="FontFamily"/> (same as the property setter).</summary>
     public SkUiTabView SetFontFamily(string? value) { FontFamily = value; return this; }
@@ -311,6 +326,9 @@ public partial class SkUiTabView : SkUiView, ISkUiFontElement, ISkUiKeyHandler, 
     /// <summary>The indicator (tests).</summary>
     internal SkUiView IndicatorView => Strip.Indicator;
 
+    /// <summary>Tab <paramref name="index"/>'s header view of the app's, or <c>null</c> (tests).</summary>
+    internal ISkUiView? HeaderViewOf(int index) => Strip.HeaderViewOf(index);
+
     #endregion
 
     #region Tabs
@@ -331,6 +349,8 @@ public partial class SkUiTabView : SkUiView, ISkUiFontElement, ISkUiKeyHandler, 
                 tab.PropertyChanged -= OnTabPropertyChanged;
                 tab.BindingContextChanged -= OnTabBindingContextChanged;
                 _attached.Remove(tab);
+                if (tab.Parent is null || ReferenceEquals(tab.Parent, this))
+                    tab.SetHeaderState(false, null); // not one another tab view took already
                 if (ReferenceEquals(tab.Parent, this))
                     tab.Parent = null;
                 // Not one that is in another tab view already: its icon is there.
@@ -386,6 +406,9 @@ public partial class SkUiTabView : SkUiView, ISkUiFontElement, ISkUiKeyHandler, 
             case nameof(AutomationId) or SkUiSemantics.DescriptionProperty:
                 Strip.SemanticsChanged();
                 break;
+            case nameof(SkUiTabItem.HeaderTemplate):
+                Strip.TabsChanged();
+                break;
             case nameof(SkUiTabItem.Header) or nameof(SkUiTabItem.Icon) or nameof(SkUiTabItem.BadgeText):
                 Strip.TabsChanged();
                 PaneScrollView.SemanticsChanged();
@@ -423,6 +446,13 @@ public partial class SkUiTabView : SkUiView, ISkUiFontElement, ISkUiKeyHandler, 
         {
             Apply(selected, scroll: found < 0, animate: false);
         }
+    }
+
+    /// <summary>The template that makes <paramref name="tab"/>'s header view (a selector's choice), or <c>null</c>: the look's header.</summary>
+    internal DataTemplate? HeaderTemplateOf(SkUiTabItem tab)
+    {
+        var template = tab.HeaderTemplate ?? HeaderTemplate;
+        return template is DataTemplateSelector selector ? selector.SelectTemplate(tab, this) : template;
     }
 
     /// <summary>Stops the panes where they are; the selection is not taken from there.</summary>
