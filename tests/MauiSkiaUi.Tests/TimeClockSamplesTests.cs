@@ -111,7 +111,10 @@ public sealed class TimeClockSamplesTests : IDisposable
         var shown = Assert.IsAssignableFrom<IEnumerable<ShiftsAndLeaveSample.ShiftWeek>>(list.ItemsSource).SelectMany(week => week).ToList();
         Assert.NotEmpty(shown);
         Assert.All(shown, shift => Assert.Equal("Night", shift.Kind));
-        Assert.Contains(Descendants(root).OfType<SkUiLabel>(), label => label.Text == $"{shown.Count} shifts · {shown.Count * 8} h (filtered)");
+        // The summary sums the shifts' own lengths (not all shifts are 8 h).
+        var hours = (int)shown.Aggregate(TimeSpan.Zero, (sum, shift) => sum + shift.Length).TotalHours;
+        var summary = $"{shown.Count} {(shown.Count == 1 ? "shift" : "shifts")} · {hours} h (filtered)";
+        Assert.Contains(Descendants(root).OfType<SkUiLabel>(), label => label.Text == summary);
 
         // Weekend narrows the kinds: weekend nights only (which days those are depends on today).
         filters.Chips.Single(chip => chip.Text == "Weekend").IsSelected = true;
