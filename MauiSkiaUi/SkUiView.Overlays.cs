@@ -51,6 +51,7 @@ public partial class SkUiView
         IView view = overlay;
         view.Measure(size.Width, size.Height);
         view.Arrange(new Rect(0, 0, size.Width, size.Height));
+        overlay.ReplaceHoisted();
     }
 
     /// <summary>
@@ -183,6 +184,31 @@ internal sealed class SkUiSurfaceOverlay : SkUiView
     {
         foreach (var view in _shown)
             children.Add(view);
+    }
+
+    /// <summary>
+    /// The surface was laid out: the sheets drawn here take their place again, where their layouts are now (a layout around one moved).
+    /// </summary>
+    internal void ReplaceHoisted()
+    {
+        if (_shown.Count == _views.Count)
+            return;
+        foreach (var view in _shown)
+            if (!ReferenceEquals(view.SkiaParent, this))
+                view.InvalidateRender(SkUiRenderDirty.Props);
+    }
+
+    /// <inheritdoc />
+    /// <remarks>
+    /// Pinned to the root's own space at its origin: over the whole surface root, outside its children clip and its scrolling (a root
+    /// that is a scroller draws its sheets where it shows, not where its content scrolled to).
+    /// </remarks>
+    internal override void OnGetRenderProps(ref Rendering.SkUiRenderProps props)
+    {
+        base.OnGetRenderProps(ref props);
+        props.Pinned = true;
+        props.X = 0;
+        props.Y = 0;
     }
 
     /// <inheritdoc />

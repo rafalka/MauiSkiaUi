@@ -342,10 +342,15 @@ public partial class SkUiSheet : SkUiView, ISkUiKeyHandler
         {
             ScrimView.IsVisible = IsModal;
             TrackView.IsVisible = true;
+            IsShownChanged += OnShownChanged;
         }
-        // Over every sheet opened before it, wherever it is placed.
+        // Over every sheet opened before it, wherever it is placed, also as the modal pane (opened again while closing: back on top).
         if (!Hoist() && SurfaceOverlayShowing is { } overlay)
             overlay.BringToFront(this);
+        if (_modalRoot is { } modalRoot)
+            modalRoot.AddModalPane(this);
+        else if (_laidOut)
+            EnsureModal();
         _openPending = true;
         if (_laidOut && wasClosed)
             InvalidateMeasureOverride(); // the parts were hidden: laid out before they move
@@ -420,6 +425,7 @@ public partial class SkUiSheet : SkUiView, ISkUiKeyHandler
             else
             {
                 _moving = true;
+                _motionTarget = position;
                 _ = controller.ScrollToAsync(Horizontal ? offset : 0, Horizontal ? 0 : offset, transition);
                 if (!controller.IsMotionRunning)
                     _moving = false;
@@ -452,8 +458,10 @@ public partial class SkUiSheet : SkUiView, ISkUiKeyHandler
         }
         _moving = true;
         var length = (uint)Math.Max(1, transition.Duration.TotalMilliseconds);
-        var startFrom = show && _state == SheetState.Opening && from >= 1 && Math.Abs(fromY) < SkUiSheetEngine.Tolerance ? 0 : from;
-        var startY = show && startFrom == 0 ? DialogSlide : fromY;
+        // From closed: opening from its place shown at once before the fade (from 1, in place), or from transparent.
+        var fromClosed = show && (_state == SheetState.Opening && from >= 1 && Math.Abs(fromY) < SkUiSheetEngine.Tolerance || from < OpacityTolerance);
+        var startFrom = fromClosed ? 0 : from;
+        var startY = fromClosed ? DialogSlide : fromY;
         var version = ++_dialogVersion;
         _ = panel.AnimateFromAsync(SkUiAnimatableProperty.Opacity, startFrom, length, transition.Easing, completed =>
         {
@@ -464,13 +472,16 @@ public partial class SkUiSheet : SkUiView, ISkUiKeyHandler
         });
         _ = panel.AnimateFromAsync(SkUiAnimatableProperty.TranslationY, startY, length, transition.Easing);
         if (IsModal)
-            _ = scrim.AnimateFromAsync(SkUiAnimatableProperty.Opacity, show && startFrom == 0 ? 0 : scrimFrom, length, transition.Easing);
+            _ = scrim.AnimateFromAsync(SkUiAnimatableProperty.Opacity, fromClosed ? 0 : scrimFrom, length, transition.Easing);
     }
 
     private int _dialogVersion;
 
     /// <summary>How far below its place a dialog starts fading in, in DIPs.</summary>
     private const double DialogSlide = 24;
+
+    /// <summary>An opacity this close to 0 counts as transparent.</summary>
+    private const double OpacityTolerance = 0.001;
 
     /// <summary>The sheet came to rest (a motion ended, a drag was released and settled, or it was placed at once).</summary>
     private void OnRest()
@@ -529,6 +540,7 @@ public partial class SkUiSheet : SkUiView, ISkUiKeyHandler
         _moving = false;
         ScrimView.IsVisible = false;
         TrackView.IsVisible = false;
+        IsShownChanged -= OnShownChanged;
         Unhoist();
         var result = _result;
         var dismissed = !_hasResult;
@@ -550,12 +562,30 @@ public partial class SkUiSheet : SkUiView, ISkUiKeyHandler
         closed?.TrySetResult();
     }
 
-    /// <summary>The track stopped moving: unless a motion of the sheet's own runs, the sheet came to rest where the user left it.</summary>
+    /// <summary>Where the sheet's own running motion takes it (<see cref="_moving"/>), in DIPs shown.</summary>
+    private double _motionTarget;
+
+    /// <summary>
+    /// The track stopped moving: where the user left it, the sheet comes to rest; its own motion ended, or was stopped by something
+    /// other than the user (the sheet or a layout around it disabled, its edge changed), and it goes where that motion was going.
+    /// </summary>
     private void OnTrackMovingChanged(bool moving)
     {
-        // A press catching the motion stops it before its drag starts: not a rest.
-        if (moving || _requesting || TrackView.Controller.Dragging || TrackView.Controller.IsCatching)
+        if (moving || _requesting)
             return;
+        var controller = TrackView.Controller;
+        if (controller.Dragging || controller.IsCatching)
+        {
+            // A press caught the motion (it stops before the drag starts): the sheet rests where the user leaves it, not at the target.
+            _moving = false;
+            return;
+        }
+        if (_moving && Math.Abs(Position - _motionTarget) >= SkUiSheetEngine.Tolerance)
+        {
+            _moving = false;
+            MoveTo(_motionTarget, SkUiTransition.None); // at once, then rests there (closed, opened, at its detent)
+            return;
+        }
         _moving = false;
         OnRest();
     }
@@ -791,7 +821,7 @@ public partial class SkUiSheet : SkUiView, ISkUiKeyHandler
             StartPendingOpen();
             return;
         }
-        if (controller.IsMotionRunning || controller.Dragging || _moving)
+        if (controller.IsMotionRunning || controller.Dragging || controller.IsCatching || _moving)
             return;
         switch (_state)
         {
@@ -856,12 +886,44 @@ public partial class SkUiSheet : SkUiView, ISkUiKeyHandler
     private bool Hoist()
     {
         if (_hoistedOn is not null || _state == SheetState.Closed || Parent is SkUiSurfaceOverlay || SkiaParent is null
-            || SkUiDiagnostics.GetSurfaceRoot(this) is not { } root || ReferenceEquals(root, this))
+            || SkUiDiagnostics.GetSurfaceRoot(this) is not { } root || ReferenceEquals(root, this) || HiddenByAncestor)
             return false;
         var overlay = root.SurfaceOverlay;
         _hoistedOn = overlay; // first: what it marks from now on reaches the layer
         overlay.Hoist(this); // its look stays its layout's: drawn nodes resolve looks through logical parents
         return true;
+    }
+
+    /// <summary>A layout around the sheet is hidden (<see cref="VisualElement.IsVisible"/>): it shows nothing and traps nothing.</summary>
+    private bool HiddenByAncestor
+    {
+        get
+        {
+            for (var node = SkiaParent; node is not null; node = node.SkiaParent)
+                if (!node.IsVisible)
+                    return true;
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// An open sheet's <see cref="SkUiView.IsShown"/> changed: hidden (a layout around it hidden, its surface released), it is no longer
+    /// drawn over the surface nor its modal pane, and stays open; shown again, it is both again.
+    /// </summary>
+    private void OnShownChanged(object? sender, EventArgs e)
+    {
+        if (_state == SheetState.Closed)
+            return;
+        if (IsShown)
+        {
+            Hoist();
+            EnsureModal();
+        }
+        else
+        {
+            Unhoist();
+            LeaveModal();
+        }
     }
 
     /// <summary>Draws the sheet in its layout again.</summary>
@@ -897,7 +959,8 @@ public partial class SkUiSheet : SkUiView, ISkUiKeyHandler
     /// </summary>
     private void EnsureModal()
     {
-        if (!IsModal || _state == SheetState.Closed || SkUiDiagnostics.GetSurfaceRoot(this) is not { } root || ReferenceEquals(root, _modalRoot))
+        if (!IsModal || _state == SheetState.Closed || SkUiDiagnostics.GetSurfaceRoot(this) is not { } root || ReferenceEquals(root, _modalRoot)
+            || HiddenByAncestor)
             return;
         if (ReferenceEquals(root, this))
             return; // not placed yet

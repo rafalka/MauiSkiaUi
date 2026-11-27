@@ -581,4 +581,46 @@ public class SheetTests
         Assert.Equal(200, sheet.Position, 1);
 
     }
+
+    [Fact]
+    public async Task DisabledWhileClosingItStillCloses()
+    {
+        // A layout around the sheet disabled mid-motion (a page busy while it saves) stops the track's scrolling: not a rest where a
+        // drag left it.
+        var root = Page(out var sheet, out _);
+        using var surface = new SkUiTestSurface(root, Width, Height);
+        var time = 0d;
+        surface.Frame(time);
+        sheet.IsOpen = true;
+        Settle(surface, ref time);
+        var closed = new List<SkUiSheetClosedEventArgs>();
+        sheet.Closed += (_, args) => closed.Add(args);
+        var closing = sheet.CloseAsync();
+        surface.Frame(time += 16);
+        surface.Frame(time += 60);
+        root.IsEnabled = false;
+        Settle(surface, ref time);
+        await closing.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.False(sheet.IsOpen);
+        Assert.Equal(0, sheet.Position, 1);
+        Assert.True(Assert.Single(closed).IsDismissed);
+    }
+
+    [Fact]
+    public async Task DisabledWhileOpeningItStillOpens()
+    {
+        var root = Page(out var sheet, out _);
+        using var surface = new SkUiTestSurface(root, Width, Height);
+        var time = 0d;
+        surface.Frame(time);
+        var closed = 0;
+        sheet.Closed += (_, _) => closed++;
+        var opening = sheet.OpenAsync();
+        root.IsEnabled = false; // the page behind a sheet disabled as it opens
+        Settle(surface, ref time);
+        await opening.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.True(sheet.IsOpen);
+        Assert.Equal(0, closed);
+        Assert.Equal(400, sheet.Position, 1);
+    }
 }

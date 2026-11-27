@@ -264,4 +264,123 @@ public class SheetStackTests
         Settle(surface, ref time);
         Assert.Equal([second, first], root.SurfaceOverlay.Shown);
     }
+
+    [Fact]
+    public void ARootThatScrollsShowsItsSheetsWhereItShows()
+    {
+        // The overlay layer is pinned to the root: a scrolled root draws and hits its sheets in its viewport, not where its content
+        // scrolled to.
+        var anchor = new SkUiButton { Text = "Open" };
+        var placed = new SkUiSheet { Content = new SkUiBox { HeightRequest = 100, Color = Colors.Blue }, Detents = [SkUiSheetDetent.FitContent] };
+        var content = new SkUiGrid { HeightRequest = 3000, Children = { anchor, placed } };
+        var root = new SkUiScrollView { BackgroundColor = Colors.White, Content = content };
+        using var surface = new SkUiTestSurface(root, Width, Height);
+        var time = 0d;
+        surface.Frame(time);
+        _ = root.ScrollToAsync(0, 800, animated: false);
+        Settle(surface, ref time);
+
+        SkUiSheet? shown = null;
+        var red = new SkUiButton { Text = "Red", HeightRequest = 100, BackgroundColor = Colors.Red };
+        var taps = 0;
+        red.Clicked += (_, _) => taps++;
+        _ = SkUiSheet.ShowAsync<string>(anchor, red, sheet =>
+        {
+            shown = sheet;
+            sheet.Detents = [SkUiSheetDetent.FitContent];
+        });
+        Settle(surface, ref time);
+        Assert.True(shown!.IsOpen);
+        var bounds = SkUiDiagnostics.GetRootBounds(red)!.Value;
+        Assert.InRange(bounds.Bottom, Height - 120, Height); // at the bottom of the viewport
+        Assert.True(IsRed(surface.Bitmap.GetPixel((int)bounds.Center.X, (int)bounds.Center.Y)));
+        Tap(root, bounds.Center);
+        Assert.Equal(1, taps);
+        shown.Dismiss();
+        Settle(surface, ref time);
+
+        // A sheet placed in the scrolled content covers its layout where it is now.
+        placed.IsOpen = true;
+        Settle(surface, ref time);
+        Assert.Equal(SkUiDiagnostics.GetRootBounds(content)!.Value, SkUiDiagnostics.GetRootBounds(placed)!.Value);
+        Assert.Equal(-800, SkUiDiagnostics.GetRootBounds(placed)!.Value.Y, 1);
+    }
+
+    [Fact]
+    public void AHoistedSheetFollowsItsLayoutWhenTheSurfaceIsLaidOutAgain()
+    {
+        var banner = new SkUiBox { HeightRequest = 200, Color = Colors.Gray };
+        var sheet = new SkUiSheet { Content = new SkUiBox { Color = Colors.Red }, Detents = [SkUiSheetDetent.Fraction(1)] };
+        // The area keeps its size: only its place changes, which the sheet's own arrange does not see.
+        var area = new SkUiGrid { HeightRequest = 500, Children = { new SkUiButton { Text = "Page" }, sheet } };
+        var root = new SkUiVerticalStackLayout { Children = { banner, area } };
+        using var surface = new SkUiTestSurface(root, Width, Height);
+        var time = 0d;
+        surface.Frame(time);
+        sheet.IsOpen = true;
+        Settle(surface, ref time);
+        Assert.Equal(200, SkUiDiagnostics.GetRootBounds(sheet)!.Value.Y, 1);
+
+        banner.HeightRequest = 50; // the layout around the sheet moves up
+        Settle(surface, ref time);
+        Assert.Equal(50, SkUiDiagnostics.GetRootBounds(sheet)!.Value.Y, 1);
+        Assert.True(IsRed(surface.Bitmap.GetPixel(Width / 2, 150))); // drawn there: where the banner was
+    }
+
+    [Fact]
+    public void AnOpenSheetInAHiddenLayoutLetsGoOfTheSurfaceUntilShownAgain()
+    {
+        var page = new SkUiButton { Text = "Page" };
+        var sheet = new SkUiSheet { Content = new SkUiButton { Text = "Inside" } };
+        var area = new SkUiGrid { Children = { sheet } };
+        var root = new SkUiGrid { Children = { page, area } };
+        using var surface = new SkUiTestSurface(root, Width, Height);
+        var time = 0d;
+        surface.Frame(time);
+        sheet.IsOpen = true;
+        Settle(surface, ref time);
+        Assert.Same(sheet, root.ModalPane);
+        Assert.Equal([sheet], root.SurfaceOverlay.Shown);
+
+        area.IsVisible = false; // a tab page switched away, a container the app hides
+        Settle(surface, ref time);
+        Assert.True(sheet.IsOpen);
+        Assert.Null(root.ModalPane);
+        Assert.False(root.SurfaceOverlay.HasViews);
+        Assert.Contains("Page", SkUiSemanticsTree.Build(root).Flatten().Select(node => node.Label));
+        Assert.DoesNotContain("Inside", SkUiSemanticsTree.Build(root).Flatten().Select(node => node.Label));
+
+        area.IsVisible = true;
+        Settle(surface, ref time);
+        Assert.Same(sheet, root.ModalPane);
+        Assert.Equal([sheet], root.SurfaceOverlay.Shown);
+    }
+
+    [Fact]
+    public void ReopenedWhileClosingItsModalPaneGoesBackOnTopToo()
+    {
+        var anchor = new SkUiButton { Text = "Ask" };
+        var placed = new SkUiSheet { Content = anchor, Detents = [SkUiSheetDetent.FitContent] };
+        var root = new SkUiGrid { Children = { new SkUiButton { Text = "Page" }, placed } };
+        using var surface = new SkUiTestSurface(root, Width, Height);
+        var time = 0d;
+        surface.Frame(time);
+        placed.IsOpen = true;
+        Settle(surface, ref time);
+        SkUiSheet? dialog = null;
+        _ = SkUiSheet.ShowAsync<bool>(anchor, new SkUiButton { Text = "Sure?" }, sheet =>
+        {
+            dialog = sheet;
+            sheet.Presentation = SkUiSheetPresentation.Dialog;
+        });
+        Settle(surface, ref time);
+        Assert.Same(dialog, root.ModalPane);
+
+        placed.IsOpen = false;
+        surface.Frame(time += 16);
+        placed.IsOpen = true; // back before it closed: drawn on top, and the modal pane
+        Settle(surface, ref time);
+        Assert.Equal([dialog!, placed], root.SurfaceOverlay.Shown);
+        Assert.Same(placed, root.ModalPane);
+    }
 }
