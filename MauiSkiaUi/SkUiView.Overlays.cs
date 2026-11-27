@@ -66,7 +66,7 @@ public partial class SkUiView
         var state = _surfaceRoot ??= new SurfaceRootState();
         var panes = state.ModalPanes ??= [];
         panes.Remove(pane);
-        panes.Add(pane);
+        panes.Insert(SkUiSurfaceOverlay.IndexByOpenOrder(panes, pane), pane);
         OnModalPanesChanged();
     }
 
@@ -138,7 +138,7 @@ internal sealed class SkUiSurfaceOverlay : SkUiView
     public void Hoist(SkUiView sheet)
     {
         var parent = sheet.SkiaParent;
-        _shown.Add(sheet);
+        _shown.Insert(IndexByOpenOrder(_shown, sheet), sheet); // last, unless it was hidden and is shown again under later sheets
         HoistedCount++;
         Rendering.SkUiRenderInvalidation.ResetSubtree(sheet);
         parent?.InvalidateRender(SkUiRenderDirty.Children);
@@ -156,6 +156,21 @@ internal sealed class SkUiSurfaceOverlay : SkUiView
         sheet.SkiaParent?.InvalidateRender(SkUiRenderDirty.Children);
         AfterShownRemoved();
     }
+
+    /// <summary>
+    /// Where <paramref name="item"/> goes in <paramref name="list"/>, kept in the order sheets opened (<see cref="SkUiSheet.OpenedAt"/>):
+    /// above every sheet opened before it; what is not a sheet counts as opened last.
+    /// </summary>
+    internal static int IndexByOpenOrder<T>(List<T> list, T item) where T : class
+    {
+        var order = OpenOrderOf(item);
+        var index = list.Count;
+        while (index > 0 && OpenOrderOf(list[index - 1]) > order)
+            index--;
+        return index;
+    }
+
+    private static long OpenOrderOf(object item) => item is SkUiSheet sheet ? sheet.OpenedAt : long.MaxValue;
 
     /// <summary>Moves <paramref name="view"/>, shown here, on top of every other (a sheet opened again while it was closing).</summary>
     public void BringToFront(SkUiView view)

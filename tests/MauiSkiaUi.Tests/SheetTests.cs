@@ -616,7 +616,10 @@ public class SheetTests
         var closed = 0;
         sheet.Closed += (_, _) => closed++;
         var opening = sheet.OpenAsync();
-        root.IsEnabled = false; // the page behind a sheet disabled as it opens
+        surface.Frame(time += 16);
+        surface.Frame(time += 60);
+        Assert.InRange(sheet.Position, 1, 399); // on its way
+        root.IsEnabled = false; // the page behind the sheet disabled while it opens
         Settle(surface, ref time);
         await opening.WaitAsync(TimeSpan.FromSeconds(5));
         Assert.True(sheet.IsOpen);

@@ -383,4 +383,56 @@ public class SheetStackTests
         Assert.Equal([dialog!, placed], root.SurfaceOverlay.Shown);
         Assert.Same(placed, root.ModalPane);
     }
+
+    [Fact]
+    public void AHiddenSheetThatOpensIsNotTheModalPane()
+    {
+        var sheet = new SkUiSheet { Content = new SkUiButton { Text = "Inside" } };
+        var root = new SkUiGrid { Children = { new SkUiButton { Text = "Page" }, sheet } };
+        using var surface = new SkUiTestSurface(root, Width, Height);
+        var time = 0d;
+        surface.Frame(time);
+        sheet.IsOpen = true; // laid out once
+        Settle(surface, ref time);
+        sheet.IsOpen = false;
+        Settle(surface, ref time);
+
+        sheet.IsVisible = false;
+        sheet.IsOpen = true;
+        Settle(surface, ref time);
+        Assert.Null(root.ModalPane);
+        Assert.False(root.SurfaceOverlay.HasViews);
+        Assert.Contains("Page", SkUiSemanticsTree.Build(root).Flatten().Select(node => node.Label));
+
+        sheet.IsVisible = true;
+        Settle(surface, ref time);
+        Assert.Same(sheet, root.ModalPane);
+        Assert.Equal([sheet], root.SurfaceOverlay.Shown);
+    }
+
+    [Fact]
+    public void ShownAgainASheetGoesBackUnderTheSheetsOpenedAfterIt()
+    {
+        var open = new SkUiButton { Text = "More" };
+        var lower = new SkUiSheet { Content = open, Detents = [SkUiSheetDetent.Fraction(1)] };
+        var area = new SkUiGrid { Children = { lower } };
+        var upper = new SkUiSheet { Content = new SkUiButton { Text = "Upper" }, Detents = [SkUiSheetDetent.FitContent] };
+        var root = new SkUiGrid { Children = { new SkUiButton { Text = "Page" }, area, upper } };
+        using var surface = new SkUiTestSurface(root, Width, Height);
+        var time = 0d;
+        surface.Frame(time);
+        lower.IsOpen = true;
+        Settle(surface, ref time);
+        upper.IsOpen = true; // opened from the lower one
+        Settle(surface, ref time);
+        Assert.Equal([lower, upper], root.SurfaceOverlay.Shown);
+
+        area.IsVisible = false;
+        Settle(surface, ref time);
+        Assert.Equal([upper], root.SurfaceOverlay.Shown);
+        area.IsVisible = true;
+        Settle(surface, ref time);
+        Assert.Equal([lower, upper], root.SurfaceOverlay.Shown); // under the one opened after it
+        Assert.Same(upper, root.ModalPane);
+    }
 }

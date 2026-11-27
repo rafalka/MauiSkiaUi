@@ -335,6 +335,7 @@ public partial class SkUiSheet : SkUiView, ISkUiKeyHandler
             return;
         var wasClosed = _state == SheetState.Closed;
         _state = SheetState.Opening;
+        OpenedAt = ++_openCount;
         _result = null;
         _hasResult = false;
         CompleteClosed(); // opened again while closing: a CloseAsync waiting for it is done
@@ -872,6 +873,15 @@ public partial class SkUiSheet : SkUiView, ISkUiKeyHandler
 
     private SkUiSurfaceOverlay? _hoistedOn;
 
+    /// <summary>Sheets opened on this thread so far: the next one's <see cref="OpenedAt"/>.</summary>
+    [ThreadStatic] private static long _openCount;
+
+    /// <summary>
+    /// When the sheet last opened (a count, higher is later): where it goes back among the overlay layer's sheets and the modal panes when
+    /// it is shown again after being hidden, under the sheets opened after it.
+    /// </summary>
+    internal long OpenedAt { get; private set; }
+
     /// <inheritdoc />
     private protected override SkUiView? RenderHost => _hoistedOn;
 
@@ -886,7 +896,7 @@ public partial class SkUiSheet : SkUiView, ISkUiKeyHandler
     private bool Hoist()
     {
         if (_hoistedOn is not null || _state == SheetState.Closed || Parent is SkUiSurfaceOverlay || SkiaParent is null
-            || SkUiDiagnostics.GetSurfaceRoot(this) is not { } root || ReferenceEquals(root, this) || HiddenByAncestor)
+            || SkUiDiagnostics.GetSurfaceRoot(this) is not { } root || ReferenceEquals(root, this) || IsHidden)
             return false;
         var overlay = root.SurfaceOverlay;
         _hoistedOn = overlay; // first: what it marks from now on reaches the layer
@@ -894,12 +904,12 @@ public partial class SkUiSheet : SkUiView, ISkUiKeyHandler
         return true;
     }
 
-    /// <summary>A layout around the sheet is hidden (<see cref="VisualElement.IsVisible"/>): it shows nothing and traps nothing.</summary>
-    private bool HiddenByAncestor
+    /// <summary>The sheet or a layout around it is hidden (<see cref="VisualElement.IsVisible"/>): it shows nothing and traps nothing.</summary>
+    private bool IsHidden
     {
         get
         {
-            for (var node = SkiaParent; node is not null; node = node.SkiaParent)
+            for (SkUiView? node = this; node is not null; node = node.SkiaParent)
                 if (!node.IsVisible)
                     return true;
             return false;
@@ -960,7 +970,7 @@ public partial class SkUiSheet : SkUiView, ISkUiKeyHandler
     private void EnsureModal()
     {
         if (!IsModal || _state == SheetState.Closed || SkUiDiagnostics.GetSurfaceRoot(this) is not { } root || ReferenceEquals(root, _modalRoot)
-            || HiddenByAncestor)
+            || IsHidden)
             return;
         if (ReferenceEquals(root, this))
             return; // not placed yet
