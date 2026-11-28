@@ -74,17 +74,6 @@ public class EnumValidationTests
         ["SkUiShimmer.Skeleton"] = "attached: SkUiShimmer.SetSkeleton(view, value)",
         ["SkUiAvatarView.FontAttributes"] = "set with SetFont(family, size, attributes), as on Core",
         ["SkUiAvatarView.BadgePosition"] = "set with SetBadge(color, position, borderColor), as on Core",
-        ["SkUiMauiContentView.ScrollMode"] = "no fluent setter yet",
-        ["SkUiRefreshView.RefreshStyle"] = "no fluent setter yet",
-        ["SkUiRefreshView.RefreshCompletion"] = "no fluent setter yet",
-        ["SkUiCollectionView.Orientation"] = "no fluent setter yet",
-        ["SkUiCollectionView.VerticalScrollBarVisibility"] = "no fluent setter yet",
-        ["SkUiCollectionView.HorizontalScrollBarVisibility"] = "no fluent setter yet",
-        ["SkUiCollectionView.Overscroll"] = "no fluent setter yet",
-        ["SkUiCollectionView.RefreshStyle"] = "no fluent setter yet",
-        ["SkUiCollectionView.RefreshCompletion"] = "no fluent setter yet",
-        ["SkUiCollectionView.LoadMoreMode"] = "no fluent setter yet",
-        ["SkUiCollectionView.LoadMorePosition"] = "no fluent setter yet",
     };
 
     [Fact]
