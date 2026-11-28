@@ -60,12 +60,14 @@ public class SkUiAvatarView : SkUiBorder, ISkUiFontElement
         propertyChanged: (view, _, value) => ((SkUiAvatarView)view).OnTextColorChanged((Color?)value));
     /// <summary>Bindable <see cref="TextTransform"/>.</summary>
     public static readonly BindableProperty TextTransformProperty = BindableProperty.Create(nameof(TextTransform), typeof(TextTransform), typeof(SkUiAvatarView), TextTransform.Default,
+        validateValue: SkUiValidate.Defined<TextTransform>,
         propertyChanged: (view, _, value) => ((SkUiAvatarView)view).OnTextTransformChanged((TextTransform)value));
     /// <summary>Bindable <see cref="FontFamily"/>.</summary>
     public static readonly BindableProperty FontFamilyProperty = BindableProperty.Create(nameof(FontFamily), typeof(string), typeof(SkUiAvatarView), null,
         propertyChanged: (view, _, _) => ((SkUiAvatarView)view).OnFontChanged());
     /// <summary>Bindable <see cref="FontAttributes"/>.</summary>
     public static readonly BindableProperty FontAttributesProperty = BindableProperty.Create(nameof(FontAttributes), typeof(FontAttributes), typeof(SkUiAvatarView), FontAttributes.None,
+        validateValue: SkUiValidate.Flags<FontAttributes>,
         propertyChanged: (view, _, _) => ((SkUiAvatarView)view).OnFontChanged());
     /// <summary>Bindable <see cref="FontSize"/>.</summary>
     public static readonly BindableProperty FontSizeProperty = BindableProperty.Create(nameof(FontSize), typeof(double), typeof(SkUiAvatarView), -1d,
@@ -88,18 +90,22 @@ public class SkUiAvatarView : SkUiBorder, ISkUiFontElement
         propertyChanged: (view, _, value) => ((SkUiAvatarView)view).OnBorderWidthChanged((double)value));
     /// <summary>Bindable <see cref="Initials"/>.</summary>
     public static readonly BindableProperty InitialsProperty = BindableProperty.Create(nameof(Initials), typeof(SkUiAvatarInitials), typeof(SkUiAvatarView), SkUiAvatarInitials.None,
+        validateValue: SkUiValidate.Defined<SkUiAvatarInitials>,
         propertyChanged: (view, _, value) => ((SkUiAvatarView)view).OnInitialsChanged((SkUiAvatarInitials)value));
     /// <summary>Bindable <see cref="AvatarColorMode"/>.</summary>
     public static readonly BindableProperty AvatarColorModeProperty = BindableProperty.Create(nameof(AvatarColorMode), typeof(SkUiAvatarColorMode), typeof(SkUiAvatarView), SkUiAvatarColorMode.Default,
+        validateValue: SkUiValidate.Defined<SkUiAvatarColorMode>,
         propertyChanged: (view, _, value) => ((SkUiAvatarView)view).OnAvatarColorModeChanged((SkUiAvatarColorMode)value));
     /// <summary>Bindable <see cref="Aspect"/>.</summary>
     public static readonly BindableProperty AspectProperty = BindableProperty.Create(nameof(Aspect), typeof(Aspect), typeof(SkUiAvatarView), Aspect.AspectFill,
+        validateValue: SkUiValidate.Defined<Aspect>,
         propertyChanged: (view, _, value) => ((SkUiAvatarView)view).OnAspectChanged((Aspect)value));
     /// <summary>Bindable <see cref="BadgeColor"/>.</summary>
     public static readonly BindableProperty BadgeColorProperty = BindableProperty.Create(nameof(BadgeColor), typeof(Color), typeof(SkUiAvatarView), null,
         propertyChanged: (view, _, value) => ((SkUiAvatarView)view).OnBadgeColorChanged((Color?)value));
     /// <summary>Bindable <see cref="BadgePosition"/>.</summary>
     public static readonly BindableProperty BadgePositionProperty = BindableProperty.Create(nameof(BadgePosition), typeof(SkUiAvatarBadgePosition), typeof(SkUiAvatarView), SkUiAvatarBadgePosition.BottomRight,
+        validateValue: SkUiValidate.Defined<SkUiAvatarBadgePosition>,
         propertyChanged: (view, _, value) => ((SkUiAvatarView)view).OnBadgePositionChanged((SkUiAvatarBadgePosition)value));
     /// <summary>Bindable <see cref="BadgeBorderColor"/>.</summary>
     public static readonly BindableProperty BadgeBorderColorProperty = BindableProperty.Create(nameof(BadgeBorderColor), typeof(Color), typeof(SkUiAvatarView), null,
@@ -202,12 +208,13 @@ public class SkUiAvatarView : SkUiBorder, ISkUiFontElement
     /// <summary>Sets <see cref="TextColor"/> (same as the property setter).</summary>
     public SkUiAvatarView SetTextColor(Color? value) { TextColor = value; return this; }
     /// <summary>Sets <see cref="TextTransform"/> (same as the property setter).</summary>
-    public SkUiAvatarView SetTextTransform(TextTransform value) { TextTransform = value; return this; }
+    public SkUiAvatarView SetTextTransform(TextTransform value) { SkUiValidate.ThrowIfNotDefined(value, nameof(value)); TextTransform = value; return this; }
     /// <summary>Sets the font family, size and attributes (same as the property setters; a negative size sizes the text to the avatar).</summary>
     public SkUiAvatarView SetFont(string? family = null, double size = -1, FontAttributes attributes = FontAttributes.None)
     {
         if (!double.IsFinite(size) || size == 0)
             throw new ArgumentOutOfRangeException(nameof(size), size, "The font size must be positive, or negative for a size from the avatar.");
+        SkUiValidate.ThrowIfNotFlags(attributes, nameof(attributes));
         FontFamily = family;
         FontSize = size;
         FontAttributes = attributes;
@@ -222,11 +229,11 @@ public class SkUiAvatarView : SkUiBorder, ISkUiFontElement
     /// <summary>Sets <see cref="BorderWidth"/> (same as the property setter).</summary>
     public SkUiAvatarView SetBorderWidth(double value) { SkUiValidate.ThrowIfNegativeOrNotFinite(value, nameof(value)); BorderWidth = value; return this; }
     /// <summary>Sets <see cref="Initials"/> (same as the property setter).</summary>
-    public SkUiAvatarView SetInitials(SkUiAvatarInitials value) { Initials = value; return this; }
+    public SkUiAvatarView SetInitials(SkUiAvatarInitials value) { SkUiValidate.ThrowIfNotDefined(value, nameof(value)); Initials = value; return this; }
     /// <summary>Sets <see cref="AvatarColorMode"/> (same as the property setter).</summary>
-    public SkUiAvatarView SetAvatarColorMode(SkUiAvatarColorMode value) { AvatarColorMode = value; return this; }
+    public SkUiAvatarView SetAvatarColorMode(SkUiAvatarColorMode value) { SkUiValidate.ThrowIfNotDefined(value, nameof(value)); AvatarColorMode = value; return this; }
     /// <summary>Sets <see cref="Aspect"/> (same as the property setter).</summary>
-    public SkUiAvatarView SetAspect(Aspect value) { Aspect = value; return this; }
+    public SkUiAvatarView SetAspect(Aspect value) { SkUiValidate.ThrowIfNotDefined(value, nameof(value)); Aspect = value; return this; }
     /// <summary>Sets <see cref="BadgePainter"/> (<c>null</c>: the look draws the badge) and repaints.</summary>
     public SkUiAvatarView SetBadgePainter(Action<SKCanvas, SkUiAvatarBadgePaint>? value)
     {
@@ -238,6 +245,7 @@ public class SkUiAvatarView : SkUiBorder, ISkUiFontElement
     /// <summary>Sets the badge (same as the property setters; a <c>null</c> color hides it).</summary>
     public SkUiAvatarView SetBadge(Color? color, SkUiAvatarBadgePosition position = SkUiAvatarBadgePosition.BottomRight, Color? borderColor = null)
     {
+        SkUiValidate.ThrowIfNotDefined(position, nameof(position));
         BadgeColor = color;
         BadgePosition = position;
         BadgeBorderColor = borderColor;

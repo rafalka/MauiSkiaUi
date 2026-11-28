@@ -218,6 +218,7 @@ public class SkUiCoreImage : SkUiCoreNode
     /// <summary>Sets aspect mode.</summary>
     public SkUiCoreImage SetAspect(Aspect value)
     {
+        SkUiValidate.ThrowIfNotDefined(value, nameof(value));
         var old = _aspect;
         if (!SetProperty(ref _aspect, value, nameof(Aspect))) return this;
         InvalidatePaint();
@@ -315,7 +316,11 @@ public class SkUiCoreImage : SkUiCoreNode
     }
 
     /// <summary>Sets the caches the load may use (reloads the source).</summary>
-    public SkUiCoreImage SetCacheType(SkUiImageCacheType value) => SetOptions(_options with { CacheType = value }, nameof(CacheType));
+    public SkUiCoreImage SetCacheType(SkUiImageCacheType value)
+    {
+        SkUiValidate.ThrowIfNotDefined(value, nameof(value));
+        return SetOptions(_options with { CacheType = value }, nameof(CacheType));
+    }
 
     /// <summary>Sets the cache identity of the source (<c>null</c> or empty: the default; reloads the source).</summary>
     public SkUiCoreImage SetCacheKey(string? value) =>

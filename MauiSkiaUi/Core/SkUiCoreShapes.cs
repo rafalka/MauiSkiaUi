@@ -158,6 +158,7 @@ public abstract class SkUiCorePolyShape : SkUiCoreShape
     /// <summary>Sets the fill rule.</summary>
     public SkUiCorePolyShape SetFillRule(WindingMode value)
     {
+        SkUiValidate.ThrowIfNotDefined(value, nameof(value));
         if (SetProperty(ref _fillRule, value, nameof(FillRule)))
             InvalidatePaint();
         return this;
@@ -243,6 +244,7 @@ public class SkUiCorePath : SkUiCoreShape
     /// <summary>Sets the fill rule.</summary>
     public SkUiCorePath SetFillRule(WindingMode value)
     {
+        SkUiValidate.ThrowIfNotDefined(value, nameof(value));
         if (SetProperty(ref _fillRule, value, nameof(FillRule)))
             InvalidatePaint();
         return this;

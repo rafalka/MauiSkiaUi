@@ -1,0 +1,166 @@
+using System.Reflection;
+using MauiSkiaUi.Core;
+using Xunit;
+
+namespace MauiSkiaUi.Tests;
+
+/// <summary>
+/// Every enum property validates (decision D6 of plan 1.19): each enum <see cref="BindableProperty"/> the library and its
+/// packages declare, attached ones included, has a <c>validateValue</c> that takes every defined value (for a flags enum,
+/// every defined flag together) and rejects an undefined one, so MAUI ignores it with a warning on every path. The fluent
+/// setters on both layers throw for the same values: <see cref="TwinParityTests"/> probes them.
+/// </summary>
+public class EnumValidationTests
+{
+    private static readonly Assembly[] Assemblies =
+    [
+        typeof(SkUiView).Assembly,
+        typeof(Markdown.SkUiMarkdownView).Assembly,
+        typeof(MauiSkiaUi.CommunityToolkit.SkUiDockLayout).Assembly,
+        typeof(Markdown.Math.SkUiMarkdownMath).Assembly,
+    ];
+
+    /// <summary>Properties that take only some of the defined values, with the reason.</summary>
+    private static readonly Dictionary<string, string> Subsets = new(StringComparer.Ordinal)
+    {
+        ["SkUiPicker.SelectionMode"] = "a picker selects one item or several: None and SingleDeselect are the collection view's",
+    };
+
+    private static readonly PropertyInfo ValidateValue =
+        typeof(BindableProperty).GetProperty("ValidateValue", BindingFlags.Instance | BindingFlags.NonPublic)
+        ?? throw new InvalidOperationException("MAUI's BindableProperty.ValidateValue is gone; find where it keeps validateValue now.");
+
+    [Fact]
+    public void EveryEnumBindablePropertyRejectsUndefinedValues()
+    {
+        var properties = EnumProperties().ToList();
+        Assert.NotEmpty(properties);
+        var failures = new List<string>();
+        foreach (var (name, property) in properties)
+        {
+            var enumType = Nullable.GetUnderlyingType(property.ReturnType) ?? property.ReturnType;
+            if (ValidateValue.GetValue(property) is not BindableProperty.ValidateValueDelegate validate)
+            {
+                failures.Add($"{name} ({enumType.Name}) has no validateValue");
+                continue;
+            }
+            if (!Subsets.ContainsKey(name))
+                foreach (var value in Defined(enumType))
+                    if (!validate(null!, value))
+                        failures.Add($"{name} rejects the defined value {value}");
+            if (Nullable.GetUnderlyingType(property.ReturnType) is not null && !validate(null!, null))
+                failures.Add($"{name} rejects null");
+            var undefined = Undefined(enumType);
+            if (validate(null!, undefined))
+                failures.Add($"{name} takes the undefined value {Convert.ToInt64(undefined)}");
+        }
+        if (failures.Count > 0)
+            Assert.Fail(string.Join(Environment.NewLine, failures.Order(StringComparer.Ordinal)));
+    }
+
+    [Fact]
+    public void DefinedAndFlagsHelpersFollowTheEnum()
+    {
+        Assert.True(SkUiValidate.Defined<SkUiPanAxis>(null!, SkUiPanAxis.Vertical));
+        Assert.False(SkUiValidate.Defined<SkUiPanAxis>(null!, (SkUiPanAxis)9));
+        Assert.False(SkUiValidate.Defined<SkUiPanAxis>(null!, 1));
+        Assert.False(SkUiValidate.Defined<SkUiPanAxis>(null!, null));
+        Assert.True(SkUiValidate.Defined<FontAttributes>(null!, FontAttributes.Bold));
+        Assert.False(SkUiValidate.Defined<FontAttributes>(null!, FontAttributes.Bold | FontAttributes.Italic));
+
+        Assert.True(SkUiValidate.Flags<FontAttributes>(null!, FontAttributes.Bold | FontAttributes.Italic));
+        Assert.True(SkUiValidate.Flags<FontAttributes>(null!, FontAttributes.None));
+        Assert.False(SkUiValidate.Flags<FontAttributes>(null!, (FontAttributes)8));
+        Assert.True(SkUiValidate.IsFlags(SwipeDirection.Left | SwipeDirection.Down));
+        Assert.True(SkUiValidate.IsFlags((SwipeDirection)0));
+        Assert.False(SkUiValidate.IsFlags((SwipeDirection)16));
+
+        Assert.Throws<ArgumentOutOfRangeException>(() => SkUiValidate.ThrowIfNotDefined((SkUiPanAxis)9, "axis"));
+        Assert.Throws<ArgumentOutOfRangeException>(() => SkUiValidate.ThrowIfNotFlags((FontAttributes)8, "attributes"));
+        SkUiValidate.ThrowIfNotDefined(SkUiPanAxis.Both, "axis");
+        SkUiValidate.ThrowIfNotFlags(FontAttributes.Bold | FontAttributes.Italic, "attributes");
+    }
+
+    [Fact]
+    public void UndefinedValuesAreIgnoredOnTheBindablePropertyAndThrowInBothSetters()
+    {
+        var label = new SkUiLabel();
+        label.HorizontalTextAlignment = TextAlignment.Center;
+        label.HorizontalTextAlignment = (TextAlignment)99;
+        label.FontAttributes = (FontAttributes)8;
+        Assert.Equal(TextAlignment.Center, label.HorizontalTextAlignment);
+        Assert.Equal(FontAttributes.None, label.FontAttributes);
+        Assert.Throws<ArgumentOutOfRangeException>(() => label.SetHorizontalTextAlignment((TextAlignment)99));
+        Assert.Throws<ArgumentOutOfRangeException>(() => label.SetFontAttributes((FontAttributes)8));
+        Assert.Throws<ArgumentOutOfRangeException>(() => new SkUiCoreLabel().SetHorizontalTextAlignment((TextAlignment)99));
+        Assert.Throws<ArgumentOutOfRangeException>(() => new SkUiCoreLabel().SetFontAttributes((FontAttributes)8));
+
+        // Defined flags together still go through.
+        label.SetFontAttributes(FontAttributes.Bold | FontAttributes.Italic);
+        Assert.Equal(FontAttributes.Bold | FontAttributes.Italic, label.FontAttributes);
+    }
+
+    private static IEnumerable<(string Name, BindableProperty Property)> EnumProperties()
+    {
+        foreach (var type in Assemblies.SelectMany(a => a.GetTypes()).Where(DeclaresBindableProperties).Select(Closed))
+        foreach (var field in type.GetFields(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static | BindingFlags.DeclaredOnly))
+        {
+            if (field.FieldType != typeof(BindableProperty) && field.FieldType != typeof(BindablePropertyKey))
+                continue;
+            var property = field.GetValue(null) switch
+            {
+                BindableProperty bindable => bindable,
+                BindablePropertyKey key => key.BindableProperty,
+                _ => null
+            };
+            if (property is null || field.FieldType == typeof(BindableProperty) && property.IsReadOnly)
+                continue; // a read-only property is listed once, by its key, which only the control writes
+            if (!Assemblies.Contains(property.DeclaringType.Assembly))
+                continue; // MAUI's or the Community Toolkit's own property, exposed again (FlexLayout.AlignSelfProperty)
+            if ((Nullable.GetUnderlyingType(property.ReturnType) ?? property.ReturnType).IsEnum)
+                yield return ($"{type.Name}.{property.PropertyName}", property);
+        }
+    }
+
+    private static bool DeclaresBindableProperties(Type type) =>
+        type.GetFields(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static | BindingFlags.DeclaredOnly)
+            .Any(f => f.FieldType == typeof(BindableProperty) || f.FieldType == typeof(BindablePropertyKey));
+
+    /// <summary>A generic type closed over the first of a few arguments its constraints take (its static fields can only be read then), or the type.</summary>
+    private static Type Closed(Type type)
+    {
+        if (!type.IsGenericTypeDefinition)
+            return type;
+        foreach (var argument in new[] { typeof(object), typeof(double), typeof(int), typeof(Action) })
+        {
+            try
+            {
+                return type.MakeGenericType([.. type.GetGenericArguments().Select(_ => argument)]);
+            }
+            catch (ArgumentException)
+            {
+                // Violates a constraint: try the next.
+            }
+        }
+        throw new InvalidOperationException($"Add an argument {type} takes to Closed.");
+    }
+
+    private static IEnumerable<object> Defined(Type enumType)
+    {
+        var values = Enum.GetValues(enumType).Cast<object>().ToList();
+        if (enumType.GetCustomAttribute<FlagsAttribute>() is null)
+            return values;
+        var all = values.Aggregate(0L, (mask, flag) => mask | Convert.ToInt64(flag));
+        return [.. values, Enum.ToObject(enumType, all)];
+    }
+
+    private static object Undefined(Type enumType)
+    {
+        var defined = Enum.GetValues(enumType).Cast<object>().Select(Convert.ToInt64).ToHashSet();
+        if (enumType.GetCustomAttribute<FlagsAttribute>() is null)
+            return Enum.ToObject(enumType, Enumerable.Range(2, 1000).First(v => !defined.Contains(v)));
+        var mask = defined.Aggregate(0L, (all, flag) => all | flag);
+        var bit = Enumerable.Range(0, 31).Select(i => 1L << i).First(b => (mask & b) == 0);
+        return Enum.ToObject(enumType, bit);
+    }
+}

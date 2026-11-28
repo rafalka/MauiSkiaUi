@@ -94,7 +94,7 @@ public class SkUiPickerWheels : SkUiView, ISkUiFontElement, ISkUiKeyHandler, ISk
 
     /// <summary>Bindable property for <see cref="FontAttributes"/>.</summary>
     public static readonly BindableProperty FontAttributesProperty = BindableProperty.Create(nameof(FontAttributes), typeof(FontAttributes), typeof(SkUiPickerWheels),
-        FontAttributes.None, propertyChanged: (view, _, _) => ((SkUiPickerWheels)view).InvalidateWheels());
+        FontAttributes.None, validateValue: SkUiValidate.Flags<FontAttributes>, propertyChanged: (view, _, _) => ((SkUiPickerWheels)view).InvalidateWheels());
 
     /// <summary>Bindable property for <see cref="FontAutoScalingEnabled"/>.</summary>
     public static readonly BindableProperty FontAutoScalingEnabledProperty = BindableProperty.Create(nameof(FontAutoScalingEnabled), typeof(bool), typeof(SkUiPickerWheels),
@@ -229,7 +229,7 @@ public class SkUiPickerWheels : SkUiView, ISkUiFontElement, ISkUiKeyHandler, ISk
     }
 
     /// <summary>Sets <see cref="FontAttributes"/> (same as the property setter).</summary>
-    public SkUiPickerWheels SetFontAttributes(FontAttributes value) { FontAttributes = value; return this; }
+    public SkUiPickerWheels SetFontAttributes(FontAttributes value) { SkUiValidate.ThrowIfNotFlags(value, nameof(value)); FontAttributes = value; return this; }
 
     /// <summary>Sets <see cref="FontAutoScalingEnabled"/> (same as the property setter).</summary>
     public SkUiPickerWheels SetFontAutoScalingEnabled(bool value) { FontAutoScalingEnabled = value; return this; }

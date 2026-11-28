@@ -194,7 +194,11 @@ public abstract class SkUiCorePickerBase : SkUiCoreNode, ISkUiFontElement, ISkUi
     }
 
     /// <summary>Sets <see cref="FontAttributes"/>.</summary>
-    public SkUiCorePickerBase SetFontAttributes(FontAttributes value) => Update(ref Model.FontAttributes, value, nameof(FontAttributes), measure: true);
+    public SkUiCorePickerBase SetFontAttributes(FontAttributes value)
+    {
+        SkUiValidate.ThrowIfNotFlags(value, nameof(value));
+        return Update(ref Model.FontAttributes, value, nameof(FontAttributes), measure: true);
+    }
 
     /// <summary>Sets <see cref="FontAutoScalingEnabled"/>.</summary>
     public SkUiCorePickerBase SetFontAutoScalingEnabled(bool value) => Update(ref Model.FontAutoScalingEnabled, value, nameof(FontAutoScalingEnabled), measure: true);
@@ -372,7 +376,11 @@ public abstract class SkUiCorePickerBase : SkUiCoreNode, ISkUiFontElement, ISkUi
     public SkUiCorePickerBase SetPlaceholderFontFamily(string? value) => Update(ref Model.PlaceholderFontFamily, value, nameof(PlaceholderFontFamily), measure: true);
 
     /// <summary>Sets <see cref="PlaceholderFontAttributes"/>.</summary>
-    public SkUiCorePickerBase SetPlaceholderFontAttributes(FontAttributes? value) => Update(ref Model.PlaceholderFontAttributes, value, nameof(PlaceholderFontAttributes), measure: true);
+    public SkUiCorePickerBase SetPlaceholderFontAttributes(FontAttributes? value)
+    {
+        SkUiValidate.ThrowIfNotFlags(value, nameof(value));
+        return Update(ref Model.PlaceholderFontAttributes, value, nameof(PlaceholderFontAttributes), measure: true);
+    }
 
     /// <summary>Sets <see cref="FieldStyle"/>.</summary>
     public SkUiCorePickerBase SetFieldStyle(SkUiPickerFieldStyle value)

@@ -94,7 +94,7 @@ public partial class SkUiTabView : SkUiView, ISkUiFontElement, ISkUiKeyHandler, 
 
     /// <summary>Bindable property for <see cref="FontAttributes"/>.</summary>
     public static readonly BindableProperty FontAttributesProperty = BindableProperty.Create(nameof(FontAttributes), typeof(FontAttributes), typeof(SkUiTabView),
-        FontAttributes.None, propertyChanged: (view, _, _) => ((SkUiTabView)view).OnStripLayoutChanged());
+        FontAttributes.None, validateValue: SkUiValidate.Flags<FontAttributes>, propertyChanged: (view, _, _) => ((SkUiTabView)view).OnStripLayoutChanged());
 
     /// <summary>Bindable property for <see cref="FontAutoScalingEnabled"/>.</summary>
     public static readonly BindableProperty FontAutoScalingEnabledProperty = BindableProperty.Create(nameof(FontAutoScalingEnabled), typeof(bool), typeof(SkUiTabView),
@@ -225,7 +225,7 @@ public partial class SkUiTabView : SkUiView, ISkUiFontElement, ISkUiKeyHandler, 
     public SkUiTabView SetFontSize(double value) { SkUiValidate.ThrowIfNotFinitePositive(value, nameof(value)); FontSize = value; return this; }
 
     /// <summary>Sets <see cref="FontAttributes"/> (same as the property setter).</summary>
-    public SkUiTabView SetFontAttributes(FontAttributes value) { FontAttributes = value; return this; }
+    public SkUiTabView SetFontAttributes(FontAttributes value) { SkUiValidate.ThrowIfNotFlags(value, nameof(value)); FontAttributes = value; return this; }
 
     /// <summary>Sets <see cref="FontAutoScalingEnabled"/> (same as the property setter).</summary>
     public SkUiTabView SetFontAutoScalingEnabled(bool value) { FontAutoScalingEnabled = value; return this; }

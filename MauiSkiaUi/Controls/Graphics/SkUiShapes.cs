@@ -167,6 +167,7 @@ public abstract class SkUiPolyShape : SkUiShape
         propertyChanged: (view, _, value) => ((SkUiPolyShape)view).OnPointsChanged((PointCollection?)value));
     /// <summary>Bindable <see cref="FillRule"/>.</summary>
     public static readonly BindableProperty FillRuleProperty = BindableProperty.Create(nameof(FillRule), typeof(FillRule), typeof(SkUiPolyShape), FillRule.EvenOdd,
+        validateValue: SkUiValidate.Defined<FillRule>,
         propertyChanged: (view, _, _) => ((SkUiPolyShape)view).InvalidatePaint());
 
     private protected SkUiPolyShape() { }
@@ -181,7 +182,7 @@ public abstract class SkUiPolyShape : SkUiShape
     /// <summary>Sets the vertices (same as the property setter), without a params array.</summary>
     public SkUiPolyShape SetPoints(params ReadOnlySpan<Point> value) { Points = [.. value]; return this; }
     /// <summary>Sets the fill rule (same as the property setter).</summary>
-    public SkUiPolyShape SetFillRule(FillRule value) { FillRule = value; return this; }
+    public SkUiPolyShape SetFillRule(FillRule value) { SkUiValidate.ThrowIfNotDefined(value, nameof(value)); FillRule = value; return this; }
 
     private void OnPointsChanged(PointCollection? value)
     {

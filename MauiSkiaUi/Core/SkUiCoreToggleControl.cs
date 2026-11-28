@@ -49,6 +49,7 @@ public abstract class SkUiCoreToggleControl : SkUiCoreNode
     /// <summary>Sets the state and raises the change events.</summary>
     public SkUiCoreToggleControl SetCheckState(SkUiCheckState value)
     {
+        SkUiValidate.ThrowIfNotDefined(value, nameof(value));
         var wasChecked = IsChecked;
         var old = _state;
         if (!SetProperty(ref _state, value, nameof(CheckState))) return this;

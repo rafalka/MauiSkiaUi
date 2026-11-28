@@ -85,7 +85,7 @@ public class SkUiSegmentedControl : SkUiView, ISkUiFontElement, ISkUiSegmentedOw
 
     /// <summary>Bindable property for <see cref="FontAttributes"/>.</summary>
     public static readonly BindableProperty FontAttributesProperty = BindableProperty.Create(nameof(FontAttributes), typeof(FontAttributes), typeof(SkUiSegmentedControl),
-        FontAttributes.None, propertyChanged: (view, _, value) => ((SkUiSegmentedControl)view).OnTextStyleChanged(model => model.FontAttributes = (FontAttributes)value));
+        FontAttributes.None, validateValue: SkUiValidate.Flags<FontAttributes>, propertyChanged: (view, _, value) => ((SkUiSegmentedControl)view).OnTextStyleChanged(model => model.FontAttributes = (FontAttributes)value));
 
     /// <summary>Bindable property for <see cref="FontAutoScalingEnabled"/>.</summary>
     public static readonly BindableProperty FontAutoScalingEnabledProperty = BindableProperty.Create(nameof(FontAutoScalingEnabled), typeof(bool), typeof(SkUiSegmentedControl),
@@ -242,7 +242,7 @@ public class SkUiSegmentedControl : SkUiView, ISkUiFontElement, ISkUiSegmentedOw
     public SkUiSegmentedControl SetFontSize(double value) { SkUiValidate.ThrowIfNotFinitePositive(value, nameof(value)); FontSize = value; return this; }
 
     /// <summary>Sets <see cref="FontAttributes"/> (same as the property setter).</summary>
-    public SkUiSegmentedControl SetFontAttributes(FontAttributes value) { FontAttributes = value; return this; }
+    public SkUiSegmentedControl SetFontAttributes(FontAttributes value) { SkUiValidate.ThrowIfNotFlags(value, nameof(value)); FontAttributes = value; return this; }
 
     /// <summary>Sets <see cref="FontAutoScalingEnabled"/> (same as the property setter).</summary>
     public SkUiSegmentedControl SetFontAutoScalingEnabled(bool value) { FontAutoScalingEnabled = value; return this; }

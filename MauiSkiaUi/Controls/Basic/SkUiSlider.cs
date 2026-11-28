@@ -43,7 +43,7 @@ public class SkUiSlider : SkUiView
 
     /// <summary>Bindable <see cref="Orientation"/>.</summary>
     public static readonly BindableProperty OrientationProperty = BindableProperty.Create(nameof(Orientation), typeof(StackOrientation), typeof(SkUiSlider),
-        StackOrientation.Horizontal, propertyChanged: (view, _, value) => ((SkUiSlider)view).OnOrientationChanged((StackOrientation)value));
+        StackOrientation.Horizontal, validateValue: SkUiValidate.Orientation, propertyChanged: (view, _, value) => ((SkUiSlider)view).OnOrientationChanged((StackOrientation)value));
 
     /// <summary>Bindable <see cref="MinimumTrackColor"/>.</summary>
     public static readonly BindableProperty MinimumTrackColorProperty = BindableProperty.Create(nameof(MinimumTrackColor), typeof(Color), typeof(SkUiSlider), null,
@@ -133,6 +133,7 @@ public class SkUiSlider : SkUiView
     /// <summary>Sets the orientation (same as the property setter).</summary>
     public SkUiSlider SetOrientation(StackOrientation value)
     {
+        SkUiValidate.ThrowIfNotOrientation(value, nameof(value));
         Orientation = value;
         return this;
     }

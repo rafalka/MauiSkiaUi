@@ -336,6 +336,7 @@ public class SkUiCoreLabel : SkUiCoreNode, ISkUiFontElement, ISkUiBorderElement
     /// <summary>Sets <see cref="TextRendering"/>.</summary>
     public SkUiCoreLabel SetTextRendering(SkUiTextRendering value)
     {
+        SkUiValidate.ThrowIfNotDefined(value, nameof(value));
         if (!SetProperty(ref _textRendering, value, nameof(TextRendering))) return this;
         InvalidateText();
         return this;
@@ -375,6 +376,7 @@ public class SkUiCoreLabel : SkUiCoreNode, ISkUiFontElement, ISkUiBorderElement
     /// <summary>Sets <see cref="TextType"/>.</summary>
     public SkUiCoreLabel SetTextType(TextType value)
     {
+        SkUiValidate.ThrowIfNotDefined(value, nameof(value));
         if (!SetProperty(ref _textType, value, nameof(TextType))) return this;
         _htmlRuns = null;
         _spanTap?.Cancel();
@@ -570,6 +572,7 @@ public class SkUiCoreLabel : SkUiCoreNode, ISkUiFontElement, ISkUiBorderElement
     /// <summary>Sets bold and italic flags.</summary>
     public SkUiCoreLabel SetFontAttributes(FontAttributes value)
     {
+        SkUiValidate.ThrowIfNotFlags(value, nameof(value));
         if (!SetProperty(ref _fontAttributes, value, nameof(FontAttributes))) return this;
         InvalidateText();
         return this;
@@ -614,6 +617,7 @@ public class SkUiCoreLabel : SkUiCoreNode, ISkUiFontElement, ISkUiBorderElement
     /// <summary>Sets underline / strikethrough.</summary>
     public SkUiCoreLabel SetTextDecorations(TextDecorations value)
     {
+        SkUiValidate.ThrowIfNotFlags(value, nameof(value));
         if (!SetProperty(ref _textDecorations, value, nameof(TextDecorations))) return this;
         _richText = null;
         InvalidatePaint();
@@ -623,6 +627,7 @@ public class SkUiCoreLabel : SkUiCoreNode, ISkUiFontElement, ISkUiBorderElement
     /// <summary>Sets the case transform of the displayed text.</summary>
     public SkUiCoreLabel SetTextTransform(TextTransform value)
     {
+        SkUiValidate.ThrowIfNotDefined(value, nameof(value));
         if (!SetProperty(ref _textTransform, value, nameof(TextTransform))) return this;
         if (UsesRichText) InvalidateText(); // spans inherit it; the (empty) plain text would not change
         UpdateDisplayText();
@@ -802,6 +807,7 @@ public class SkUiCoreLabel : SkUiCoreNode, ISkUiFontElement, ISkUiBorderElement
     /// <summary>Sets horizontal text alignment within the arranged slot.</summary>
     public SkUiCoreLabel SetHorizontalTextAlignment(TextAlignment value)
     {
+        SkUiValidate.ThrowIfNotDefined(value, nameof(value));
         var relayout = value == TextAlignment.Justify || _horizontal == TextAlignment.Justify;
         if (!SetProperty(ref _horizontal, value, nameof(HorizontalTextAlignment))) return this;
         // Justified lines are stretched by the layout (and measure as wide as the label); other alignments only paint.
@@ -812,6 +818,7 @@ public class SkUiCoreLabel : SkUiCoreNode, ISkUiFontElement, ISkUiBorderElement
     /// <summary>Sets vertical text alignment within the arranged slot.</summary>
     public SkUiCoreLabel SetVerticalTextAlignment(TextAlignment value)
     {
+        SkUiValidate.ThrowIfNotDefined(value, nameof(value));
         if (!SetProperty(ref _vertical, value, nameof(VerticalTextAlignment))) return this;
         InvalidatePaint();
         return this;
@@ -820,6 +827,7 @@ public class SkUiCoreLabel : SkUiCoreNode, ISkUiFontElement, ISkUiBorderElement
     /// <summary>Sets wrapping / truncation (same semantics as <see cref="SkUiLabel.LineBreakMode"/>).</summary>
     public SkUiCoreLabel SetLineBreakMode(Microsoft.Maui.LineBreakMode mode)
     {
+        SkUiValidate.ThrowIfNotDefined(mode, nameof(mode));
         if (!SetProperty(ref _lineBreakMode, mode, nameof(LineBreakMode))) return this;
         InvalidateText();
         return this;

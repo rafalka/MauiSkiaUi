@@ -50,9 +50,11 @@ public abstract class SkUiShape : SkUiView, IShape, ISkUiShapeOutline
         propertyChanged: (view, _, value) => ((SkUiShape)view).OnStrokeDashOffsetChanged((double)value));
     /// <summary>Bindable <see cref="StrokeLineCap"/>.</summary>
     public static readonly BindableProperty StrokeLineCapProperty = BindableProperty.Create(nameof(StrokeLineCap), typeof(PenLineCap), typeof(SkUiShape), PenLineCap.Flat,
+        validateValue: SkUiValidate.Defined<PenLineCap>,
         propertyChanged: (view, _, value) => ((SkUiShape)view).OnStrokeLineCapChanged((PenLineCap)value));
     /// <summary>Bindable <see cref="StrokeLineJoin"/>.</summary>
     public static readonly BindableProperty StrokeLineJoinProperty = BindableProperty.Create(nameof(StrokeLineJoin), typeof(PenLineJoin), typeof(SkUiShape), PenLineJoin.Miter,
+        validateValue: SkUiValidate.Defined<PenLineJoin>,
         propertyChanged: (view, _, value) => ((SkUiShape)view).OnStrokeLineJoinChanged((PenLineJoin)value));
     /// <summary>Bindable <see cref="StrokeMiterLimit"/>.</summary>
     public static readonly BindableProperty StrokeMiterLimitProperty = BindableProperty.Create(nameof(StrokeMiterLimit), typeof(double), typeof(SkUiShape), 10d,
@@ -61,6 +63,7 @@ public abstract class SkUiShape : SkUiView, IShape, ISkUiShapeOutline
     /// <summary>Bindable <see cref="Aspect"/>.</summary>
     public static readonly BindableProperty AspectProperty = BindableProperty.Create(nameof(Aspect), typeof(Stretch), typeof(SkUiShape), Stretch.None,
         defaultValueCreator: view => ((SkUiShape)view).DefaultAspect,
+        validateValue: SkUiValidate.Defined<Stretch>,
         propertyChanged: (view, _, value) => ((SkUiShape)view).OnAspectChanged((Stretch)value));
 
     /// <summary>Creates a shape with no fill and no stroke, as MAUI's shapes.</summary>
@@ -106,13 +109,13 @@ public abstract class SkUiShape : SkUiView, IShape, ISkUiShapeOutline
     /// <summary>Sets the dash offset (same as the property setter).</summary>
     public SkUiShape SetStrokeDashOffset(double value) { SkUiValidate.ThrowIfNotFinite(value, nameof(value)); StrokeDashOffset = value; return this; }
     /// <summary>Sets the line caps (same as the property setter).</summary>
-    public SkUiShape SetStrokeLineCap(PenLineCap value) { StrokeLineCap = value; return this; }
+    public SkUiShape SetStrokeLineCap(PenLineCap value) { SkUiValidate.ThrowIfNotDefined(value, nameof(value)); StrokeLineCap = value; return this; }
     /// <summary>Sets the line joins (same as the property setter).</summary>
-    public SkUiShape SetStrokeLineJoin(PenLineJoin value) { StrokeLineJoin = value; return this; }
+    public SkUiShape SetStrokeLineJoin(PenLineJoin value) { SkUiValidate.ThrowIfNotDefined(value, nameof(value)); StrokeLineJoin = value; return this; }
     /// <summary>Sets the miter limit (same as the property setter).</summary>
     public SkUiShape SetStrokeMiterLimit(double value) { SkUiValidate.ThrowIfNegativeOrNotFinite(value, nameof(value)); StrokeMiterLimit = value; return this; }
     /// <summary>Sets the aspect (same as the property setter).</summary>
-    public SkUiShape SetAspect(Stretch value) { Aspect = value; return this; }
+    public SkUiShape SetAspect(Stretch value) { SkUiValidate.ThrowIfNotDefined(value, nameof(value)); Aspect = value; return this; }
 
     private void OnFillChanged(Brush? value)
     {

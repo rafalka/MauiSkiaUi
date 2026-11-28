@@ -110,6 +110,7 @@ public abstract class SkUiCoreShape : SkUiCoreNode, IShape, ISkUiShapeOutline
     /// <summary>Sets the line caps.</summary>
     public SkUiCoreShape SetStrokeLineCap(LineCap value)
     {
+        SkUiValidate.ThrowIfNotDefined(value, nameof(value));
         if (!SetProperty(ref _strokeLineCap, value, nameof(StrokeLineCap))) return this;
         InvalidatePaint();
         return this;
@@ -118,6 +119,7 @@ public abstract class SkUiCoreShape : SkUiCoreNode, IShape, ISkUiShapeOutline
     /// <summary>Sets the line joins.</summary>
     public SkUiCoreShape SetStrokeLineJoin(LineJoin value)
     {
+        SkUiValidate.ThrowIfNotDefined(value, nameof(value));
         if (!SetProperty(ref _strokeLineJoin, value, nameof(StrokeLineJoin))) return this;
         InvalidatePaint();
         return this;
@@ -135,6 +137,7 @@ public abstract class SkUiCoreShape : SkUiCoreNode, IShape, ISkUiShapeOutline
     /// <summary>Sets the aspect.</summary>
     public SkUiCoreShape SetAspect(SkUiCoreStretch value)
     {
+        SkUiValidate.ThrowIfNotDefined(value, nameof(value));
         if (!SetProperty(ref _aspect, value, nameof(Aspect))) return this;
         InvalidateMeasure();
         return this;

@@ -1,4 +1,5 @@
 using System.Numerics;
+using System.Runtime.CompilerServices;
 
 namespace MauiSkiaUi;
 
@@ -127,6 +128,54 @@ internal static class SkUiValidate
     {
         if (!IsPressedScale(value))
             throw new ArgumentOutOfRangeException(name, value, "Expected -1 (the look's) or a finite scale more than 0.");
+    }
+
+    /// <summary>A defined value of <typeparamref name="TEnum"/> (for a flags enum, one defined value: use <see cref="Flags{TEnum}"/> for combinations).</summary>
+    public static bool Defined<TEnum>(BindableObject bindable, object? value) where TEnum : struct, Enum => value is TEnum defined && Enum.IsDefined(defined);
+
+    /// <summary>A combination of the defined flags of <typeparamref name="TEnum"/>, none included.</summary>
+    public static bool Flags<TEnum>(BindableObject bindable, object? value) where TEnum : struct, Enum => value is TEnum flags && IsFlags(flags);
+
+    /// <summary><c>null</c> (not set), or a value <see cref="Flags{TEnum}"/> takes.</summary>
+    public static bool OptionalFlags<TEnum>(BindableObject bindable, object? value) where TEnum : struct, Enum => value is null || Flags<TEnum>(bindable, value);
+
+    /// <summary>Whether <paramref name="value"/> has no bit outside the defined flags of <typeparamref name="TEnum"/>.</summary>
+    public static bool IsFlags<TEnum>(TEnum value) where TEnum : struct, Enum => (Bits(value) & ~FlagMask<TEnum>.Value) == 0;
+
+    /// <summary>Throws <see cref="ArgumentOutOfRangeException"/> unless <paramref name="value"/> is defined (the rule of <see cref="Defined{TEnum}"/>).</summary>
+    public static void ThrowIfNotDefined<TEnum>(TEnum value, string name) where TEnum : struct, Enum
+    {
+        if (!Enum.IsDefined(value))
+            throw new ArgumentOutOfRangeException(name, value, $"Not a defined {typeof(TEnum).Name}.");
+    }
+
+    /// <summary>Throws <see cref="ArgumentOutOfRangeException"/> unless <paramref name="value"/> combines defined flags (the rule of <see cref="Flags{TEnum}"/>).</summary>
+    public static void ThrowIfNotFlags<TEnum>(TEnum value, string name) where TEnum : struct, Enum
+    {
+        if (!IsFlags(value))
+            throw new ArgumentOutOfRangeException(name, value, $"Not a combination of the defined {typeof(TEnum).Name} flags.");
+    }
+
+    /// <summary>Throws <see cref="ArgumentOutOfRangeException"/> unless <paramref name="value"/> is <c>null</c> or combines defined flags (the rule of <see cref="OptionalFlags{TEnum}"/>).</summary>
+    public static void ThrowIfNotFlags<TEnum>(TEnum? value, string name) where TEnum : struct, Enum
+    {
+        if (value is { } flags)
+            ThrowIfNotFlags(flags, name);
+    }
+
+    /// <summary>The bits of an enum value, whatever its underlying type (signed values sign-extend alike, so masks compare).</summary>
+    private static ulong Bits<TEnum>(TEnum value) where TEnum : struct, Enum => Unsafe.SizeOf<TEnum>() switch
+    {
+        1 => Unsafe.As<TEnum, byte>(ref value),
+        2 => Unsafe.As<TEnum, ushort>(ref value),
+        4 => Unsafe.As<TEnum, uint>(ref value),
+        _ => Unsafe.As<TEnum, ulong>(ref value)
+    };
+
+    /// <summary>Every defined flag of <typeparamref name="TEnum"/> together, computed once per enum.</summary>
+    private static class FlagMask<TEnum> where TEnum : struct, Enum
+    {
+        public static readonly ulong Value = Enum.GetValues<TEnum>().Aggregate(0UL, (mask, flag) => mask | Bits(flag));
     }
 
     /// <summary>A defined <see cref="StackOrientation"/> (horizontal or vertical).</summary>

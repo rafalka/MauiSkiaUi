@@ -163,6 +163,7 @@ public class SkUiCoreBorder : SkUiCoreContentView
     /// <summary>Sets the dash caps.</summary>
     public SkUiCoreBorder SetStrokeLineCap(LineCap value)
     {
+        SkUiValidate.ThrowIfNotDefined(value, nameof(value));
         if (SetProperty(ref _strokeLineCap, value, nameof(StrokeLineCap))) InvalidatePaint();
         return this;
     }
@@ -170,6 +171,7 @@ public class SkUiCoreBorder : SkUiCoreContentView
     /// <summary>Sets the corner joins.</summary>
     public SkUiCoreBorder SetStrokeLineJoin(LineJoin value)
     {
+        SkUiValidate.ThrowIfNotDefined(value, nameof(value));
         if (SetProperty(ref _strokeLineJoin, value, nameof(StrokeLineJoin))) InvalidatePaint();
         return this;
     }

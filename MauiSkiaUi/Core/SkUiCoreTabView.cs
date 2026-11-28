@@ -197,7 +197,11 @@ public partial class SkUiCoreTabView : SkUiCoreNode, ISkUiFontElement, ISkUiKeyH
     }
 
     /// <summary>Sets <see cref="FontAttributes"/>.</summary>
-    public SkUiCoreTabView SetFontAttributes(FontAttributes value) => SetStripLayout(ref _fontAttributes, value, nameof(FontAttributes));
+    public SkUiCoreTabView SetFontAttributes(FontAttributes value)
+    {
+        SkUiValidate.ThrowIfNotFlags(value, nameof(value));
+        return SetStripLayout(ref _fontAttributes, value, nameof(FontAttributes));
+    }
 
     /// <summary>Sets <see cref="FontAutoScalingEnabled"/>.</summary>
     public SkUiCoreTabView SetFontAutoScalingEnabled(bool value) => SetStripLayout(ref _fontAutoScaling, value, nameof(FontAutoScalingEnabled));

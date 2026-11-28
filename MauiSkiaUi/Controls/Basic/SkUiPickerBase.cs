@@ -91,6 +91,7 @@ public abstract class SkUiPickerBase : SkUiView, ISkUiFontElement, ISkUiFieldChr
 
     /// <summary>Bindable property for <see cref="FontAttributes"/>.</summary>
     public static readonly BindableProperty FontAttributesProperty = BindableProperty.Create(nameof(FontAttributes), typeof(FontAttributes), typeof(SkUiPickerBase), FontAttributes.None,
+        validateValue: SkUiValidate.Flags<FontAttributes>,
         propertyChanged: (view, _, value) => ((SkUiPickerBase)view).Apply(model => model.FontAttributes = (FontAttributes)value, measure: true));
 
     /// <summary>Bindable property for <see cref="FontAutoScalingEnabled"/>.</summary>
@@ -247,6 +248,7 @@ public abstract class SkUiPickerBase : SkUiView, ISkUiFontElement, ISkUiFieldChr
 
     /// <summary>Bindable property for <see cref="PlaceholderFontAttributes"/>.</summary>
     public static readonly BindableProperty PlaceholderFontAttributesProperty = BindableProperty.Create(nameof(PlaceholderFontAttributes), typeof(FontAttributes?), typeof(SkUiPickerBase), null,
+        validateValue: SkUiValidate.OptionalFlags<FontAttributes>,
         propertyChanged: (view, _, value) => ((SkUiPickerBase)view).Apply(model => model.PlaceholderFontAttributes = (FontAttributes?)value, measure: true));
 
     /// <summary>Bold and italic for the placeholder in the field; <c>null</c> (default): <see cref="FontAttributes"/>. SkiaUi extension.</summary>
@@ -469,7 +471,7 @@ public abstract class SkUiPickerBase : SkUiView, ISkUiFontElement, ISkUiFieldChr
     public SkUiPickerBase SetFontSize(double value) { SkUiValidate.ThrowIfNotFinitePositive(value, nameof(value)); FontSize = value; return this; }
 
     /// <summary>Sets <see cref="FontAttributes"/> (same as the property setter).</summary>
-    public SkUiPickerBase SetFontAttributes(FontAttributes value) { FontAttributes = value; return this; }
+    public SkUiPickerBase SetFontAttributes(FontAttributes value) { SkUiValidate.ThrowIfNotFlags(value, nameof(value)); FontAttributes = value; return this; }
 
     /// <summary>Sets <see cref="FontAutoScalingEnabled"/> (same as the property setter).</summary>
     public SkUiPickerBase SetFontAutoScalingEnabled(bool value) { FontAutoScalingEnabled = value; return this; }
@@ -598,7 +600,7 @@ public abstract class SkUiPickerBase : SkUiView, ISkUiFontElement, ISkUiFieldChr
     public SkUiPickerBase SetPlaceholderFontFamily(string? value) { PlaceholderFontFamily = value; return this; }
 
     /// <summary>Sets <see cref="PlaceholderFontAttributes"/> (same as the property setter).</summary>
-    public SkUiPickerBase SetPlaceholderFontAttributes(FontAttributes? value) { PlaceholderFontAttributes = value; return this; }
+    public SkUiPickerBase SetPlaceholderFontAttributes(FontAttributes? value) { SkUiValidate.ThrowIfNotFlags(value, nameof(value)); PlaceholderFontAttributes = value; return this; }
 
     /// <summary>Sets <see cref="PopupWidth"/> (same as the property setter).</summary>
     public SkUiPickerBase SetPopupWidth(double value) { SkUiPickerValidation.ThrowIfNotOptionalLength(value, nameof(value)); PopupWidth = value; return this; }

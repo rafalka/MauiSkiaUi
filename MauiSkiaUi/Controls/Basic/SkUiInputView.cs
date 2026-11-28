@@ -60,6 +60,7 @@ public abstract class SkUiInputView : SkUiView, ISkUiFontElement, ISkUiFieldChro
 
     /// <summary>Bindable property for <see cref="PlaceholderFontAttributes"/>.</summary>
     public static readonly BindableProperty PlaceholderFontAttributesProperty = BindableProperty.Create(nameof(PlaceholderFontAttributes), typeof(FontAttributes?), typeof(SkUiInputView), null,
+        validateValue: SkUiValidate.OptionalFlags<FontAttributes>,
         propertyChanged: (view, _, value) => ((SkUiInputView)view).Apply(model => model.PlaceholderFontAttributes = (FontAttributes?)value, measure: true));
 
     /// <summary>Bindable property for <see cref="TextColor"/>.</summary>
@@ -91,6 +92,7 @@ public abstract class SkUiInputView : SkUiView, ISkUiFontElement, ISkUiFieldChro
 
     /// <summary>Bindable property for <see cref="FontAttributes"/>.</summary>
     public static readonly BindableProperty FontAttributesProperty = BindableProperty.Create(nameof(FontAttributes), typeof(FontAttributes), typeof(SkUiInputView), FontAttributes.None,
+        validateValue: SkUiValidate.Flags<FontAttributes>,
         propertyChanged: (view, _, value) => ((SkUiInputView)view).Apply(model => model.FontAttributes = (FontAttributes)value, measure: true));
 
     /// <summary>Bindable property for <see cref="FontAutoScalingEnabled"/>.</summary>
@@ -456,7 +458,7 @@ public abstract class SkUiInputView : SkUiView, ISkUiFontElement, ISkUiFieldChro
     public SkUiInputView SetPlaceholderFontFamily(string? value) { PlaceholderFontFamily = value; return this; }
 
     /// <summary>Sets <see cref="PlaceholderFontAttributes"/> (same as the property setter).</summary>
-    public SkUiInputView SetPlaceholderFontAttributes(FontAttributes? value) { PlaceholderFontAttributes = value; return this; }
+    public SkUiInputView SetPlaceholderFontAttributes(FontAttributes? value) { SkUiValidate.ThrowIfNotFlags(value, nameof(value)); PlaceholderFontAttributes = value; return this; }
 
     /// <summary>Sets <see cref="TextColor"/>.</summary>
     public SkUiInputView SetTextColor(Color? value) { TextColor = value; return this; }
@@ -477,7 +479,7 @@ public abstract class SkUiInputView : SkUiView, ISkUiFontElement, ISkUiFieldChro
     public SkUiInputView SetFontSize(double value) { SkUiValidate.ThrowIfNotFinitePositive(value, nameof(value)); FontSize = value; return this; }
 
     /// <summary>Sets <see cref="FontAttributes"/>.</summary>
-    public SkUiInputView SetFontAttributes(FontAttributes value) { FontAttributes = value; return this; }
+    public SkUiInputView SetFontAttributes(FontAttributes value) { SkUiValidate.ThrowIfNotFlags(value, nameof(value)); FontAttributes = value; return this; }
 
     /// <summary>Sets <see cref="FontAutoScalingEnabled"/>.</summary>
     public SkUiInputView SetFontAutoScalingEnabled(bool value) { FontAutoScalingEnabled = value; return this; }

@@ -117,7 +117,7 @@ Cursor rule for public reference sources: [`.cursor/rules/reference-sources.mdc`
 4. Input through the gesture arena; user changes written back to the bindable properties.
 5. Animation: state changes through the shared transition animators; continuous motion on the render thread where possible.
 6. A demo page in the component gallery (`MauiSkiaUiDemo/ComponentPages`, next to the native MAUI control where one exists; `ComponentDemoTests` enforces it) and a page under [docs/controls/](docs/controls/README.md).
-7. Headless tests (a XAML parity test with MAUI's doc samples for MAUI counterparts, SkUi-vs-Core pixels; `TwinParityTests` finds the new pair by name and checks its properties, fluent setters, defaults, validation, methods and events: a difference that is meant goes in its list with the reason), a memory-leak scenario in `tests/Shared/MemoryLeaks`, a benchmark scenario if it is performance-sensitive; then optimize.
+7. Headless tests (a XAML parity test with MAUI's doc samples for MAUI counterparts, SkUi-vs-Core pixels; `TwinParityTests` finds the new pair by name and checks its properties, fluent setters, defaults, validation, methods and events: a difference that is meant goes in its list with the reason; `EnumValidationTests` fails for an enum bindable property without validation), a memory-leak scenario in `tests/Shared/MemoryLeaks`, a benchmark scenario if it is performance-sensitive; then optimize.
 8. A `CHANGELOG.md` entry under `## Unreleased`; the [migration guide](docs/Migration.md) and skills when MAUI parity changes; the [roadmap](docs/design/Roadmap.md) and [requirements](docs/design/Requirements.md) status when it closes an item.
 
 ## Demo asset

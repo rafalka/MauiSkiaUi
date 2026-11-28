@@ -59,6 +59,7 @@ public class SkUiImage : SkUiView
         propertyChanged: (view, _, value) => ((SkUiImage)view).OnSourceChanged((ImageSource?)value));
     /// <summary>Bindable aspect mode.</summary>
     public static readonly BindableProperty AspectProperty = BindableProperty.Create(nameof(Aspect), typeof(Aspect), typeof(SkUiImage), Aspect.AspectFit,
+        validateValue: SkUiValidate.Defined<Aspect>,
         propertyChanged: (view, _, value) => ((SkUiImage)view).OnAspectChanged((Aspect)value));
     /// <summary>Bindable <see cref="IsAnimationPlaying"/>.</summary>
     public static readonly BindableProperty IsAnimationPlayingProperty = BindableProperty.Create(nameof(IsAnimationPlaying), typeof(bool), typeof(SkUiImage), false,
@@ -69,6 +70,7 @@ public class SkUiImage : SkUiView
         propertyChanged: (view, _, value) => ((SkUiImage)view).OnTransformationsChanged((IList<ISkUiImageTransformation>?)value));
     /// <summary>Bindable <see cref="CacheType"/>.</summary>
     public static readonly BindableProperty CacheTypeProperty = BindableProperty.Create(nameof(CacheType), typeof(SkUiImageCacheType), typeof(SkUiImage), SkUiImageCacheType.All,
+        validateValue: SkUiValidate.Defined<SkUiImageCacheType>,
         propertyChanged: (view, _, value) => ((SkUiImage)view).OnOptionsChanged(((SkUiImage)view)._options with { CacheType = (SkUiImageCacheType)value }));
     /// <summary>Bindable <see cref="DownsampleWidth"/>.</summary>
     public static readonly BindableProperty DownsampleWidthProperty = BindableProperty.Create(nameof(DownsampleWidth), typeof(double), typeof(SkUiImage), 0d,
@@ -319,7 +321,7 @@ public class SkUiImage : SkUiView
     }
 
     /// <summary>Sets aspect (same as the property setter).</summary>
-    public SkUiImage SetAspect(Aspect value) { Aspect = value; return this; }
+    public SkUiImage SetAspect(Aspect value) { SkUiValidate.ThrowIfNotDefined(value, nameof(value)); Aspect = value; return this; }
     /// <summary>Sets <see cref="IsAnimationPlaying"/> (same as the property setter).</summary>
     public SkUiImage SetIsAnimationPlaying(bool value) { IsAnimationPlaying = value; return this; }
     /// <summary>Replaces the transformations with <paramref name="transformations"/> (one reload).</summary>
@@ -336,7 +338,7 @@ public class SkUiImage : SkUiView
         return this;
     }
     /// <summary>Sets <see cref="CacheType"/> (same as the property setter).</summary>
-    public SkUiImage SetCacheType(SkUiImageCacheType value) { CacheType = value; return this; }
+    public SkUiImage SetCacheType(SkUiImageCacheType value) { SkUiValidate.ThrowIfNotDefined(value, nameof(value)); CacheType = value; return this; }
     /// <summary>Sets <see cref="FadeAnimationEnabled"/> and, when given, <see cref="FadeAnimationDuration"/> (milliseconds).</summary>
     public SkUiImage SetFadeAnimation(bool enabled, int? duration = null)
     {

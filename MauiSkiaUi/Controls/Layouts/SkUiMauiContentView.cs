@@ -67,6 +67,7 @@ public partial class SkUiMauiContentView : SkUiView
     /// <summary>Bindable <see cref="ScrollMode"/>.</summary>
     public static readonly BindableProperty ScrollModeProperty = BindableProperty.Create(
         nameof(ScrollMode), typeof(SkUiOverlayScrollMode), typeof(SkUiMauiContentView), SkUiOverlayScrollMode.Auto,
+        validateValue: SkUiValidate.Defined<SkUiOverlayScrollMode>,
         propertyChanged: (view, _, _) => ((SkUiMauiContentView)view).OnScrollModeChanged());
 
     /// <summary>How the native control follows ancestor scrolling (default <see cref="SkUiOverlayScrollMode.Auto"/>).</summary>

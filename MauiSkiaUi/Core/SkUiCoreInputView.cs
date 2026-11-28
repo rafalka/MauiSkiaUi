@@ -204,7 +204,11 @@ public abstract class SkUiCoreInputView : SkUiCoreNode, ISkUiFontElement, ISkUiF
     public SkUiCoreInputView SetPlaceholderFontFamily(string? value) => Update(ref Model.PlaceholderFontFamily, value, nameof(PlaceholderFontFamily), measure: true);
 
     /// <summary>Sets <see cref="PlaceholderFontAttributes"/>.</summary>
-    public SkUiCoreInputView SetPlaceholderFontAttributes(FontAttributes? value) => Update(ref Model.PlaceholderFontAttributes, value, nameof(PlaceholderFontAttributes), measure: true);
+    public SkUiCoreInputView SetPlaceholderFontAttributes(FontAttributes? value)
+    {
+        SkUiValidate.ThrowIfNotFlags(value, nameof(value));
+        return Update(ref Model.PlaceholderFontAttributes, value, nameof(PlaceholderFontAttributes), measure: true);
+    }
 
     /// <summary>Sets <see cref="TextColor"/>.</summary>
     public SkUiCoreInputView SetTextColor(Color? value) => Update(ref Model.TextColor, value, nameof(TextColor));
@@ -244,7 +248,11 @@ public abstract class SkUiCoreInputView : SkUiCoreNode, ISkUiFontElement, ISkUiF
     }
 
     /// <summary>Sets <see cref="FontAttributes"/>.</summary>
-    public SkUiCoreInputView SetFontAttributes(FontAttributes value) => Update(ref Model.FontAttributes, value, nameof(FontAttributes), measure: true);
+    public SkUiCoreInputView SetFontAttributes(FontAttributes value)
+    {
+        SkUiValidate.ThrowIfNotFlags(value, nameof(value));
+        return Update(ref Model.FontAttributes, value, nameof(FontAttributes), measure: true);
+    }
 
     /// <summary>Sets <see cref="FontAutoScalingEnabled"/>.</summary>
     public SkUiCoreInputView SetFontAutoScalingEnabled(bool value) => Update(ref Model.FontAutoScalingEnabled, value, nameof(FontAutoScalingEnabled), measure: true);
