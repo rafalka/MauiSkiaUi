@@ -7,9 +7,11 @@ namespace MauiSkiaUi.Tests;
 
 /// <summary>
 /// The picker examples of the samples app work as they describe: the currency converter's short fields and wide lists, the pizza
-/// order's XAML pickers and total, the alarm clock's wheels and Clear, the date of birth's days, the Core form.
+/// order's XAML pickers and total, the alarm clock's wheels and Clear, the date of birth's days, the Core form. Global state: it
+/// replaces <see cref="SkUiPopups.Presenter"/>, which would let any picker another class opens meanwhile show a popup (running
+/// alone also keeps its XAML loading apart from <see cref="RuntimeXamlCollection"/>'s).
 /// </summary>
-[Collection(RuntimeXamlCollection.Name)]
+[Collection(GlobalStateCollection.Name)]
 public sealed class PickerSamplesTests : IDisposable
 {
     private readonly TestUiContext _ui = TestUiContext.Install();
