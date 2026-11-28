@@ -31,6 +31,7 @@ What the next releases bring, and the work after them. What has shipped is in th
 | **1.16.0** | As 1.11.0 | As 1.11.0 | 11.0.100 | As 1.11.0 | `master`, released 24 November 2026 |
 | **1.17.0** | As 1.11.0 | As 1.11.0 | 11.0.100 | As 1.11.0 | `master`, released 25 November 2026 |
 | **1.18.0** | As 1.11.0 | As 1.11.0 | 11.0.100 | As 1.11.0 | `master`, released 27 November 2026 |
+| **1.19.0** | As 1.11.0 | As 1.11.0 | 11.0.100 | As 1.11.0 | `devel`, planned |
 
 SkiaUi up to 1.10 targets MAUI 10.x only; 1.11 adds net11 targets with MAUI 11 next to them ([1.11.0](#1110-net-11-and-maui-11-shipped)). Development happens on `devel`; `master` holds stable releases ([Releasing.md](../Releasing.md#branches-and-versions)).
 
@@ -189,6 +190,17 @@ Additive only. Tab headers placed here on 25 November 2026; on 26 November 2026 
 - **Phase K, chips (F5, #130):** `SkUiChip`, `SkUiChipGroup` and their Core twins, wrapping or in one scrolling row.
 - **Phase T, custom tab headers:** a header template for the whole strip or one tab in `SkUiTabView` (1.17's headers are text, an icon and a badge drawn by the look, not views), bound to the tab item with its selected state and the look's text color for it (`IsSelected`, `CurrentTextColor`, the `Selected` visual state); `SkUiCoreTabView` with a header node per tab or a factory. The open questions were decided in T1 ([SkUiTabView.md](../controls/SkUiTabView.md#custom-header-decisions-118-t1)): a header view measures by its content (no look padding) in content widths, the look keeps the strip and the indicator (sized to the view where it follows the label), and the header stays one element of the tab list, read from `Header`.
 
+### 1.19.0: value inputs, colors that follow the system, lists and the sheet finished (planned)
+
+Additive only. Picked on 28 November 2026: everything suggested for 1.19 except the charts package (F4 stays on the backlog). Steps, decisions, sizes and cut lines: [ImplementationPlan-1.19.md](ImplementationPlan-1.19.md).
+
+- **Phase 0, a device pass:** the 1.16–1.18 checks on the [verification backlog](#verification-backlog), first.
+- **Phase A, parity and guards:** the MAUI 11 members (`BoxView.Fill`, `Editor.ReturnCommand`, `LongPressGestureRecognizer` on drawn views, cancellable `AnimateAsync`); validation of every enum property; a test that keeps the Core layer to FR-C1.
+- **Phase C, colors:** scheme defaults resolved when painting on both layers; following the OS theme and the platform accent (opt-in); color schemes per tree (cut line inside the phase).
+- **Phase R, U, T, new controls:** range slider and rating (F6), autocomplete (F7, both layers), the pickers' tokens drawn as chips (and a token template, cut line inside the phase).
+- **Phase L, the virtual stack:** a public horizontal layout, `PrefetchDistance`, `QueryItemSize`, load-more in the engine; `VirtualScrollMode` and a Core twin (cut line).
+- **Phase S, the sheet finished:** a platform pane title, overlay masks (covered native views frozen while a drawn overlay covers them); a Core sheet (cut line).
+
 ## Backlog (1.x)
 
 Taken up when a real app needs it, roughly in this order within each area. Items name the control or mechanism; their designs are in the linked docs.
@@ -199,16 +211,16 @@ Taken up when a real app needs it, roughly in this order within each area. Items
 - **Full SVG** in an optional `SkiaUi.Maui.Svg` package on Svg.Skia, for what [1.7's icon reader](../archive/ImplementationPlan-1.7.md) leaves out: gradients, `<use>`, filters and CSS in downloaded files and rich illustrations. Needs a vector entry in the image cache and protection against hostile files (design and a spike's findings: [the full SVG plan](ImplementationPlan-FullSvg.md)).
 - **From the November 2026 review** (briefs, order and open decisions: [ImplementationPlan-PerformanceAndControls.md](ImplementationPlan-PerformanceAndControls.md#track-f-features)), scroll-linked effects in 1.16, the segmented control and tab view (F1) in [1.17](#1170-carousel-parity-segmented-control-and-tab-view-shipped) and the rest after it, roughly in this order. Each is the common pattern on SkiaUi's own API, not a copy of one vendor's control:
   - **Scroll-linked effects** (F2, [1.16](#1160-scroll-linked-effects-shipped)): a public link from a scroller's offset to translation, opacity, scale and a clipped height on the render thread (collapsing headers, parallax); takes in the overscroll-linked effects under [Lists and scrolling](#lists-and-scrolling).
-  - **Sheet** (F3, [1.18](#1180-the-sheet-chips-tab-headers-and-the-time-clock-screen-set-shipped), built): a bottom or side sheet inside a surface, with detents, a scrim and a popup presenter for the pickers. A drawn container, not a window. Later: a Core sheet, overlay masks so it can cover hosted native views, a platform pane title.
+  - **Sheet** (F3, [1.18](#1180-the-sheet-chips-tab-headers-and-the-time-clock-screen-set-shipped), built): a bottom or side sheet inside a surface, with detents, a scrim and a popup presenter for the pickers. A drawn container, not a window. Later: a Core sheet, overlay masks so it can cover hosted native views, a platform pane title. All three planned for [1.19](#1190-value-inputs-colors-that-follow-the-system-lists-and-the-sheet-finished-planned) (the Core sheet past its cut line).
   - **Charts** (F4) in an optional `SkiaUi.Maui.Charts` package: sparkline, line, area and bar first; pie, donut, gauges, pan and zoom later.
-  - **Chips** (F5, [1.18](#1180-the-sheet-chips-tab-headers-and-the-time-clock-screen-set-shipped), built), which the pickers' token display can then build on (it still draws its own tokens); **range slider and rating** (F6); **autocomplete** (F7).
+  - **Chips** (F5, [1.18](#1180-the-sheet-chips-tab-headers-and-the-time-clock-screen-set-shipped), built), which the pickers' token display can then build on (it still draws its own tokens; planned for [1.19](#1190-value-inputs-colors-that-follow-the-system-lists-and-the-sheet-finished-planned)); **range slider and rating** (F6) and **autocomplete** (F7): planned for [1.19](#1190-value-inputs-colors-that-follow-the-system-lists-and-the-sheet-finished-planned).
   - **Lottie** (F8) in an optional `SkiaUi.Maui.Lottie` package on Skottie, drawn by the compositor.
   - **Data grid** (F9): virtualized rows, frozen header and columns, sorting, column resize; waits for the virtual stack's horizontal layout.
   - **Backdrop blur** (F10): only if it holds 50 fps on the Galaxy S9.
 
 ### MAUI parity
 
-- **MAUI 11 members** (net11 only; `BoxView.Fill` and `Editor.ReturnCommand` are known gaps in the parity test from 1.11): `LongPressGestureRecognizer` on drawn views, `BoxView.Fill`, `Editor.ReturnCommand` / `ReturnCommandParameter`, the `CancellationToken` overloads of `FadeToAsync` and the other animation extensions, `VisualElement.InvalidateStyle` / `VisualStateManager.InvalidateVisualStates`.
+- **MAUI 11 members** (net11 only; `BoxView.Fill` and `Editor.ReturnCommand` are known gaps in the parity test from 1.11): `LongPressGestureRecognizer` on drawn views, `BoxView.Fill`, `Editor.ReturnCommand` / `ReturnCommandParameter`, the `CancellationToken` overloads of `FadeToAsync` and the other animation extensions, `VisualElement.InvalidateStyle` / `VisualStateManager.InvalidateVisualStates`. Planned for [1.19](#1190-value-inputs-colors-that-follow-the-system-lists-and-the-sheet-finished-planned).
 - **Gesture recognizers on drawn views:** `PanGestureRecognizer` with `TouchPoints` other than 1 (reported and not run since 1.2).
 - **Labels:** span press feedback, HTML images, block indents; one fitted size for a group of labels.
 - **Templates:** button image tint.
@@ -217,21 +229,21 @@ Taken up when a real app needs it, roughly in this order within each area. Items
 ### Text input
 
 - Autofill groups smaller than a surface; keyboard inline suggestions and the autofilled highlight on Android.
-- A token template for pickers (the searchable list shipped: `IsSearchEnabled`).
+- A token template for pickers (the searchable list shipped: `IsSearchEnabled`). Planned for [1.19](#1190-value-inputs-colors-that-follow-the-system-lists-and-the-sheet-finished-planned) (cut line).
 - A split caret at bidi boundaries, visual Left / Right through mixed-direction lines; re-shaping per keystroke without the shaping engine's arrays (1.14 reuses the edit layout's own objects: [TextInput.md](TextInput.md); the runs' glyph arrays are the rest).
 - Shrink to fit on the drawn entry (the migration checker reports iOS `Entry.AdjustsFontSizeToFitWidth` with advice until then).
 - Number entries: repeat acceleration. More ideas: [TextInput.md](TextInput.md#possible-future-extensions).
 
 ### Lists and scrolling
 
-- Virtual stack: a public horizontal layout, `VirtualScrollMode` (`InfiniteFeed`, `Loop`), `PrefetchDistance`, `QueryItemSize`, a load-more hook with a placeholder, a Core twin.
+- Virtual stack: a public horizontal layout, `VirtualScrollMode` (`InfiniteFeed`, `Loop`), `PrefetchDistance`, `QueryItemSize`, a load-more hook with a placeholder, a Core twin: planned for [1.19](#1190-value-inputs-colors-that-follow-the-system-lists-and-the-sheet-finished-planned) (`VirtualScrollMode` and the Core twin past its cut line).
 - Scroll bars: the thumb shrinking during a bounce (iOS), repeated paging on a held track press; native overlays following a stretch.
 - Pull to refresh from other edges (render-thread effects linked to overscroll: [1.16](#1160-scroll-linked-effects-shipped)).
 - Markdown: long documents as virtualized rows, measuring and recording only the top-level blocks near the viewport (the first frame of a 100 KB document takes about 760 ms on the S9, [Performance.md](../Performance.md#markdown)). Not planned for now. Needs the virtual stack's Core twin or starts on `SkUiMarkdownView` only, and an opt-in way to scroll, since the view is as tall as its document today. Design notes: [1.8 plan, V2](../archive/ImplementationPlan-1.8.md#phase-v--long-documents).
 
 ### Looks, colors and motion
 
-- Per-tree color schemes (looks already work per tree); reading the device's dynamic color (Android 12+), the Windows and Mac accent colors and the OS dark mode into the schemes.
+- Per-tree color schemes (looks already work per tree); reading the device's dynamic color (Android 12+), the Windows and Mac accent colors and the OS dark mode into the schemes: planned for [1.19](#1190-value-inputs-colors-that-follow-the-system-lists-and-the-sheet-finished-planned).
 - Transitions: several ripples at once, opt-in render-thread painters; render-thread animation of shadow properties.
 
 ### Accessibility
@@ -241,14 +253,14 @@ Taken up when a real app needs it, roughly in this order within each area. Items
 
 ### Architecture and performance
 
-- Scheme defaults resolved at paint time on the Core layer: Core controls copy `SkUiColors.Accent`, `TrackOff`, `Muted` and so on into fields when they are created, so a Core tree made before `SkUiColorScheme.Current` changes (dark mode) keeps the old colors.
+- Scheme defaults resolved at paint time on the Core layer: Core controls copy `SkUiColors.Accent`, `TrackOff`, `Muted` and so on into fields when they are created, so a Core tree made before `SkUiColorScheme.Current` changes (dark mode) keeps the old colors. Planned for [1.19](#1190-value-inputs-colors-that-follow-the-system-lists-and-the-sheet-finished-planned), on both layers (the SkUi\* layer's `defaultValueCreator`s are snapshots too).
 - Shadows of rich text (spans, HTML) and of label subclasses on GPU surfaces: still rasterized on the CPU once per item; plain-text labels cast theirs from the glyphs since 1.14 ([Benchmarks.md](Benchmarks.md#114-text-shadow-spike-18-november-2026)).
 - Relayout boundaries below the surface root (the root is one); raster cache of stable subtrees with a per-frame budget, for what is expensive to composite every frame (dashed strokes of complex paths: 33 fps on the S9).
 - Recording Core-only subtrees off the UI thread (the look, the color scheme and the text and image caches would have to be safe to read from it); hit-testing against render-thread transforms while animations run.
-- Overlay masks, so drawn popups can cover hosted native controls (mostly WebView, media and maps now that text fields are drawn). (Overlay bookkeeping on Android: measured and fixed in 1.14, [Benchmarks.md](Benchmarks.md#114-overlay-bookkeeping-on-android-17-november-2026).)
+- Overlay masks, so drawn popups can cover hosted native controls (mostly WebView, media and maps now that text fields are drawn). (Overlay bookkeeping on Android: measured and fixed in 1.14, [Benchmarks.md](Benchmarks.md#114-overlay-bookkeeping-on-android-17-november-2026).) A first form (covered native views frozen while a drawn overlay covers them) is planned for [1.19](#1190-value-inputs-colors-that-follow-the-system-lists-and-the-sheet-finished-planned).
 - Windows GPU surfaces can still flash the window's backdrop for a frame when their swap chain panel changes size (rare since `SkUiSurfaceSlack`). `SKSwapChainPanel` handles a size change by presenting an empty buffer before the real frame (`pendingSizeChange` in SkiaSharp's `AngleSwapChainPanel`), and that blank can reach the screen. The fix needs a way around that swap: our own ANGLE panel, or a SkiaSharp change.
 - From the November 2026 review: a way for optional packages to take part in the look (today a package carries its own style object, as Markdown does).
-- A test that keeps the Core layer to [FR-C1](Requirements.md#core-layer-fr-c): no Core node derives from `BindableObject` or `Element`, and the `Microsoft.Maui.Controls` types the Core API uses (`FontAttributes`, `DataTemplate` for picker popups, the host's `SkUiView`) are a list a new one has to join.
+- A test that keeps the Core layer to [FR-C1](Requirements.md#core-layer-fr-c): no Core node derives from `BindableObject` or `Element`, and the `Microsoft.Maui.Controls` types the Core API uses (`FontAttributes`, `DataTemplate` for picker popups, the host's `SkUiView`) are a list a new one has to join. Planned for [1.19](#1190-value-inputs-colors-that-follow-the-system-lists-and-the-sheet-finished-planned).
 
 ## Verification backlog
 
