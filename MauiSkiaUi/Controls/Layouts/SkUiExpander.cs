@@ -276,6 +276,21 @@ public class SkUiExpander : SkUiView
     /// <summary>Sets <see cref="Padding"/> (same as the property setter).</summary>
     public SkUiExpander SetPadding(Thickness value) { Padding = value; return this; }
 
+    /// <summary>Sets <see cref="Command"/> (same as the property setter).</summary>
+    public SkUiExpander SetCommand(ICommand? value) { Command = value; return this; }
+
+    /// <summary>Sets <see cref="CommandParameter"/> (same as the property setter).</summary>
+    public SkUiExpander SetCommandParameter(object? value) { CommandParameter = value; return this; }
+
+    /// <summary>Sets <see cref="LazyContentExpansion"/> (same as the property setter).</summary>
+    public SkUiExpander SetLazyContentExpansion(bool value) { LazyContentExpansion = value; return this; }
+
+    /// <summary>Sets <see cref="AnimationLength"/> in milliseconds (same as the property setter).</summary>
+    public SkUiExpander SetAnimationLength(uint value) { AnimationLength = value; return this; }
+
+    /// <summary>Sets <see cref="AnimationEasing"/> (same as the property setter; <c>null</c> is linear).</summary>
+    public SkUiExpander SetAnimationEasing(Easing? value) { AnimationEasing = value; return this; }
+
     /// <summary>The header's host (tests).</summary>
     internal SkUiView HeaderHost => HeaderPartView;
 

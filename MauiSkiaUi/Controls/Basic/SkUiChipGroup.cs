@@ -170,6 +170,9 @@ public class SkUiChipGroup : SkUiView, ISkUiKeyHandler
     /// <summary>Sets <see cref="SelectedItem"/> (same as the property setter).</summary>
     public SkUiChipGroup SetSelectedItem(object? value) { SelectedItem = value; return this; }
 
+    /// <summary>Sets <see cref="SelectedItems"/> (same as the property setter; <c>null</c> is an empty list).</summary>
+    public SkUiChipGroup SetSelectedItems(IList<object>? value) { SelectedItems = value!; return this; }
+
     /// <summary>Sets <see cref="Wraps"/> (same as the property setter).</summary>
     public SkUiChipGroup SetWraps(bool value) { Wraps = value; return this; }
 

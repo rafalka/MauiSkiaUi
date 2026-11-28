@@ -317,6 +317,12 @@ public class SkUiScrollView : SkUiContentView, ISkUiScrollHost, ISkUiViewportIns
     /// <summary>True while the user drags this scroller or a fling / animated scroll runs.</summary>
     public bool IsScrolling => Scroller.IsMoving;
 
+    /// <summary>True while a render-thread fling or animated scroll runs (not while the user drags).</summary>
+    public bool IsScrollAnimating => Scroller.IsMotionRunning;
+
+    /// <summary>Viewport size (DIPs): the area the content scrolls in.</summary>
+    public Size ViewportSize => Scroller.Viewport;
+
     private void OnMovingChanged(bool moving)
     {
         if (SkUiDiagnostics.TraceOn)
@@ -335,6 +341,46 @@ public class SkUiScrollView : SkUiContentView, ISkUiScrollHost, ISkUiViewportIns
     {
         if (!Enum.IsDefined(value)) throw new ArgumentOutOfRangeException(nameof(value));
         Orientation = value;
+        return this;
+    }
+
+    /// <summary>Sets <see cref="SnapPointsType"/> (same as the property setter).</summary>
+    public SkUiScrollView SetSnapPointsType(SnapPointsType value)
+    {
+        if (!Enum.IsDefined(value)) throw new ArgumentOutOfRangeException(nameof(value));
+        SnapPointsType = value;
+        return this;
+    }
+
+    /// <summary>Sets <see cref="SnapPointsAlignment"/> (same as the property setter).</summary>
+    public SkUiScrollView SetSnapPointsAlignment(SnapPointsAlignment value)
+    {
+        if (!Enum.IsDefined(value)) throw new ArgumentOutOfRangeException(nameof(value));
+        SnapPointsAlignment = value;
+        return this;
+    }
+
+    /// <summary>Sets <see cref="HorizontalScrollBarVisibility"/> (same as the property setter).</summary>
+    public SkUiScrollView SetHorizontalScrollBarVisibility(ScrollBarVisibility value)
+    {
+        if (!Enum.IsDefined(value)) throw new ArgumentOutOfRangeException(nameof(value));
+        HorizontalScrollBarVisibility = value;
+        return this;
+    }
+
+    /// <summary>Sets <see cref="VerticalScrollBarVisibility"/> (same as the property setter).</summary>
+    public SkUiScrollView SetVerticalScrollBarVisibility(ScrollBarVisibility value)
+    {
+        if (!Enum.IsDefined(value)) throw new ArgumentOutOfRangeException(nameof(value));
+        VerticalScrollBarVisibility = value;
+        return this;
+    }
+
+    /// <summary>Sets <see cref="Overscroll"/> (same as the property setter).</summary>
+    public SkUiScrollView SetOverscroll(SkUiOverscrollMode value)
+    {
+        if (!Enum.IsDefined(value)) throw new ArgumentOutOfRangeException(nameof(value));
+        Overscroll = value;
         return this;
     }
 

@@ -8,6 +8,7 @@ Run `dotnet test tests/MauiSkiaUi.Tests/MauiSkiaUi.Tests.csproj`. The library's 
 
 | Test class | Coverage |
 | --- | --- |
+| `TwinParityTests` | Every `SkUiX` / `SkUiCoreX` pair (and `SkUiView` / `SkUiCoreNode`): properties with a twin of the same name and type, fluent setters on both layers, the same defaults, the same invalid values rejected, matching methods and events; the layers' conventions are rules, other differences a reasoned list (D3) |
 | `PipelineTests` | Frame renderer, paint layers, measure/arrange, hit-testing, animation clock, ownership, Box/Ellipse/Line |
 | `BasicControlsTests` | Label, Button, Image, Border, ActivityIndicator, toggles/chrome |
 | `LayoutTests` | Grid, AbsoluteLayout batching, layout culling/Z-order, BackgroundColor semantics |

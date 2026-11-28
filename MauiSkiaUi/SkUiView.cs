@@ -426,6 +426,9 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
     /// <inheritdoc cref="ClipToBoundsProperty" />
     public bool ClipToBounds { get => (bool)GetValue(ClipToBoundsProperty); set => SetValue(ClipToBoundsProperty, value); }
 
+    /// <summary>Sets <see cref="ClipToBounds"/> (same as the property setter).</summary>
+    public SkUiView SetClipToBounds(bool value) { ClipToBounds = value; return this; }
+
     private const string IsClippedToBoundsName = "IsClippedToBounds";
 
     /// <summary>
@@ -2050,6 +2053,12 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
     public SwipeDirection SwipeDirections { get => (SwipeDirection)GetValue(SwipeDirectionsProperty); set => SetValue(SwipeDirectionsProperty, value); }
     /// <inheritdoc cref="PanAxisProperty" />
     public SkUiPanAxis PanAxis { get => (SkUiPanAxis)GetValue(PanAxisProperty); set => SetValue(PanAxisProperty, value); }
+
+    /// <summary>Sets <see cref="SwipeDirections"/> (same as the property setter).</summary>
+    public SkUiView SetSwipeDirections(SwipeDirection value) { SwipeDirections = value; return this; }
+
+    /// <summary>Sets <see cref="PanAxis"/> (same as the property setter).</summary>
+    public SkUiView SetPanAxis(SkUiPanAxis value) { PanAxis = value; return this; }
 
     /// <summary>Allows a control to participate in taps without an event subscriber.</summary>
     protected virtual bool HandlesTap => false;

@@ -308,6 +308,12 @@ public class SkUiShimmer : SkUiContentView, ISkUiShimmer
     /// <summary>Sets <see cref="IsLoading"/> (same as the property setter).</summary>
     public SkUiShimmer SetIsLoading(bool value) { IsLoading = value; return this; }
 
+    /// <summary>Sets <see cref="BeforeStateChangeAnimation"/> (same as the property setter).</summary>
+    public SkUiShimmer SetBeforeStateChangeAnimation(SkUiViewAnimation? value) { BeforeStateChangeAnimation = value; return this; }
+
+    /// <summary>Sets <see cref="AfterStateChangeAnimation"/> (same as the property setter).</summary>
+    public SkUiShimmer SetAfterStateChangeAnimation(SkUiViewAnimation? value) { AfterStateChangeAnimation = value; return this; }
+
     /// <summary>Sets <see cref="Effect"/>.</summary>
     public SkUiShimmer SetEffect(SkUiShimmerEffect value)
     {

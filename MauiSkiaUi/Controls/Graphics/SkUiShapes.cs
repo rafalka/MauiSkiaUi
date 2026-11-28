@@ -107,6 +107,24 @@ public class SkUiLine : SkUiShape
     /// <summary>The end point's y coordinate.</summary>
     public double Y2 { get => (double)GetValue(Y2Property); set => SetValue(Y2Property, value); }
 
+    /// <summary>Sets the start point's x coordinate (same as the property setter; throws unless finite).</summary>
+    public SkUiLine SetX1(double value) => SetPoint(X1Property, value);
+    /// <summary>Sets the start point's y coordinate (same as the property setter; throws unless finite).</summary>
+    public SkUiLine SetY1(double value) => SetPoint(Y1Property, value);
+    /// <summary>Sets the end point's x coordinate (same as the property setter; throws unless finite).</summary>
+    public SkUiLine SetX2(double value) => SetPoint(X2Property, value);
+    /// <summary>Sets the end point's y coordinate (same as the property setter; throws unless finite).</summary>
+    public SkUiLine SetY2(double value) => SetPoint(Y2Property, value);
+    /// <summary>Sets both end points.</summary>
+    public SkUiLine SetPoints(double x1, double y1, double x2, double y2) => SetX1(x1).SetY1(y1).SetX2(x2).SetY2(y2);
+
+    private SkUiLine SetPoint(BindableProperty property, double value)
+    {
+        SkUiValidate.ThrowIfNotFinite(value, property.PropertyName);
+        SetValue(property, value);
+        return this;
+    }
+
     private static BindableProperty PointProperty(string name) => BindableProperty.Create(name, typeof(double), typeof(SkUiLine), 0d,
         validateValue: SkUiValidate.Finite, propertyChanged: (bindable, _, _) => ((SkUiLine)bindable).InvalidateMeasureOverride());
 
