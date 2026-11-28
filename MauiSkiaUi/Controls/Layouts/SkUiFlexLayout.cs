@@ -115,17 +115,24 @@ public class SkUiFlexLayout : SkUiLayout, IFlexLayout
     public static void SetShrink(BindableObject view, float value) => FlexLayout.SetShrink(view, value);
     /// <summary>Gets a child's cross-axis alignment override.</summary>
     public static FlexAlignSelf GetAlignSelf(BindableObject view) => FlexLayout.GetAlignSelf(view);
-    /// <summary>Sets a child's cross-axis alignment override.</summary>
-    public static void SetAlignSelf(BindableObject view, FlexAlignSelf value) => FlexLayout.SetAlignSelf(view, value);
+    /// <summary>Sets a child's cross-axis alignment override; throws on an undefined value (MAUI's property takes it, and layout reads it as <see cref="FlexAlignSelf.Auto"/>).</summary>
+    public static void SetAlignSelf(BindableObject view, FlexAlignSelf value)
+    {
+        SkUiValidate.ThrowIfNotDefined(value, nameof(value));
+        FlexLayout.SetAlignSelf(view, value);
+    }
     /// <summary>Gets a child's initial main-axis size.</summary>
     public static FlexBasis GetBasis(BindableObject view) => FlexLayout.GetBasis(view);
     /// <summary>Sets a child's initial main-axis size.</summary>
     public static void SetBasis(BindableObject view, FlexBasis value) => FlexLayout.SetBasis(view, value);
 
+    /// <summary>A child's <c>AlignSelf</c>, <see cref="FlexAlignSelf.Auto"/> for an undefined value MAUI's property took (the engine has no case for it).</summary>
+    private static FlexAlignSelf AlignSelfOf(BindableObject view) => FlexLayout.GetAlignSelf(view) is var value && Enum.IsDefined(value) ? value : FlexAlignSelf.Auto;
+
     int IFlexLayout.GetOrder(IView view) => FlexLayout.GetOrder((BindableObject)view);
     float IFlexLayout.GetGrow(IView view) => FlexLayout.GetGrow((BindableObject)view);
     float IFlexLayout.GetShrink(IView view) => FlexLayout.GetShrink((BindableObject)view);
-    FlexAlignSelf IFlexLayout.GetAlignSelf(IView view) => FlexLayout.GetAlignSelf((BindableObject)view);
+    FlexAlignSelf IFlexLayout.GetAlignSelf(IView view) => AlignSelfOf((BindableObject)view);
     FlexBasis IFlexLayout.GetBasis(IView view) => FlexLayout.GetBasis((BindableObject)view);
 
     /// <inheritdoc />
@@ -251,7 +258,7 @@ public class SkUiFlexLayout : SkUiLayout, IFlexLayout
         item.Grow = FlexLayout.GetGrow(bindable);
         item.Shrink = FlexLayout.GetShrink(bindable);
         item.Basis = SkUiFlexBasis.From(FlexLayout.GetBasis(bindable));
-        item.AlignSelf = FlexLayout.GetAlignSelf(bindable);
+        item.AlignSelf = AlignSelfOf(bindable);
         var margin = child.Margin;
         item.MarginLeft = (float)margin.Left;
         item.MarginTop = (float)margin.Top;
