@@ -6,6 +6,31 @@ namespace MauiSkiaUi.Tests;
 /// <summary>Gesture arena: nested scrolling, press feedback, tap variants, pans, swipes, pinch, native coordination.</summary>
 public class GestureTests
 {
+    [Fact]
+    public void PanAxisAndSwipeDirectionsRejectUndefinedValuesOnBothLayers()
+    {
+        const SkUiPanAxis UndefinedAxis = (SkUiPanAxis)9;
+        const SwipeDirection UndefinedDirection = (SwipeDirection)16;
+        var view = new SkUiBox();
+        var node = new SkUiCoreBox();
+        Assert.Throws<ArgumentOutOfRangeException>(() => view.SetPanAxis(UndefinedAxis));
+        Assert.Throws<ArgumentOutOfRangeException>(() => node.SetPanAxis(UndefinedAxis));
+        Assert.Throws<ArgumentOutOfRangeException>(() => view.SetSwipeDirections(UndefinedDirection | SwipeDirection.Left));
+        Assert.Throws<ArgumentOutOfRangeException>(() => node.SetSwipeDirections(UndefinedDirection));
+
+        // The bindable properties ignore them (MAUI's validateValue), on every path.
+        view.PanAxis = UndefinedAxis;
+        view.SwipeDirections = UndefinedDirection;
+        Assert.Equal(SkUiPanAxis.Both, view.PanAxis);
+        Assert.Equal(SwipeDirection.Left | SwipeDirection.Right | SwipeDirection.Up | SwipeDirection.Down, view.SwipeDirections);
+
+        // Valid values, none included, still go through.
+        view.SetPanAxis(SkUiPanAxis.Vertical).SetSwipeDirections(0);
+        node.SetPanAxis(SkUiPanAxis.Vertical).SetSwipeDirections(SwipeDirection.Up);
+        Assert.Equal((SkUiPanAxis.Vertical, (SwipeDirection)0), (view.PanAxis, view.SwipeDirections));
+        Assert.Equal((SkUiPanAxis.Vertical, SwipeDirection.Up), (node.PanAxis, node.SwipeDirections));
+    }
+
     private static SkUiBox Box(double width, double height) =>
         new() { WidthRequest = width, HeightRequest = height, HorizontalOptions = LayoutOptions.Start, VerticalOptions = LayoutOptions.Start };
 

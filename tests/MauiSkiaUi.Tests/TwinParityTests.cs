@@ -10,17 +10,20 @@ namespace MauiSkiaUi.Tests;
 
 /// <summary>
 /// Every control on both layers stays at parity (decision D3 of the November 2026 review: this test instead of a source
-/// generator for the twins). Twins are found by name, <c>SkUiCoreX</c> ↔ <c>SkUiX</c>, in the library and its packages. For
-/// each pair:
+/// generator for the twins). Twins are found by name, <c>SkUiCoreX</c> ↔ <c>SkUiX</c>, in the library and its packages, or
+/// listed in <see cref="NamedOtherwise"/>; every other SkUi type is in <see cref="Unpaired"/> with the reason. For each pair:
 /// <list type="bullet">
-/// <item>each bindable property of the SkUi control has a property of the same name and type on the Core twin, and each
-/// property the Core twin declares has one on the SkUi control;</item>
+/// <item>each public property the SkUi control declares has a property of the same name and type on the Core twin, and
+/// each property the Core twin declares has one on the SkUi control;</item>
 /// <item>both layers have a fluent <c>SetX</c> for every writable one;</item>
-/// <item>a fresh control and a fresh node start with the same value (numbers, enums, strings, colors, time spans);</item>
-/// <item>both reject the same invalid values (NaN, infinity, -2, an undefined enum value, <c>null</c>): the SkUi <c>SetX</c>
-/// throws exactly when the Core <c>SetX</c> does;</item>
+/// <item>a fresh control and a fresh node start with the same value (numbers, enums, strings, colors, time spans,
+/// thicknesses, corner radii, sizes, points, rectangles);</item>
+/// <item>both reject the same invalid values (NaN, infinity, -2, <c>null</c>, negative thicknesses and radii): the SkUi
+/// <c>SetX</c> throws exactly when the Core <c>SetX</c> does, also for an undefined enum value or flag;</item>
 /// <item>public methods and events declared on one layer exist on the other.</item>
 /// </list>
+/// Members SkUi views inherit from MAUI's <c>VisualElement</c> are not compared with <c>SkUiCoreNode</c>: Core has the
+/// ones it draws with (opacity, transforms, background) under its own names.
 /// The layers' conventions are rules here, not exceptions: MAUI types on SkUi and Skia / graphics types on Core
 /// (<see cref="LayerTypes"/>), views on SkUi and nodes on Core (<c>EmptyView</c> holds an <c>SkUiCoreNode</c>,
 /// <c>GetRealizedView</c> is <c>GetRealizedNode</c>), templates and commands on SkUi where Core takes factories and events,
@@ -30,9 +33,11 @@ namespace MauiSkiaUi.Tests;
 public partial class TwinParityTests
 {
     /// <summary>
-    /// What one layer has, or does differently, on purpose. Keys: <c>Type.Member</c> for a member only that type has (a
-    /// property, <c>SetX</c>, a method as "Name(ParameterTypes)" or "event Name"); <c>Type.Member default</c> /
-    /// <c>Type.Member validation</c> (on the Core type) for a value the layers treat differently.
+    /// What one layer has, or does differently, on purpose. Keys: <c>Type.Property</c> or <c>Type.SetX</c> on the type that
+    /// lacks the property or setter its twin has; <c>Type.Method(ParameterTypes)</c> or <c>Type.event Name</c> on the type
+    /// that has the method or event its twin lacks; <c>Core.Property default</c> / <c>validation</c> / <c>type</c> for a
+    /// value the layers treat differently. <see cref="EveryIntendedDifferenceStillHolds"/> fails once a listed difference is
+    /// gone.
     /// </summary>
     private static readonly HashSet<string> IntendedDifferences = Flatten(
     [
@@ -44,20 +49,67 @@ public partial class TwinParityTests
             "SkUiCoreNode.GetValue(AttachedProperty`1)",
             "SkUiCoreNode.IsSet(AttachedProperty`1)",
             "SkUiCoreNode.ClearValue(AttachedProperty`1)",
+            "SkUiCoreNode.SetValue(AttachedProperty`1, T)",
         ]),
-        ("Set together on both layers: SetDownsample(width, height), SetFadeAnimation(enabled, duration), SetPlaceholders(loading, error)", [
-            "SkUiImage.SetDownsampleWidth",
-            "SkUiImage.SetDownsampleHeight",
-            "SkUiImage.SetFadeAnimationEnabled",
-            "SkUiImage.SetFadeAnimationDuration",
-            "SkUiImage.SetLoadingPlaceholder",
-            "SkUiImage.SetErrorPlaceholder",
-            "SkUiCoreImage.SetDownsampleWidth",
-            "SkUiCoreImage.SetDownsampleHeight",
-            "SkUiCoreImage.SetFadeAnimationEnabled",
+        ("Set together on both layers: SetFont(family, size, attributes), SetBadge(color, position, borderColor)", [
+            "SkUiAvatarView.SetFontFamily",
+            "SkUiAvatarView.SetFontSize",
+            "SkUiAvatarView.SetFontAttributes",
+            "SkUiAvatarView.SetBadgeColor",
+            "SkUiAvatarView.SetBadgePosition",
+            "SkUiAvatarView.SetBadgeBorderColor",
+            "SkUiCoreAvatar.SetFontFamily",
+            "SkUiCoreAvatar.SetFontSize",
+            "SkUiCoreAvatar.SetFontAttributes",
+            "SkUiCoreAvatar.SetBadgeColor",
+            "SkUiCoreAvatar.SetBadgePosition",
+            "SkUiCoreAvatar.SetBadgeBorderColor",
+        ]),
+        ("The Community Toolkit's names for Stroke and StrokeThickness on the SkUi avatar; Core's avatar has its border's", [
+            "SkUiCoreAvatar.BorderColor",
+            "SkUiCoreAvatar.BorderWidth",
+        ]),
+        ("MAUI's names and Layout members on the SkUi layer: IsClippedToBounds is ClipToBounds, CascadeInputTransparent is MAUI's Layout's, and an SkUiLayout is MAUI's IList of children (a Core panel has Children)", [
+            "SkUiCoreExpander.IsClippedToBounds",
+            "SkUiCoreExpander.CascadeInputTransparent",
+            "SkUiCoreRadioButton.IsClippedToBounds",
+            "SkUiCoreRadioButton.CascadeInputTransparent",
+            "SkUiCorePanel.Count",
+            "SkUiCorePanel.IsReadOnly",
+            "SkUiLayout.AddRange(IEnumerable`1)",
+            "SkUiLayout.Contains(Node)",
+            "SkUiLayout.CopyTo(IView[], Int32)",
+            "SkUiLayout.GetEnumerator()",
+        ]),
+        ("A ControlTemplate's root and MAUI's indicator template stack exist only where templates do", [
+            "SkUiCoreContentView.TemplateRoot",
+            "SkUiCoreRadioButton.TemplateRoot",
+            "SkUiCoreIndicatorView.IndicatorLayout",
+        ]),
+        ("SkUi views' input plumbing: their gesture set, the surface's hardware acceleration and IsShown from MAUI's visibility and window state; a Core node draws in its host's surface and asks its host", [
+            "SkUiCoreNode.Gestures",
+            "SkUiCoreNode.HwAccelerated",
+            "SkUiCoreNode.IsShown",
+        ]),
+        ("The SkUi Markdown view hosts a Core Markdown node", [
+            "SkUiCoreMarkdown.Markdown",
+        ]),
+        ("Core shortcuts: subscribe to Clicked, set a uniform corner radius into CornerRadii (where SkUi's CornerRadius is MAUI's int or a mirror), set an image source of each kind or a decoded image (SkUi takes MAUI's ImageSource and its kinds)", [
+            "SkUiCoreButton.SetClicked(Action)",
+            "SkUiCoreImageButton.SetClicked(Action)",
+            "SkUiCoreButton.SetCornerRadius(Double)",
+            "SkUiCoreImageButton.SetCornerRadius(Double)",
+            "SkUiCoreLabel.SetCornerRadius(Double)",
+            "SkUiCoreImage.SetImage(SKImage, Boolean)",
+            "SkUiCoreImageButton.SetImage(SKImage, Boolean)",
+            "SkUiCoreImage.SetSourceFile(String)",
+            "SkUiCoreImage.SetSourceUri(Uri, Boolean, Nullable`1)",
+            "SkUiCoreImage.SetSourceStream(Func`2, String)",
+            "SkUiCoreImage.SetSourceFont(String, String, Double, Color, FontAttributes)",
         ]),
         ("SetValue(BindableProperty, object) is BindableObject's: the slider's fluent setter is SetSliderValue", [
             "SkUiSlider.SetValue",
+            "SkUiSlider.SetSliderValue(Double)",
         ]),
         ("On the SkUi layer these are attached properties: MAUI's SemanticProperties, AutomationProperties and ToolTipProperties, and SkUiAccessibility's", [
             "SkUiView.SemanticDescription",
@@ -91,6 +143,8 @@ public partial class TwinParityTests
         ]),
         ("Only the surface root applies the safe area (not planned on drawn views inside a surface)", [
             "SkUiCoreNode.SafeAreaInsets",
+            "SkUiCoreContentView.SafeAreaEdges",
+            "SkUiCorePanel.SafeAreaEdges",
         ]),
         ("A surface's render statistics: a Core tree draws in its host's surface", [
             "SkUiView.GetRenderStatistics()",
@@ -101,6 +155,9 @@ public partial class TwinParityTests
         ]),
         ("Content from ContentTemplate can wait until the view is first shown (ContentLoading) on the SkUi layer; a Core node is given its content", [
             "SkUiCoreContentView.IsContentLoaded",
+            "SkUiCoreContentView.ContentLoading",
+            "SkUiCoreContentView.ContentLoadingDelay",
+            "SkUiCoreContentView.ContentLoadedAnimation",
             "SkUiContentView.LoadContent()",
             "SkUiContentView.event ContentLoaded",
         ]),
@@ -132,6 +189,7 @@ public partial class TwinParityTests
             "SkUiCoreRadioButton.BorderColor",
             "SkUiCoreRadioButton.BorderWidth",
             "SkUiCoreRadioButton.CornerRadius",
+            "SkUiRadioButton.SetRadioValue(Object)",
         ]),
         ("Core takes delegates where the SkUi layer takes MAUI bindings: ItemDisplayBinding, ItemEnabledBinding, SelectedItemDisplayBinding", [
             "SkUiPicker.ItemDisplay",
@@ -139,6 +197,12 @@ public partial class TwinParityTests
             "SkUiPicker.SelectedItemDisplay",
             "SkUiChipGroup.ItemDisplay",
             "SkUiSegmentedControl.ItemDisplay",
+        ]),
+        ("A Core node's bounds and flags set in one call; the SkUi layer sets the attached LayoutBounds and LayoutFlags", [
+            "SkUiCoreAbsoluteLayout.SetLayoutBounds(Node, Rect, AbsoluteLayoutFlags)",
+        ]),
+        ("Core builds a carousel's items with a factory; the SkUi carousel takes MAUI's ItemTemplate", [
+            "SkUiCoreCarouselView.SetItemFactory(Func`2, Action`2, Func`2)",
         ]),
         ("Core builds a tab's nodes with factories or takes them directly; the SkUi layer takes ContentTemplate and HeaderTemplate", [
             "SkUiTabItem.ContentFactory",
@@ -171,9 +235,11 @@ public partial class TwinParityTests
             "SkUiCoreGrid.GetRowOffset(Int32)",
             "SkUiCoreGrid.GetRowHeight(Int32)",
             "SkUiCoreGrid.GetPlacement(Node)",
+            "SkUiCoreGrid.SetPlacement(Node, Int32, Int32, Int32, Int32)",
         ]),
         ("Core shortcut by child index; the SkUi layer reads the attached property of the child", [
             "SkUiCoreShrinkLayout.GetShrink(Int32)",
+            "SkUiCoreShrinkLayout.SetShrink(Int32, ShrinkFactor)",
         ]),
         ("MAUI's path takes its fill rule from its Geometry (PathGeometry.FillRule); Core's path data is a PathF", [
             "SkUiPath.FillRule",
@@ -221,39 +287,88 @@ public partial class TwinParityTests
 
     /// <summary>
     /// Members the SkUi layer has because MAUI's controls do and that Core does differently by design: templates (Core
-    /// builds nodes with factories or takes them directly) and commands (Core raises events).
+    /// builds nodes with factories or takes them directly), commands (Core raises events) and bindings (Core takes
+    /// delegates: <c>ItemDisplayBinding</c> is <c>ItemDisplay</c>).
     /// </summary>
-    private static readonly Type[] MauiOnlyTypes = [typeof(DataTemplate), typeof(ControlTemplate), typeof(System.Windows.Input.ICommand)];
+    private static readonly Type[] MauiOnlyTypes = [typeof(DataTemplate), typeof(ControlTemplate), typeof(System.Windows.Input.ICommand), typeof(BindingBase)];
+
+    /// <summary>Twins whose names do not follow <c>SkUiX</c> / <c>SkUiCoreX</c>.</summary>
+    private static readonly (Type SkUi, Type Core)[] NamedOtherwise =
+    [
+        (typeof(SkUiView), typeof(SkUiCoreNode)), // what every view and node has
+        (typeof(SkUiLayout), typeof(SkUiCorePanel)), // the base of the layouts
+        (typeof(SkUiAvatarView), typeof(SkUiCoreAvatar)),
+        (typeof(Markdown.SkUiMarkdownView), typeof(Markdown.SkUiCoreMarkdown)),
+    ];
+
+    /// <summary>SkUi types without a Core twin, and why.</summary>
+    private static readonly HashSet<string> Unpaired = Flatten(
+    [
+        ("Collections and their virtualizing engines: Core has none (a Core list is a scroll view over a stack, or the carousel); FR-C1 keeps Core small", [
+            "SkUiCollectionView", "SkUiVirtualScrollView", "SkUiVirtualVerticalStackLayout", "SkUiVirtualVerticalStackLayoutBase",
+            "SkUiRefreshView", "SkUiSwipeView", "SkUiSwipeItemView",
+        ]),
+        ("SkUi-only by design: the sheet is SkUi* only (a Core sheet is on the backlog); hosted native views and MAUI templates have no Core meaning", [
+            "SkUiSheet", "SkUiMauiContentView", "SkUiContentPresenter",
+        ]),
+        ("Community Toolkit and MAUI layouts kept on the SkUi layer; Core uses its wrap, shrink, tile and grid layouts (no Core flex layout, by design)", [
+            "SkUiDockLayout", "SkUiUniformItemsLayout", "SkUiFlexLayout",
+        ]),
+        ("SkUi building blocks whose Core counterparts are not nodes: the shimmer's base, the wheel picker's columns, a stacked bar's MAUI segment (SkUiBarValue on Core), the XAML vector image source", [
+            "SkUiAlternateContentView", "SkUiPickerWheels", "SkUiPickerColumn", "SkUiBarSegment", "SkUiVectorImageSource",
+        ]),
+    ]);
 
     public static TheoryData<Type, Type> Pairs()
     {
+        var data = new TheoryData<Type, Type>();
+        foreach (var (skUi, core) in AllPairs())
+            data.Add(skUi, core);
+        return data;
+    }
+
+    private static List<(Type SkUi, Type Core)> AllPairs()
+    {
         var exported = Assemblies.SelectMany(a => a.GetExportedTypes()).Where(t => t.IsClass).ToList();
         var byName = exported.GroupBy(t => t.Name).ToDictionary(g => g.Key, g => g.First());
-        var data = new TheoryData<Type, Type>();
+        var pairs = new List<(Type SkUi, Type Core)>();
         foreach (var core in exported.Where(t => t.Name.StartsWith("SkUiCore", StringComparison.Ordinal)).OrderBy(t => t.Name, StringComparer.Ordinal))
         {
             if (byName.TryGetValue("SkUi" + core.Name["SkUiCore".Length..], out var skUi) && typeof(BindableObject).IsAssignableFrom(skUi))
-                data.Add(skUi, core);
+                pairs.Add((skUi, core));
         }
-        data.Add(typeof(SkUiView), typeof(SkUiCoreNode)); // what every view and node has
-        return data;
+        pairs.AddRange(NamedOtherwise);
+        return pairs;
     }
 
     [Fact]
     public void TwinsAreFound()
     {
-        var pairs = Pairs().Select(row => ((Type)row[0], (Type)row[1])).ToList();
+        var pairs = AllPairs();
         Assert.Contains((typeof(SkUiLabel), typeof(SkUiCoreLabel)), pairs);
         Assert.Contains((typeof(SkUiSegmentedControl), typeof(SkUiCoreSegmentedControl)), pairs);
         Assert.True(pairs.Count > 50, $"{pairs.Count} pairs");
     }
 
+    /// <summary>A new SkUi control either has a Core twin the other tests check or is listed here with the reason.</summary>
     [Fact]
-    public void EveryIntendedDifferenceStillExists()
+    public void EverySkUiTypeIsPairedOrListed()
+    {
+        var paired = AllPairs().Select(pair => pair.SkUi).ToHashSet();
+        var unlisted = Assemblies.SelectMany(a => a.GetExportedTypes())
+            .Where(t => t.IsClass && typeof(BindableObject).IsAssignableFrom(t) && !typeof(Page).IsAssignableFrom(t) && t.Name.StartsWith("SkUi", StringComparison.Ordinal)
+                && !t.Name.StartsWith("SkUiCore", StringComparison.Ordinal) && !paired.Contains(t) && !Unpaired.Contains(t.Name))
+            .Select(t => t.Name);
+        var stale = Unpaired.Where(name => paired.Any(t => t.Name == name)).Select(name => $"{name} is paired now");
+        Report([.. unlisted.Concat(stale)]);
+    }
+
+    [Fact]
+    public void EveryIntendedDifferenceStillHolds()
     {
         var types = Assemblies.SelectMany(a => a.GetExportedTypes()).GroupBy(t => t.Name).ToDictionary(g => g.Key, g => g.First());
         var stale = IntendedDifferences
-            .Where(key => !types.TryGetValue(key[..key.IndexOf('.')], out var type) || !HasMember(type, key[(key.IndexOf('.') + 1)..]))
+            .Where(key => !types.TryGetValue(key[..key.IndexOf('.')], out var type) || !StillDiffers(type, key[(key.IndexOf('.') + 1)..]))
             .ToList();
         Report(stale);
     }
@@ -287,6 +402,16 @@ public partial class TwinParityTests
             if (!HasSetter(closedCore, coreProperty.Name) && !Intended(core, "Set" + coreProperty.Name))
                 missing.Add($"{core.Name}.Set{coreProperty.Name}");
         }
+        var bindableNames = DeclaredBindables(closedSkUi).Select(b => b.PropertyName).ToHashSet(StringComparer.Ordinal);
+        foreach (var skUiProperty in closedSkUi.GetProperties(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly))
+        {
+            // Properties without a bindable property (read-only state such as IsScrolling) need a twin too.
+            if (skUiProperty.GetIndexParameters().Length > 0 || bindableNames.Contains(skUiProperty.Name) || IsMauiOnly(skUiProperty)
+                || Intended(core, LayerName(skUiProperty.Name)))
+                continue;
+            if (Property(closedCore, skUiProperty.Name) is null)
+                missing.Add($"{core.Name}.{LayerName(skUiProperty.Name)}");
+        }
         foreach (var coreProperty in closedCore.GetProperties(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly))
         {
             if (coreProperty.GetIndexParameters().Length > 0 || Intended(skUi, LayerName(coreProperty.Name)))
@@ -302,10 +427,9 @@ public partial class TwinParityTests
     public void DefaultsMatch(Type skUi, Type core)
     {
         using var dispatcher = SkUiTestHelpers.UseTestDispatcher();
-        if (Instantiable(skUi, core) is not var (closedSkUi, closedCore))
-            return;
-        var skUiNode = Activator.CreateInstance(closedSkUi)!;
-        var coreNode = Activator.CreateInstance(closedCore)!;
+        var (closedSkUi, closedCore) = Instantiable(skUi, core);
+        var skUiNode = Create(closedSkUi);
+        var coreNode = Create(closedCore);
         var differing = new List<string>();
         foreach (var (skUiProperty, coreProperty) in ComparableProperties(skUi, closedSkUi, closedCore))
         {
@@ -324,8 +448,7 @@ public partial class TwinParityTests
     public void InvalidValuesAreRejectedAlike(Type skUi, Type core)
     {
         using var dispatcher = SkUiTestHelpers.UseTestDispatcher();
-        if (Instantiable(skUi, core) is not var (closedSkUi, closedCore))
-            return;
+        var (closedSkUi, closedCore) = Instantiable(skUi, core);
         var differing = new List<string>();
         foreach (var (skUiProperty, coreProperty) in ComparableProperties(skUi, closedSkUi, closedCore))
         {
@@ -337,8 +460,8 @@ public partial class TwinParityTests
                 continue; // the property test reports a missing setter
             foreach (var probe in Probes(skUiProperty.PropertyType))
             {
-                var skUiRejects = Rejects(skUiSetter, Activator.CreateInstance(closedSkUi)!, probe);
-                var coreRejects = Rejects(coreSetter, Activator.CreateInstance(closedCore)!, probe);
+                var skUiRejects = Rejects(skUiSetter, Create(closedSkUi), probe);
+                var coreRejects = Rejects(coreSetter, Create(closedCore), probe);
                 if (skUiRejects != coreRejects)
                     differing.Add($"{core.Name}.{coreProperty.Name} validation: {Show(probe)} {coreRejects}, {skUi.Name} {skUiRejects}");
             }
@@ -372,57 +495,77 @@ public partial class TwinParityTests
 
     private static bool Intended(Type type, string member) => IntendedDifferences.Contains($"{type.Name}.{member}");
 
-    /// <summary>Whether an <see cref="IntendedDifferences"/> key still names a member of <paramref name="type"/>.</summary>
-    private static bool HasMember(Type type, string member)
+    /// <summary>Whether the difference an <see cref="IntendedDifferences"/> key names (see there) is still there.</summary>
+    private static bool StillDiffers(Type type, string member)
     {
-        var name = member.Split(' ', '(')[0];
-        if (member.StartsWith("event ", StringComparison.Ordinal))
-            return MethodsAndEvents(type, declaredOnly: false).Contains(member);
-        if (member.Contains('('))
-            return MethodsAndEvents(type, declaredOnly: false).Contains(member);
+        var twin = Twin(type);
+        if (twin is null)
+            return false;
         var closed = Closed(type) ?? type;
+        var closedTwin = Closed(twin) ?? twin;
+        if (member.Contains('(') || member.StartsWith("event ", StringComparison.Ordinal))
+        {
+            var twinMembers = MethodsAndEvents(twin, declaredOnly: false);
+            if (type.Name.StartsWith("SkUiCore", StringComparison.Ordinal))
+                twinMembers.UnionWith(AttachedGetters(twin));
+            return MethodsAndEvents(type, declaredOnly: false).Contains(member) && !twinMembers.Contains(member);
+        }
+        var name = member.Split(' ')[0];
         if (member.EndsWith(" default", StringComparison.Ordinal) || member.EndsWith(" validation", StringComparison.Ordinal) || member.EndsWith(" type", StringComparison.Ordinal))
             return Property(closed, name) is not null;
-        // A member only one type has: the key names the missing one, on the type that lacks it, so its twin has it.
-        var twin = Twin(type);
-        return twin is not null && (Property(Closed(twin) ?? twin, name) is not null || (name.StartsWith("Set", StringComparison.Ordinal) && Property(closed, name[3..]) is not null));
+        if (name.StartsWith("Set", StringComparison.Ordinal) && Property(closed, name[3..]) is not null)
+            return !HasSetter(closed, name[3..]);
+        return Property(closed, name) is null && Property(closedTwin, name) is not null;
     }
 
     private static Type? Twin(Type type)
     {
-        if (type == typeof(SkUiView))
-            return typeof(SkUiCoreNode);
-        if (type == typeof(SkUiCoreNode))
-            return typeof(SkUiView);
-        var twinName = type.Name.StartsWith("SkUiCore", StringComparison.Ordinal) ? "SkUi" + type.Name["SkUiCore".Length..] : "SkUiCore" + type.Name["SkUi".Length..];
-        return Assemblies.SelectMany(a => a.GetExportedTypes()).FirstOrDefault(t => t.Name == twinName);
+        foreach (var (skUi, core) in AllPairs())
+        {
+            if (skUi == type)
+                return core;
+            if (core == type)
+                return skUi;
+        }
+        return null;
     }
 
     /// <summary>
     /// Types to create for comparing a pair's values: the pair itself, or for an abstract base (<c>SkUiShape</c>,
     /// <c>SkUiView</c>) the first pair of concrete twins derived from it.
     /// </summary>
-    private static (Type SkUi, Type Core)? Instantiable(Type skUi, Type core)
+    private static (Type SkUi, Type Core) Instantiable(Type skUi, Type core)
     {
         if (Creatable(skUi, core) is { } own)
             return own;
-        foreach (var row in Pairs())
+        foreach (var (derivedSkUi, derivedCore) in AllPairs())
         {
-            var (derivedSkUi, derivedCore) = ((Type)row[0], (Type)row[1]);
             if (Creatable(derivedSkUi, derivedCore) is var (a, b) && IsDerived(a, skUi) && IsDerived(b, core))
                 return (a, b);
         }
-        return null;
+        Assert.Fail($"Neither {skUi.Name} / {core.Name} nor a pair derived from them can be created to compare their values");
+        return default;
     }
 
     private static (Type SkUi, Type Core)? Creatable(Type skUi, Type core)
     {
         var closedSkUi = Closed(skUi);
         var closedCore = Closed(core);
-        if (closedSkUi is null || closedCore is null || closedSkUi.IsAbstract || closedCore.IsAbstract
-            || closedSkUi.GetConstructor(Type.EmptyTypes) is null || closedCore.GetConstructor(Type.EmptyTypes) is null)
+        if (closedSkUi is null || closedCore is null || Constructor(closedSkUi) is null || Constructor(closedCore) is null)
             return null;
         return (closedSkUi, closedCore);
+    }
+
+    /// <summary>A public constructor without arguments, or one that takes only <c>params</c> arrays (<c>SkUiCorePolygon(params Point[])</c>).</summary>
+    private static ConstructorInfo? Constructor(Type type) =>
+        type.IsAbstract ? null : type.GetConstructors().Where(c => c.GetParameters().All(p => p.IsDefined(typeof(ParamArrayAttribute))))
+            .OrderBy(c => c.GetParameters().Length)
+            .FirstOrDefault();
+
+    private static object Create(Type type)
+    {
+        var constructor = Constructor(type)!;
+        return constructor.Invoke([.. constructor.GetParameters().Select(p => Array.CreateInstance(p.ParameterType.GetElementType()!, 0))]);
     }
 
     /// <summary>Whether <paramref name="type"/> derives from <paramref name="baseType"/>, a generic definition included.</summary>
@@ -503,8 +646,12 @@ public partial class TwinParityTests
     private static bool IsSimple(Type type)
     {
         var underlying = Nullable.GetUnderlyingType(type) ?? type;
-        return underlying.IsPrimitive || underlying.IsEnum || underlying == typeof(string) || underlying == typeof(Color) || underlying == typeof(TimeSpan);
+        return underlying.IsPrimitive || underlying.IsEnum || SimpleTypes.Contains(underlying);
     }
+
+    /// <summary>Value types the default and validation tests compare, besides primitives and enums.</summary>
+    private static readonly HashSet<Type> SimpleTypes =
+        [typeof(string), typeof(Color), typeof(TimeSpan), typeof(Thickness), typeof(CornerRadius), typeof(Size), typeof(Point), typeof(Rect)];
 
     /// <summary>Values a control should reject, or that the two layers must at least treat alike.</summary>
     private static IEnumerable<object?> Probes(Type type)
@@ -528,8 +675,25 @@ public partial class TwinParityTests
             yield return -2;
         else if (value == typeof(TimeSpan))
             yield return TimeSpan.FromSeconds(-2);
+        else if (value == typeof(Thickness))
+        {
+            yield return new Thickness(-2);
+            yield return new Thickness(double.NaN);
+        }
+        else if (value == typeof(CornerRadius))
+        {
+            yield return new CornerRadius(-2);
+            yield return new CornerRadius(double.NaN);
+        }
         else if (value.IsEnum && value.GetCustomAttribute<FlagsAttribute>() is null)
             yield return Enum.ToObject(value, 9999);
+        else if (value.IsEnum)
+        {
+            // A flag outside every defined one.
+            var defined = Enum.GetValues(value).Cast<object>().Aggregate(0L, (all, flag) => all | Convert.ToInt64(flag));
+            var bit = Enumerable.Range(0, 31).Select(i => 1L << i).First(b => (defined & b) == 0);
+            yield return Enum.ToObject(value, bit);
+        }
     }
 
     /// <summary>What the fluent setter does with <paramref name="value"/>: takes it, rejects it (an argument exception), or throws.</summary>
@@ -551,20 +715,33 @@ public partial class TwinParityTests
     }
 
     /// <summary>
-    /// The same type, a pair of <see cref="LayerTypes"/>, or a MAUI collection on SkUi where Core has a read-only list of the
-    /// same items.
+    /// The same type, a pair of <see cref="LayerTypes"/>, twins (<c>SkUiTabItem</c> / <c>SkUiCoreTabItem</c>, MAUI's
+    /// <c>ColumnDefinition</c> / <c>SkUiCoreColumnDefinition</c>), a template on SkUi where Core has a factory of nodes, or a
+    /// MAUI collection on SkUi where Core has a read-only list of the same items.
     /// </summary>
     private static bool SameLayerType(Type skUi, Type core)
     {
-        if (skUi == core)
+        if (skUi == core || (Nullable.GetUnderlyingType(core) is { } underlying && skUi == underlying))
             return true;
-        var coreDefinition = core.IsGenericType ? core.GetGenericTypeDefinition() : core;
-        if (LayerTypes.Any(pair => pair.SkUi.IsAssignableFrom(skUi) && (pair.Core == core || pair.Core == coreDefinition)))
+        if (LayerTypes.Any(pair => pair.SkUi.IsAssignableFrom(skUi) && pair.Core == core))
             return true;
-        if (typeof(ISkUiCoreNode).IsAssignableFrom(core) && LayerTypes.Any(pair => pair.Core == typeof(SkUiCoreNode) && pair.SkUi.IsAssignableFrom(skUi)))
+        if (core.Name.StartsWith("SkUiCore", StringComparison.Ordinal) && ParameterName(skUi) == ParameterName(core))
             return true;
-        return coreDefinition == typeof(IReadOnlyList<>) && skUi != typeof(string) && typeof(IEnumerable).IsAssignableFrom(skUi);
+        if (!core.IsGenericType)
+            return false;
+        var definition = core.GetGenericTypeDefinition();
+        var arguments = core.GetGenericArguments();
+        if (definition == typeof(Func<,>) && typeof(DataTemplate).IsAssignableFrom(skUi))
+            return typeof(ISkUiCoreNode).IsAssignableFrom(arguments[1]);
+        if (definition == typeof(IReadOnlyList<>) && skUi != typeof(string) && ItemType(skUi) is { } item)
+            return SameLayerType(item, arguments[0]);
+        return false;
     }
+
+    /// <summary>The item type of a collection, from its <c>IEnumerable&lt;T&gt;</c>.</summary>
+    private static Type? ItemType(Type type) =>
+        (type.IsGenericType && type.GetGenericTypeDefinition() == typeof(IEnumerable<>) ? type : null)?.GetGenericArguments()[0]
+        ?? type.GetInterfaces().FirstOrDefault(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IEnumerable<>))?.GetGenericArguments()[0];
 
     private static bool HasSetter(Type type, string name) =>
         type.GetMethods(BindingFlags.Public | BindingFlags.Instance).Any(m =>
@@ -574,18 +751,23 @@ public partial class TwinParityTests
         type.GetMethods(BindingFlags.Public | BindingFlags.Instance).FirstOrDefault(m =>
             m.Name == "Set" + name && m.DeclaringType != typeof(BindableObject) && m.GetParameters() is [var value] && value.ParameterType.IsAssignableFrom(valueType));
 
+    /// <summary>A generic type closed with <c>double</c> (so NaN and infinity are probed), else <c>int</c>.</summary>
     private static Type? Closed(Type type)
     {
         if (!type.IsGenericTypeDefinition)
             return type;
-        try
+        foreach (var argument in (Type[])[typeof(double), typeof(int)])
         {
-            return type.MakeGenericType([.. type.GetGenericArguments().Select(_ => typeof(int))]);
+            try
+            {
+                return type.MakeGenericType([.. type.GetGenericArguments().Select(_ => argument)]);
+            }
+            catch (ArgumentException)
+            {
+                // constraints the argument does not meet
+            }
         }
-        catch (ArgumentException)
-        {
-            return null; // constraints int does not meet
-        }
+        return null;
     }
 
     private static string Show(object? value) => value switch
@@ -596,17 +778,20 @@ public partial class TwinParityTests
     };
 
     /// <summary>
-    /// Public methods (not property accessors; not the fluent setters, which the property test covers; not overrides of a
-    /// base's) and events, as "Name(ParameterTypes)" and "event Name" in the Core layer's words: the ones the type declares,
-    /// or all it has.
+    /// Public methods (not property accessors; not a property's fluent setters, which the property test covers; not
+    /// overrides of a base's) and events, as "Name(ParameterTypes)" and "event Name" in the Core layer's words: the ones the
+    /// type declares, or all it has. Setters of several values (<c>SetDownsample(width, height)</c>) are compared here.
     /// </summary>
     private static HashSet<string> MethodsAndEvents(Type type, bool declaredOnly)
     {
         var flags = BindingFlags.Public | BindingFlags.Instance | (declaredOnly ? BindingFlags.DeclaredOnly : 0);
         var members = new HashSet<string>(StringComparer.Ordinal);
+        var closed = Closed(type) ?? type;
         foreach (var method in type.GetMethods(flags))
         {
-            if (method.IsSpecialName || method.Name.StartsWith("Set", StringComparison.Ordinal))
+            if (method.IsSpecialName || method.DeclaringType == typeof(BindableObject))
+                continue;
+            if (declaredOnly && method.Name.StartsWith("Set", StringComparison.Ordinal) && Property(closed, method.Name[3..]) is not null)
                 continue;
             if (declaredOnly && method.GetBaseDefinition().DeclaringType != method.DeclaringType)
                 continue;
@@ -618,13 +803,15 @@ public partial class TwinParityTests
     }
 
     /// <summary>
-    /// The SkUi layer's attached property getters (<c>SkUiShrinkLayout.GetShrink(BindableObject)</c>), as the instance
-    /// methods Core has for them (<c>SkUiCoreShrinkLayout.GetShrink(node)</c>).
+    /// The SkUi layer's attached property accessors (<c>SkUiShrinkLayout.GetShrink(BindableObject)</c>,
+    /// <c>SetShrink(BindableObject, value)</c>), as the instance methods Core has for them (<c>GetShrink(node)</c>,
+    /// <c>SetShrink(node, value)</c>).
     /// </summary>
     private static IEnumerable<string> AttachedGetters(Type type) =>
         type.GetMethods(BindingFlags.Public | BindingFlags.Static | BindingFlags.FlattenHierarchy)
-            .Where(m => m.Name.StartsWith("Get", StringComparison.Ordinal) && m.GetParameters() is [{ ParameterType: var p }] && typeof(BindableObject).IsAssignableFrom(p))
-            .Select(m => $"{m.Name}(Node)");
+            .Where(m => (m.Name.StartsWith("Get", StringComparison.Ordinal) || m.Name.StartsWith("Set", StringComparison.Ordinal))
+                && m.GetParameters() is [{ ParameterType: var p }, ..] && typeof(BindableObject).IsAssignableFrom(p))
+            .Select(m => $"{m.Name}({string.Join(", ", m.GetParameters().Select(p => ParameterName(p.ParameterType)))})");
 
     /// <summary>
     /// A Core container's <c>Add(node, placement)</c>: the child and the values the SkUi layer sets as attached properties

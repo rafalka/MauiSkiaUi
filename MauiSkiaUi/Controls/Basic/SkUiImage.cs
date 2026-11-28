@@ -271,6 +271,10 @@ public class SkUiImage : SkUiView
         return this;
     }
 
+    /// <summary>Sets <see cref="LoadingPlaceholder"/> (same as the property setter).</summary>
+    public SkUiImage SetLoadingPlaceholder(ImageSource? value) { LoadingPlaceholder = value; return this; }
+    /// <summary>Sets <see cref="ErrorPlaceholder"/> (same as the property setter).</summary>
+    public SkUiImage SetErrorPlaceholder(ImageSource? value) { ErrorPlaceholder = value; return this; }
     /// <summary>Sets the loading and error placeholders (same as the property setters).</summary>
     public SkUiImage SetPlaceholders(ImageSource? loading, ImageSource? error)
     {
@@ -343,12 +347,36 @@ public class SkUiImage : SkUiView
             FadeAnimationDuration = duration;
         return this;
     }
+    /// <summary>Sets <see cref="FadeAnimationEnabled"/> (same as the property setter).</summary>
+    public SkUiImage SetFadeAnimationEnabled(bool value) { FadeAnimationEnabled = value; return this; }
+    /// <summary>Sets <see cref="FadeAnimationDuration"/> in milliseconds (<c>null</c>: the look's; throws when negative).</summary>
+    public SkUiImage SetFadeAnimationDuration(int? value)
+    {
+        if (value is < 0)
+            throw new ArgumentOutOfRangeException(nameof(value), value, "The fade duration cannot be negative.");
+        FadeAnimationDuration = value;
+        return this;
+    }
     /// <summary>Sets <see cref="FadeAnimationForCachedImages"/> (same as the property setter).</summary>
     public SkUiImage SetFadeAnimationForCachedImages(bool value) { FadeAnimationForCachedImages = value; return this; }
     /// <summary>Sets <see cref="DownsampleToViewSize"/> (same as the property setter).</summary>
     public SkUiImage SetDownsampleToViewSize(bool value) { DownsampleToViewSize = value; return this; }
     /// <summary>Sets <see cref="CacheKey"/> (same as the property setter).</summary>
     public SkUiImage SetCacheKey(string? value) { CacheKey = value; return this; }
+    /// <summary>Sets <see cref="DownsampleWidth"/> in DIPs (0: no bound; throws when negative or not finite).</summary>
+    public SkUiImage SetDownsampleWidth(double value)
+    {
+        SkUiValidate.ThrowIfNegativeOrNotFinite(value, nameof(value));
+        DownsampleWidth = value;
+        return this;
+    }
+    /// <summary>Sets <see cref="DownsampleHeight"/> in DIPs (0: no bound; throws when negative or not finite).</summary>
+    public SkUiImage SetDownsampleHeight(double value)
+    {
+        SkUiValidate.ThrowIfNegativeOrNotFinite(value, nameof(value));
+        DownsampleHeight = value;
+        return this;
+    }
     /// <summary>Sets <see cref="DownsampleWidth"/> and <see cref="DownsampleHeight"/> in DIPs (0: no bound).</summary>
     public SkUiImage SetDownsample(double width, double height)
     {

@@ -1347,8 +1347,16 @@ public partial class SkUiCoreNode : ISkUiCoreNode, INotifyPropertyChanged, ISkUi
     /// <inheritdoc cref="ISkUiInputNode.HitsOutsideBounds" />
     internal virtual bool HitsOutsideBounds(Point local) => false;
 
+    /// <summary>Whether a hovering pointer is over this node or one of its descendants (raises <c>PropertyChanged</c>).</summary>
+    public bool IsPointerOver { get; private set; }
+
     void ISkUiInputNode.SetPointerOver(bool isOver)
     {
+        if (IsPointerOver != isOver)
+        {
+            IsPointerOver = isOver;
+            OnPropertyChanged(nameof(IsPointerOver));
+        }
         OnPointerOverChanged(isOver);
         if (!isOver && TracksHover)
             OnHovered(null);
@@ -1654,13 +1662,23 @@ public partial class SkUiCoreNode : ISkUiCoreNode, INotifyPropertyChanged, ISkUi
     public SwipeDirection SwipeDirections => _gestures?.SwipeDirections ?? (SwipeDirection.Left | SwipeDirection.Right | SwipeDirection.Up | SwipeDirection.Down);
 
     /// <summary>Sets <see cref="SwipeDirections"/>.</summary>
-    public SkUiCoreNode SetSwipeDirections(SwipeDirection value) { GestureSet.SwipeDirections = value; return this; }
+    public SkUiCoreNode SetSwipeDirections(SwipeDirection value)
+    {
+        SkUiValidate.ThrowIfNotSwipeDirections(value, nameof(value));
+        GestureSet.SwipeDirections = value;
+        return this;
+    }
 
     /// <summary>Axes <see cref="PanUpdated"/> reacts to (default both).</summary>
     public SkUiPanAxis PanAxis => _gestures?.PanAxis ?? SkUiPanAxis.Both;
 
     /// <summary>Sets <see cref="PanAxis"/>.</summary>
-    public SkUiCoreNode SetPanAxis(SkUiPanAxis value) { GestureSet.PanAxis = value; return this; }
+    public SkUiCoreNode SetPanAxis(SkUiPanAxis value)
+    {
+        if (!Enum.IsDefined(value)) throw new ArgumentOutOfRangeException(nameof(value));
+        GestureSet.PanAxis = value;
+        return this;
+    }
 
     /// <summary>Adds a custom recognizer (after the built-in ones).</summary>
     public SkUiCoreNode AddGestureRecognizer(SkUiGestureRecognizer recognizer)

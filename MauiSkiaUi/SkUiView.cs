@@ -2032,9 +2032,11 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
     /// <summary>Bindable swipe directions.</summary>
     public static readonly BindableProperty SwipeDirectionsProperty = BindableProperty.Create(nameof(SwipeDirections), typeof(SwipeDirection), typeof(SkUiView),
         SwipeDirection.Left | SwipeDirection.Right | SwipeDirection.Up | SwipeDirection.Down,
+        validateValue: (_, value) => SkUiValidate.IsSwipeDirections((SwipeDirection)value),
         propertyChanged: (view, _, value) => ((SkUiView)view).GestureSet.SwipeDirections = (SwipeDirection)value);
     /// <summary>Bindable pan axis.</summary>
     public static readonly BindableProperty PanAxisProperty = BindableProperty.Create(nameof(PanAxis), typeof(SkUiPanAxis), typeof(SkUiView), SkUiPanAxis.Both,
+        validateValue: (_, value) => Enum.IsDefined((SkUiPanAxis)value),
         propertyChanged: (view, _, value) => ((SkUiView)view).GestureSet.PanAxis = (SkUiPanAxis)value);
 
     /// <inheritdoc cref="DoubleTappedCommandProperty" />
@@ -2055,10 +2057,20 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
     public SkUiPanAxis PanAxis { get => (SkUiPanAxis)GetValue(PanAxisProperty); set => SetValue(PanAxisProperty, value); }
 
     /// <summary>Sets <see cref="SwipeDirections"/> (same as the property setter).</summary>
-    public SkUiView SetSwipeDirections(SwipeDirection value) { SwipeDirections = value; return this; }
+    public SkUiView SetSwipeDirections(SwipeDirection value)
+    {
+        SkUiValidate.ThrowIfNotSwipeDirections(value, nameof(value));
+        SwipeDirections = value;
+        return this;
+    }
 
     /// <summary>Sets <see cref="PanAxis"/> (same as the property setter).</summary>
-    public SkUiView SetPanAxis(SkUiPanAxis value) { PanAxis = value; return this; }
+    public SkUiView SetPanAxis(SkUiPanAxis value)
+    {
+        if (!Enum.IsDefined(value)) throw new ArgumentOutOfRangeException(nameof(value));
+        PanAxis = value;
+        return this;
+    }
 
     /// <summary>Allows a control to participate in taps without an event subscriber.</summary>
     protected virtual bool HandlesTap => false;

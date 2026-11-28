@@ -70,6 +70,9 @@ public class SkUiCoreImage : SkUiCoreNode
     /// <summary>Sets the error placeholder.</summary>
     public SkUiCoreImage SetErrorPlaceholder(SkUiImageSource? value) => SetPlaceholder(ref _errorPlaceholder, value, nameof(ErrorPlaceholder));
 
+    /// <summary>Sets the loading and error placeholders.</summary>
+    public SkUiCoreImage SetPlaceholders(SkUiImageSource? loading, SkUiImageSource? error) => SetLoadingPlaceholder(loading).SetErrorPlaceholder(error);
+
     /// <summary>Sets whether placeholders get the image's transformations and downsampling.</summary>
     public SkUiCoreImage SetTransformPlaceholders(bool value)
     {
@@ -154,6 +157,9 @@ public class SkUiCoreImage : SkUiCoreNode
         SetProperty(ref _fadeAnimationEnabled, enabled, nameof(FadeAnimationEnabled));
         return this;
     }
+
+    /// <summary>Sets <see cref="FadeAnimationEnabled"/>.</summary>
+    public SkUiCoreImage SetFadeAnimationEnabled(bool value) => SetFadeAnimation(value);
 
     /// <summary>Sets the fade's length in milliseconds (<c>null</c>: the look's).</summary>
     public SkUiCoreImage SetFadeAnimationDuration(int? value)
@@ -325,6 +331,20 @@ public class SkUiCoreImage : SkUiCoreNode
         if (_source is not null)
             Load(restart: false);
         return this;
+    }
+
+    /// <summary>Sets <see cref="DownsampleWidth"/> in DIPs (0: no bound; reloads the source).</summary>
+    public SkUiCoreImage SetDownsampleWidth(double value)
+    {
+        SkUiValidate.ThrowIfNegativeOrNotFinite(value, nameof(value));
+        return SetOptions(_options with { DownsampleWidth = value }, nameof(DownsampleWidth));
+    }
+
+    /// <summary>Sets <see cref="DownsampleHeight"/> in DIPs (0: no bound; reloads the source).</summary>
+    public SkUiCoreImage SetDownsampleHeight(double value)
+    {
+        SkUiValidate.ThrowIfNegativeOrNotFinite(value, nameof(value));
+        return SetOptions(_options with { DownsampleHeight = value }, nameof(DownsampleHeight));
     }
 
     /// <summary>Sets the decode bounds in DIPs (0: no bound; reloads the source).</summary>
