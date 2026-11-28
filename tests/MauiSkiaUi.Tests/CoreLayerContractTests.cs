@@ -143,9 +143,11 @@ public class CoreLayerContractTests
         Assert.Contains(typeof(Element), uses[$"{probe}.Generic<TElement> constraint"]);
         Assert.Contains(typeof(LayoutAlignment), uses[$"{probe}.Protected"]);
         Assert.Contains(typeof(Label), uses[$"{probe}.ProtectedInternal"]);
-        Assert.Empty(uses[$"{probe}.PrivateProtected"]);
-        Assert.Empty(uses[$"{probe}.Internal"]);
-        Assert.Empty(uses[$"{probe}.Private"]);
+        foreach (var hidden in new[] { "PrivateProtected", "Internal", "Private" })
+        {
+            Assert.NotNull(typeof(ScanProbe<>).GetField(hidden, Declared)); // the key below names a real member
+            Assert.Empty(uses[$"{probe}.{hidden}"]);
+        }
         Assert.Contains(typeof(List<Label>), uses[$"{probe} base type"]);
         Assert.Contains(typeof(IComparable<Brush>), uses[$"{probe} interface"]);
         Assert.Contains(typeof(Element), uses[$"{probe}<T> constraint"]);
@@ -154,6 +156,8 @@ public class CoreLayerContractTests
         Assert.Contains(typeof(FontAttributes), Flatten(typeof(FontAttributes[])));
         Assert.True(IsReachable(typeof(ScanProbe<>)));
         Assert.True(IsReachable(typeof(ScanProbe<>).GetNestedType("ProtectedNested", BindingFlags.NonPublic)!));
+        Assert.True(IsReachable(typeof(ScanProbe<>).GetNestedType("ProtectedInternalNested", BindingFlags.NonPublic)!));
+        Assert.False(IsReachable(typeof(ScanProbe<>).GetNestedType("PrivateProtectedNested", BindingFlags.NonPublic)!));
         Assert.False(IsReachable(typeof(ScanProbe<>).GetNestedType("PrivateNested", BindingFlags.NonPublic)!));
         Assert.True(IsCoreNamespace("MauiSkiaUi.Core.Sub"));
         Assert.False(IsCoreNamespace("MauiSkiaUi.CoreX"));
@@ -309,6 +313,10 @@ public class CoreLayerContractTests
         public int CompareTo(Brush? other) => 0;
 
         protected class ProtectedNested;
+
+        protected internal class ProtectedInternalNested;
+
+        private protected class PrivateProtectedNested;
 
         private class PrivateNested;
     }
