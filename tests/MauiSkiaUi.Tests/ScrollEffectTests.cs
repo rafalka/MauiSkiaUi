@@ -9,8 +9,11 @@ namespace MauiSkiaUi.Tests;
 /// <summary>
 /// 1.16 phase B: the public <see cref="SkUiScrollEffect"/> and <see cref="SkUiScrollReveal"/> on both layers: validation,
 /// factories, finding the scroller (a reference, the nearest ancestor, a collection view's sticky parts, a Core node following a
-/// SkUi* list), one view per effect, re-commits on scroll, release, and the reduced-motion rules.
+/// SkUi* list), one view per effect, re-commits on scroll, release, and the reduced-motion rules. In the global-state
+/// collection: the reduced-motion tests set <see cref="SkUiMotion.ReduceMotion"/>, which would turn the animations of tests
+/// running in parallel off (a sheet found open on its first frames).
 /// </summary>
+[Collection(GlobalStateCollection.Name)]
 public class ScrollEffectTests
 {
     private const float Tolerance = 1e-3f;
