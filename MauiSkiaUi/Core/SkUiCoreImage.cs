@@ -352,7 +352,15 @@ public class SkUiCoreImage : SkUiCoreNode
     {
         SkUiValidate.ThrowIfNegativeOrNotFinite(width, nameof(width));
         SkUiValidate.ThrowIfNegativeOrNotFinite(height, nameof(height));
-        return SetOptions(_options with { DownsampleWidth = width, DownsampleHeight = height }, nameof(DownsampleWidth));
+        var old = _options;
+        _options = old with { DownsampleWidth = width, DownsampleHeight = height };
+        if (_options == old) return this;
+        // Exact: whether each value changed.
+        if (old.DownsampleWidth != width) OnPropertyChanged(nameof(DownsampleWidth));
+        if (old.DownsampleHeight != height) OnPropertyChanged(nameof(DownsampleHeight));
+        if (_source is not null)
+            Load(restart: false);
+        return this;
     }
 
     private SkUiCoreImage SetOptions(SkUiImageOptions options, string property)

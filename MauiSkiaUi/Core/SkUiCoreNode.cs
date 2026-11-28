@@ -563,7 +563,9 @@ public partial class SkUiCoreNode : ISkUiCoreNode, INotifyPropertyChanged, ISkUi
             SkUiRenderInvalidation.ResetSubtree(this);
         if (parent is null)
         {
+            // No PointerOver state sticks to a detached subtree until the next hover move.
             SkUiGestureSet.CancelSubtree(this);
+            SkUiHover.ClearSubtree(this);
             SkUiFocusManager.ValidateAll();
         }
         var detached = parent is null && !HasInheritedHostClock;

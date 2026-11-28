@@ -2036,7 +2036,7 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
         propertyChanged: (view, _, value) => ((SkUiView)view).GestureSet.SwipeDirections = (SwipeDirection)value);
     /// <summary>Bindable pan axis.</summary>
     public static readonly BindableProperty PanAxisProperty = BindableProperty.Create(nameof(PanAxis), typeof(SkUiPanAxis), typeof(SkUiView), SkUiPanAxis.Both,
-        validateValue: (_, value) => Enum.IsDefined((SkUiPanAxis)value),
+        validateValue: SkUiValidate.PanAxis,
         propertyChanged: (view, _, value) => ((SkUiView)view).GestureSet.PanAxis = (SkUiPanAxis)value);
 
     /// <inheritdoc cref="DoubleTappedCommandProperty" />

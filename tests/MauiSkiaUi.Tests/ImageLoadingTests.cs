@@ -55,6 +55,24 @@ public sealed class ImageLoadingTests : IDisposable
     };
 
     [Fact]
+    public void CoreDownsampleSettersRaiseTheValuesThatChanged()
+    {
+        var image = new SkUiCoreImage();
+        var raised = new List<string?>();
+        image.PropertyChanged += (_, e) => raised.Add(e.PropertyName);
+
+        image.SetDownsample(0, 80); // only the height changes
+        Assert.Equal([nameof(SkUiCoreImage.DownsampleHeight)], raised);
+        image.SetDownsample(40, 60);
+        Assert.Equal([nameof(SkUiCoreImage.DownsampleHeight), nameof(SkUiCoreImage.DownsampleWidth), nameof(SkUiCoreImage.DownsampleHeight)], raised);
+        image.SetDownsampleWidth(40).SetDownsampleHeight(60); // unchanged
+        Assert.Equal(3, raised.Count);
+        Assert.Equal((40d, 60d), (image.DownsampleWidth, image.DownsampleHeight));
+        Assert.Throws<ArgumentOutOfRangeException>(() => image.SetDownsampleWidth(-1));
+        Assert.Throws<ArgumentOutOfRangeException>(() => image.SetDownsampleHeight(double.PositiveInfinity));
+    }
+
+    [Fact]
     public async Task ASecondViewOfTheSameSourceDecodesNothingAndShowsAtOnce()
     {
         var path = Path.Combine(_testDirectory, "red.png");

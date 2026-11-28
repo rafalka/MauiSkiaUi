@@ -18,7 +18,7 @@ public class GestureTests
         Assert.Throws<ArgumentOutOfRangeException>(() => view.SetSwipeDirections(UndefinedDirection | SwipeDirection.Left));
         Assert.Throws<ArgumentOutOfRangeException>(() => node.SetSwipeDirections(UndefinedDirection));
 
-        // The bindable properties ignore them (MAUI's validateValue), on every path.
+        // The bindable properties ignore them (MAUI's validateValue).
         view.PanAxis = UndefinedAxis;
         view.SwipeDirections = UndefinedDirection;
         Assert.Equal(SkUiPanAxis.Both, view.PanAxis);

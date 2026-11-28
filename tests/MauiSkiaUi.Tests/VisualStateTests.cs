@@ -181,6 +181,29 @@ public class VisualStateTests
     }
 
     [Fact]
+    public void ACoreNodeRemovedWhileHoveredIsNoLongerPointerOver()
+    {
+        var box = new MauiSkiaUi.Core.SkUiCoreBox();
+        box.SetWidth(100).SetHeight(40).SetBackground(Colors.Red);
+        var stack = new MauiSkiaUi.Core.SkUiCoreVerticalStackLayout().Add(box);
+        var host = new MauiSkiaUi.Core.SkUiCoreHost().SetContent(stack);
+        var root = new SkUiContentView { Content = host };
+        SkUiTestHelpers.Arrange(root, 100, 40);
+        var changes = 0;
+        box.PropertyChanged += (_, e) => changes += e.PropertyName == nameof(box.IsPointerOver) ? 1 : 0;
+
+        root.Touch(new(0, SkUiTouchAction.HoverMoved, new Point(10, 10)));
+        root.Touch(new(0, SkUiTouchAction.HoverMoved, new Point(12, 10)));
+        Assert.Equal((true, true, 1), (box.IsPointerOver, stack.IsPointerOver, changes)); // raised once, not per move
+
+        stack.Remove(box); // the surface stays live; no hover event follows
+        Assert.Equal((false, true, 2), (box.IsPointerOver, stack.IsPointerOver, changes));
+
+        host.SetContent(null); // the host lets its content go
+        Assert.False(stack.IsPointerOver);
+    }
+
+    [Fact]
     public void StateTriggersApplyToDrawnControls()
     {
         using var dispatcher = SkUiTestHelpers.UseTestDispatcher();

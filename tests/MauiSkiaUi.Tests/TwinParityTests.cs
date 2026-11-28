@@ -359,7 +359,9 @@ public partial class TwinParityTests
             .Where(t => t.IsClass && typeof(BindableObject).IsAssignableFrom(t) && !typeof(Page).IsAssignableFrom(t) && t.Name.StartsWith("SkUi", StringComparison.Ordinal)
                 && !t.Name.StartsWith("SkUiCore", StringComparison.Ordinal) && !paired.Contains(t) && !Unpaired.Contains(t.Name))
             .Select(t => t.Name);
-        var stale = Unpaired.Where(name => paired.Any(t => t.Name == name)).Select(name => $"{name} is paired now");
+        var exported = Assemblies.SelectMany(a => a.GetExportedTypes()).Select(t => t.Name).ToHashSet(StringComparer.Ordinal);
+        var stale = Unpaired.Where(name => paired.Any(t => t.Name == name)).Select(name => $"{name} is paired now")
+            .Concat(Unpaired.Where(name => !exported.Contains(name)).Select(name => $"{name} is gone"));
         Report([.. unlisted.Concat(stale)]);
     }
 
@@ -433,12 +435,8 @@ public partial class TwinParityTests
         var differing = new List<string>();
         foreach (var (skUiProperty, coreProperty) in ComparableProperties(skUi, closedSkUi, closedCore))
         {
-            if (Intended(core, coreProperty.Name + " default"))
-                continue;
-            var skUiValue = skUiProperty.GetValue(skUiNode);
-            var coreValue = coreProperty.GetValue(coreNode);
-            if (!Equals(skUiValue, coreValue))
-                differing.Add($"{core.Name}.{coreProperty.Name} default: {Show(coreValue)}, {skUi.Name} {Show(skUiValue)}");
+            if (!Intended(core, coreProperty.Name + " default") && DefaultDifference(skUiProperty, coreProperty, skUiNode, coreNode) is { } difference)
+                differing.Add($"{core.Name}.{coreProperty.Name} default: {difference}");
         }
         Report(differing);
     }
@@ -452,21 +450,34 @@ public partial class TwinParityTests
         var differing = new List<string>();
         foreach (var (skUiProperty, coreProperty) in ComparableProperties(skUi, closedSkUi, closedCore))
         {
-            if (Intended(core, coreProperty.Name + " validation"))
-                continue;
-            var skUiSetter = Setter(closedSkUi, skUiProperty.Name, skUiProperty.PropertyType);
-            var coreSetter = Setter(closedCore, coreProperty.Name, coreProperty.PropertyType);
-            if (skUiSetter is null || coreSetter is null)
-                continue; // the property test reports a missing setter
-            foreach (var probe in Probes(skUiProperty.PropertyType))
-            {
-                var skUiRejects = Rejects(skUiSetter, Create(closedSkUi), probe);
-                var coreRejects = Rejects(coreSetter, Create(closedCore), probe);
-                if (skUiRejects != coreRejects)
-                    differing.Add($"{core.Name}.{coreProperty.Name} validation: {Show(probe)} {coreRejects}, {skUi.Name} {skUiRejects}");
-            }
+            if (!Intended(core, coreProperty.Name + " validation"))
+                differing.AddRange(ValidationDifferences(closedSkUi, closedCore, skUiProperty, coreProperty).Select(d => $"{core.Name}.{coreProperty.Name} validation: {d}"));
         }
         Report(differing);
+    }
+
+    /// <summary>How a fresh control's and a fresh node's values of a property differ, or <c>null</c>.</summary>
+    private static string? DefaultDifference(PropertyInfo skUiProperty, PropertyInfo coreProperty, object skUiNode, object coreNode)
+    {
+        var skUiValue = skUiProperty.GetValue(skUiNode);
+        var coreValue = coreProperty.GetValue(coreNode);
+        return Equals(skUiValue, coreValue) ? null : $"{Show(coreValue)}, {skUiNode.GetType().Name} {Show(skUiValue)}";
+    }
+
+    /// <summary>The probes the two layers' fluent setters treat differently (none when either has no one-value setter).</summary>
+    private static IEnumerable<string> ValidationDifferences(Type skUi, Type core, PropertyInfo skUiProperty, PropertyInfo coreProperty)
+    {
+        var skUiSetter = Setter(skUi, skUiProperty.Name, skUiProperty.PropertyType);
+        var coreSetter = Setter(core, coreProperty.Name, coreProperty.PropertyType);
+        if (skUiSetter is null || coreSetter is null)
+            yield break; // the property test reports a missing setter
+        foreach (var probe in Probes(skUiProperty.PropertyType))
+        {
+            var skUiRejects = Rejects(skUiSetter, Create(skUi), probe);
+            var coreRejects = Rejects(coreSetter, Create(core), probe);
+            if (skUiRejects != coreRejects)
+                yield return $"{Show(probe)} {coreRejects}, {skUi.Name} {skUiRejects}";
+        }
     }
 
     [Theory]
@@ -511,8 +522,23 @@ public partial class TwinParityTests
             return MethodsAndEvents(type, declaredOnly: false).Contains(member) && !twinMembers.Contains(member);
         }
         var name = member.Split(' ')[0];
-        if (member.EndsWith(" default", StringComparison.Ordinal) || member.EndsWith(" validation", StringComparison.Ordinal) || member.EndsWith(" type", StringComparison.Ordinal))
-            return Property(closed, name) is not null;
+        var kind = member.Contains(' ') ? member[(member.IndexOf(' ') + 1)..] : null;
+        if (kind is not null)
+        {
+            // "Core.Property default / validation / type": the comparison still finds the difference.
+            var (skUiType, coreType) = type.Name.StartsWith("SkUiCore", StringComparison.Ordinal) ? (twin, type) : (type, twin);
+            using var dispatcher = SkUiTestHelpers.UseTestDispatcher();
+            var (createdSkUi, createdCore) = kind == "type" ? (Closed(skUiType) ?? skUiType, Closed(coreType) ?? coreType) : Instantiable(skUiType, coreType);
+            if (Property(createdSkUi, name) is not { } skUiProperty || Property(createdCore, name) is not { } coreProperty)
+                return false;
+            return kind switch
+            {
+                "type" => !SameLayerType(skUiProperty.PropertyType, coreProperty.PropertyType),
+                "default" => DefaultDifference(skUiProperty, coreProperty, Create(createdSkUi), Create(createdCore)) is not null,
+                "validation" => ValidationDifferences(createdSkUi, createdCore, skUiProperty, coreProperty).Any(),
+                _ => false,
+            };
+        }
         if (name.StartsWith("Set", StringComparison.Ordinal) && Property(closed, name[3..]) is not null)
             return !HasSetter(closed, name[3..]);
         return Property(closed, name) is null && Property(closedTwin, name) is not null;
@@ -791,7 +817,7 @@ public partial class TwinParityTests
         {
             if (method.IsSpecialName || method.DeclaringType == typeof(BindableObject))
                 continue;
-            if (declaredOnly && method.Name.StartsWith("Set", StringComparison.Ordinal) && Property(closed, method.Name[3..]) is not null)
+            if (declaredOnly && method.Name.StartsWith("Set", StringComparison.Ordinal) && method.GetParameters().Length == 1 && Property(closed, method.Name[3..]) is not null)
                 continue;
             if (declaredOnly && method.GetBaseDefinition().DeclaringType != method.DeclaringType)
                 continue;
@@ -809,7 +835,7 @@ public partial class TwinParityTests
     /// </summary>
     private static IEnumerable<string> AttachedGetters(Type type) =>
         type.GetMethods(BindingFlags.Public | BindingFlags.Static | BindingFlags.FlattenHierarchy)
-            .Where(m => (m.Name.StartsWith("Get", StringComparison.Ordinal) || m.Name.StartsWith("Set", StringComparison.Ordinal))
+            .Where(m => m.DeclaringType != typeof(BindableObject) && (m.Name.StartsWith("Get", StringComparison.Ordinal) || m.Name.StartsWith("Set", StringComparison.Ordinal))
                 && m.GetParameters() is [{ ParameterType: var p }, ..] && typeof(BindableObject).IsAssignableFrom(p))
             .Select(m => $"{m.Name}({string.Join(", ", m.GetParameters().Select(p => ParameterName(p.ParameterType)))})");
 
