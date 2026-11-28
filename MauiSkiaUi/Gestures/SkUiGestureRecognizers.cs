@@ -336,8 +336,16 @@ public class SkUiPanGestureRecognizer : SkUiGestureRecognizer
     /// <summary>Raised with Started, Running, Completed or Canceled.</summary>
     public event EventHandler<SkUiPanUpdatedEventArgs>? PanUpdated;
 
-    /// <summary>Axes the pan reacts to (default both).</summary>
-    public SkUiPanAxis Axis { get; set; }
+    /// <summary>Axes the pan reacts to (default both); throws on an undefined value.</summary>
+    public SkUiPanAxis Axis
+    {
+        get;
+        set
+        {
+            SkUiValidate.ThrowIfNotDefined(value, nameof(value));
+            field = value;
+        }
+    }
 
     internal Action<SkUiPanUpdatedEventArgs>? Handler { get; init; }
 
@@ -435,8 +443,16 @@ public class SkUiSwipeGestureRecognizer : SkUiGestureRecognizer
     /// <summary>Raised for a completed swipe.</summary>
     public event EventHandler<SkUiSwipedEventArgs>? Swiped;
 
-    /// <summary>Allowed directions (default all).</summary>
-    public SwipeDirection Direction { get; set; } = SwipeDirection.Left | SwipeDirection.Right | SwipeDirection.Up | SwipeDirection.Down;
+    /// <summary>Allowed directions (default all); throws unless a combination of Left, Right, Up and Down.</summary>
+    public SwipeDirection Direction
+    {
+        get;
+        set
+        {
+            SkUiValidate.ThrowIfNotSwipeDirections(value, nameof(value));
+            field = value;
+        }
+    } = SwipeDirection.Left | SwipeDirection.Right | SwipeDirection.Up | SwipeDirection.Down;
 
     /// <summary>Minimum distance (DIPs); <see cref="SkUiGestureSettings.SwipeThreshold"/> when unset.</summary>
     public double? Threshold { get; set; }

@@ -17,7 +17,8 @@ public class SkUiCoreAbsoluteLayout : SkUiCorePanel
     /// </summary>
     public static readonly SkUiCoreAttachedProperty<Rect> LayoutBoundsProperty = new("LayoutBounds", typeof(SkUiCoreAbsoluteLayout), Rect.Zero);
     /// <summary>Attached: which components of <see cref="LayoutBoundsProperty"/> are proportional (default none).</summary>
-    public static readonly SkUiCoreAttachedProperty<SkUiCoreAbsoluteLayoutFlags> LayoutFlagsProperty = new("LayoutFlags", typeof(SkUiCoreAbsoluteLayout), SkUiCoreAbsoluteLayoutFlags.None);
+    public static readonly SkUiCoreAttachedProperty<SkUiCoreAbsoluteLayoutFlags> LayoutFlagsProperty = new("LayoutFlags", typeof(SkUiCoreAbsoluteLayout), SkUiCoreAbsoluteLayoutFlags.None,
+        validate: SkUiValidate.IsFlags);
 
     /// <inheritdoc cref="SkUiCorePanel.SetPadding" />
     public new SkUiCoreAbsoluteLayout SetPadding(Thickness value)
@@ -34,6 +35,7 @@ public class SkUiCoreAbsoluteLayout : SkUiCorePanel
     public SkUiCoreAbsoluteLayout Add(ISkUiCoreNode child, Rect bounds, SkUiCoreAbsoluteLayoutFlags flags)
     {
         ArgumentNullException.ThrowIfNull(child);
+        SkUiValidate.ThrowIfNotFlags(flags, nameof(flags));
         // Insert first (it validates the child), then write the placement; one re-measure for both.
         StartUpdating();
         try
@@ -61,6 +63,7 @@ public class SkUiCoreAbsoluteLayout : SkUiCorePanel
         ArgumentNullException.ThrowIfNull(child);
         if (child.Parent != this)
             throw new ArgumentException("Child is not in this layout.", nameof(child));
+        SkUiValidate.ThrowIfNotFlags(flags, nameof(flags));
         StartUpdating();
         try
         {

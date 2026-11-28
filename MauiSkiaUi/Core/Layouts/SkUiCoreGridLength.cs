@@ -18,6 +18,7 @@ public readonly struct SkUiCoreGridLength : IEquatable<SkUiCoreGridLength>
     /// <summary>Creates a length with the given unit and weight/value.</summary>
     public SkUiCoreGridLength(double value, SkUiCoreGridUnitType type)
     {
+        SkUiValidate.ThrowIfNotDefined(type, nameof(type));
         if (type == SkUiCoreGridUnitType.Absolute)
         {
             if (double.IsNaN(value) || double.IsInfinity(value) || value < 0)

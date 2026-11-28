@@ -315,6 +315,7 @@ public sealed record SkUiFontImageSource : SkUiImageSource
         ArgumentException.ThrowIfNullOrEmpty(glyph);
         if (!double.IsFinite(size) || size <= 0)
             throw new ArgumentOutOfRangeException(nameof(size), size, "The font size must be finite and positive.");
+        SkUiValidate.ThrowIfNotFlags(fontAttributes, nameof(fontAttributes));
         Glyph = glyph;
         FontFamily = fontFamily;
         Size = size;

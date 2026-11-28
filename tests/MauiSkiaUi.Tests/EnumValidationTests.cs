@@ -215,6 +215,17 @@ public class EnumValidationTests
             {
                 failures.Add($"{key} throws {e.InnerException!.GetType().Name} for an undefined value");
             }
+            if (Nullable.GetUnderlyingType(enums[0].ParameterType) is not null)
+            {
+                try
+                {
+                    setter.Invoke(target, Arguments(null!));
+                }
+                catch (TargetInvocationException e)
+                {
+                    failures.Add($"{key}(null) throws {e.InnerException!.GetType().Name}");
+                }
+            }
             if (SetterSubsets.ContainsKey(key))
                 continue;
             foreach (var value in Defined(enumType))
@@ -230,8 +241,45 @@ public class EnumValidationTests
             }
         }
         failures.AddRange(SetterSubsets.Keys.Except(probed).Select(k => $"{k} is listed in SetterSubsets but was not probed"));
+        // Guards against a filter that finds nothing: setters of each kind the probe must reach.
+        string[] expected =
+        [
+            "SkUiCoreNode.SetHorizontalAlignment(LayoutAlignment)", "SkUiCoreLabel.SetFontAttributes(FontAttributes)",
+            "SkUiCoreSpan.SetFontAttributes(Nullable`1)", "SkUiLabel.SetTextType(TextType)", "SkUiCoreScrollBar.SetVisibility(ScrollBarVisibility)",
+        ];
+        failures.AddRange(expected.Except(probed).Select(k => $"{k} was not probed"));
         if (failures.Count > 0)
             Assert.Fail(string.Join(Environment.NewLine, failures.Order(StringComparer.Ordinal)));
+    }
+
+    [Fact]
+    public void EnumInputsOutsideFluentSettersRejectUndefinedValues()
+    {
+        var child = new SkUiCoreBox();
+        var layout = new SkUiCoreAbsoluteLayout();
+        Assert.Throws<ArgumentOutOfRangeException>(() => layout.Add(child, new Rect(0, 0, 1, 1), (SkUiCoreAbsoluteLayoutFlags)64));
+        Assert.Empty(layout.Children); // checked before the child goes in
+        layout.Add(child, new Rect(0, 0, 1, 1), SkUiCoreAbsoluteLayoutFlags.All);
+        Assert.Throws<ArgumentOutOfRangeException>(() => layout.SetLayoutBounds(child, new Rect(0, 0, 1, 1), (SkUiCoreAbsoluteLayoutFlags)64));
+        Assert.Throws<ArgumentOutOfRangeException>(() => child.SetValue(SkUiCoreAbsoluteLayout.LayoutFlagsProperty, (SkUiCoreAbsoluteLayoutFlags)64));
+        Assert.Equal(SkUiCoreAbsoluteLayoutFlags.All, child.GetValue(SkUiCoreAbsoluteLayout.LayoutFlagsProperty));
+
+        Assert.Throws<ArgumentOutOfRangeException>(() => new SkUiFontImageSource("x", fontAttributes: (FontAttributes)8));
+        Assert.Throws<ArgumentOutOfRangeException>(() => new SkUiCoreImage().SetSourceFont("x", fontAttributes: (FontAttributes)8));
+        Assert.Equal(FontAttributes.Bold | FontAttributes.Italic, new SkUiFontImageSource("x", fontAttributes: FontAttributes.Bold | FontAttributes.Italic).FontAttributes);
+        Assert.Throws<ArgumentOutOfRangeException>(() => new SkUiCoreGridLength(1, (SkUiCoreGridUnitType)9));
+
+        var pan = new SkUiPanGestureRecognizer();
+        Assert.Throws<ArgumentOutOfRangeException>(() => pan.Axis = (SkUiPanAxis)9);
+        pan.Axis = SkUiPanAxis.Vertical;
+        Assert.Equal(SkUiPanAxis.Vertical, pan.Axis);
+        var swipe = new SkUiSwipeGestureRecognizer();
+        Assert.Throws<ArgumentOutOfRangeException>(() => swipe.Direction = (SwipeDirection)16);
+        swipe.Direction = SwipeDirection.Up | SwipeDirection.Left;
+        Assert.Equal(SwipeDirection.Up | SwipeDirection.Left, swipe.Direction);
+
+        Assert.Throws<ArgumentOutOfRangeException>(() => new SkUiPropertyAnimation((SkUiAnimatableProperty)99));
+        Assert.Throws<ArgumentOutOfRangeException>(() => new SkUiPropertyAnimation { Property = (SkUiAnimatableProperty)99 });
     }
 
     [Flags]
