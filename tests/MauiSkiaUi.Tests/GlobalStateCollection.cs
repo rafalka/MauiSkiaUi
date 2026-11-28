@@ -6,8 +6,8 @@ namespace MauiSkiaUi.Tests;
 /// Tests that replace process-wide state every drawn control reads (<see cref="SkUiLook.Current"/>,
 /// <see cref="SkUiColorScheme.Current"/>, <see cref="SkUiTextOptions.DefaultRendering"/>, <see cref="SkUiFontScaling.Factor"/>,
 /// <see cref="SkUiMotion.ReduceMotion"/>, image cache settings, <see cref="SkUiImageDecoder.MaxDecodeDimension"/> (part of every
-/// memory-cache key), accessibility). They run alone, after the parallel tests: otherwise other classes would measure or
-/// paint with the temporary value, or miss the cache, and fail at random.
+/// memory-cache key), accessibility, <see cref="SkUiPopups.Presenter"/>). They run alone, after the parallel tests: otherwise
+/// other classes would measure or paint with the temporary value, miss the cache, or open popups, and fail at random.
 /// </summary>
 [CollectionDefinition(Name, DisableParallelization = true)]
 public sealed class GlobalStateCollection
