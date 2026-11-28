@@ -112,7 +112,7 @@ Status: **Shipped** (in the current release line), **Partly** (shipped, with ope
 
 | # | Requirement | Status |
 | --- | --- | --- |
-| FR-C1 | Core nodes are plain CLR objects, not `BindableObject`s or `Element`s, and keep MAUI Controls types out of their API except MAUI's own values where one exists (`FontAttributes`, `DataTemplate` for picker popups); `Microsoft.Maui.Graphics` and `Microsoft.Maui` primitives are allowed. They ship in the `SkiaUi.Maui` assembly and package (no separate Core assembly: [not planned](Roadmap.md#not-planned)) | Shipped (a test that guards it is [open](Roadmap.md#architecture-and-performance)) |
+| FR-C1 | Core nodes are plain CLR objects, not `BindableObject`s or `Element`s, and keep MAUI Controls types out of their API except MAUI's own values where one exists (`FontAttributes`, `DataTemplate` for picker popups); `Microsoft.Maui.Graphics` and `Microsoft.Maui` primitives are allowed. They ship in the `SkiaUi.Maui` assembly and package (no separate Core assembly: [not planned](Roadmap.md#not-planned)) | Shipped; `CoreLayerContractTests` guards it: the Controls types the Core API uses are a list with the reason for each, and the classes on it that stretch FR-C1 (`ImageSource`, `Brush`, `Style`, `Button.ButtonContentLayout`, `SkUiPickerColumn`, `SkUiScrollView`) are [held for 2.0](Roadmap.md#held-for-20) |
 | FR-C2 | Core is for dense trees and app-made controls, not XAML pages; `SkUiCoreHost` is its bridge into the SkUi tree | Shipped |
 | FR-C3 | Core-owned layout, paint and touch, without MAUI layout managers | Shipped |
 | FR-C4, FR-C5 | Fluent `Set*` as the one apply path, CLR properties, `INotifyPropertyChanged` (code bindings, MVVM Toolkit) | Shipped |

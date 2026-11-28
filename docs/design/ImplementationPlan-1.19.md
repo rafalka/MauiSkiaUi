@@ -49,11 +49,11 @@
   - **Scope:** the 46 enum bindable properties without a `validateValue` get one. Their fluent `SetX` on both layers throws on undefined values; the Core setters do the same.
   - **Not breaking:** an undefined enum value is a bug in the caller, so this is a behaviour change under `### Other`. MAUI's own controls take such values silently; ours now ignore them with a warning, as for every other invalid value.
   - **Guard:** the twin parity test already probes undefined values alike on both layers. A new reflection test fails for any enum bindable property without validation.
-- **D7 The FR-C1 test.** It goes over the public types of `MauiSkiaUi.Core` and checks two things:
+- **D7 The FR-C1 test.** It goes over the public and protected types of `MauiSkiaUi.Core` and the namespaces below it and checks two things:
   - Nothing but `SkUiCoreHost` (the bridge) derives from `BindableObject` or `Element`.
   - Every `Microsoft.Maui.Controls` type in a public or protected signature is on an allow-list with a reason.
-    - **Values, enums and event args MAUI defines:** `FontAttributes`, `DataTemplate`, `StackOrientation`, `LayoutAlignment`, `SelectionMode`, the scroll and snap enums, `PenLineCap`, `FillRule`, `ValueChangedEventArgs`, … (allowed by FR-C1).
-    - **Four classes that stretch FR-C1:** `ImageSource` (segment and tab icons, an image overload), `Brush` (`SkUiCorePicker.SelectionBackground`), `Style` (`CalendarStyle` on the Core date pickers) and `Button.ButtonContentLayout`. They are allowed in 1.x; replacements go to [Held for 2.0](Roadmap.md#held-for-20), as changing them breaks callers.
+    - **Values, enums and event args MAUI defines:** `FontAttributes`, `DataTemplate`, `StackOrientation`, `LayoutAlignment`, the scroll and snap enums, `PenLineCap`, `ValueChangedEventArgs`, … (allowed by FR-C1; one joins the list when the Core API first uses it).
+    - **Classes that stretch FR-C1:** `ImageSource` (segment and tab icons), `Brush` (`SkUiCorePicker.SelectionBackground`), `Style` (`CalendarStyle` on the Core date pickers) and `Button.ButtonContentLayout`; the test found two more SkUi\* types that derive from Controls types: `SkUiPickerColumn` (`SkUiCoreMultiColumnPicker`'s columns, an `Element`) and `SkUiScrollView` (an `SkUiCoreScrollBar` constructor). They are allowed in 1.x; replacements go to [Held for 2.0](Roadmap.md#held-for-20), as changing them breaks callers.
 - **D8 Scheme defaults are resolved when painting, on both layers.**
   - **What changes:** a color whose default is a scheme token (21 copies in 13 Core files; 17 field initializers, 18 `defaultValueCreator`s and 3 `Default*Color` overrides on the SkUi\* layer) is stored as "not set" and read through `?? SkUiColors.X` where it is used. The refresh indicator and the scroll bar already do this.
   - **What callers see:**
