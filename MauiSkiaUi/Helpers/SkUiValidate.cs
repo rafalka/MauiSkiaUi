@@ -163,7 +163,7 @@ internal static class SkUiValidate
             ThrowIfNotFlags(flags, name);
     }
 
-    /// <summary>The bits of an enum value, whatever its underlying type (signed values sign-extend alike, so masks compare).</summary>
+    /// <summary>The bits of an enum value, read as the unsigned integer of its size (as the mask is, so signed values compare too).</summary>
     private static ulong Bits<TEnum>(TEnum value) where TEnum : struct, Enum => Unsafe.SizeOf<TEnum>() switch
     {
         1 => Unsafe.As<TEnum, byte>(ref value),

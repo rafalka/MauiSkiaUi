@@ -1,4 +1,6 @@
 using System.Reflection;
+using System.Runtime.InteropServices;
+using CommunityToolkit.Maui.Layouts;
 using MauiSkiaUi.Core;
 using Xunit;
 
@@ -7,8 +9,8 @@ namespace MauiSkiaUi.Tests;
 /// <summary>
 /// Every enum property validates (decision D6 of plan 1.19): each enum <see cref="BindableProperty"/> the library and its
 /// packages declare, attached ones included, has a <c>validateValue</c> that takes every defined value (for a flags enum,
-/// every defined flag together) and rejects an undefined one, so MAUI ignores it with a warning on every path. The fluent
-/// setters on both layers throw for the same values: <see cref="TwinParityTests"/> probes them.
+/// every defined flag together) and rejects an undefined one, so MAUI ignores it with a warning on every path, and its
+/// fluent <c>SetX</c> throws for an undefined one. <see cref="TwinParityTests"/> checks the Core twins throw alike.
 /// </summary>
 public class EnumValidationTests
 {
@@ -25,6 +27,13 @@ public class EnumValidationTests
     {
         ["SkUiPicker.SelectionMode"] = "a picker selects one item or several: None and SingleDeselect are the collection view's",
     };
+
+    /// <summary>MAUI's and the Community Toolkit's own properties SkiaUi exposes again: they validate as their owners do.</summary>
+    private static readonly BindableProperty[] Reused =
+    [
+        FlexLayout.OrderProperty, FlexLayout.GrowProperty, FlexLayout.ShrinkProperty, FlexLayout.AlignSelfProperty, FlexLayout.BasisProperty,
+        DockLayout.DockPositionProperty,
+    ];
 
     private static readonly PropertyInfo ValidateValue =
         typeof(BindableProperty).GetProperty("ValidateValue", BindingFlags.Instance | BindingFlags.NonPublic)
@@ -56,6 +65,62 @@ public class EnumValidationTests
         }
         if (failures.Count > 0)
             Assert.Fail(string.Join(Environment.NewLine, failures.Order(StringComparer.Ordinal)));
+    }
+
+    [Fact]
+    public void EveryFluentEnumSetterThrowsOnUndefinedValues()
+    {
+        var failures = new List<string>();
+        var probed = 0;
+        foreach (var (name, property) in EnumProperties())
+        {
+            var setter = property.DeclaringType.GetMethod($"Set{property.PropertyName}", BindingFlags.Public | BindingFlags.Instance, [property.ReturnType]);
+            var concrete = setter is null ? null : Concrete(property.DeclaringType);
+            if (concrete is null)
+                continue; // an attached property, or a property without a one-value fluent setter (SkUiMauiContentView.ScrollMode)
+            var target = Activator.CreateInstance(concrete)!;
+            var undefined = Undefined(Nullable.GetUnderlyingType(property.ReturnType) ?? property.ReturnType);
+            probed++;
+            try
+            {
+                setter!.Invoke(target, [undefined]);
+                failures.Add($"{name}: Set{property.PropertyName} takes the undefined value {Convert.ToInt64(undefined)}");
+            }
+            catch (TargetInvocationException e) when (e.InnerException is ArgumentOutOfRangeException)
+            {
+            }
+        }
+        Assert.True(probed > 40, $"Only {probed} fluent setters were found");
+        if (failures.Count > 0)
+            Assert.Fail(string.Join(Environment.NewLine, failures.Order(StringComparer.Ordinal)));
+    }
+
+    [Flags]
+    private enum ByteFlags : byte { A = 1, B = 2 }
+
+    [Flags]
+    private enum SignedByteFlags : sbyte { A = 1, Top = -128 }
+
+    [Flags]
+    private enum LongFlags : long { A = 1, Top = long.MinValue }
+
+    [Fact]
+    public void FlagsHelpersReadEveryUnderlyingType()
+    {
+        Assert.True(SkUiValidate.IsFlags(ByteFlags.A | ByteFlags.B));
+        Assert.False(SkUiValidate.IsFlags((ByteFlags)4));
+        Assert.False(SkUiValidate.IsFlags((ByteFlags)128));
+        Assert.True(SkUiValidate.IsFlags(SignedByteFlags.A | SignedByteFlags.Top));
+        Assert.False(SkUiValidate.IsFlags((SignedByteFlags)2));
+        Assert.False(SkUiValidate.IsFlags((SignedByteFlags)(-128 | 4)));
+        Assert.False(SkUiValidate.IsFlags((SignedByteFlags)(-1)));
+        Assert.True(SkUiValidate.IsFlags(LongFlags.A | LongFlags.Top));
+        Assert.False(SkUiValidate.IsFlags((LongFlags)(1L << 40)));
+        Assert.False(SkUiValidate.IsFlags((LongFlags)2));
+        Assert.True(SkUiValidate.OptionalFlags<ByteFlags>(null!, null));
+        Assert.False(SkUiValidate.OptionalFlags<ByteFlags>(null!, (ByteFlags)8));
+        SkUiValidate.ThrowIfNotFlags((ByteFlags?)null, "value");
+        Assert.Throws<ArgumentOutOfRangeException>(() => SkUiValidate.ThrowIfNotFlags((ByteFlags?)8, "value"));
     }
 
     [Fact]
@@ -115,12 +180,17 @@ public class EnumValidationTests
             };
             if (property is null || field.FieldType == typeof(BindableProperty) && property.IsReadOnly)
                 continue; // a read-only property is listed once, by its key, which only the control writes
-            if (!Assemblies.Contains(property.DeclaringType.Assembly))
-                continue; // MAUI's or the Community Toolkit's own property, exposed again (FlexLayout.AlignSelfProperty)
+            if (Reused.Contains(property))
+                continue;
             if ((Nullable.GetUnderlyingType(property.ReturnType) ?? property.ReturnType).IsEnum)
                 yield return ($"{type.Name}.{property.PropertyName}", property);
         }
     }
+
+    /// <summary><paramref name="type"/>, or the first type deriving from it, that can be made with no arguments.</summary>
+    private static Type? Concrete(Type type) =>
+        new[] { type }.Concat(Assemblies.SelectMany(a => a.GetTypes()).Where(t => t.IsSubclassOf(type)).OrderBy(t => t.FullName, StringComparer.Ordinal))
+            .FirstOrDefault(t => !t.IsAbstract && !t.ContainsGenericParameters && t.GetConstructor(Type.EmptyTypes) is not null);
 
     private static bool DeclaresBindableProperties(Type type) =>
         type.GetFields(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static | BindingFlags.DeclaredOnly)
@@ -160,7 +230,10 @@ public class EnumValidationTests
         if (enumType.GetCustomAttribute<FlagsAttribute>() is null)
             return Enum.ToObject(enumType, Enumerable.Range(2, 1000).First(v => !defined.Contains(v)));
         var mask = defined.Aggregate(0L, (all, flag) => all | flag);
-        var bit = Enumerable.Range(0, 31).Select(i => 1L << i).First(b => (mask & b) == 0);
-        return Enum.ToObject(enumType, bit);
+        var bits = Marshal.SizeOf(Enum.GetUnderlyingType(enumType)) * 8;
+        var free = Enumerable.Range(0, bits).Select(i => 1L << i).Where(b => (mask & b) == 0).ToList();
+        if (free.Count == 0)
+            throw new InvalidOperationException($"Every bit of {enumType} is a defined flag: no undefined value to probe with.");
+        return Enum.ToObject(enumType, free[0]);
     }
 }
