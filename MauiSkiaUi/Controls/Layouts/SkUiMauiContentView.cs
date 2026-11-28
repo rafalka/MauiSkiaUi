@@ -67,10 +67,20 @@ public partial class SkUiMauiContentView : SkUiView
     /// <summary>Bindable <see cref="ScrollMode"/>.</summary>
     public static readonly BindableProperty ScrollModeProperty = BindableProperty.Create(
         nameof(ScrollMode), typeof(SkUiOverlayScrollMode), typeof(SkUiMauiContentView), SkUiOverlayScrollMode.Auto,
+        validateValue: SkUiValidate.Defined<SkUiOverlayScrollMode>,
         propertyChanged: (view, _, _) => ((SkUiMauiContentView)view).OnScrollModeChanged());
 
     /// <summary>How the native control follows ancestor scrolling (default <see cref="SkUiOverlayScrollMode.Auto"/>).</summary>
     public SkUiOverlayScrollMode ScrollMode { get => (SkUiOverlayScrollMode)GetValue(ScrollModeProperty); set => SetValue(ScrollModeProperty, value); }
+
+    /// <summary>Sets <see cref="ScrollMode"/> (same as the property setter).</summary>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="value"/> is not a defined <see cref="SkUiOverlayScrollMode"/>.</exception>
+    public SkUiMauiContentView SetScrollMode(SkUiOverlayScrollMode value)
+    {
+        SkUiValidate.ThrowIfNotDefined(value, nameof(value));
+        ScrollMode = value;
+        return this;
+    }
 
     /// <summary>Delay after scrolling stops before a snapshot is replaced by the live native view again (default 150 ms).</summary>
     public static TimeSpan SnapshotRestoreDelay { get; set; } = TimeSpan.FromMilliseconds(150);

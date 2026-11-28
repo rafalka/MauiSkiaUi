@@ -487,6 +487,15 @@ public partial class SkUiCollectionView : SkUiView, ISkUiItemsView, ISkUiRefresh
     /// </summary>
     public ItemsLayoutOrientation Orientation { get => (ItemsLayoutOrientation)GetValue(OrientationProperty); set => SetValue(OrientationProperty, value); }
 
+    /// <summary>Sets <see cref="Orientation"/> (same as the property setter).</summary>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="value"/> is not a defined <see cref="ItemsLayoutOrientation"/>.</exception>
+    public SkUiCollectionView SetOrientation(ItemsLayoutOrientation value)
+    {
+        SkUiValidate.ThrowIfNotDefined(value, nameof(value));
+        Orientation = value;
+        return this;
+    }
+
     /// <summary>
     /// How many items share a row (default 1: a list): a grid with that many columns (rows of a horizontal list), each row as
     /// tall (wide) as its tallest (widest) item. Items are as wide as the row divided by the span, less <see cref="SpanSpacing"/>.
@@ -690,11 +699,29 @@ public partial class SkUiCollectionView : SkUiView, ISkUiItemsView, ISkUiRefresh
         set => SetValue(VerticalScrollBarVisibilityProperty, value);
     }
 
+    /// <summary>Sets <see cref="VerticalScrollBarVisibility"/> (same as the property setter).</summary>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="value"/> is not a defined <see cref="ScrollBarVisibility"/>.</exception>
+    public SkUiCollectionView SetVerticalScrollBarVisibility(ScrollBarVisibility value)
+    {
+        SkUiValidate.ThrowIfNotDefined(value, nameof(value));
+        VerticalScrollBarVisibility = value;
+        return this;
+    }
+
     /// <summary>The scroll bar of a horizontal list.</summary>
     public ScrollBarVisibility HorizontalScrollBarVisibility
     {
         get => (ScrollBarVisibility)GetValue(HorizontalScrollBarVisibilityProperty);
         set => SetValue(HorizontalScrollBarVisibilityProperty, value);
+    }
+
+    /// <summary>Sets <see cref="HorizontalScrollBarVisibility"/> (same as the property setter).</summary>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="value"/> is not a defined <see cref="ScrollBarVisibility"/>.</exception>
+    public SkUiCollectionView SetHorizontalScrollBarVisibility(ScrollBarVisibility value)
+    {
+        SkUiValidate.ThrowIfNotDefined(value, nameof(value));
+        HorizontalScrollBarVisibility = value;
+        return this;
     }
 
     /// <summary>Bindable property for <see cref="ViewportInsets"/>.</summary>
@@ -732,6 +759,15 @@ public partial class SkUiCollectionView : SkUiView, ISkUiItemsView, ISkUiRefresh
 
     /// <inheritdoc cref="SkUiScrollView.Overscroll" />
     public SkUiOverscrollMode Overscroll { get => (SkUiOverscrollMode)GetValue(OverscrollProperty); set => SetValue(OverscrollProperty, value); }
+
+    /// <summary>Sets <see cref="Overscroll"/> (same as the property setter).</summary>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="value"/> is not a defined <see cref="SkUiOverscrollMode"/>.</exception>
+    public SkUiCollectionView SetOverscroll(SkUiOverscrollMode value)
+    {
+        SkUiValidate.ThrowIfNotDefined(value, nameof(value));
+        Overscroll = value;
+        return this;
+    }
 
     /// <summary>The vertical scroll offset in DIPs (the header, when not sticky, scrolls with the items).</summary>
     public double ScrollY => Scroller.ScrollY;
@@ -1077,6 +1113,15 @@ public partial class SkUiCollectionView : SkUiView, ISkUiItemsView, ISkUiRefresh
     /// </summary>
     public SkUiRefreshStyle RefreshStyle { get => (SkUiRefreshStyle)GetValue(RefreshStyleProperty); set => SetValue(RefreshStyleProperty, value); }
 
+    /// <summary>Sets <see cref="RefreshStyle"/> (same as the property setter).</summary>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="value"/> is not a defined <see cref="SkUiRefreshStyle"/>.</exception>
+    public SkUiCollectionView SetRefreshStyle(SkUiRefreshStyle value)
+    {
+        SkUiValidate.ThrowIfNotDefined(value, nameof(value));
+        RefreshStyle = value;
+        return this;
+    }
+
     /// <summary>How far the top must be pulled (shown past the edge, DIPs) for a release to refresh; 0 (default): the look's (<see cref="SkUiLook.RefreshTriggerDistance"/>, 64).</summary>
     public double RefreshTriggerDistance { get => (double)GetValue(RefreshTriggerDistanceProperty); set => SetValue(RefreshTriggerDistanceProperty, value); }
 
@@ -1089,6 +1134,15 @@ public partial class SkUiCollectionView : SkUiView, ISkUiItemsView, ISkUiRefresh
     /// command, deferrals taken in <see cref="Refreshing"/>).
     /// </summary>
     public SkUiRefreshCompletion RefreshCompletion { get => (SkUiRefreshCompletion)GetValue(RefreshCompletionProperty); set => SetValue(RefreshCompletionProperty, value); }
+
+    /// <summary>Sets <see cref="RefreshCompletion"/> (same as the property setter).</summary>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="value"/> is not a defined <see cref="SkUiRefreshCompletion"/>.</exception>
+    public SkUiCollectionView SetRefreshCompletion(SkUiRefreshCompletion value)
+    {
+        SkUiValidate.ThrowIfNotDefined(value, nameof(value));
+        RefreshCompletion = value;
+        return this;
+    }
 
     /// <summary>The refresh indicator, drawn by the look (style it: <see cref="SkUiCoreRefreshIndicator.Color"/>, a shadow).</summary>
     public SkUiCoreRefreshIndicator RefreshIndicator => Refresh.Indicator;

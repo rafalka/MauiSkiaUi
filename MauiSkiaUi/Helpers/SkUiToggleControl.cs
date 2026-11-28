@@ -18,6 +18,7 @@ public abstract class SkUiToggleControl : SkUiView
     /// <summary>Bindable <see cref="CheckState"/> (two-way by default).</summary>
     public static readonly BindableProperty CheckStateProperty = BindableProperty.Create(nameof(CheckState), typeof(SkUiCheckState), typeof(SkUiToggleControl),
         SkUiCheckState.Unchecked, BindingMode.TwoWay,
+        validateValue: SkUiValidate.Defined<SkUiCheckState>,
         propertyChanged: (view, _, value) => ((SkUiToggleControl)view).OnCheckStatePropertyChanged((SkUiCheckState)value));
 
     /// <summary>Bindable <see cref="IsChecked"/> (two-way by default, as in MAUI).</summary>
@@ -65,6 +66,7 @@ public abstract class SkUiToggleControl : SkUiView
     /// <summary>Sets the state, as <see cref="CheckState"/> does (both bindable properties follow).</summary>
     public SkUiToggleControl SetCheckState(SkUiCheckState value)
     {
+        SkUiValidate.ThrowIfNotDefined(value, nameof(value));
         CheckState = value;
         return this;
     }

@@ -136,6 +136,7 @@ public class SkUiCoreAvatar : SkUiCoreBorder, ISkUiFontElement
     /// <summary>Sets the case transform of <see cref="Text"/>.</summary>
     public SkUiCoreAvatar SetTextTransform(TextTransform value)
     {
+        SkUiValidate.ThrowIfNotDefined(value, nameof(value));
         if (SetProperty(ref _textTransform, value, nameof(TextTransform)) && _avatar.SetTextTransform(value)) InvalidateText();
         return this;
     }
@@ -145,6 +146,7 @@ public class SkUiCoreAvatar : SkUiCoreBorder, ISkUiFontElement
     {
         if (!double.IsFinite(size) || size == 0)
             throw new ArgumentOutOfRangeException(nameof(size), size, "The font size must be positive, or negative for a size from the avatar.");
+        SkUiValidate.ThrowIfNotFlags(attributes, nameof(attributes));
         SetProperty(ref _fontFamily, family, nameof(FontFamily));
         SetProperty(ref _fontAttributes, attributes, nameof(FontAttributes));
         SetProperty(ref _fontSize, size, nameof(FontSize));
@@ -174,6 +176,7 @@ public class SkUiCoreAvatar : SkUiCoreBorder, ISkUiFontElement
     /// <summary>Sets whether <see cref="Text"/> shows as it is or as its initials.</summary>
     public SkUiCoreAvatar SetInitials(SkUiAvatarInitials value)
     {
+        SkUiValidate.ThrowIfNotDefined(value, nameof(value));
         if (SetProperty(ref _initials, value, nameof(Initials)) && _avatar.SetInitials(value)) InvalidateText();
         return this;
     }
@@ -181,6 +184,7 @@ public class SkUiCoreAvatar : SkUiCoreBorder, ISkUiFontElement
     /// <summary>Sets where the colors come from while they are not set.</summary>
     public SkUiCoreAvatar SetAvatarColorMode(SkUiAvatarColorMode value)
     {
+        SkUiValidate.ThrowIfNotDefined(value, nameof(value));
         if (!SetProperty(ref _avatarColorMode, value, nameof(AvatarColorMode))) return this;
         _avatar.ColorMode = value;
         InvalidatePaint();
@@ -190,6 +194,7 @@ public class SkUiCoreAvatar : SkUiCoreBorder, ISkUiFontElement
     /// <summary>Sets how the image fills the content area.</summary>
     public SkUiCoreAvatar SetAspect(Aspect value)
     {
+        SkUiValidate.ThrowIfNotDefined(value, nameof(value));
         if (!SetProperty(ref _aspect, value, nameof(Aspect))) return this;
         _avatar.Aspect = value;
         InvalidatePaint();
@@ -206,6 +211,7 @@ public class SkUiCoreAvatar : SkUiCoreBorder, ISkUiFontElement
     /// <summary>Sets the badge (a <c>null</c> color hides it).</summary>
     public SkUiCoreAvatar SetBadge(Color? color, SkUiAvatarBadgePosition position = SkUiAvatarBadgePosition.BottomRight, Color? borderColor = null)
     {
+        SkUiValidate.ThrowIfNotDefined(position, nameof(position));
         var changed = SetProperty(ref _badgeColor, color, nameof(BadgeColor));
         changed |= SetProperty(ref _badgePosition, position, nameof(BadgePosition));
         changed |= SetProperty(ref _badgeBorderColor, borderColor, nameof(BadgeBorderColor));

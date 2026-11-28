@@ -273,7 +273,11 @@ public class SkUiCoreCalendar : SkUiCoreNode, ISkUiCalendarHost, ISkUiKeyHandler
     public FontAttributes HeaderFontAttributes { get => _model.HeaderFontAttributes; set => SetHeaderFontAttributes(value); }
 
     /// <summary>Sets <see cref="HeaderFontAttributes"/>.</summary>
-    public SkUiCoreCalendar SetHeaderFontAttributes(FontAttributes value) => SetPainted(ref _model.HeaderFontAttributes, value, nameof(HeaderFontAttributes));
+    public SkUiCoreCalendar SetHeaderFontAttributes(FontAttributes value)
+    {
+        SkUiValidate.ThrowIfNotFlags(value, nameof(value));
+        return SetPainted(ref _model.HeaderFontAttributes, value, nameof(HeaderFontAttributes));
+    }
 
     /// <summary>The buttons' chevron color; <c>null</c>: the color scheme's accent.</summary>
     public Color? NavigationButtonColor { get => _model.NavigationButtonColor; set => SetNavigationButtonColor(value); }
@@ -457,7 +461,11 @@ public class SkUiCoreCalendar : SkUiCoreNode, ISkUiCalendarHost, ISkUiKeyHandler
     public FontAttributes DayNameFontAttributes { get => _model.DayNameFontAttributes; set => SetDayNameFontAttributes(value); }
 
     /// <summary>Sets <see cref="DayNameFontAttributes"/>.</summary>
-    public SkUiCoreCalendar SetDayNameFontAttributes(FontAttributes value) => SetPainted(ref _model.DayNameFontAttributes, value, nameof(DayNameFontAttributes));
+    public SkUiCoreCalendar SetDayNameFontAttributes(FontAttributes value)
+    {
+        SkUiValidate.ThrowIfNotFlags(value, nameof(value));
+        return SetPainted(ref _model.DayNameFontAttributes, value, nameof(DayNameFontAttributes));
+    }
 
     /// <summary>Whether today's day name is drawn in <see cref="TodayDayNameTextColor"/> while the page shows today (default <c>true</c>).</summary>
     public bool IsTodayDayNameHighlighted { get => _model.IsTodayDayNameHighlighted; set => SetIsTodayDayNameHighlighted(value); }
@@ -513,7 +521,11 @@ public class SkUiCoreCalendar : SkUiCoreNode, ISkUiCalendarHost, ISkUiKeyHandler
     public FontAttributes FontAttributes { get => _model.FontAttributes; set => SetFontAttributes(value); }
 
     /// <summary>Sets <see cref="FontAttributes"/>.</summary>
-    public SkUiCoreCalendar SetFontAttributes(FontAttributes value) => SetPainted(ref _model.FontAttributes, value, nameof(FontAttributes));
+    public SkUiCoreCalendar SetFontAttributes(FontAttributes value)
+    {
+        SkUiValidate.ThrowIfNotFlags(value, nameof(value));
+        return SetPainted(ref _model.FontAttributes, value, nameof(FontAttributes));
+    }
 
     /// <summary>Whether the texts follow the system's text size (default <c>true</c>).</summary>
     public bool FontAutoScalingEnabled { get => _model.FontAutoScalingEnabled; set => SetFontAutoScalingEnabled(value); }
@@ -563,7 +575,11 @@ public class SkUiCoreCalendar : SkUiCoreNode, ISkUiCalendarHost, ISkUiKeyHandler
     public FontAttributes TodayFontAttributes { get => _model.TodayFontAttributes; set => SetTodayFontAttributes(value); }
 
     /// <summary>Sets <see cref="TodayFontAttributes"/>.</summary>
-    public SkUiCoreCalendar SetTodayFontAttributes(FontAttributes value) => SetPainted(ref _model.TodayFontAttributes, value, nameof(TodayFontAttributes));
+    public SkUiCoreCalendar SetTodayFontAttributes(FontAttributes value)
+    {
+        SkUiValidate.ThrowIfNotFlags(value, nameof(value));
+        return SetPainted(ref _model.TodayFontAttributes, value, nameof(TodayFontAttributes));
+    }
 
     /// <summary>
     /// The shape behind a selected day. Not set: the look's (<see cref="SkUiLook.CalendarSelectionShape"/>, 1.15); the getter reads

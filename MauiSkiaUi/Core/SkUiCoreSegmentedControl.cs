@@ -208,7 +208,11 @@ public class SkUiCoreSegmentedControl : SkUiCoreNode, ISkUiFontElement, ISkUiSeg
     }
 
     /// <summary>Sets <see cref="FontAttributes"/>.</summary>
-    public SkUiCoreSegmentedControl SetFontAttributes(FontAttributes value) => SetTextStyle(ref Model.FontAttributes, value, nameof(FontAttributes));
+    public SkUiCoreSegmentedControl SetFontAttributes(FontAttributes value)
+    {
+        SkUiValidate.ThrowIfNotFlags(value, nameof(value));
+        return SetTextStyle(ref Model.FontAttributes, value, nameof(FontAttributes));
+    }
 
     /// <summary>Sets <see cref="FontAutoScalingEnabled"/>.</summary>
     public SkUiCoreSegmentedControl SetFontAutoScalingEnabled(bool value) => SetTextStyle(ref Model.FontAutoScalingEnabled, value, nameof(FontAutoScalingEnabled));

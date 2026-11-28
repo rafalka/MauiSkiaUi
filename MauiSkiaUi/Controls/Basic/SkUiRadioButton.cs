@@ -94,6 +94,7 @@ public class SkUiRadioButton : SkUiToggleControl, ISkUiFontElement, ISkUiTemplat
         propertyChanged: (view, _, value) => ((SkUiRadioButton)view).OnTextStyleChanged(radio => radio._fontFamily = (string?)value));
     /// <summary>Bindable <see cref="FontAttributes"/>.</summary>
     public static readonly BindableProperty FontAttributesProperty = BindableProperty.Create(nameof(FontAttributes), typeof(FontAttributes), typeof(SkUiRadioButton), FontAttributes.None,
+        validateValue: SkUiValidate.Flags<FontAttributes>,
         propertyChanged: (view, _, value) => ((SkUiRadioButton)view).OnTextStyleChanged(radio => radio._fontAttributes = (FontAttributes)value));
     /// <summary>Bindable <see cref="CharacterSpacing"/>.</summary>
     public static readonly BindableProperty CharacterSpacingProperty = BindableProperty.Create(nameof(CharacterSpacing), typeof(double), typeof(SkUiRadioButton), 0d,
@@ -101,6 +102,7 @@ public class SkUiRadioButton : SkUiToggleControl, ISkUiFontElement, ISkUiTemplat
         propertyChanged: (view, _, value) => ((SkUiRadioButton)view).OnTextStyleChanged(radio => radio._characterSpacing = (double)value));
     /// <summary>Bindable <see cref="TextTransform"/>.</summary>
     public static readonly BindableProperty TextTransformProperty = BindableProperty.Create(nameof(TextTransform), typeof(TextTransform), typeof(SkUiRadioButton), TextTransform.Default,
+        validateValue: SkUiValidate.Defined<TextTransform>,
         propertyChanged: (view, _, value) => ((SkUiRadioButton)view).OnTextStyleChanged(radio => radio._textTransform = (TextTransform)value));
     /// <summary>Bindable <see cref="BorderColor"/>.</summary>
     public static readonly BindableProperty BorderColorProperty = BindableProperty.Create(nameof(BorderColor), typeof(Color), typeof(SkUiRadioButton), Colors.Transparent,
@@ -256,11 +258,11 @@ public class SkUiRadioButton : SkUiToggleControl, ISkUiFontElement, ISkUiTemplat
     /// <summary>Sets the font family (same as the property setter).</summary>
     public SkUiRadioButton SetFontFamily(string? value) { FontFamily = value; return this; }
     /// <summary>Sets the font attributes (same as the property setter).</summary>
-    public SkUiRadioButton SetFontAttributes(FontAttributes value) { FontAttributes = value; return this; }
+    public SkUiRadioButton SetFontAttributes(FontAttributes value) { SkUiValidate.ThrowIfNotFlags(value, nameof(value)); FontAttributes = value; return this; }
     /// <summary>Sets the character spacing (same as the property setter).</summary>
     public SkUiRadioButton SetCharacterSpacing(double value) { SkUiValidate.ThrowIfNotFinite(value, nameof(value)); CharacterSpacing = value; return this; }
     /// <summary>Sets the text transform (same as the property setter).</summary>
-    public SkUiRadioButton SetTextTransform(TextTransform value) { TextTransform = value; return this; }
+    public SkUiRadioButton SetTextTransform(TextTransform value) { SkUiValidate.ThrowIfNotDefined(value, nameof(value)); TextTransform = value; return this; }
 
     private void OnTextStyleChanged(Action<SkUiRadioButton> apply)
     {

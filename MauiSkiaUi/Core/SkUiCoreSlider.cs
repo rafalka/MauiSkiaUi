@@ -101,6 +101,7 @@ public class SkUiCoreSlider : SkUiCoreNode
     /// <summary>Sets the orientation.</summary>
     public SkUiCoreSlider SetOrientation(StackOrientation value)
     {
+        SkUiValidate.ThrowIfNotOrientation(value, nameof(value));
         if (!SetProperty(ref _orientation, value, nameof(Orientation))) return this;
         InvalidateMeasure();
         return this;

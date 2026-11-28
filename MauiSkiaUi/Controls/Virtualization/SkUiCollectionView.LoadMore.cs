@@ -47,11 +47,29 @@ public partial class SkUiCollectionView
     /// </summary>
     public SkUiLoadMoreMode LoadMoreMode { get => (SkUiLoadMoreMode)GetValue(LoadMoreModeProperty); set => SetValue(LoadMoreModeProperty, value); }
 
+    /// <summary>Sets <see cref="LoadMoreMode"/> (same as the property setter).</summary>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="value"/> is not a defined <see cref="SkUiLoadMoreMode"/>.</exception>
+    public SkUiCollectionView SetLoadMoreMode(SkUiLoadMoreMode value)
+    {
+        SkUiValidate.ThrowIfNotDefined(value, nameof(value));
+        LoadMoreMode = value;
+        return this;
+    }
+
     /// <summary>
     /// Where more items load: <see cref="SkUiLoadMorePosition.End"/> (default) or <see cref="SkUiLoadMorePosition.Start"/>
     /// (older messages of a chat): there, items inserted at the start keep what shows in place.
     /// </summary>
     public SkUiLoadMorePosition LoadMorePosition { get => (SkUiLoadMorePosition)GetValue(LoadMorePositionProperty); set => SetValue(LoadMorePositionProperty, value); }
+
+    /// <summary>Sets <see cref="LoadMorePosition"/> (same as the property setter).</summary>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="value"/> is not a defined <see cref="SkUiLoadMorePosition"/>.</exception>
+    public SkUiCollectionView SetLoadMorePosition(SkUiLoadMorePosition value)
+    {
+        SkUiValidate.ThrowIfNotDefined(value, nameof(value));
+        LoadMorePosition = value;
+        return this;
+    }
 
     /// <summary>
     /// Loads more items: runs with <see cref="LoadMoreCommandParameter"/> after <see cref="IsLoadMoreActive"/> became <c>true</c>;

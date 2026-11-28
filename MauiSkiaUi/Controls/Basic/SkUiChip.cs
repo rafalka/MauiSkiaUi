@@ -66,7 +66,7 @@ public class SkUiChip : SkUiButton, ISkUiKeyHandler
 
     /// <summary>Bindable <see cref="BadgeFontAttributes"/>.</summary>
     public static readonly BindableProperty BadgeFontAttributesProperty = BindableProperty.Create(nameof(BadgeFontAttributes), typeof(FontAttributes), typeof(SkUiChip),
-        FontAttributes.Bold, propertyChanged: (view, _, value) => ((SkUiChip)view).OnBadgeFontChanged(attributes: (FontAttributes)value));
+        FontAttributes.Bold, validateValue: SkUiValidate.Flags<FontAttributes>, propertyChanged: (view, _, value) => ((SkUiChip)view).OnBadgeFontChanged(attributes: (FontAttributes)value));
 
     /// <summary>Bindable <see cref="SelectedColor"/>.</summary>
     public static readonly BindableProperty SelectedColorProperty = BindableProperty.Create(nameof(SelectedColor), typeof(Color), typeof(SkUiChip), null,
@@ -174,7 +174,7 @@ public class SkUiChip : SkUiButton, ISkUiKeyHandler
     public SkUiChip SetBadgeFontFamily(string? value) { BadgeFontFamily = value; return this; }
 
     /// <summary>Sets <see cref="BadgeFontAttributes"/> (same as the property setter).</summary>
-    public SkUiChip SetBadgeFontAttributes(FontAttributes value) { BadgeFontAttributes = value; return this; }
+    public SkUiChip SetBadgeFontAttributes(FontAttributes value) { SkUiValidate.ThrowIfNotFlags(value, nameof(value)); BadgeFontAttributes = value; return this; }
 
     /// <summary>Sets <see cref="SelectedColor"/> (same as the property setter).</summary>
     public SkUiChip SetSelectedColor(Color? value) { SelectedColor = value; return this; }

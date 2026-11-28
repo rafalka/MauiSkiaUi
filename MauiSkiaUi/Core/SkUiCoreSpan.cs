@@ -121,7 +121,11 @@ public sealed class SkUiCoreSpan : INotifyPropertyChanged
     }
 
     /// <summary>Sets <see cref="FontAttributes"/>.</summary>
-    public SkUiCoreSpan SetFontAttributes(FontAttributes? value) => Set(ref _fontAttributes, value, layout: true);
+    public SkUiCoreSpan SetFontAttributes(FontAttributes? value)
+    {
+        SkUiValidate.ThrowIfNotFlags(value, nameof(value));
+        return Set(ref _fontAttributes, value, layout: true);
+    }
 
     /// <summary>Sets <see cref="FontAutoScalingEnabled"/>.</summary>
     public SkUiCoreSpan SetFontAutoScalingEnabled(bool? value) => Set(ref _fontAutoScalingEnabled, value, layout: true);
@@ -147,10 +151,18 @@ public sealed class SkUiCoreSpan : INotifyPropertyChanged
     }
 
     /// <summary>Sets <see cref="TextDecorations"/>.</summary>
-    public SkUiCoreSpan SetTextDecorations(TextDecorations? value) => Set(ref _textDecorations, value, layout: false);
+    public SkUiCoreSpan SetTextDecorations(TextDecorations? value)
+    {
+        SkUiValidate.ThrowIfNotFlags(value, nameof(value));
+        return Set(ref _textDecorations, value, layout: false);
+    }
 
     /// <summary>Sets <see cref="TextTransform"/>.</summary>
-    public SkUiCoreSpan SetTextTransform(TextTransform value) => Set(ref _textTransform, value, layout: true);
+    public SkUiCoreSpan SetTextTransform(TextTransform value)
+    {
+        SkUiValidate.ThrowIfNotDefined(value, nameof(value));
+        return Set(ref _textTransform, value, layout: true);
+    }
 
     /// <summary>Sets <see cref="BaselineShift"/> (finite).</summary>
     public SkUiCoreSpan SetBaselineShift(double value)

@@ -66,19 +66,20 @@ public class SkUiLabel : SkUiView, ISkUiFontElement, ISkUiBorderElement
     /// <summary>Bindable system font family name.</summary>
     public static readonly BindableProperty FontFamilyProperty = BindableProperty.Create(nameof(FontFamily), typeof(string), typeof(SkUiLabel), null, propertyChanged: (view, _, value) => ((SkUiLabel)view).OnFontFamilyChanged((string?)value));
     /// <summary>Bindable bold and italic attributes.</summary>
-    public static readonly BindableProperty FontAttributesProperty = BindableProperty.Create(nameof(FontAttributes), typeof(FontAttributes), typeof(SkUiLabel), FontAttributes.None, propertyChanged: (view, _, value) => ((SkUiLabel)view).OnFontAttributesChanged((FontAttributes)value));
+    public static readonly BindableProperty FontAttributesProperty = BindableProperty.Create(nameof(FontAttributes), typeof(FontAttributes), typeof(SkUiLabel), FontAttributes.None, validateValue: SkUiValidate.Flags<FontAttributes>, propertyChanged: (view, _, value) => ((SkUiLabel)view).OnFontAttributesChanged((FontAttributes)value));
     /// <summary>Bindable wrapping or truncation mode.</summary>
-    public static readonly BindableProperty LineBreakModeProperty = BindableProperty.Create(nameof(LineBreakMode), typeof(LineBreakMode), typeof(SkUiLabel), LineBreakMode.WordWrap, defaultValueCreator: view => ((SkUiLabel)view).DefaultLineBreakMode, propertyChanged: (view, _, value) => ((SkUiLabel)view).OnLineBreakModeChanged((LineBreakMode)value));
+    public static readonly BindableProperty LineBreakModeProperty = BindableProperty.Create(nameof(LineBreakMode), typeof(LineBreakMode), typeof(SkUiLabel), LineBreakMode.WordWrap, defaultValueCreator: view => ((SkUiLabel)view).DefaultLineBreakMode, validateValue: SkUiValidate.Defined<LineBreakMode>, propertyChanged: (view, _, value) => ((SkUiLabel)view).OnLineBreakModeChanged((LineBreakMode)value));
     /// <summary>Bindable horizontal text alignment.</summary>
-    public static readonly BindableProperty HorizontalTextAlignmentProperty = BindableProperty.Create(nameof(HorizontalTextAlignment), typeof(TextAlignment), typeof(SkUiLabel), TextAlignment.Start, defaultValueCreator: view => ((SkUiLabel)view).DefaultTextAlignment, propertyChanged: (view, _, value) => ((SkUiLabel)view).OnHorizontalTextAlignmentChanged((TextAlignment)value));
+    public static readonly BindableProperty HorizontalTextAlignmentProperty = BindableProperty.Create(nameof(HorizontalTextAlignment), typeof(TextAlignment), typeof(SkUiLabel), TextAlignment.Start, defaultValueCreator: view => ((SkUiLabel)view).DefaultTextAlignment, validateValue: SkUiValidate.Defined<TextAlignment>, propertyChanged: (view, _, value) => ((SkUiLabel)view).OnHorizontalTextAlignmentChanged((TextAlignment)value));
     /// <summary>Bindable vertical text alignment.</summary>
-    public static readonly BindableProperty VerticalTextAlignmentProperty = BindableProperty.Create(nameof(VerticalTextAlignment), typeof(TextAlignment), typeof(SkUiLabel), TextAlignment.Start, defaultValueCreator: view => ((SkUiLabel)view).DefaultTextAlignment, propertyChanged: (view, _, value) => ((SkUiLabel)view).OnVerticalTextAlignmentChanged((TextAlignment)value));
+    public static readonly BindableProperty VerticalTextAlignmentProperty = BindableProperty.Create(nameof(VerticalTextAlignment), typeof(TextAlignment), typeof(SkUiLabel), TextAlignment.Start, defaultValueCreator: view => ((SkUiLabel)view).DefaultTextAlignment, validateValue: SkUiValidate.Defined<TextAlignment>, propertyChanged: (view, _, value) => ((SkUiLabel)view).OnVerticalTextAlignmentChanged((TextAlignment)value));
     /// <summary>
     /// Bindable text rendering mode: <see cref="SkUiTextRendering.Auto"/> (via <see cref="SkUiTextRendering.Default"/>) takes a
     /// fast path for plain Latin text and shapes everything else with HarfBuzz; <see cref="SkUiTextRendering.Simple"/> never
     /// shapes (fastest, for dense plain text / numbers); <see cref="SkUiTextRendering.Shaped"/> always shapes (kerning, ligatures).
     /// </summary>
     public static readonly BindableProperty TextRenderingProperty = BindableProperty.Create(nameof(TextRendering), typeof(SkUiTextRendering), typeof(SkUiLabel), SkUiTextRendering.Default,
+        validateValue: SkUiValidate.Defined<SkUiTextRendering>,
         propertyChanged: (view, _, value) => ((SkUiLabel)view).OnTextRenderingChanged((SkUiTextRendering)value));
     /// <summary>Bindable custom line breaker (<c>null</c>: <see cref="LineBreakMode"/>).</summary>
     public static readonly BindableProperty LineBreakerProperty = BindableProperty.Create(nameof(LineBreaker), typeof(SkUiTextLineBreaker), typeof(SkUiLabel), null, propertyChanged: (view, _, value) => ((SkUiLabel)view).OnLineBreakerChanged((SkUiTextLineBreaker?)value));
@@ -91,15 +92,16 @@ public class SkUiLabel : SkUiView, ISkUiFontElement, ISkUiBorderElement
     /// <summary>Bindable spacing between characters in DIPs.</summary>
     public static readonly BindableProperty CharacterSpacingProperty = BindableProperty.Create(nameof(CharacterSpacing), typeof(double), typeof(SkUiLabel), 0d, validateValue: SkUiValidate.Finite, propertyChanged: (view, _, value) => ((SkUiLabel)view).OnCharacterSpacingChanged((double)value));
     /// <summary>Bindable underline / strikethrough.</summary>
-    public static readonly BindableProperty TextDecorationsProperty = BindableProperty.Create(nameof(TextDecorations), typeof(TextDecorations), typeof(SkUiLabel), TextDecorations.None, propertyChanged: (view, _, value) => ((SkUiLabel)view).OnTextDecorationsChanged((TextDecorations)value));
+    public static readonly BindableProperty TextDecorationsProperty = BindableProperty.Create(nameof(TextDecorations), typeof(TextDecorations), typeof(SkUiLabel), TextDecorations.None, validateValue: SkUiValidate.Flags<TextDecorations>, propertyChanged: (view, _, value) => ((SkUiLabel)view).OnTextDecorationsChanged((TextDecorations)value));
     /// <summary>Bindable case transform of the displayed text.</summary>
-    public static readonly BindableProperty TextTransformProperty = BindableProperty.Create(nameof(TextTransform), typeof(TextTransform), typeof(SkUiLabel), TextTransform.Default, propertyChanged: (view, _, value) => ((SkUiLabel)view).OnTextTransformChanged((TextTransform)value));
+    public static readonly BindableProperty TextTransformProperty = BindableProperty.Create(nameof(TextTransform), typeof(TextTransform), typeof(SkUiLabel), TextTransform.Default, validateValue: SkUiValidate.Defined<TextTransform>, propertyChanged: (view, _, value) => ((SkUiLabel)view).OnTextTransformChanged((TextTransform)value));
     /// <summary>Bindable formatted text (MAUI's <see cref="Microsoft.Maui.Controls.FormattedString"/> of <see cref="Span"/>s).</summary>
     public static readonly BindableProperty FormattedTextProperty = BindableProperty.Create(nameof(FormattedText), typeof(FormattedString), typeof(SkUiLabel), null,
         propertyChanging: (view, value, _) => ((SkUiLabel)view).DetachFormattedText((FormattedString?)value),
         propertyChanged: (view, _, value) => ((SkUiLabel)view).OnFormattedTextChanged((FormattedString?)value));
     /// <summary>Bindable text type: <see cref="TextType.Html"/> draws <see cref="Text"/> as HTML.</summary>
     public static readonly BindableProperty TextTypeProperty = BindableProperty.Create(nameof(TextType), typeof(TextType), typeof(SkUiLabel), TextType.Text,
+        validateValue: SkUiValidate.Defined<TextType>,
         propertyChanged: (view, _, value) => ((SkUiLabel)view).OnTextTypeChanged((TextType)value));
     /// <summary>Bindable command run with the <c>href</c> of a tapped HTML link.</summary>
     public static readonly BindableProperty LinkTappedCommandProperty = BindableProperty.Create(nameof(LinkTappedCommand), typeof(ICommand), typeof(SkUiLabel), null,
@@ -309,7 +311,7 @@ public class SkUiLabel : SkUiView, ISkUiFontElement, ISkUiBorderElement
     /// <inheritdoc cref="TextRenderingProperty" />
     public SkUiTextRendering TextRendering { get => (SkUiTextRendering)GetValue(TextRenderingProperty); set => SetValue(TextRenderingProperty, value); }
     /// <summary>Sets <see cref="TextRendering"/> (same as the property setter).</summary>
-    public SkUiLabel SetTextRendering(SkUiTextRendering value) { TextRendering = value; return this; }
+    public SkUiLabel SetTextRendering(SkUiTextRendering value) { SkUiValidate.ThrowIfNotDefined(value, nameof(value)); TextRendering = value; return this; }
     private void OnTextRenderingChanged(SkUiTextRendering value) { if (_textRendering == value) return; _textRendering = value; InvalidateText(); }
 
     /// <summary>Sets text (same as the property setter).</summary>
@@ -335,7 +337,7 @@ public class SkUiLabel : SkUiView, ISkUiFontElement, ISkUiBorderElement
     /// </summary>
     public TextType TextType { get => (TextType)GetValue(TextTypeProperty); set => SetValue(TextTypeProperty, value); }
     /// <summary>Sets the text type (same as the property setter).</summary>
-    public SkUiLabel SetTextType(TextType value) { TextType = value; return this; }
+    public SkUiLabel SetTextType(TextType value) { SkUiValidate.ThrowIfNotDefined(value, nameof(value)); TextType = value; return this; }
     private void OnTextTypeChanged(TextType value) { if (_textType == value) return; _textType = value; _htmlRuns = null; _spanTap?.Cancel(); InvalidateText(); }
 
     /// <summary>Command run with the <c>href</c> of a tapped HTML link (<see cref="TextType.Html"/>), after <see cref="LinkTapped"/>.</summary>
@@ -426,10 +428,10 @@ public class SkUiLabel : SkUiView, ISkUiFontElement, ISkUiBorderElement
     public SkUiLabel SetFontFamily(string? value) { FontFamily = value; return this; }
     private void OnFontFamilyChanged(string? value) { if (_fontFamily == value) return; _fontFamily = value; InvalidateText(); }
     /// <summary>Sets font attributes (same as the property setter).</summary>
-    public SkUiLabel SetFontAttributes(FontAttributes value) { FontAttributes = value; return this; }
+    public SkUiLabel SetFontAttributes(FontAttributes value) { SkUiValidate.ThrowIfNotFlags(value, nameof(value)); FontAttributes = value; return this; }
     private void OnFontAttributesChanged(FontAttributes value) { if (_fontAttributes == value) return; _fontAttributes = value; InvalidateText(); }
     /// <summary>Sets line mode (same as the property setter).</summary>
-    public SkUiLabel SetLineBreakMode(LineBreakMode value) { LineBreakMode = value; return this; }
+    public SkUiLabel SetLineBreakMode(LineBreakMode value) { SkUiValidate.ThrowIfNotDefined(value, nameof(value)); LineBreakMode = value; return this; }
     private void OnLineBreakModeChanged(LineBreakMode value) { _lineBreakMode = value; InvalidateText(); }
     /// <summary>Sets the custom line breaker (same as the property setter).</summary>
     public SkUiLabel SetLineBreaker(SkUiTextLineBreaker? value) { LineBreaker = value; return this; }
@@ -453,10 +455,10 @@ public class SkUiLabel : SkUiView, ISkUiFontElement, ISkUiBorderElement
         InvalidateText();
     }
     /// <summary>Sets the text decorations (same as the property setter).</summary>
-    public SkUiLabel SetTextDecorations(TextDecorations value) { TextDecorations = value; return this; }
+    public SkUiLabel SetTextDecorations(TextDecorations value) { SkUiValidate.ThrowIfNotFlags(value, nameof(value)); TextDecorations = value; return this; }
     private void OnTextDecorationsChanged(TextDecorations value) { if (_textDecorations == value) return; _textDecorations = value; _richText = null; InvalidatePaint(); }
     /// <summary>Sets the text transform (same as the property setter).</summary>
-    public SkUiLabel SetTextTransform(TextTransform value) { TextTransform = value; return this; }
+    public SkUiLabel SetTextTransform(TextTransform value) { SkUiValidate.ThrowIfNotDefined(value, nameof(value)); TextTransform = value; return this; }
     private void OnTextTransformChanged(TextTransform value)
     {
         if (_textTransform == value) return;
@@ -490,7 +492,7 @@ public class SkUiLabel : SkUiView, ISkUiFontElement, ISkUiBorderElement
     public SkUiLabel SetAllowsTightening(bool value) { AllowsTightening = value; return this; }
     private void OnAllowsTighteningChanged(bool value) { if (_allowsTightening == value) return; _allowsTightening = value; InvalidateText(); }
     /// <summary>Sets horizontal alignment (same as the property setter).</summary>
-    public SkUiLabel SetHorizontalTextAlignment(TextAlignment value) { HorizontalTextAlignment = value; return this; }
+    public SkUiLabel SetHorizontalTextAlignment(TextAlignment value) { SkUiValidate.ThrowIfNotDefined(value, nameof(value)); HorizontalTextAlignment = value; return this; }
     private void OnHorizontalTextAlignmentChanged(TextAlignment value)
     {
         // Justified lines are stretched by the layout (and measure as wide as the label); other alignments only paint.
@@ -499,7 +501,7 @@ public class SkUiLabel : SkUiView, ISkUiFontElement, ISkUiBorderElement
         if (relayout) InvalidateText(); else InvalidatePaint();
     }
     /// <summary>Sets vertical alignment (same as the property setter).</summary>
-    public SkUiLabel SetVerticalTextAlignment(TextAlignment value) { VerticalTextAlignment = value; return this; }
+    public SkUiLabel SetVerticalTextAlignment(TextAlignment value) { SkUiValidate.ThrowIfNotDefined(value, nameof(value)); VerticalTextAlignment = value; return this; }
     private void OnVerticalTextAlignmentChanged(TextAlignment value) { _verticalTextAlignment = value; InvalidatePaint(); }
     /// <summary>Sets padding (same as the property setter).</summary>
     public SkUiLabel SetPadding(Thickness value) { Padding = value; return this; }

@@ -56,6 +56,7 @@ public abstract class SkUiStepperBase : SkUiView, ISkUiFontElement, ISkUiStepper
 
     /// <summary>Bindable property for <see cref="FontAttributes"/>.</summary>
     public static readonly BindableProperty FontAttributesProperty = BindableProperty.Create(nameof(FontAttributes), typeof(FontAttributes), typeof(SkUiStepperBase), FontAttributes.None,
+        validateValue: SkUiValidate.Flags<FontAttributes>,
         propertyChanged: (view, _, value) => ((SkUiStepperBase)view).OnTextStyleChanged(model => model.FontAttributes = (FontAttributes)value));
 
     /// <summary>Bindable property for <see cref="FontAutoScalingEnabled"/>.</summary>
@@ -151,7 +152,7 @@ public abstract class SkUiStepperBase : SkUiView, ISkUiFontElement, ISkUiStepper
     public SkUiStepperBase SetFontSize(double value) { SkUiValidate.ThrowIfNotFinitePositive(value, nameof(value)); FontSize = value; return this; }
 
     /// <summary>Sets <see cref="FontAttributes"/>.</summary>
-    public SkUiStepperBase SetFontAttributes(FontAttributes value) { FontAttributes = value; return this; }
+    public SkUiStepperBase SetFontAttributes(FontAttributes value) { SkUiValidate.ThrowIfNotFlags(value, nameof(value)); FontAttributes = value; return this; }
 
     /// <summary>Sets <see cref="FontAutoScalingEnabled"/>.</summary>
     public SkUiStepperBase SetFontAutoScalingEnabled(bool value) { FontAutoScalingEnabled = value; return this; }

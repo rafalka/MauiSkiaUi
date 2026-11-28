@@ -106,7 +106,11 @@ public abstract class SkUiCoreStepperBase : SkUiCoreNode, ISkUiFontElement, ISkU
     }
 
     /// <summary>Sets <see cref="FontAttributes"/>.</summary>
-    public SkUiCoreStepperBase SetFontAttributes(FontAttributes value) => SetTextStyle(ref Model.FontAttributes, value, nameof(FontAttributes));
+    public SkUiCoreStepperBase SetFontAttributes(FontAttributes value)
+    {
+        SkUiValidate.ThrowIfNotFlags(value, nameof(value));
+        return SetTextStyle(ref Model.FontAttributes, value, nameof(FontAttributes));
+    }
 
     /// <summary>Sets <see cref="FontAutoScalingEnabled"/>.</summary>
     public SkUiCoreStepperBase SetFontAutoScalingEnabled(bool value) => SetTextStyle(ref Model.FontAutoScalingEnabled, value, nameof(FontAutoScalingEnabled));

@@ -589,6 +589,7 @@ public class SkUiCalendar : SkUiView, ISkUiCalendarHost, ISkUiKeyHandler, ISkUiF
 
     /// <summary>Bindable property for <see cref="HeaderFontAttributes"/>.</summary>
     public static readonly BindableProperty HeaderFontAttributesProperty = BindableProperty.Create(nameof(HeaderFontAttributes), typeof(FontAttributes), typeof(SkUiCalendar), FontAttributes.Bold,
+        validateValue: SkUiValidate.Flags<FontAttributes>,
         propertyChanged: (view, _, value) => ((SkUiCalendar)view).Painted(model => model.HeaderFontAttributes = (FontAttributes)value));
 
     /// <summary>The title's font attributes (default bold).</summary>
@@ -597,6 +598,7 @@ public class SkUiCalendar : SkUiView, ISkUiCalendarHost, ISkUiKeyHandler, ISkUiF
     /// <summary>Sets <see cref="HeaderFontAttributes"/>.</summary>
     public SkUiCalendar SetHeaderFontAttributes(FontAttributes value)
     {
+        SkUiValidate.ThrowIfNotFlags(value, nameof(value));
         HeaderFontAttributes = value;
         return this;
     }
@@ -893,6 +895,7 @@ public class SkUiCalendar : SkUiView, ISkUiCalendarHost, ISkUiKeyHandler, ISkUiF
 
     /// <summary>Bindable property for <see cref="DayNameFontAttributes"/>.</summary>
     public static readonly BindableProperty DayNameFontAttributesProperty = BindableProperty.Create(nameof(DayNameFontAttributes), typeof(FontAttributes), typeof(SkUiCalendar), FontAttributes.None,
+        validateValue: SkUiValidate.Flags<FontAttributes>,
         propertyChanged: (view, _, value) => ((SkUiCalendar)view).Painted(model => model.DayNameFontAttributes = (FontAttributes)value));
 
     /// <summary>The day names' font attributes (default none).</summary>
@@ -901,6 +904,7 @@ public class SkUiCalendar : SkUiView, ISkUiCalendarHost, ISkUiKeyHandler, ISkUiF
     /// <summary>Sets <see cref="DayNameFontAttributes"/>.</summary>
     public SkUiCalendar SetDayNameFontAttributes(FontAttributes value)
     {
+        SkUiValidate.ThrowIfNotFlags(value, nameof(value));
         DayNameFontAttributes = value;
         return this;
     }
@@ -1001,6 +1005,7 @@ public class SkUiCalendar : SkUiView, ISkUiCalendarHost, ISkUiKeyHandler, ISkUiF
 
     /// <summary>Bindable property for <see cref="FontAttributes"/>.</summary>
     public static readonly BindableProperty FontAttributesProperty = BindableProperty.Create(nameof(FontAttributes), typeof(FontAttributes), typeof(SkUiCalendar), FontAttributes.None,
+        validateValue: SkUiValidate.Flags<FontAttributes>,
         propertyChanged: (view, _, value) => ((SkUiCalendar)view).Painted(model => model.FontAttributes = (FontAttributes)value));
 
     /// <summary>The days', months' and years' font attributes (default none; today has <see cref="TodayFontAttributes"/>).</summary>
@@ -1009,6 +1014,7 @@ public class SkUiCalendar : SkUiView, ISkUiCalendarHost, ISkUiKeyHandler, ISkUiF
     /// <summary>Sets <see cref="FontAttributes"/>.</summary>
     public SkUiCalendar SetFontAttributes(FontAttributes value)
     {
+        SkUiValidate.ThrowIfNotFlags(value, nameof(value));
         FontAttributes = value;
         return this;
     }
@@ -1093,6 +1099,7 @@ public class SkUiCalendar : SkUiView, ISkUiCalendarHost, ISkUiKeyHandler, ISkUiF
 
     /// <summary>Bindable property for <see cref="TodayFontAttributes"/>.</summary>
     public static readonly BindableProperty TodayFontAttributesProperty = BindableProperty.Create(nameof(TodayFontAttributes), typeof(FontAttributes), typeof(SkUiCalendar), FontAttributes.Bold,
+        validateValue: SkUiValidate.Flags<FontAttributes>,
         propertyChanged: (view, _, value) => ((SkUiCalendar)view).Painted(model => model.TodayFontAttributes = (FontAttributes)value));
 
     /// <summary>Today's font attributes (default bold).</summary>
@@ -1101,6 +1108,7 @@ public class SkUiCalendar : SkUiView, ISkUiCalendarHost, ISkUiKeyHandler, ISkUiF
     /// <summary>Sets <see cref="TodayFontAttributes"/>.</summary>
     public SkUiCalendar SetTodayFontAttributes(FontAttributes value)
     {
+        SkUiValidate.ThrowIfNotFlags(value, nameof(value));
         TodayFontAttributes = value;
         return this;
     }

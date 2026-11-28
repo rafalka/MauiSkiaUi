@@ -247,6 +247,15 @@ public class SkUiRefreshView : SkUiView, ISkUiRefreshOwner, ISkUiScrollEffectSou
         set => SetValue(RefreshStyleProperty, value);
     }
 
+    /// <summary>Sets <see cref="RefreshStyle"/> (same as the property setter).</summary>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="value"/> is not a defined <see cref="SkUiRefreshStyle"/>.</exception>
+    public SkUiRefreshView SetRefreshStyle(SkUiRefreshStyle value)
+    {
+        SkUiValidate.ThrowIfNotDefined(value, nameof(value));
+        RefreshStyle = value;
+        return this;
+    }
+
     /// <summary>
     /// How far the top must be pulled (shown past the edge, DIPs) for a release to refresh; 0 (default): the look's
     /// (<see cref="SkUiLook.RefreshTriggerDistance"/>, 64). SkiaUi extension.
@@ -276,6 +285,15 @@ public class SkUiRefreshView : SkUiView, ISkUiRefreshOwner, ISkUiScrollEffectSou
     {
         get => (SkUiRefreshCompletion)GetValue(RefreshCompletionProperty);
         set => SetValue(RefreshCompletionProperty, value);
+    }
+
+    /// <summary>Sets <see cref="RefreshCompletion"/> (same as the property setter).</summary>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="value"/> is not a defined <see cref="SkUiRefreshCompletion"/>.</exception>
+    public SkUiRefreshView SetRefreshCompletion(SkUiRefreshCompletion value)
+    {
+        SkUiValidate.ThrowIfNotDefined(value, nameof(value));
+        RefreshCompletion = value;
+        return this;
     }
 
     /// <summary>The refresh indicator, drawn by the look (style it: <see cref="SkUiCoreRefreshIndicator.Color"/>, a shadow).</summary>

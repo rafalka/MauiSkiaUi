@@ -52,9 +52,11 @@ public class SkUiBorder : SkUiContentView
         propertyChanged: (view, _, value) => ((SkUiBorder)view).OnStrokeDashOffsetChanged((double)value));
     /// <summary>Bindable <see cref="StrokeLineCap"/>.</summary>
     public static readonly BindableProperty StrokeLineCapProperty = BindableProperty.Create(nameof(StrokeLineCap), typeof(PenLineCap), typeof(SkUiBorder), PenLineCap.Flat,
+        validateValue: SkUiValidate.Defined<PenLineCap>,
         propertyChanged: (view, _, value) => ((SkUiBorder)view).OnStrokeLineCapChanged((PenLineCap)value));
     /// <summary>Bindable <see cref="StrokeLineJoin"/>.</summary>
     public static readonly BindableProperty StrokeLineJoinProperty = BindableProperty.Create(nameof(StrokeLineJoin), typeof(PenLineJoin), typeof(SkUiBorder), PenLineJoin.Miter,
+        validateValue: SkUiValidate.Defined<PenLineJoin>,
         propertyChanged: (view, _, value) => ((SkUiBorder)view).OnStrokeLineJoinChanged((PenLineJoin)value));
     /// <summary>Bindable <see cref="StrokeMiterLimit"/>.</summary>
     public static readonly BindableProperty StrokeMiterLimitProperty = BindableProperty.Create(nameof(StrokeMiterLimit), typeof(double), typeof(SkUiBorder), 10d,
@@ -122,9 +124,9 @@ public class SkUiBorder : SkUiContentView
     /// <summary>Sets the dash offset (same as the property setter).</summary>
     public SkUiBorder SetStrokeDashOffset(double value) { SkUiValidate.ThrowIfNotFinite(value, nameof(value)); StrokeDashOffset = value; return this; }
     /// <summary>Sets the dash caps (same as the property setter).</summary>
-    public SkUiBorder SetStrokeLineCap(PenLineCap value) { StrokeLineCap = value; return this; }
+    public SkUiBorder SetStrokeLineCap(PenLineCap value) { SkUiValidate.ThrowIfNotDefined(value, nameof(value)); StrokeLineCap = value; return this; }
     /// <summary>Sets the corner joins (same as the property setter).</summary>
-    public SkUiBorder SetStrokeLineJoin(PenLineJoin value) { StrokeLineJoin = value; return this; }
+    public SkUiBorder SetStrokeLineJoin(PenLineJoin value) { SkUiValidate.ThrowIfNotDefined(value, nameof(value)); StrokeLineJoin = value; return this; }
     /// <summary>Sets the miter limit (same as the property setter).</summary>
     public SkUiBorder SetStrokeMiterLimit(double value) { SkUiValidate.ThrowIfNegativeOrNotFinite(value, nameof(value)); StrokeMiterLimit = value; return this; }
     /// <summary>Sets a uniform corner radius (same as the property setter).</summary>

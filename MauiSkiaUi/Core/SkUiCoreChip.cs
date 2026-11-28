@@ -142,7 +142,11 @@ public class SkUiCoreChip : SkUiCoreButton, ISkUiKeyHandler
     public SkUiCoreChip SetBadgeFontFamily(string? value) => SetBadgeFont(_badgeFont with { FontFamily = value }, nameof(BadgeFontFamily));
 
     /// <summary>Sets <see cref="BadgeFontAttributes"/>.</summary>
-    public SkUiCoreChip SetBadgeFontAttributes(FontAttributes value) => SetBadgeFont(_badgeFont with { Attributes = value }, nameof(BadgeFontAttributes));
+    public SkUiCoreChip SetBadgeFontAttributes(FontAttributes value)
+    {
+        SkUiValidate.ThrowIfNotFlags(value, nameof(value));
+        return SetBadgeFont(_badgeFont with { Attributes = value }, nameof(BadgeFontAttributes));
+    }
 
     private SkUiCoreChip SetBadgeFont(SkUiChipChrome.BadgeFont value, string propertyName)
     {
