@@ -260,7 +260,6 @@ Taken up when a real app needs it, roughly in this order within each area. Items
 - Overlay masks, so drawn popups can cover hosted native controls (mostly WebView, media and maps now that text fields are drawn). (Overlay bookkeeping on Android: measured and fixed in 1.14, [Benchmarks.md](Benchmarks.md#114-overlay-bookkeeping-on-android-17-november-2026).) A first form (covered native views frozen while a drawn overlay covers them) is planned for [1.19](#1190-value-inputs-colors-that-follow-the-system-lists-and-the-sheet-finished-planned).
 - Windows GPU surfaces can still flash the window's backdrop for a frame when their swap chain panel changes size (rare since `SkUiSurfaceSlack`). `SKSwapChainPanel` handles a size change by presenting an empty buffer before the real frame (`pendingSizeChange` in SkiaSharp's `AngleSwapChainPanel`), and that blank can reach the screen. The fix needs a way around that swap: our own ANGLE panel, or a SkiaSharp change.
 - From the November 2026 review: a way for optional packages to take part in the look (today a package carries its own style object, as Markdown does).
-- A test that keeps the Core layer to [FR-C1](Requirements.md#core-layer-fr-c): no Core node derives from `BindableObject` or `Element`, and the `Microsoft.Maui.Controls` types the Core API uses (`FontAttributes`, `DataTemplate` for picker popups, the host's `SkUiView`) are a list a new one has to join. Planned for [1.19](#1190-value-inputs-colors-that-follow-the-system-lists-and-the-sheet-finished-planned).
 
 ## Verification backlog
 
@@ -290,11 +289,22 @@ Device runs that are still open. How to run them: [Testing.md](Testing.md#device
 
 ## Held for 2.0
 
-Breaking changes for MAUI parity, kept out of 1.x so the 1.0 API stays as it is. Until then, [Migration.md](../Migration.md#lists-collectionview) has the conversions.
+Breaking changes, kept out of 1.x so the 1.0 API stays as it is.
+
+For MAUI parity; until then, [Migration.md](../Migration.md#lists-collectionview) has the conversions.
 
 - `SkUiCollectionView.Scrolled` raises MAUI's `ItemsViewScrolledEventArgs` (deltas, first / center / last visible index) instead of `ScrolledEventArgs`, as the carousel already does.
 - `SkUiCollectionView.SelectionChanged` raises MAUI's `SelectionChangedEventArgs` (its constructors are internal: raised through an accessor) instead of `SkUiSelectionChangedEventArgs`; `PreviousItem` / `CurrentItem` move elsewhere or go.
 - `SkUiCollectionView.SelectionMode` takes MAUI's `SelectionMode`; `SingleDeselect` moves elsewhere (for example a separate property).
+
+Core API that stretches [FR-C1](Requirements.md#core-layer-fr-c): MAUI Controls classes that `CoreLayerContractTests` allows in 1.x, replaced in 2.0.
+
+- `SkUiCoreSegment.Icon` and `SkUiCoreTabItem.Icon` take an `SkUiImageSource` instead of MAUI's `ImageSource`.
+- `SkUiCorePicker.SelectionBackground` takes a SkiaUi `Paint` instead of MAUI's `Brush`.
+- `CalendarStyle` on `SkUiCoreDatePicker`, `SkUiCoreDateTimePicker` and `SkUiCoreDateRangePicker` (a MAUI `Style` for the popup's `SkUiCalendar`) gives way to a Core way to set up the popup calendar.
+- `SkUiCoreButton.ContentLayout` takes a SkiaUi value instead of MAUI's `Button.ButtonContentLayout`.
+- `SkUiCoreMultiColumnPicker` takes plain Core columns instead of the SkUi\* picker's bindable `SkUiPickerColumn` (an `Element`).
+- An app-placed scroll bar that follows an `SkUiScrollView` comes from the SkUi\* scroller instead of an `SkUiCoreScrollBar` constructor that takes the view.
 
 ## Not planned
 

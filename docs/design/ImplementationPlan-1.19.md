@@ -53,7 +53,7 @@
   - Nothing but `SkUiCoreHost` (the bridge) derives from `BindableObject` or `Element`.
   - Every `Microsoft.Maui.Controls` type in a public or protected signature is on an allow-list with a reason.
     - **Values, enums and event args MAUI defines:** `FontAttributes`, `DataTemplate`, `StackOrientation`, `LayoutAlignment`, `SelectionMode`, the scroll and snap enums, `PenLineCap`, `FillRule`, `ValueChangedEventArgs`, … (allowed by FR-C1).
-    - **Four classes that stretch FR-C1:** `ImageSource` (segment and tab icons, an image overload), `Brush` (`SkUiCorePicker.SelectionBackground`), `Style` (`CalendarStyle` on the Core date pickers) and `Button.ButtonContentLayout`. They are allowed in 1.x; replacements go to [Held for 2.0](Roadmap.md#held-for-20), as changing them breaks callers.
+    - **Classes that stretch FR-C1:** `ImageSource` (segment and tab icons), `Brush` (`SkUiCorePicker.SelectionBackground`), `Style` (`CalendarStyle` on the Core date pickers) and `Button.ButtonContentLayout`; the test found two more SkUi\* types that derive from Controls types: `SkUiPickerColumn` (`SkUiCoreMultiColumnPicker`'s columns, an `Element`) and `SkUiScrollView` (an `SkUiCoreScrollBar` constructor). They are allowed in 1.x; replacements go to [Held for 2.0](Roadmap.md#held-for-20), as changing them breaks callers.
 - **D8 Scheme defaults are resolved when painting, on both layers.**
   - **What changes:** a color whose default is a scheme token (21 copies in 13 Core files; 17 field initializers, 18 `defaultValueCreator`s and 3 `Default*Color` overrides on the SkUi\* layer) is stored as "not set" and read through `?? SkUiColors.X` where it is used. The refresh indicator and the scroll bar already do this.
   - **What callers see:**

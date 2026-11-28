@@ -29,6 +29,7 @@ Publishing (the NuGet publish workflow, [docs/Releasing.md](docs/Releasing.md)) 
 
 ### Other
 
+- A test that keeps the Core layer to FR-C1 (`CoreLayerContractTests`): no public Core type but `SkUiCoreHost` derives from `BindableObject` or `Element`, and the `Microsoft.Maui.Controls` types in the Core API's public and protected signatures are an allow-list with the reason for each (MAUI's enums, event args and `DataTemplate`). Six classes on it stretch FR-C1 and stay in 1.x, their replacements held for 2.0: `ImageSource` (segment and tab icons), `Brush` (`SkUiCorePicker.SelectionBackground`), `Style` (`CalendarStyle` on the Core date pickers), `Button.ButtonContentLayout`, `SkUiPickerColumn` (`SkUiCoreMultiColumnPicker`'s columns) and `SkUiScrollView` (an `SkUiCoreScrollBar` constructor).
 - A parity test over every SkUi\* / Core twin pair (`TwinParityTests`, found by name or listed, every other SkUi\* type listed with the reason it has no twin): properties and their types, fluent setters on both layers, defaults, the invalid values each rejects, methods and events, with the layers' conventions as rules and every intended difference listed with its reason. It replaces the calendar's parity test and decides the November 2026 review's question of a source generator for the twins: none for now ([D3](docs/design/ImplementationPlan-PerformanceAndControls.md#decisions)).
 
 ## 1.18.0
