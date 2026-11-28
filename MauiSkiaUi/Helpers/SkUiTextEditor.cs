@@ -144,8 +144,8 @@ internal sealed class SkUiTextEditor(ISkUiTextEditorOwner? owner = null)
     /// <summary>Line breaks are kept (an editor); otherwise input turns them into spaces (an entry).</summary>
     public bool IsMultiline { get; set; }
 
-    /// <summary>MAUI's <c>TextTransform</c>, applied to input.</summary>
-    public TextTransform Transform { get; set; }
+    /// <summary>MAUI's <c>TextTransform</c>, applied to input (default <see cref="TextTransform.Default"/>, MAUI's: none).</summary>
+    public TextTransform Transform { get; set; } = TextTransform.Default;
 
     /// <summary>Ctrl / Alt + Right goes to the current word's end (Apple) rather than the next word's start.</summary>
     public bool WordRightGoesToWordEnd { get; set; } = OperatingSystem.IsIOS() || OperatingSystem.IsMacCatalyst();

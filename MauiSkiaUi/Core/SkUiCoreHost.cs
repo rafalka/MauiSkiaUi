@@ -37,6 +37,7 @@ public class SkUiCoreHost : SkUiView, IVisualTreeElement
             _content.HostOwner = null;
             SkUiRenderInvalidation.ResetSubtree(_content);
             SkUiGestureSet.CancelSubtree(_content);
+            SkUiHover.ClearSubtree(_content);
             SkUiDiagnostics.NotifyChildRemoved(this, _content, 0);
         }
 

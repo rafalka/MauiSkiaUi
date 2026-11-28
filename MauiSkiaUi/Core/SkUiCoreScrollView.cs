@@ -30,6 +30,7 @@ public class SkUiCoreScrollView : SkUiCoreContentView, ISkUiScrollHost, ISkUiVie
         _scroller = new SkUiScrollController(this, InvalidateRender, OnOffsetChanged);
         _scroller.OverscrollChanged += () => Overscrolled?.Invoke(this, _scroller.OverscrolledArgs());
         _scroller.PullReleased += (edge, distance) => PullReleased?.Invoke(this, new SkUiPullReleasedEventArgs(edge, distance));
+        _scroller.MovingChanged += _ => OnPropertyChanged(nameof(IsScrolling));
     }
 
     /// <summary>
@@ -223,6 +224,9 @@ public class SkUiCoreScrollView : SkUiCoreContentView, ISkUiScrollHost, ISkUiVie
 
     /// <summary>Viewport size (DIPs).</summary>
     public Size ViewportSize => _scroller.Viewport;
+
+    /// <summary>True while the user drags this scroller or a fling / animated scroll runs (raises <c>PropertyChanged</c>).</summary>
+    public bool IsScrolling => _scroller.IsMoving;
 
     /// <summary>True while a render-thread fling or animated scroll runs.</summary>
     public bool IsScrollAnimating => _scroller.IsMotionRunning;

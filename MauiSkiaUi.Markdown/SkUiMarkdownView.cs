@@ -15,6 +15,7 @@ public class SkUiMarkdownView : SkUiCoreHost
 
     /// <summary>Bindable <see cref="Text"/>.</summary>
     public static readonly BindableProperty TextProperty = BindableProperty.Create(nameof(Text), typeof(string), typeof(SkUiMarkdownView), string.Empty,
+        coerceValue: static (_, value) => value ?? string.Empty, // as SetText: no document
         propertyChanged: static (view, _, value) => ((SkUiMarkdownView)view)._markdown.SetText((string?)value));
 
     /// <summary>Bindable <see cref="MarkdownStyle"/>.</summary>

@@ -269,7 +269,7 @@ Under `SkUiMotion.IsMotionReduced`, fades and clips run; scales, and translation
 
 ## Key properties / APIs
 
-`Orientation`, `ScrollX`, `ScrollY`, `ContentSize`, `ViewportInsets`, `HorizontalScrollBarVisibility`, `VerticalScrollBarVisibility`, `VerticalScrollBar`, `HorizontalScrollBar`, `Overscroll`, `SnapPointsType`, `SnapPointsAlignment`, `PullEdges`, `OverscrollX`, `OverscrollY`, `Overscrolled`, `PullReleased`, `IsScrolling`, `Scrolled`, `ScrollToRequested`, `ScrollTo`, `ScrollToAsync` (offset, element, Core node), `GetScrollPositionForElement`, `AnimateScrollTo`. Core: [`SkUiCoreScrollView`](SkUiCore.md) has the same features (`Set*` setters, `ScrollToAsync(SkUiCoreNode, …)`, `GetScrollPositionForNode`).
+`Orientation`, `ScrollX`, `ScrollY`, `ContentSize`, `ViewportInsets`, `HorizontalScrollBarVisibility`, `VerticalScrollBarVisibility`, `VerticalScrollBar`, `HorizontalScrollBar`, `Overscroll`, `SnapPointsType`, `SnapPointsAlignment`, `PullEdges`, `OverscrollX`, `OverscrollY`, `Overscrolled`, `PullReleased`, `IsScrolling`, `IsScrollAnimating`, `ViewportSize`, `Scrolled`, `ScrollToRequested`, `ScrollTo`, `ScrollToAsync` (offset, element, Core node), `GetScrollPositionForElement`, `AnimateScrollTo`. Core: [`SkUiCoreScrollView`](SkUiCore.md) has the same features (`Set*` setters, `ScrollToAsync(SkUiCoreNode, …)`, `GetScrollPositionForNode`).
 
 ## Differences from MAUI ScrollView
 

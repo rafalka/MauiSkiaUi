@@ -36,6 +36,17 @@ internal static class SkUiValidate
             throw new ArgumentOutOfRangeException(name, value, "Must be a finite, non-negative number, or -1 for the look's.");
     }
 
+    /// <summary>Whether <paramref name="value"/> is a combination of MAUI's four swipe directions (none included).</summary>
+    public static bool IsSwipeDirections(SwipeDirection value) =>
+        (value & ~(SwipeDirection.Left | SwipeDirection.Right | SwipeDirection.Up | SwipeDirection.Down)) == 0;
+
+    /// <summary>Throws unless <paramref name="value"/> is a combination of the four swipe directions.</summary>
+    public static void ThrowIfNotSwipeDirections(SwipeDirection value, string name)
+    {
+        if (!IsSwipeDirections(value))
+            throw new ArgumentOutOfRangeException(name, value, "Expected a combination of Left, Right, Up and Down.");
+    }
+
     /// <summary>A row limit: -1 (none) or at least 1.</summary>
     public static bool RowLimit(BindableObject bindable, object? value) => value is int rows && (rows == -1 || rows >= 1);
 

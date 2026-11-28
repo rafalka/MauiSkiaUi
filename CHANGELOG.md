@@ -13,6 +13,24 @@ Publishing (the NuGet publish workflow, [docs/Releasing.md](docs/Releasing.md)) 
 
 ## Unreleased
 
+### New features
+
+- **Fluent setters the SkUi\* layer was missing, as on Core:** `SkUiView.SetClipToBounds`, `SetPanAxis` and `SetSwipeDirections`; `SkUiScrollView.SetSnapPointsType`, `SetSnapPointsAlignment`, `SetHorizontalScrollBarVisibility`, `SetVerticalScrollBarVisibility` and `SetOverscroll`; `SkUiLine.SetX1`, `SetY1`, `SetX2`, `SetY2` and `SetPoints`; `SkUiExpander.SetCommand`, `SetCommandParameter`, `SetLazyContentExpansion`, `SetAnimationLength` and `SetAnimationEasing`; `SkUiShimmer.SetBeforeStateChangeAnimation` and `SetAfterStateChangeAnimation`; `SkUiChipGroup.SetSelectedItems`; `SkUiImage.SetDownsampleWidth`, `SetDownsampleHeight`, `SetFadeAnimationEnabled`, `SetFadeAnimationDuration`, `SetLoadingPlaceholder` and `SetErrorPlaceholder`. Those of validated properties throw on an invalid value, which the property itself ignores. Core gains the image's one-value setters it lacked too (`SkUiCoreImage.SetDownsampleWidth`, `SetDownsampleHeight`, `SetFadeAnimationEnabled`) and `SetPlaceholders(loading, error)`.
+- **`SkUiScrollView.IsScrollAnimating` and `ViewportSize`,** as `SkUiCoreScrollView` has them: whether a render-thread fling or animated scroll runs, and the area the content scrolls in. In turn `SkUiCoreScrollView.IsScrolling` (a drag, fling or animated scroll; raises `PropertyChanged`) and `SkUiCoreNode.IsPointerOver` (a hovering pointer over the node or a descendant) as the SkUi\* layer has them.
+
+### Fixes
+
+- `SkUiCoreEntry`, `SkUiCoreEditor` and the other Core input views start with `TextTransform.Default`, as MAUI and the SkUi\* input views do (they reported `None`; both draw the text as typed).
+- `PanAxis` and `SwipeDirections` reject undefined values on both layers: the bindable properties ignore them, and `SetPanAxis` / `SetSwipeDirections` on views and Core nodes throw. They took any value before.
+- A Core node removed from its parent (or from its `SkUiCoreHost`) while a pointer hovers it is no longer pointer-over: Core input views, pickers and steppers no longer keep their hover look until the next hover move.
+- Core nodes hear of a hover change once, not on every pointer move over them: Core input views, pickers and steppers no longer re-record their content on each move. Core nodes now count as hovered when a subtree is cleared, so a hovered Core node under input-transparent views is cleared when it leaves.
+- `SkUiMarkdownView.Text` set to `null` (a binding) reads back as an empty string, as `SetText(null)` does.
+- `SkUiCoreImage.SetDownsample(width, height)` raises `PropertyChanged` for each value that changed (it raised `DownsampleWidth` only, also when just the height changed).
+
+### Other
+
+- A parity test over every SkUi\* / Core twin pair (`TwinParityTests`, found by name or listed, every other SkUi\* type listed with the reason it has no twin): properties and their types, fluent setters on both layers, defaults, the invalid values each rejects, methods and events, with the layers' conventions as rules and every intended difference listed with its reason. It replaces the calendar's parity test and decides the November 2026 review's question of a source generator for the twins: none for now ([D3](docs/design/ImplementationPlan-PerformanceAndControls.md#decisions)).
+
 ## 1.18.0
 
 ### New features
