@@ -9,15 +9,18 @@ namespace MauiSkiaUi.Tests;
 /// Keeps the Core layer to FR-C1 (docs/design/Requirements.md, Core layer; decision D7 of the 1.19 plan): Core nodes are
 /// plain CLR objects, and the <c>Microsoft.Maui.Controls</c> types their API uses are a list a new one has to join.
 /// <list type="bullet">
-/// <item>No public type of <c>MauiSkiaUi.Core</c> but <see cref="SkUiCoreHost"/> (the bridge into the SkUi tree) derives
+/// <item>No public or protected type of <c>MauiSkiaUi.Core</c> (and namespaces below it) but <see cref="SkUiCoreHost"/> (the bridge into the SkUi tree) derives
 /// from <see cref="BindableObject"/> or <see cref="Element"/>.</item>
 /// <item>Every <c>Microsoft.Maui.Controls</c> type, and every other type that derives from one (an <c>SkUi*</c> view), in
 /// a public or protected signature of those types (base types, interfaces, fields, properties, indexers, events,
-/// constructors, methods, generic constraints, also inside generic arguments and arrays) is in
+/// constructors, methods, generic constraints, also inside generic arguments, arrays and function pointers) is in
 /// <see cref="AllowedControlsTypes"/>, with the reason.</item>
 /// </list>
 /// <c>Microsoft.Maui</c> and <c>Microsoft.Maui.Graphics</c> types (<c>Thickness</c>, <c>Color</c>, <c>ScrollOrientation</c>)
-/// are allowed by FR-C1 and not checked.
+/// are allowed by FR-C1 and not checked. The check is one level deep: the members of other SkiaUi types in those signatures
+/// are not followed. The look (<c>SkUiLook</c>), popup requests (<c>SkUiPopupRequest</c>, through the pickers' protected
+/// <c>ShowPopupAsync</c>) and view animations are shared with the SkUi* layer by design (FR-C6, popups on the app's popup
+/// system) and reach MAUI views and pages there.
 /// </summary>
 public class CoreLayerContractTests
 {
@@ -127,8 +130,8 @@ public class CoreLayerContractTests
     [Fact]
     public void SignatureScanFindsEveryKindOfMember()
     {
-        var uses = SignatureTypes(typeof(ScanProbe)).ToLookup(u => u.Member, u => u.Type);
-        var probe = TypeName(typeof(ScanProbe));
+        var uses = SignatureTypes(typeof(ScanProbe<>)).ToLookup(u => u.Member, u => u.Type);
+        var probe = TypeName(typeof(ScanProbe<>));
 
         Assert.Contains(typeof(Brush), uses[$"{probe}.Field"]);
         Assert.Contains(typeof(Style), uses[$"{probe}.Property"]);
@@ -137,12 +140,23 @@ public class CoreLayerContractTests
         Assert.Contains(typeof(DataTemplate), uses[$"new {probe}(template)"]);
         Assert.Contains(typeof(IList<Label>), uses[$"{probe}.Method() return"]);
         Assert.Contains(typeof(FontAttributes[]), uses[$"{probe}.Method(attributes)"]);
-        Assert.Contains(typeof(Element), uses[$"{probe}.Generic<T> constraint"]);
+        Assert.Contains(typeof(Element), uses[$"{probe}.Generic<TElement> constraint"]);
         Assert.Contains(typeof(LayoutAlignment), uses[$"{probe}.Protected"]);
+        Assert.Contains(typeof(Label), uses[$"{probe}.ProtectedInternal"]);
+        Assert.Empty(uses[$"{probe}.PrivateProtected"]);
         Assert.Empty(uses[$"{probe}.Internal"]);
         Assert.Empty(uses[$"{probe}.Private"]);
-        Assert.Contains(typeof(Label), SignatureTypes(typeof(ScanProbe)).Select(u => u.Type).SelectMany(Flatten));
+        Assert.Contains(typeof(List<Label>), uses[$"{probe} base type"]);
+        Assert.Contains(typeof(IComparable<Brush>), uses[$"{probe} interface"]);
+        Assert.Contains(typeof(Element), uses[$"{probe}<T> constraint"]);
+        Assert.Contains(typeof(Label), SignatureTypes(typeof(ScanProbe<>.Callback)).Select(u => u.Type));
+        Assert.Contains(typeof(Label), SignatureTypes(typeof(ScanProbe<>)).Select(u => u.Type).SelectMany(Flatten));
         Assert.Contains(typeof(FontAttributes), Flatten(typeof(FontAttributes[])));
+        Assert.True(IsReachable(typeof(ScanProbe<>)));
+        Assert.True(IsReachable(typeof(ScanProbe<>).GetNestedType("ProtectedNested", BindingFlags.NonPublic)!));
+        Assert.False(IsReachable(typeof(ScanProbe<>).GetNestedType("PrivateNested", BindingFlags.NonPublic)!));
+        Assert.True(IsCoreNamespace("MauiSkiaUi.Core.Sub"));
+        Assert.False(IsCoreNamespace("MauiSkiaUi.CoreX"));
         Assert.True(IsControlsType(typeof(SkUiPickerColumn)));
         Assert.False(IsControlsType(typeof(Thickness)));
         Assert.False(IsControlsType(typeof(SkUiCoreNode)));
@@ -163,8 +177,18 @@ public class CoreLayerContractTests
         return uses;
     }
 
+    /// <summary>The public types of the Core namespaces and their public and protected nested types.</summary>
     private static IEnumerable<Type> CoreTypes() =>
-        typeof(SkUiCoreNode).Assembly.GetExportedTypes().Where(t => t.Namespace == CoreNamespace);
+        typeof(SkUiCoreNode).Assembly.GetTypes().Where(t => IsCoreNamespace(t.Namespace) && IsReachable(t));
+
+    private static bool IsCoreNamespace(string? ns) =>
+        ns == CoreNamespace || ns?.StartsWith(CoreNamespace + ".", StringComparison.Ordinal) == true;
+
+    /// <summary>Whether code outside the assembly can name <paramref name="type"/> (or, nested, a subclass of its declaring type can).</summary>
+    private static bool IsReachable(Type type) =>
+        type.IsNested
+            ? (type.IsNestedPublic || type.IsNestedFamily || type.IsNestedFamORAssem) && IsReachable(type.DeclaringType!)
+            : type.IsPublic;
 
     /// <summary>The types in the public and protected signature of <paramref name="type"/>'s own members.</summary>
     private static IEnumerable<(string Member, Type Type)> SignatureTypes(Type type)
@@ -216,11 +240,16 @@ public class CoreLayerContractTests
                                  method.Name.StartsWith("remove_", StringComparison.Ordinal) ||
                                  method.Name.StartsWith("raise_", StringComparison.Ordinal));
 
-    /// <summary>A type and the types inside it: element types of arrays and by-refs, generic definitions and arguments.</summary>
+    /// <summary>
+    /// A type and the types inside it: element types of arrays, pointers and by-refs, generic definitions and arguments,
+    /// function pointers' parameters and return.
+    /// </summary>
     private static IEnumerable<Type> Flatten(Type type)
     {
         if (type.HasElementType)
             return Flatten(type.GetElementType()!);
+        if (type.IsFunctionPointer)
+            return type.GetFunctionPointerParameterTypes().Append(type.GetFunctionPointerReturnType()).SelectMany(Flatten);
         if (type.IsGenericParameter)
             return [];
         if (!type.IsGenericType)
@@ -252,12 +281,16 @@ public class CoreLayerContractTests
         groups.SelectMany(g => g.Types.Select(t => (Type: t, g.Reason))).ToDictionary(e => e.Type, e => e.Reason);
 
     /// <summary>One member of each kind the scan reads, for <see cref="SignatureScanFindsEveryKindOfMember"/>.</summary>
-    // ReSharper disable UnusedMember.Local, UnusedParameter.Local, EventNeverSubscribedTo.Local, UnusedType.Local
+    // ReSharper disable UnusedMember.Global, UnusedParameter.Local, EventNeverSubscribedTo.Global, UnusedType.Global, ClassNeverInstantiated.Global, MemberCanBePrivate.Global, UnusedType.Local
 #pragma warning disable CS0067, CS0649, CS0169
-    private class ScanProbe
+    public class ScanProbe<T> : List<Label>, IComparable<Brush> where T : Element
     {
+        public delegate Label Callback();
+
         public Brush? Field;
         protected LayoutAlignment Protected;
+        protected internal Label? ProtectedInternal;
+        private protected Label? PrivateProtected;
         internal Label? Internal;
         private Label? Private;
 
@@ -271,8 +304,14 @@ public class CoreLayerContractTests
 
         public IList<Label> Method(FontAttributes[] attributes) => [];
 
-        public void Generic<T>() where T : Element { }
+        public void Generic<TElement>() where TElement : Element { }
+
+        public int CompareTo(Brush? other) => 0;
+
+        protected class ProtectedNested;
+
+        private class PrivateNested;
     }
 #pragma warning restore CS0067, CS0649, CS0169
-    // ReSharper restore UnusedMember.Local, UnusedParameter.Local, EventNeverSubscribedTo.Local, UnusedType.Local
+    // ReSharper restore UnusedMember.Global, UnusedParameter.Local, EventNeverSubscribedTo.Global, UnusedType.Global, ClassNeverInstantiated.Global, MemberCanBePrivate.Global, UnusedType.Local
 }
