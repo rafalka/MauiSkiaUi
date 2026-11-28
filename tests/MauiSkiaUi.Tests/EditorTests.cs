@@ -1,3 +1,4 @@
+using System.Windows.Input;
 using MauiSkiaUi.Core;
 using Xunit;
 
@@ -243,5 +244,63 @@ public class EditorTests
         Assert.Equal(TextAlignment.Start, core.VerticalTextAlignment);
         core.Unfocus();
         Assert.Equal(1, completed);
+    }
+
+    private sealed class LogCommand(List<string> log, bool canExecute = true) : ICommand
+    {
+        public event EventHandler? CanExecuteChanged { add { } remove { } }
+        public bool CanExecute(object? parameter) => canExecute;
+        public void Execute(object? parameter) => log.Add($"command {parameter}");
+    }
+
+    [Fact]
+    public void ReturnCommandRunsAfterCompletedWhenTheEditorLosesFocusNotOnEnter()
+    {
+        using var _ = SkUiTestHelpers.UseBundledFont();
+        var (root, editor) = Field();
+        var log = new List<string>();
+        editor.Completed += (_, _) => log.Add("completed");
+        editor.SetReturnCommand(new LogCommand(log)).SetReturnCommandParameter("note");
+        editor.Focus();
+        Key(root, SkUiKey.Enter);
+        Assert.Empty(log);
+        editor.Unfocus();
+        Assert.Equal(["completed", "command note"], log);
+
+        // Not when it cannot execute, nor for a disabled editor (no Completed either, as MAUI's SendCompleted).
+        log.Clear();
+        editor.ReturnCommand = new LogCommand(log, canExecute: false);
+        editor.Focus();
+        editor.Unfocus();
+        Assert.Equal(["completed"], log);
+        log.Clear();
+        editor.ReturnCommand = new LogCommand(log);
+        editor.Focus();
+        editor.IsEnabled = false;
+        editor.Unfocus();
+        Assert.Empty(log);
+    }
+
+    [Fact]
+    public void CoreEditorReturnCommandRunsAfterCompletedWhenItLosesFocus()
+    {
+        using var _ = SkUiTestHelpers.UseBundledFont();
+        var log = new List<string>();
+        var core = new SkUiCoreEditor().SetFontFamily(SkUiTestHelpers.BundledFontFamily)
+            .SetReturnCommand(new LogCommand(log)).SetReturnCommandParameter("note");
+        var root = new SkUiVerticalStackLayout { Children = { new SkUiCoreHost().SetContent(core) } };
+        SkUiTestHelpers.Arrange(root, 300, 400);
+        core.Completed += (_, _) => log.Add("completed");
+        Assert.True(core.Focus());
+        Key(root, SkUiKey.Enter);
+        Assert.Empty(log);
+        core.Unfocus();
+        Assert.Equal(["completed", "command note"], log);
+
+        log.Clear();
+        core.ReturnCommand = new LogCommand(log, canExecute: false);
+        Assert.True(core.Focus());
+        core.Unfocus();
+        Assert.Equal(["completed"], log);
     }
 }

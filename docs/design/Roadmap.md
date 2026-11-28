@@ -220,7 +220,7 @@ Taken up when a real app needs it, roughly in this order within each area. Items
 
 ### MAUI parity
 
-- **MAUI 11 members** (net11 only; `BoxView.Fill` and `Editor.ReturnCommand` are known gaps in the parity test from 1.11): `LongPressGestureRecognizer` on drawn views, `BoxView.Fill`, `Editor.ReturnCommand` / `ReturnCommandParameter`, the `CancellationToken` overloads of `FadeToAsync` and the other animation extensions, `VisualElement.InvalidateStyle` / `VisualStateManager.InvalidateVisualStates`. Planned for [1.19](#1190-value-inputs-colors-that-follow-the-system-lists-and-the-sheet-finished-planned).
+- **MAUI 11 members:** built for [1.19](#1190-value-inputs-colors-that-follow-the-system-lists-and-the-sheet-finished-planned) (step A1): `BoxView.Fill`, `Editor.ReturnCommand` / `ReturnCommandParameter` (both layers, both frameworks), `LongPressGestureRecognizer` on drawn views (net11), `CancellationToken` overloads of the render-thread `AnimateAsync` / `SkUiViewAnimation.RunAsync`, and tests that controls follow `InvalidateStyle` / `InvalidateVisualStates` and a style taken off and put back. The parity test has no MAUI 11 gaps left.
 - **Gesture recognizers on drawn views:** `PanGestureRecognizer` with `TouchPoints` other than 1 (reported and not run since 1.2).
 - **Labels:** span press feedback, HTML images, block indents; one fitted size for a group of labels.
 - **Templates:** button image tint.

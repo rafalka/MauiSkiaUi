@@ -16,6 +16,11 @@ Publishing (the NuGet publish workflow, [docs/Releasing.md](docs/Releasing.md)) 
 ### New features
 
 - **Fluent setters the SkUi\* layer was missing, as on Core:** `SkUiView.SetClipToBounds`, `SetPanAxis` and `SetSwipeDirections`; `SkUiScrollView.SetSnapPointsType`, `SetSnapPointsAlignment`, `SetHorizontalScrollBarVisibility`, `SetVerticalScrollBarVisibility` and `SetOverscroll`; `SkUiLine.SetX1`, `SetY1`, `SetX2`, `SetY2` and `SetPoints`; `SkUiExpander.SetCommand`, `SetCommandParameter`, `SetLazyContentExpansion`, `SetAnimationLength` and `SetAnimationEasing`; `SkUiShimmer.SetBeforeStateChangeAnimation` and `SetAfterStateChangeAnimation`; `SkUiChipGroup.SetSelectedItems`; `SkUiImage.SetDownsampleWidth`, `SetDownsampleHeight`, `SetFadeAnimationEnabled`, `SetFadeAnimationDuration`, `SetLoadingPlaceholder` and `SetErrorPlaceholder`. Those of validated properties throw on an invalid value, which the property itself ignores. Core gains the image's one-value setters it lacked too (`SkUiCoreImage.SetDownsampleWidth`, `SetDownsampleHeight`, `SetFadeAnimationEnabled`) and `SetPlaceholders(loading, error)`.
+- **MAUI 11 members (1.19 step A1):**
+  - `SkUiBox.Fill` (`Brush?`) and `SkUiCoreBox.Fill` (`Paint?`), on .NET 10 and 11: when set, the fill wins over `Color` and the background, as MAUI 11's `BoxView.Fill`. A brush changed in place (a gradient stop) repaints.
+  - `ReturnCommand` and `ReturnCommandParameter` on `SkUiEditor` and `SkUiCoreEditor`, on .NET 10 and 11: run after `Completed` when the editor loses focus and the command can execute, as MAUI 11's `Editor.ReturnCommand` (Return itself inserts a line break).
+  - MAUI 11's `LongPressGestureRecognizer` on drawn views (.NET 11): `LongPressing` Started once `MinimumPressDuration` elapses, Running as the finger moves, then on release the command, `LongPressed` and Completed; Canceled when the press is lost after it started. A move past `AllowableMovement` (DIPs) before the hold ends it; recognizers with `NumberOfTouchesRequired` other than 1 are reported and not run.
+  - `CancellationToken` overloads of `AnimateAsync` (`SkUiView`, `SkUiCoreNode`) and `SkUiViewAnimation.RunAsync`: cancelling stops the render-thread animation where it is (the property keeps the last shown value, the task returns `false`). MAUI's own `FadeToAsync(…, token)` and the other extensions already worked on drawn views.
 - **`SkUiScrollView.IsScrollAnimating` and `ViewportSize`,** as `SkUiCoreScrollView` has them: whether a render-thread fling or animated scroll runs, and the area the content scrolls in. In turn `SkUiCoreScrollView.IsScrolling` (a drag, fling or animated scroll; raises `PropertyChanged`) and `SkUiCoreNode.IsPointerOver` (a hovering pointer over the node or a descendant) as the SkUi\* layer has them.
 
 ### Fixes
@@ -26,6 +31,7 @@ Publishing (the NuGet publish workflow, [docs/Releasing.md](docs/Releasing.md)) 
 - Core nodes hear of a hover change once, not on every pointer move over them: Core input views, pickers and steppers no longer re-record their content on each move. Core nodes now count as hovered when a subtree is cleared, so a hovered Core node under input-transparent views is cleared when it leaves.
 - `SkUiMarkdownView.Text` set to `null` (a binding) reads back as an empty string, as `SetText(null)` does.
 - `SkUiCoreImage.SetDownsample(width, height)` raises `PropertyChanged` for each value that changed (it raised `DownsampleWidth` only, also when just the height changed).
+- Opening an `SkUiSwipeView` of an `ExclusiveGroup` no longer throws `ArgumentOutOfRangeException` when closing another view of the group closes further views (an app handler on `IsOpen`) or a collected view's entry goes away meanwhile.
 
 ### Other
 

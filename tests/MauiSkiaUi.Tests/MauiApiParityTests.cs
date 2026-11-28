@@ -132,17 +132,8 @@ public class MauiApiParityTests
                 "FontAutoScalingEnabled", "FontFamily", "FontSize", "GroupName", "IsClippedToBounds", "Padding", "TextColor", "TextTransform", "Value",
             ]));
 
-    private const string Maui11Backlog = "New in MAUI 11 (net11 only): the roadmap's MAUI parity backlog, \"MAUI 11 members\"";
-
-    /// <summary>Gaps a planned step closes, keyed like <see cref="Excluded"/>, with the step or backlog entry (MAUI 11's new members on net11).</summary>
-    private static readonly Dictionary<string, string> Planned = Entries(
-#if NET11_0_OR_GREATER
-        (Maui11Backlog, ["SkUiBox"], ["Fill", "FillProperty"]),
-        (Maui11Backlog, ["SkUiCoreBox"], ["Fill"]),
-        (Maui11Backlog, ["SkUiEditor"], ["ReturnCommand", "ReturnCommandParameter", "ReturnCommandParameterProperty", "ReturnCommandProperty"]),
-        (Maui11Backlog, ["SkUiCoreEditor"], ["ReturnCommand", "ReturnCommandParameter"])
-#endif
-    );
+    /// <summary>Gaps a planned step closes, keyed like <see cref="Excluded"/>, with the step or backlog entry (none open: 1.19 closed MAUI 11's).</summary>
+    private static readonly Dictionary<string, string> Planned = Entries();
 
     private static readonly Lazy<List<(string Key, string Problem)>> DrawnDifferences =
         new(() => [.. Pairs.SelectMany(pair => Differences(pair.Maui, pair.Drawn))]);

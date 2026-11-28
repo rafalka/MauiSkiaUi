@@ -98,6 +98,84 @@ public class ImplicitStyleTests
         Assert.Contains(Pixels(button), pixel => pixel.Red > 200 && pixel.Green < 60 && pixel.Blue < 60);
     }
 
+    [Theory]
+    [MemberData(nameof(DrawnViewTypes))]
+    public void AStyleTakenOffAndPutBackIsWhatTheControlDraws(Type type)
+    {
+        // State a change callback copied into fields must follow the style: cleared when it goes, back when it returns, and
+        // unchanged by MAUI 11's InvalidateStyle / InvalidateVisualStates (unapply, then reapply: Hot Reload's path).
+        using var font = SkUiTestHelpers.UseBundledFont();
+        using var dispatcher = SkUiTestHelpers.UseTestDispatcher();
+        var values = StyledValues(type);
+        if (StyleRoundTrip(type, values) is not { } failure)
+            return;
+        // Name the properties that fail on their own, for the failure message.
+        var culprits = values.Where(value => StyleRoundTrip(type, [value]) is not null)
+            .Select(value => value.Property.PropertyName).ToList();
+        Assert.Fail($"{failure}; properties: {string.Join(", ", culprits)}");
+    }
+
+    private static string? StyleRoundTrip(Type type, IReadOnlyList<(BindableProperty Property, object? Value)> values)
+    {
+        var style = new Style(type);
+        foreach (var (property, value) in values)
+            style.Setters.Add(new Setter { Property = property, Value = value });
+        var direct = Create(type);
+        foreach (var (property, value) in values)
+            direct.SetValue(property, value);
+        // Given the values and cleared again: a clamp the values caused stays, as MAUI's (MaximumDate pulls Date back).
+        var cleared = Create(type);
+        foreach (var (property, value) in values)
+            cleared.SetValue(property, value);
+        foreach (var (property, _) in values)
+            cleared.ClearValue(property);
+
+        var styled = Create(type);
+        styled.Style = style;
+        var failure = Mismatch(direct, styled, "styled");
+        styled.Style = null;
+        failure ??= Mismatch(cleared, styled, "style taken off");
+        styled.Style = style;
+        failure ??= Mismatch(direct, styled, "style put back");
+#if NET11_0_OR_GREATER
+        styled.InvalidateStyle();
+        failure ??= Mismatch(direct, styled, "after InvalidateStyle");
+        VisualStateManager.InvalidateVisualStates(styled);
+        failure ??= Mismatch(direct, styled, "after InvalidateVisualStates");
+#endif
+        return failure;
+    }
+
+#if NET11_0_OR_GREATER
+    [Fact]
+    public void VisualStateSettersStayAppliedAfterInvalidateVisualStates()
+    {
+        using var font = SkUiTestHelpers.UseBundledFont();
+        var label = new SkUiLabel { Text = "Hi", FontFamily = SkUiTestHelpers.BundledFontFamily, FontSize = 30 };
+        var normal = new VisualState { Name = VisualStateManager.CommonStates.Normal };
+        normal.Setters.Add(new Setter { Property = SkUiLabel.TextColorProperty, Value = Colors.Red });
+        var group = new VisualStateGroup { Name = nameof(VisualStateManager.CommonStates) };
+        group.States.Add(normal);
+        VisualStateManager.SetVisualStateGroups(label, [group]);
+        var expected = new SkUiLabel { Text = "Hi", FontFamily = SkUiTestHelpers.BundledFontFamily, FontSize = 30, TextColor = Colors.Red };
+        Assert.Null(Mismatch(expected, label, "in the Normal state"));
+
+        VisualStateManager.InvalidateVisualStates(label);
+        Assert.Equal(Colors.Red, label.TextColor);
+        Assert.Null(Mismatch(expected, label, "after InvalidateVisualStates"));
+    }
+#endif
+
+    /// <summary>How <paramref name="actual"/> measures or draws differently from <paramref name="expected"/>; <c>null</c>: it does not.</summary>
+    private static string? Mismatch(SkUiView expected, SkUiView actual, string when)
+    {
+        var expectedSize = ((IView)expected).Measure(Width, double.PositiveInfinity);
+        var actualSize = ((IView)actual).Measure(Width, double.PositiveInfinity);
+        if (expectedSize != actualSize)
+            return $"{actual.GetType().Name} {when}: measures {actualSize}, expected {expectedSize}";
+        return Pixels(expected).SequenceEqual(Pixels(actual)) ? null : $"{actual.GetType().Name} {when}: draws differently";
+    }
+
     /// <summary>How a control styled with <paramref name="values"/> differs from one given them after construction; <c>null</c>: it does not.</summary>
     private static string? Differences(AppScope app, Type type, IReadOnlyList<(BindableProperty Property, object? Value)> values)
     {

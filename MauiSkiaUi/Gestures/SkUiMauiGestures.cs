@@ -3,10 +3,11 @@ using System.Runtime.CompilerServices;
 namespace MauiSkiaUi;
 
 /// <summary>
-/// The bridge for MAUI's swipe, pan, pinch and pointer recognizers in a drawn view's <c>GestureRecognizers</c> (taps are
-/// <see cref="SkUiMauiTaps"/>'): each runs as an arena member of the view, on the drawn recognizer of its kind, and is
-/// raised through MAUI's public API (<see cref="SwipeGestureRecognizer.SendSwiped"/>, <see cref="IPanGestureController"/>,
-/// <see cref="IPinchGestureController"/>), so its events and commands fire as on MAUI. Pointer recognizers take their
+/// The bridge for MAUI's swipe, pan, pinch, pointer and (MAUI 11) long-press recognizers in a drawn view's
+/// <c>GestureRecognizers</c> (taps are <see cref="SkUiMauiTaps"/>'): each runs as an arena member of the view, on the drawn
+/// recognizer of its kind, and is raised through MAUI's public API (<see cref="SwipeGestureRecognizer.SendSwiped"/>,
+/// <see cref="IPanGestureController"/>, <see cref="IPinchGestureController"/>, the long press's <c>SendLongPressed</c> /
+/// <c>SendLongPressing</c>), so its events and commands fire as on MAUI. Pointer recognizers take their
 /// entered / moved / exited events from hover routing and their pressed / released ones from presses, raised through
 /// MAUI's internal <c>Send*</c> methods. A drawn recognizer is created for a MAUI one the first time a press finds it and
 /// dropped once the MAUI one left the collection; changes to the collection apply from the next press. Views without
@@ -19,9 +20,13 @@ internal sealed class SkUiMauiGestures(View view)
     private SkUiPointerRouter? _hoverRouter;
     private Point _hoverPosition;
 
-    /// <summary>Whether the bridge runs <paramref name="recognizer"/>: a swipe, a pinch, a pointer, or a one-pointer pan.</summary>
+    /// <summary>Whether the bridge runs <paramref name="recognizer"/>: a swipe, a pinch, a pointer, a one-pointer pan or a one-touch long press.</summary>
     internal static bool Runs(IGestureRecognizer recognizer) =>
-        recognizer is SwipeGestureRecognizer or PinchGestureRecognizer or PointerGestureRecognizer or PanGestureRecognizer { TouchPoints: 1 };
+        recognizer is SwipeGestureRecognizer or PinchGestureRecognizer or PointerGestureRecognizer or PanGestureRecognizer { TouchPoints: 1 }
+#if NET11_0_OR_GREATER
+            or LongPressGestureRecognizer { NumberOfTouchesRequired: 1 }
+#endif
+        ;
 
     /// <summary>Whether <paramref name="recognizers"/> has a pointer recognizer (hover routing asks on every move).</summary>
     internal static bool HasPointer(IList<IGestureRecognizer> recognizers)
@@ -56,6 +61,14 @@ internal sealed class SkUiMauiGestures(View view)
             var drawn = Find(maui) ?? Bridge(maui);
             if (maui is SwipeGestureRecognizer swipe && drawn is SkUiSwipeGestureRecognizer drawnSwipe)
                 drawnSwipe.Threshold = swipe.Threshold;
+#if NET11_0_OR_GREATER
+            else if (maui is LongPressGestureRecognizer longPress && drawn is SkUiLongPressGestureRecognizer drawnLongPress)
+            {
+                // Read at each press, as the swipe's threshold: changes apply from the next one.
+                drawnLongPress.Duration = TimeSpan.FromMilliseconds(Math.Max(0, longPress.MinimumPressDuration));
+                drawnLongPress.AllowableMovement = Math.Max(0, longPress.AllowableMovement);
+            }
+#endif
             recognizers.Add(drawn);
         }
     }
@@ -87,6 +100,9 @@ internal sealed class SkUiMauiGestures(View view)
             },
             PanGestureRecognizer pan => BridgePan(pan),
             PointerGestureRecognizer pointer => new Presses(this, pointer),
+#if NET11_0_OR_GREATER
+            LongPressGestureRecognizer longPress => BridgeLongPress(longPress),
+#endif
             _ => BridgePinch((PinchGestureRecognizer)maui),
         };
         _bridged.Add((maui, drawn));
@@ -142,6 +158,28 @@ internal sealed class SkUiMauiGestures(View view)
             }
         },
     };
+
+#if NET11_0_OR_GREATER
+    /// <summary>
+    /// MAUI 11's long press on the drawn one: <c>LongPressing</c> Started once the hold elapses, Running as the finger moves,
+    /// then on release <c>LongPressed</c> (command, then event) and Completed, as MAUI's platform managers raise them; Canceled
+    /// when the press is lost after it started (a scroller takes it, the view goes). A press released or moved too far before
+    /// the hold elapses raises nothing.
+    /// </summary>
+    private SkUiLongPressGestureRecognizer BridgeLongPress(LongPressGestureRecognizer longPress) => new()
+    {
+        StatusHandler = (status, pointer) =>
+        {
+            var positions = PositionsOf(pointer);
+            if (status == GestureStatus.Completed)
+                longPress.SendLongPressed(view, positions);
+            longPress.SendLongPressing(view, status, positions);
+        },
+    };
+
+    private static Func<IElement?, Point?> PositionsOf(SkUiPointer pointer) =>
+        pointer.Router is { } router ? element => element is not null && router.Contains(element) ? router.MapToNode(element, pointer.Position) : null : _ => null;
+#endif
 
     /// <summary>MAUI's <c>ScaleOrigin</c>: the pointers' midpoint as a 0–1 fraction of the view's size.</summary>
     private Point ScaleOrigin(Point origin) =>

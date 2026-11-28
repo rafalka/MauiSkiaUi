@@ -766,6 +766,26 @@ public class SwipeViewTests
     #region 1.18: groups, CloseAsync, closing a list's rows, custom actions
 
     [Fact]
+    public void AGroupViewThatClosesOthersWhenItClosesDoesNotBreakOpeningTheNext()
+    {
+        var (_, rows) = ScrolledRows();
+        rows[2].ExclusiveGroup = rows[3].ExclusiveGroup = "rows";
+        foreach (var index in new[] { 0, 1, 2 })
+            rows[index].Open(OpenSwipeItem.RightItems, animated: false);
+        // The app closes rows 0 and 1 (no group) when row 2 closes: they leave the list of shown views mid-close.
+        rows[2].PropertyChanged += (_, args) =>
+        {
+            if (args.PropertyName != nameof(SkUiSwipeView.IsOpen) || rows[2].IsOpen)
+                return;
+            rows[0].Close(animated: false);
+            rows[1].Close(animated: false);
+        };
+
+        rows[3].Open(OpenSwipeItem.RightItems, animated: false);
+        Assert.Equal([false, false, false, true], rows.Take(4).Select(row => row.IsOpen));
+    }
+
+    [Fact]
     public void OpeningAViewOfAGroupClosesTheOthersOfItsGroupOnItsSurfaceOnly()
     {
         var (scroller, rows) = ScrolledRows();

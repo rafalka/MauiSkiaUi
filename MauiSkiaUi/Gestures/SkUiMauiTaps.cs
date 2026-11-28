@@ -123,7 +123,10 @@ internal static class SkUiMauiTaps
                 {
                     TapGestureRecognizer => "is not run: it requires no taps, or no primary or secondary button",
                     PanGestureRecognizer => "is not run: drawn pans follow one pointer (TouchPoints 1)",
-                    _ => "is not run: drawn views run MAUI's tap, swipe, pan, pinch and pointer recognizers; drag and drop needs a native view (host it in an SkUiMauiContentView)",
+#if NET11_0_OR_GREATER
+                    LongPressGestureRecognizer => "is not run: drawn long presses follow one touch (NumberOfTouchesRequired 1)",
+#endif
+                    _ => "is not run: drawn views run MAUI's tap, swipe, pan, pinch, pointer and long-press recognizers; drag and drop needs a native view (host it in an SkUiMauiContentView)",
                 });
         }
         // Reading Behaviors creates the collection: only when it exists.

@@ -117,21 +117,21 @@ public abstract class SkUiShape : SkUiView, IShape, ISkUiShapeOutline
     private void OnFillChanged(Brush? value)
     {
         if (!ReferenceEquals(_fill, _stroke)) // a brush used for both keeps the context while the stroke uses it
-            ReleaseBrush(_fill, value);
+            ReleaseBrushBindingContext(_fill, value);
         _fill = value;
         FillListener.Listen(value);
-        InheritBindingContext(value);
+        InheritBrushBindingContext(value);
         InvalidatePaint();
     }
 
     private void OnStrokeChanged(Brush? value)
     {
         if (!ReferenceEquals(_stroke, _fill))
-            ReleaseBrush(_stroke, value);
+            ReleaseBrushBindingContext(_stroke, value);
         var insetChanged = _stroke is null != value is null;
         _stroke = value;
         StrokeListener.Listen(value);
-        InheritBindingContext(value);
+        InheritBrushBindingContext(value);
         if (insetChanged)
             InvalidateMeasureOverride();
         else
@@ -150,24 +150,8 @@ public abstract class SkUiShape : SkUiView, IShape, ISkUiShapeOutline
     protected override void OnBindingContextChanged()
     {
         base.OnBindingContextChanged();
-        InheritBindingContext(_fill);
-        InheritBindingContext(_stroke);
-    }
-
-    /// <summary>
-    /// Brushes bind against the shape's binding context, as in MAUI (gradient stops bound to a view model); MAUI's shared
-    /// immutable brushes (<c>Brush.Red</c>, …) are subclasses and are left alone.
-    /// </summary>
-    private void InheritBindingContext(Brush? brush)
-    {
-        if (brush is GradientBrush || brush?.GetType() == typeof(SolidColorBrush))
-            SetInheritedBindingContext(brush, BindingContext);
-    }
-
-    private static void ReleaseBrush(Brush? oldBrush, Brush? newBrush)
-    {
-        if (!ReferenceEquals(oldBrush, newBrush) && (oldBrush is GradientBrush || oldBrush?.GetType() == typeof(SolidColorBrush)))
-            ReleaseBindingContext(oldBrush);
+        InheritBrushBindingContext(_fill);
+        InheritBrushBindingContext(_stroke);
     }
 
     /// <summary>The <see cref="Aspect"/> until one is set (<see cref="Stretch.Fill"/> for rectangles and ellipses).</summary>

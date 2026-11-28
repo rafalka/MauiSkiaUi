@@ -17,6 +17,12 @@ public sealed class EditorDemoPage : ComponentDemoPage
         native.TextChanged += (_, args) => Feedback($"{skia.Text?.Length ?? 0} characters", $"{args.NewTextValue?.Length ?? 0} characters");
         skia.Completed += (_, _) => Feedback("Completed (focus left)");
         native.Completed += (_, _) => Feedback($"{skia.Text?.Length ?? 0} characters", "Completed (focus left)");
+        // ReturnCommand runs after Completed (MAUI 11's Editor; the drawn editor has it on both lines).
+        // Both run one after the other, so this line says both happened.
+        skia.ReturnCommand = new Command(() => Feedback("Completed, then ReturnCommand ran"));
+#if NET11_0_OR_GREATER
+        native.ReturnCommand = new Command(() => Feedback($"{skia.Text?.Length ?? 0} characters", "Completed, then ReturnCommand ran"));
+#endif
         MultilineText(nameof(SkUiEditor.Text), string.Empty, value => { skia.Text = value; native.Text = value; }, () => skia.Text ?? string.Empty,
             () => native.Text ?? string.Empty);
         Choice(nameof(SkUiEditor.AutoSize), Enum.GetValues<EditorAutoSizeOption>(), EditorAutoSizeOption.Disabled,

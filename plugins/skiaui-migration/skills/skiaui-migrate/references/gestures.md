@@ -11,6 +11,7 @@ Drawn views get input from SkiaUi's gesture arena, not from native gesture recog
 | `PanGestureRecognizer` | **Runs as is** with `TouchPoints="1"` (the default); more touch points are not run | Optional: `PanUpdated` (also the release velocity, `PanAxis`) |
 | `PinchGestureRecognizer` | **Runs as is** (`ScaleOrigin` 0–1 as MAUI) | Optional: `PinchUpdated` (also `TotalScale`, rotation, `Origin` in DIPs) |
 | `PointerGestureRecognizer` | **Runs as is**: entered / moved / exited from hover, pressed / released for its `Buttons`. `GetPosition(null)` is `null` (use the view or another drawn element) | Optional: `IsPointerOver` and the `PointerOver` visual state; `SkUiPointerGestureRecognizer` in `Gestures` |
+| `LongPressGestureRecognizer` (MAUI 11) | **Runs as is** on .NET 11 with `NumberOfTouchesRequired="1"` (the default): `LongPressing` statuses, then on release `Command` and `LongPressed`; `MinimumPressDuration`, `AllowableMovement` (DIPs) | Optional: `LongPressed` / `LongPressedCommand` (fires when the hold elapses, not on release) |
 | `DragGestureRecognizer`, `DropGestureRecognizer` | Not run | Not available: keep that part native |
 | Long press (toolkit, platform code) | — | `LongPressed` / `LongPressedCommand` + `LongPressedCommandParameter` |
 

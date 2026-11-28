@@ -209,7 +209,7 @@ public class SkUiTapGestureRecognizer : SkUiGestureRecognizer
     }
 }
 
-/// <summary>Long press: the pointer stays within the touch slop for <see cref="Duration"/>; then it claims the gesture.</summary>
+/// <summary>Long press: the pointer stays within the touch slop (or, for a bridged MAUI <c>LongPressGestureRecognizer</c>, its <c>AllowableMovement</c>) for <see cref="Duration"/>; then it claims the gesture.</summary>
 public class SkUiLongPressGestureRecognizer : SkUiGestureRecognizer
 {
     /// <inheritdoc />
@@ -228,6 +228,15 @@ public class SkUiLongPressGestureRecognizer : SkUiGestureRecognizer
     public TimeSpan? Duration { get; set; }
 
     internal Action<SkUiLongPressedEventArgs>? Handler { get; init; }
+
+    /// <summary>How far (DIPs) the pointer may move before the hold elapses; <see cref="SkUiGestureSettings.TouchSlop"/> when unset (MAUI's <c>AllowableMovement</c>).</summary>
+    internal double? AllowableMovement { get; set; }
+
+    /// <summary>
+    /// The press after the hold elapsed, for MAUI's <c>LongPressing</c>: Started when it elapses, Running as the pointer moves,
+    /// Completed on release and Canceled when the pointer is lost; the pointer is the latest one.
+    /// </summary>
+    internal Action<GestureStatus, SkUiPointer>? StatusHandler { get; init; }
 
     internal override bool HoldsNativeTaps => true;
 
@@ -253,9 +262,15 @@ public class SkUiLongPressGestureRecognizer : SkUiGestureRecognizer
         if (_pointer != pointer.Id)
             return;
         _last = pointer;
+        if (_fired)
+        {
+            StatusHandler?.Invoke(GestureStatus.Running, pointer);
+            return;
+        }
         var dx = pointer.Position.X - _start.X;
         var dy = pointer.Position.Y - _start.Y;
-        if (!_fired && dx * dx + dy * dy > SkUiGestureSettings.TouchSlop * SkUiGestureSettings.TouchSlop)
+        var allowed = AllowableMovement ?? SkUiGestureSettings.TouchSlop;
+        if (dx * dx + dy * dy > allowed * allowed)
             Resign();
     }
 
@@ -264,16 +279,23 @@ public class SkUiLongPressGestureRecognizer : SkUiGestureRecognizer
     {
         if (_pointer != pointer.Id)
             return;
-        if (!_fired)
+        var fired = _fired;
+        if (!fired)
             Resign();
         Reset();
+        if (fired)
+            StatusHandler?.Invoke(GestureStatus.Completed, pointer);
     }
 
     /// <inheritdoc />
     protected internal override void OnRejected(long pointerId)
     {
-        if (_pointer == pointerId)
-            Reset();
+        if (_pointer != pointerId)
+            return;
+        var fired = _fired;
+        Reset();
+        if (fired)
+            StatusHandler?.Invoke(GestureStatus.Canceled, _last);
     }
 
     private void Fire(long pointerId)
@@ -284,6 +306,8 @@ public class SkUiLongPressGestureRecognizer : SkUiGestureRecognizer
         if (_pointer != pointerId)
             return; // lost the arena
         _fired = true;
+        // Before app handlers run, which may cancel the press (Canceled then follows Started).
+        StatusHandler?.Invoke(GestureStatus.Started, _last);
         var args = new SkUiLongPressedEventArgs(Owner is { } owner ? _last.GetPosition(owner) : _last.Position);
         LongPressed?.Invoke(Owner, args);
         Handler?.Invoke(args);
@@ -294,6 +318,7 @@ public class SkUiLongPressGestureRecognizer : SkUiGestureRecognizer
         _timer?.Dispose();
         _timer = null;
         _pointer = null;
+        _fired = false;
     }
 }
 

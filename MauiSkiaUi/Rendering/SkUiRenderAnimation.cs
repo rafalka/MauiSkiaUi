@@ -43,6 +43,21 @@ internal abstract class SkUiRenderAnimation
     public void Cancel() => Interlocked.Exchange(ref _cancelled, 1);
 
     /// <summary>
+    /// Cancels <paramref name="animation"/> when <paramref name="token"/> is cancelled (from any thread); the caller disposes the
+    /// registration when the animation finishes. Nothing is registered for a token that cannot be cancelled.
+    /// </summary>
+    internal static CancellationTokenRegistration CancelOn(SkUiRenderAnimation animation, CancellationToken token) =>
+        // Weak: an animation queued on a node that is never shown never finishes (so the registration is never disposed),
+        // and a long-lived token source must not keep that node alive through the animation's Finished callback.
+        token.CanBeCanceled
+            ? token.UnsafeRegister(static state =>
+            {
+                if (((WeakReference<SkUiRenderAnimation>)state!).TryGetTarget(out var target))
+                    target.Cancel();
+            }, new WeakReference<SkUiRenderAnimation>(animation))
+            : default;
+
+    /// <summary>
     /// UI thread: true when the UI explicitly set an animated property, so completion handlers must not write
     /// the animation's last value back over the UI's new value.
     /// </summary>

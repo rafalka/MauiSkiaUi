@@ -175,10 +175,12 @@ public class EqualCommandParameterTests
         var expander = new SkUiCoreExpander().SetCommandParameter(First).SetCommandParameter(Second);
         var search = new SkUiCoreSearchBar().SetSearchCommandParameter(First).SetSearchCommandParameter(Second);
         var entry = new SkUiCoreEntry().SetReturnCommandParameter(First).SetReturnCommandParameter(Second);
+        var editor = new SkUiCoreEditor().SetReturnCommandParameter(First).SetReturnCommandParameter(Second);
         var tiles = new SkUiCoreTileLayout().SetOverflowCommandParameter(First).SetOverflowCommandParameter(Second);
         Assert.Same(Second, expander.CommandParameter);
         Assert.Same(Second, search.SearchCommandParameter);
         Assert.Same(Second, entry.ReturnCommandParameter);
+        Assert.Same(Second, editor.ReturnCommandParameter);
         Assert.Same(Second, tiles.OverflowCommandParameter);
     }
 

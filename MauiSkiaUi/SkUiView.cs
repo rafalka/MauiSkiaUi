@@ -1509,7 +1509,16 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
     /// busy. The bindable property is updated to the final (or last shown, if cancelled) value when it ends.
     /// Setting the property during the animation cancels it. Returns <c>true</c> when it ran to completion.
     /// </summary>
-    public Task<bool> AnimateAsync(SkUiAnimatableProperty property, double to, uint length = 250, Easing? easing = null)
+    public Task<bool> AnimateAsync(SkUiAnimatableProperty property, double to, uint length, Easing? easing) =>
+        AnimateAsync(property, to, length, easing, CancellationToken.None);
+
+    /// <summary>
+    /// Animates a composite-time property on the render thread, as <see cref="AnimateAsync(SkUiAnimatableProperty, double, uint, Easing?)"/>;
+    /// <paramref name="cancellationToken"/> stops it where it is (the property keeps the last shown value, and the task returns
+    /// <c>false</c>). A token already cancelled starts nothing.
+    /// </summary>
+    public Task<bool> AnimateAsync(SkUiAnimatableProperty property, double to, uint length = 250, Easing? easing = null,
+        CancellationToken cancellationToken = default)
     {
         if (!double.IsFinite(to)) throw new ArgumentOutOfRangeException(nameof(to));
         var (properties, targets) = property switch
@@ -1524,12 +1533,16 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
                 new[] { (float)(to * ScaleX), (float)(to * ScaleY) }),
             _ => throw new ArgumentOutOfRangeException(nameof(property))
         };
+        if (cancellationToken.IsCancellationRequested)
+            return Task.FromResult(false);
         var completion = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
         var nativeHosts = BeginAnimationOverNativeViews();
+        CancellationTokenRegistration registration = default;
         var tween = new SkUiRenderTween(properties, targets, TimeSpan.FromMilliseconds(Math.Max(1, length)), easing)
         {
             Finished = (animation, completed) =>
             {
+                registration.Dispose();
                 RenderState.ActiveAnimations?.Remove(animation);
                 if (!animation.SupersededByUi && ((SkUiRenderTween)animation).LastValues is { } values)
                     ApplyAnimatedValues(property, (SkUiRenderTween)animation, values);
@@ -1542,6 +1555,7 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
             }
         };
         SkUiRenderInvalidation.Enqueue(this, tween);
+        registration = SkUiRenderAnimation.CancelOn(tween, cancellationToken);
         return completion.Task;
     }
 
@@ -1885,6 +1899,25 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
     }
 
     /// <summary>
+    /// A brush property's value binds against this view's binding context, as in MAUI (gradient stops bound to a view model);
+    /// MAUI's shared immutable brushes (<c>Brush.Red</c>, …) are subclasses and are left alone.
+    /// </summary>
+    private protected void InheritBrushBindingContext(Brush? brush)
+    {
+        if (IsOwnBrush(brush))
+            SetInheritedBindingContext(brush, BindingContext);
+    }
+
+    /// <summary>Takes this view's binding context back from a brush replaced by <paramref name="newBrush"/>.</summary>
+    private protected static void ReleaseBrushBindingContext(Brush? oldBrush, Brush? newBrush)
+    {
+        if (!ReferenceEquals(oldBrush, newBrush) && IsOwnBrush(oldBrush))
+            ReleaseBindingContext(oldBrush);
+    }
+
+    private static bool IsOwnBrush(Brush? brush) => brush is GradientBrush || brush?.GetType() == typeof(SolidColorBrush);
+
+    /// <summary>
     /// Delivers a pointer sample in this view's local DIPs, with this view as the surface root: the press is hit-tested
     /// once through the drawn tree (SkUi* and Core), then the gesture arena decides between the recognizers of the
     /// element under the pointer and its ancestors (taps, scrolling, pans…). Returns whether a drawn element takes the
@@ -2113,7 +2146,7 @@ public partial class SkUiView : View, ISkUiView, ISkUiRenderable, ISkUiGestureEl
     }
 }
 
-/// <summary>Composite-time properties that <see cref="SkUiView.AnimateAsync"/> animates on the render thread.</summary>
+/// <summary>Composite-time properties that <see cref="SkUiView.AnimateAsync(SkUiAnimatableProperty, double, uint, Easing, CancellationToken)"/> animates on the render thread.</summary>
 public enum SkUiAnimatableProperty
 {
     /// <summary><see cref="VisualElement.Opacity"/>.</summary>

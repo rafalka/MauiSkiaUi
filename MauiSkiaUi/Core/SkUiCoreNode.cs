@@ -341,7 +341,16 @@ public partial class SkUiCoreNode : ISkUiCoreNode, INotifyPropertyChanged, ISkUi
     /// <see cref="ScaleY"/> on the render thread; the property is updated to the final (or last shown, if cancelled) value
     /// when it ends.
     /// </summary>
-    public Task<bool> AnimateAsync(SkUiAnimatableProperty property, double to, uint length = 250, Easing? easing = null)
+    public Task<bool> AnimateAsync(SkUiAnimatableProperty property, double to, uint length, Easing? easing) =>
+        AnimateAsync(property, to, length, easing, CancellationToken.None);
+
+    /// <summary>
+    /// Animates a composite-time property on the render thread, as <see cref="AnimateAsync(SkUiAnimatableProperty, double, uint, Easing?)"/>;
+    /// <paramref name="cancellationToken"/> stops it where it is (the property keeps the last shown value, and the task returns
+    /// <c>false</c>). A token already cancelled starts nothing.
+    /// </summary>
+    public Task<bool> AnimateAsync(SkUiAnimatableProperty property, double to, uint length = 250, Easing? easing = null,
+        CancellationToken cancellationToken = default)
     {
         if (!double.IsFinite(to)) throw new ArgumentOutOfRangeException(nameof(to));
         // The render props hold the product of Scale and ScaleX / ScaleY, as SkUiView's do.
@@ -357,11 +366,15 @@ public partial class SkUiCoreNode : ISkUiCoreNode, INotifyPropertyChanged, ISkUi
                 new[] { (float)(to * _scaleX), (float)(to * _scaleY) }),
             _ => throw new ArgumentOutOfRangeException(nameof(property))
         };
+        if (cancellationToken.IsCancellationRequested)
+            return Task.FromResult(false);
         var completion = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        CancellationTokenRegistration registration = default;
         var tween = new SkUiRenderTween(properties, targets, TimeSpan.FromMilliseconds(Math.Max(1, length)), easing)
         {
             Finished = (animation, completed) =>
             {
+                registration.Dispose();
                 RenderState.ActiveAnimations?.Remove(animation);
                 if (!animation.SupersededByUi && ((SkUiRenderTween)animation).LastValues is { } values)
                 {
@@ -389,6 +402,7 @@ public partial class SkUiCoreNode : ISkUiCoreNode, INotifyPropertyChanged, ISkUi
             }
         };
         SkUiRenderInvalidation.Enqueue(this, tween);
+        registration = SkUiRenderAnimation.CancelOn(tween, cancellationToken);
         return completion.Task;
     }
 
