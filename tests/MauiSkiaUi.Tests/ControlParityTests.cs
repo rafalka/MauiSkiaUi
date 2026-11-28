@@ -157,6 +157,43 @@ public class ControlParityTests
     }
 
     [Fact]
+    public void BoxViewFillWinsOverColorAndBackgroundOnBothLayers()
+    {
+        // MAUI 11: the box paints Fill ?? Color; a set Fill hides the color and the background even when empty.
+        var brush = new SolidColorBrush(Colors.Blue);
+        var box = new SkUiBox { Color = Colors.Red, Background = Brush.Green, Fill = brush, CornerRadius = 4 };
+        SkUiTestHelpers.Arrange(box, 40, 40);
+        SKColor Center()
+        {
+            using var bitmap = Render(box.Paint, 40, 40);
+            return bitmap.GetPixel(20, 20);
+        }
+
+        Assert.Equal(SKColors.Blue, Center());
+        brush.Color = Colors.Yellow; // changed in place
+        Assert.Equal(SKColors.Yellow, Center());
+        var gradient = new LinearGradientBrush([new GradientStop(Colors.Blue, 0), new GradientStop(Colors.Blue, 1)]);
+        box.Fill = gradient;
+        Assert.Equal(SKColors.Blue, Center());
+        gradient.GradientStops[1].Color = Colors.Yellow;
+        Assert.NotEqual(SKColors.Blue, Center());
+        box.Fill = new SolidColorBrush();
+        Assert.Equal(0, Center().Alpha);
+        box.Fill = null;
+        Assert.Equal(SKColors.Red, Center());
+
+        var core = new SkUiCoreBox().SetColor(Colors.Red).SetFill(new SolidPaint(Colors.Blue));
+        core.Background = new SolidPaint(Colors.Green);
+        core.Measure(40, 40);
+        core.Arrange(new Rect(0, 0, 40, 40));
+        using (var bitmap = Render(core.Paint, 40, 40))
+            Assert.Equal(SKColors.Blue, bitmap.GetPixel(20, 20));
+        core.SetFill(null);
+        using (var bitmap = Render(core.Paint, 40, 40))
+            Assert.Equal(SKColors.Red, bitmap.GetPixel(20, 20));
+    }
+
+    [Fact]
     public void LineMeasuresAndDrawsItsPointsLikeMaui()
     {
         var line = new SkUiLine(10, 5, 50, 25) { Stroke = Colors.Red, StrokeThickness = 2 };

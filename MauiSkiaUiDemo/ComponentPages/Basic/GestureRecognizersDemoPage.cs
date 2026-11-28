@@ -20,7 +20,10 @@ public sealed class GestureRecognizersDemoPage : ComponentDemoPage
         Swipe,
         Pan,
         Pinch,
-        Pointer
+        Pointer,
+#if NET11_0_OR_GREATER
+        LongPress
+#endif
     }
 
     private string _skiaEvent = Waiting;
@@ -48,6 +51,9 @@ public sealed class GestureRecognizersDemoPage : ComponentDemoPage
         PanGestureRecognizer => Recognizer.Pan,
         PinchGestureRecognizer => Recognizer.Pinch,
         PointerGestureRecognizer => Recognizer.Pointer,
+#if NET11_0_OR_GREATER
+        LongPressGestureRecognizer => Recognizer.LongPress,
+#endif
         _ => Recognizer.Tap
     };
 
@@ -89,6 +95,21 @@ public sealed class GestureRecognizersDemoPage : ComponentDemoPage
                 pointer.PointerReleased += (_, args) => Pointer("released", args);
                 recognizer = pointer;
                 break;
+#if NET11_0_OR_GREATER
+            case Recognizer.LongPress:
+                var longPress = new LongPressGestureRecognizer();
+                // LongPressed comes right before LongPressing Completed, so the Completed line carries it.
+                var longPressed = string.Empty;
+                longPress.LongPressed += (_, args) => longPressed = $" after LongPressed at {Format(args.GetPosition(view))}";
+                longPress.LongPressing += (_, args) =>
+                {
+                    Raise($"LongPressing {args.Status} {Format(args.GetPosition(view))}{(args.Status == GestureStatus.Completed ? longPressed : string.Empty)}");
+                    if (args.Status != GestureStatus.Started && args.Status != GestureStatus.Running)
+                        longPressed = string.Empty;
+                };
+                recognizer = longPress;
+                break;
+#endif
             default:
                 var tap = new TapGestureRecognizer
                 {

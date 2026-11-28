@@ -40,7 +40,7 @@ internal readonly record struct SkUiOverlayPlacement(Rect Frame, Rect Visible, b
 /// plus <see cref="VisualElement.TranslationX"/>/<see cref="VisualElement.TranslationY"/> (see
 /// <see cref="ComputeRootRelativeFrame"/>), and places it again when they change; it does <b>not</b> account for
 /// <c>Rotation</c>, <c>Scale</c>, or <c>Opacity</c> on this node or its ancestors between here and the standalone root.
-/// While this node or a drawn ancestor animates on the render thread (<see cref="SkUiView.AnimateAsync"/>), the native
+/// While this node or a drawn ancestor animates on the render thread (<see cref="SkUiView.AnimateAsync(SkUiAnimatableProperty, double, uint, Easing, CancellationToken)"/>), the native
 /// view is hidden and a snapshot of it drawn, which follows the animation; the live view comes back placed at the end.
 /// That holds for the native views in the animated subtree when the animation starts: one added later stays live where
 /// the view's own values place it.

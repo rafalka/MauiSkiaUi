@@ -14,7 +14,7 @@ You replace a **subtree** of a page with drawn controls. Everything around it st
 | --- | --- |
 | Pages, Shell, navigation, platform popups | The controls inside the drawn region: `Label` → `SkUiLabel`, `Grid` → `SkUiGrid`, … |
 | View models, commands, `INotifyPropertyChanged` | Styles get a new `TargetType` (`sk:SkUiLabel`) |
-| Bindings, `x:DataType`, converters, triggers, `VisualStateManager` | Gestures: MAUI's tap, swipe, pan, pinch and pointer recognizers keep working; drag and drop and `TouchBehavior` become gesture events or stay native |
+| Bindings, `x:DataType`, converters, triggers, `VisualStateManager` | Gestures: MAUI's tap, swipe, pan, pinch, pointer and (MAUI 11) long-press recognizers keep working; drag and drop and `TouchBehavior` become gesture events or stay native |
 | Resources, `StaticResource` / `DynamicResource`, `AppThemeBinding` | Native-only controls (WebView, maps, media, third-party controls) are wrapped in `SkUiMauiContentView` |
 | Fonts from `ConfigureFonts`, `MauiImage` / `FontImageSource` images | Custom handlers, renderers and effects do not apply to drawn controls |
 | `SemanticProperties`, `AutomationProperties`, `AutomationId` | |
@@ -284,7 +284,7 @@ Styles target a type, and drawn controls are different types:
 
 ### 5. Convert gestures and touch behaviors
 
-MAUI's tap, swipe, pan, pinch and pointer recognizers work on drawn views as on MAUI: same events and argument types, commands and parameters, the view as the sender. Gesture XAML and code-behind handlers need no change. They run in the gesture arena, so a pan or swipe inside a drawn scroller competes with it as the drawn gestures do (the innermost wins once it moves past the touch slop). For taps, the shorter drawn form is also available:
+MAUI's tap, swipe, pan, pinch and pointer recognizers, and on .NET 11 MAUI 11's `LongPressGestureRecognizer` (one touch), work on drawn views as on MAUI: same events and argument types, commands and parameters, the view as the sender. Gesture XAML and code-behind handlers need no change. They run in the gesture arena, so a pan or swipe inside a drawn scroller competes with it as the drawn gestures do (the innermost wins once it moves past the touch slop). For taps, the shorter drawn form is also available:
 
 ```xml
 <!-- MAUI form: still works -->
@@ -375,6 +375,7 @@ APIs that take a reusable animation take a `SkUiViewAnimation` (render thread) i
 | `element.FadeToAsync(0, 250, Easing.CubicIn)` | `view.AnimateAsync(SkUiAnimatableProperty.Opacity, 0, 250, Easing.CubicIn)` |
 | `element.TranslateToAsync(0, 40, 300)` | `view.AnimateAsync(SkUiAnimatableProperty.TranslationY, 40, 300)` (one call per axis) |
 | `element.ScaleToAsync(0.9)` / `RotateToAsync(90)` | `view.AnimateAsync(SkUiAnimatableProperty.Scale, 0.9)` / `(…Rotation, 90)` |
+| `element.FadeToAsync(0, 250, Easing.CubicIn, token)` (MAUI 11) | `view.AnimateAsync(SkUiAnimatableProperty.Opacity, 0, 250, Easing.CubicIn, token)`; cancelled, it returns `false` (MAUI's returns `true`) and keeps the last shown value |
 | `new Animation(v => view.Opacity = v, 1, 0, Easing.CubicIn)` | `new SkUiViewAnimation([new(SkUiAnimatableProperty.Opacity, from: 1, to: 0)], 250, Easing.CubicIn)` |
 | Parent `Animation` with children over the same span | One `SkUiViewAnimation` listing every property (they run together) |
 | Toolkit `StateContainer.ChangeStateWithAnimation(layout, state, before, after)` with `Animation`s | `SkUiStateContainer.ChangeStateWithAnimation(layout, state, before, after)` with `SkUiViewAnimation`s; `SkUiViewAnimation.FadeOut()` / `FadeIn()` cover the common case, no `to` ends at the view's own value. Or set `sk:SkUiStateContainer.BeforeStateChangeAnimation="FadeOut"` / `AfterStateChangeAnimation="FadeIn"` once and drop the call: every `CurrentState` change animates |
@@ -498,7 +499,7 @@ Coming from other date and time pickers: a format that lists the columns → `Wh
 
 ## Text input (`Entry`, `Editor`, `SearchBar`)
 
-`SkUiEntry`, `SkUiEditor` and `SkUiSearchBar` ([SkUiEntry.md](controls/SkUiEntry.md), [SkUiEditor.md](controls/SkUiEditor.md), [SkUiSearchBar.md](controls/SkUiSearchBar.md)) keep MAUI's API: change the prefix. `Text` (two-way), `TextChanged`, `Placeholder`, `Keyboard`, `ReturnType`, `ReturnCommand` / `Completed`, `IsPassword`, `MaxLength`, `IsReadOnly`, `CursorPosition` / `SelectionLength`, `ClearButtonVisibility`, the editor's `AutoSize`, the search bar's `SearchCommand` / `SearchButtonPressed` stay. A placeholder font set in a handler (iOS `AttributedPlaceholder`, Android's hint typeface) → `PlaceholderFontFamily` / `PlaceholderFontAttributes` (the pickers have them too). The text is drawn; the platform's keyboard, input methods, autocorrect, dictation, clipboard and edit menu still do the typing. A field moved out of `SkUiMauiContentView` loses the overlay limits: it clips and scrolls with the page (no snapshots), drawn popups cover it, and it works in collection view rows and Core trees.
+`SkUiEntry`, `SkUiEditor` and `SkUiSearchBar` ([SkUiEntry.md](controls/SkUiEntry.md), [SkUiEditor.md](controls/SkUiEditor.md), [SkUiSearchBar.md](controls/SkUiSearchBar.md)) keep MAUI's API: change the prefix. `Text` (two-way), `TextChanged`, `Placeholder`, `Keyboard`, `ReturnType`, `ReturnCommand` / `Completed` (the editor's too, MAUI 11's: after `Completed`, when it loses focus), `IsPassword`, `MaxLength`, `IsReadOnly`, `CursorPosition` / `SelectionLength`, `ClearButtonVisibility`, the editor's `AutoSize`, the search bar's `SearchCommand` / `SearchButtonPressed` stay. A placeholder font set in a handler (iOS `AttributedPlaceholder`, Android's hint typeface) → `PlaceholderFontFamily` / `PlaceholderFontAttributes` (the pickers have them too). The text is drawn; the platform's keyboard, input methods, autocorrect, dictation, clipboard and edit menu still do the typing. A field moved out of `SkUiMauiContentView` loses the overlay limits: it clips and scrolls with the page (no snapshots), drawn popups cover it, and it works in collection view rows and Core trees.
 
 A show / hide password toggle (an eye `ImageButton` beside the entry that flips `IsPassword`, a component library's input layout with a password toggle) → `ShowsPasswordRevealButton="True"` on the field, the button and wrapper dropped (an eye that shows the password only while held, flipping `IsPassword` on `Pressed` / `Released`: add `PasswordRevealMode="WhilePressed"`); bind `IsPasswordRevealed` (two-way) where the app shows the password from elsewhere. Unlike flipping `IsPassword`, the field stays a password field for the keyboard and password managers, and the text is masked again when focus leaves (`HidesPasswordOnUnfocus`).
 

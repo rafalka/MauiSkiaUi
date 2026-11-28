@@ -1,18 +1,27 @@
+using System.Windows.Input;
+
 namespace MauiSkiaUi.Core;
 
 /// <summary>
 /// A multiline text field on the Core layer (the twin of <see cref="SkUiEditor"/>, on the same engine): wrapped lines, Return inserts
-/// a line break, the text scrolls inside the field, and <see cref="AutoSize"/> grows the field with its text.
+/// a line break, the text scrolls inside the field, and <see cref="AutoSize"/> grows the field with its text. <see cref="Completed"/>,
+/// then <see cref="ReturnCommand"/>, run when it loses focus.
 /// </summary>
 public class SkUiCoreEditor : SkUiCoreInputView
 {
+    private ICommand? _returnCommand;
+    private object? _returnCommandParameter;
+
     /// <summary>Creates an empty editor.</summary>
     public SkUiCoreEditor() : base(multiline: true)
     {
         Unfocused += (_, _) =>
         {
-            if (IsEnabled)
-                Completed?.Invoke(this, EventArgs.Empty);
+            if (!IsEnabled)
+                return;
+            Completed?.Invoke(this, EventArgs.Empty);
+            if (_returnCommand is { } command && command.CanExecute(_returnCommandParameter))
+                command.Execute(_returnCommandParameter);
         };
     }
 
@@ -23,8 +32,28 @@ public class SkUiCoreEditor : SkUiCoreInputView
         set => SetAutoSize(value);
     }
 
-    /// <summary>Raised when the editor loses focus.</summary>
+    /// <summary>Runs when the editor completes (after <see cref="Completed"/>, when it loses focus) and can execute (see <see cref="SkUiEditor.ReturnCommand"/>).</summary>
+    public ICommand? ReturnCommand { get => _returnCommand; set => SetReturnCommand(value); }
+
+    /// <summary>The parameter of <see cref="ReturnCommand"/>.</summary>
+    public object? ReturnCommandParameter { get => _returnCommandParameter; set => SetReturnCommandParameter(value); }
+
+    /// <summary>Raised when the editor loses focus, before <see cref="ReturnCommand"/>.</summary>
     public event EventHandler? Completed;
+
+    /// <summary>Sets <see cref="ReturnCommand"/>.</summary>
+    public SkUiCoreEditor SetReturnCommand(ICommand? value)
+    {
+        SetProperty(ref _returnCommand, value, nameof(ReturnCommand));
+        return this;
+    }
+
+    /// <summary>Sets <see cref="ReturnCommandParameter"/>.</summary>
+    public SkUiCoreEditor SetReturnCommandParameter(object? value)
+    {
+        SetParameterProperty(ref _returnCommandParameter, value, nameof(ReturnCommandParameter));
+        return this;
+    }
 
     /// <summary>Sets <see cref="AutoSize"/>.</summary>
     public SkUiCoreEditor SetAutoSize(EditorAutoSizeOption value)

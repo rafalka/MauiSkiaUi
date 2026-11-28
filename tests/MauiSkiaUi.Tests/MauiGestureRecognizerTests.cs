@@ -371,6 +371,101 @@ public class MauiGestureRecognizerTests
         Assert.StartsWith("released", events[1]);
     }
 
+#if NET11_0_OR_GREATER
+    private static List<string> RecordLongPress(LongPressGestureRecognizer longPress, View box)
+    {
+        var events = new List<string>();
+        longPress.Command = new TestCommand(parameter => events.Add($"command {parameter}"));
+        longPress.LongPressed += (sender, args) =>
+            events.Add($"pressed {args.Parameter} {ReferenceEquals(sender, box)} {args.GetPosition(box)}");
+        longPress.LongPressing += (_, args) => events.Add($"{args.Status} {longPress.State}");
+        return events;
+    }
+
+    private static void Touch(SkUiView root, SkUiTouchAction action, Point at, double ms) =>
+        root.Touch(new(1, action, at, TimeSpan.FromMilliseconds(ms)));
+
+    [Fact]
+    public void ALongPressRecognizerStartsWhenTheHoldElapsesAndRaisesLongPressedOnRelease()
+    {
+        using var clock = new ManualGestureClock();
+        var (root, box) = Tree();
+        var longPress = new LongPressGestureRecognizer { CommandParameter = "row", MinimumPressDuration = 800 };
+        var events = RecordLongPress(longPress, box);
+        box.GestureRecognizers.Add(longPress);
+
+        Touch(root, SkUiTouchAction.Pressed, new Point(100, 100), 0);
+        clock.Advance(TimeSpan.FromMilliseconds(500)); // MAUI's default, shorter than this recognizer's
+        Assert.Empty(events);
+        clock.Advance(TimeSpan.FromMilliseconds(300));
+        Assert.Equal(["Started Started"], events);
+
+        Touch(root, SkUiTouchAction.Moved, new Point(140, 100), 900); // past the allowed movement, but after the hold
+        Touch(root, SkUiTouchAction.Released, new Point(140, 100), 950);
+        Assert.Equal(["Started Started", "Running Running", "command row", "pressed row True {X=140 Y=100}", "Completed Completed"], events);
+    }
+
+    [Fact]
+    public void ALongPressRecognizerRaisesNothingForAPressReleasedOrMovedTooFarBeforeTheHold()
+    {
+        using var clock = new ManualGestureClock();
+        var (root, box) = Tree();
+        var longPress = new LongPressGestureRecognizer { AllowableMovement = 30 };
+        var events = RecordLongPress(longPress, box);
+        box.GestureRecognizers.Add(longPress);
+
+        Touch(root, SkUiTouchAction.Pressed, new Point(100, 100), 0);
+        Touch(root, SkUiTouchAction.Released, new Point(100, 100), 300);
+        clock.Advance(TimeSpan.FromMilliseconds(600));
+        Assert.Empty(events);
+
+        // Within the allowed 30 (more than the drawn touch slop): still a long press.
+        Touch(root, SkUiTouchAction.Pressed, new Point(100, 100), 1000);
+        Touch(root, SkUiTouchAction.Moved, new Point(125, 100), 1100);
+        clock.Advance(TimeSpan.FromMilliseconds(600));
+        Touch(root, SkUiTouchAction.Released, new Point(125, 100), 1700);
+        Assert.Contains(events, e => e.StartsWith("pressed", StringComparison.Ordinal));
+
+        // Past it: no long press.
+        events.Clear();
+        Touch(root, SkUiTouchAction.Pressed, new Point(100, 100), 3000);
+        Touch(root, SkUiTouchAction.Moved, new Point(135, 100), 3100);
+        clock.Advance(TimeSpan.FromMilliseconds(600));
+        Touch(root, SkUiTouchAction.Released, new Point(135, 100), 3700);
+        Assert.Empty(events);
+    }
+
+    [Fact]
+    public void ALongPressLostAfterItStartedIsCanceledWithoutLongPressed()
+    {
+        using var clock = new ManualGestureClock();
+        var (root, box) = Tree();
+        var longPress = new LongPressGestureRecognizer();
+        var events = RecordLongPress(longPress, box);
+        box.GestureRecognizers.Add(longPress);
+
+        Touch(root, SkUiTouchAction.Pressed, new Point(100, 100), 0);
+        clock.Advance(TimeSpan.FromMilliseconds(600));
+        root.Touch(new(1, SkUiTouchAction.Cancelled, new Point(100, 100), TimeSpan.FromMilliseconds(700)));
+        Assert.Equal(["Started Started", "Canceled Canceled"], events);
+    }
+
+    [Fact]
+    public void AMultiTouchLongPressRecognizerIsNotRun()
+    {
+        using var clock = new ManualGestureClock();
+        var (root, box) = Tree();
+        var longPress = new LongPressGestureRecognizer { NumberOfTouchesRequired = 2 };
+        var events = RecordLongPress(longPress, box);
+        box.GestureRecognizers.Add(longPress);
+
+        Touch(root, SkUiTouchAction.Pressed, new Point(100, 100), 0);
+        clock.Advance(TimeSpan.FromMilliseconds(600));
+        Touch(root, SkUiTouchAction.Released, new Point(100, 100), 700);
+        Assert.Empty(events);
+    }
+#endif
+
     private sealed class TestCommand(Action<object?> execute) : ICommand
     {
         public event EventHandler? CanExecuteChanged { add { } remove { } }

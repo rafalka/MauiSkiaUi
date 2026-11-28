@@ -6,7 +6,7 @@ A filled rectangle with optional rounded corners, as MAUI's `BoxView`.
 
 ## How it works
 
-Fills with `Color`, or, when no color is set, with `Background` (solid or gradient) / `BackgroundColor` (as MAUI's BoxView); `CornerRadius` rounds each corner independently (radii larger than the box allows are scaled down), with the look's rounded-rect geometry like [`SkUiBorder`](SkUiBorder.md). Measures 40 × 40 DIPs unless sized, as in MAUI. Hit region is the arranged rectangle. It is not a [shape](SkUiShape.md) (no stroke), as in MAUI. Core twin: `SkUiCoreBox` (`SetColor`, `SetCornerRadius`; `SetBackground` fills when no color is set). An opaque box casts its `Shadow` from its rounded shape ([SkUiView.md](SkUiView.md#backgrounds-shadows-and-clips)).
+Fills with `Fill` (MAUI 11's brush, also on .NET 10: solid or gradient; when set it wins over the color and the background, even when empty, as in MAUI; a brush changed in place repaints), else with `Color`, else with `Background` (solid or gradient) / `BackgroundColor` (as MAUI's BoxView); `CornerRadius` rounds each corner independently (radii larger than the box allows are scaled down), with the look's rounded-rect geometry like [`SkUiBorder`](SkUiBorder.md). Measures 40 × 40 DIPs unless sized, as in MAUI. Hit region is the arranged rectangle. It is not a [shape](SkUiShape.md) (no stroke), as in MAUI. Core twin: `SkUiCoreBox` (`SetFill` with a `Paint`, `SetColor`, `SetCornerRadius`; `SetBackground` fills when neither is set). An opaque box casts its `Shadow` from its rounded shape ([SkUiView.md](SkUiView.md#backgrounds-shadows-and-clips)).
 
 ## Shared conventions
 
@@ -23,11 +23,19 @@ All SkiaUi controls inherit [`SkUiView`](SkUiView.md) behavior:
 ```xml
 <sk:SkUiBox Color="#C54150" WidthRequest="112" HeightRequest="112" />
 <sk:SkUiBox Color="#087F83" CornerRadius="12,12,0,0" HeightRequest="40" />
+<sk:SkUiBox CornerRadius="8" HeightRequest="40">
+    <sk:SkUiBox.Fill>
+        <LinearGradientBrush EndPoint="1,0">
+            <GradientStop Color="#C54150" Offset="0" />
+            <GradientStop Color="#087F83" Offset="1" />
+        </LinearGradientBrush>
+    </sk:SkUiBox.Fill>
+</sk:SkUiBox>
 ```
 
 ## Key properties
 
-`Color` (`null` by default), `CornerRadius` (+ `SetColor`, `SetCornerRadius`), plus the base view's layout and transform properties.
+`Fill` (`null` by default), `Color` (`null` by default), `CornerRadius` (+ `SetFill`, `SetColor`, `SetCornerRadius`), plus the base view's layout and transform properties.
 
 ## Differences from MAUI BoxView
 

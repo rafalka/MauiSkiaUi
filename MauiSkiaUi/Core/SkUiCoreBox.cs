@@ -3,13 +3,13 @@ using SkiaSharp;
 namespace MauiSkiaUi.Core;
 
 /// <summary>
-/// Filled rectangle with optional rounded corners (Core analogue of <c>SkUiBox</c>, MAUI's BoxView): fills with
-/// <see cref="Color"/>, or with <see cref="SkUiCoreNode.Background"/> (solid or gradient) when no color is set, and measures
-/// 40 × 40 DIPs unless sized.
+/// Filled rectangle with optional rounded corners (Core analogue of <c>SkUiBox</c>, MAUI's BoxView): fills with <see cref="Fill"/>,
+/// else <see cref="Color"/>, else <see cref="SkUiCoreNode.Background"/> (solid or gradient), and measures 40 × 40 DIPs unless sized.
 /// </summary>
 public class SkUiCoreBox : SkUiCoreNode
 {
     private Color? _color;
+    private Paint? _fill;
     private CornerRadius _cornerRadius;
     private SkUiRoundedClip _shape;
 
@@ -18,6 +18,16 @@ public class SkUiCoreBox : SkUiCoreNode
     {
         get => _color;
         set => SetColor(value);
+    }
+
+    /// <summary>
+    /// The paint that fills the box (MAUI 11's <c>BoxView.Fill</c>; <c>null</c> by default): solid colors and gradients. When set
+    /// it wins over <see cref="Color"/> and the background, even when empty (see <see cref="SkUiBox.Fill"/>).
+    /// </summary>
+    public Paint? Fill
+    {
+        get => _fill;
+        set => SetFill(value);
     }
 
     /// <summary>Per-corner radii in DIPs. Larger radii than the box allows are scaled down.</summary>
@@ -31,6 +41,14 @@ public class SkUiCoreBox : SkUiCoreNode
     public SkUiCoreBox SetColor(Color? value)
     {
         if (!SetProperty(ref _color, value, nameof(Color))) return this;
+        InvalidatePaint();
+        return this;
+    }
+
+    /// <summary>Sets the fill paint.</summary>
+    public SkUiCoreBox SetFill(Paint? value)
+    {
+        if (!SetProperty(ref _fill, value, nameof(Fill))) return this;
         InvalidatePaint();
         return this;
     }
@@ -53,8 +71,8 @@ public class SkUiCoreBox : SkUiCoreNode
     /// <summary>The box fills itself (rounded); its <see cref="SkUiCoreNode.Background"/> is the fill when no color is set.</summary>
     protected override void OnPaintBackground(SKCanvas canvas) { }
 
-    /// <summary>The fill: <see cref="Color"/>, else <see cref="SkUiCoreNode.Background"/> (solid or gradient), as MAUI's BoxView.</summary>
-    private SkUiFill BoxFill => _color is { } color ? SkUiFill.From(color) : SkUiFill.From(Background);
+    /// <summary>The fill: <see cref="Fill"/>, else <see cref="Color"/>, else <see cref="SkUiCoreNode.Background"/> (solid or gradient), as MAUI's BoxView.</summary>
+    private SkUiFill BoxFill => _fill is not null ? SkUiFill.From(_fill) : _color is { } color ? SkUiFill.From(color) : SkUiFill.From(Background);
 
     /// <inheritdoc />
     protected override void OnPaintContent(SKCanvas canvas)

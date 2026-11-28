@@ -49,7 +49,7 @@ public sealed class SkUiPropertyAnimation
 
 /// <summary>
 /// A reusable description of a render-thread animation of a view's composite-time properties (opacity, translation,
-/// rotation, scale), run with <see cref="SkUiView.AnimateAsync"/>: it stays smooth while the UI thread is busy and
+/// rotation, scale), run with <see cref="SkUiView.AnimateAsync(SkUiAnimatableProperty, double, uint, Easing, CancellationToken)"/>: it stays smooth while the UI thread is busy and
 /// never re-lays out or re-records the view. Containers run it on the views they show or hide
 /// (<see cref="SkUiStateContainer"/>'s state change animations). The properties run together.
 /// </summary>
@@ -135,21 +135,32 @@ public sealed class SkUiViewAnimation
     /// Runs the animation on <paramref name="view"/>; <c>true</c> when every property ran to completion. Each property
     /// ends at its exact end value. Off screen, the view jumps to the end values.
     /// </summary>
-    public Task<bool> RunAsync(SkUiView view)
+    public Task<bool> RunAsync(SkUiView view) => RunAsync(view, CancellationToken.None);
+
+    /// <summary>
+    /// Runs the animation on <paramref name="view"/>, as <see cref="RunAsync(SkUiView)"/>; <paramref name="cancellationToken"/>
+    /// stops every property where it is (the view keeps the last shown values, and the task returns <c>false</c>).
+    /// </summary>
+    public Task<bool> RunAsync(SkUiView view, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(view);
-        return RunAsync((ISkUiAnimationTarget)view);
+        return RunAsync((ISkUiAnimationTarget)view, cancellationToken);
     }
 
     /// <summary>Runs the animation on a Core node, as <see cref="RunAsync(SkUiView)"/>.</summary>
-    public Task<bool> RunAsync(Core.SkUiCoreNode node)
+    public Task<bool> RunAsync(Core.SkUiCoreNode node) => RunAsync(node, CancellationToken.None);
+
+    /// <summary>Runs the animation on a Core node, as <see cref="RunAsync(SkUiView, CancellationToken)"/>.</summary>
+    public Task<bool> RunAsync(Core.SkUiCoreNode node, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(node);
-        return RunAsync((ISkUiAnimationTarget)node);
+        return RunAsync((ISkUiAnimationTarget)node, cancellationToken);
     }
 
-    internal async Task<bool> RunAsync(ISkUiAnimationTarget view)
+    internal async Task<bool> RunAsync(ISkUiAnimationTarget view, CancellationToken cancellationToken = default)
     {
+        if (cancellationToken.IsCancellationRequested)
+            return false;
         Freeze();
         var own = Snapshot.Of(view);
         if (!view.RenderState.HasCommitted && view.RenderParent?.RenderState.HasCommitted != true)
@@ -163,7 +174,7 @@ public sealed class SkUiViewAnimation
             var property = Properties[index];
             if (property.From is { } from)
                 Set(view, property.Property, from);
-            runs[index] = view.AnimateAsync(property.Property, property.To ?? own.Get(property.Property), _length, _easing);
+            runs[index] = view.AnimateAsync(property.Property, property.To ?? own.Get(property.Property), _length, _easing, cancellationToken);
         }
         // Awaited in turn rather than with Task.WhenAll: render-thread animations complete their tasks asynchronously, so
         // WhenAll would finish on a pool thread and reach the UI thread a hop later (late when the pool is busy); each
@@ -277,7 +288,7 @@ internal interface ISkUiAnimationTarget : Rendering.ISkUiRenderable
     void SetAnimatable(SkUiAnimatableProperty property, double value);
 
     /// <summary>Animates the property on the render thread (the node's <c>AnimateAsync</c>).</summary>
-    Task<bool> AnimateAsync(SkUiAnimatableProperty property, double to, uint length, Easing? easing);
+    Task<bool> AnimateAsync(SkUiAnimatableProperty property, double to, uint length, Easing? easing, CancellationToken cancellationToken);
 }
 
 /// <summary>Converts <c>"FadeIn"</c> / <c>"FadeOut"</c> [length] [easing] to a <see cref="SkUiViewAnimation"/> (<see cref="SkUiViewAnimation.Parse"/>).</summary>

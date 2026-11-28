@@ -39,10 +39,10 @@ NATIVE_ISLAND = {"WebView", "HybridWebView", "BlazorWebView", "Map"}
 NOT_YET = {"ListView", "TableView"}
 PAGES = {"ContentPage", "TabbedPage", "FlyoutPage", "NavigationPage", "Shell"}
 GESTURES = {"TapGestureRecognizer", "SwipeGestureRecognizer", "PanGestureRecognizer", "PinchGestureRecognizer",
-            "PointerGestureRecognizer", "DragGestureRecognizer", "DropGestureRecognizer"}
+            "PointerGestureRecognizer", "LongPressGestureRecognizer", "DragGestureRecognizer", "DropGestureRecognizer"}
 
 CS_PATTERNS = {
-    "gesture recognizers created in code": re.compile(r"new\s+(Tap|Swipe|Pan|Pinch|Pointer|Drag|Drop)GestureRecognizer\b"),
+    "gesture recognizers created in code": re.compile(r"new\s+(Tap|Swipe|Pan|Pinch|Pointer|LongPress|Drag|Drop)GestureRecognizer\b"),
     "TouchBehavior created in code": re.compile(r"new\s+\w*TouchBehavior\b"),
     "custom handler registrations (ConfigureMauiHandlers / AddHandler)": re.compile(r"\bAddHandler\s*[<(]"),
     "handler mapper changes (AppendToMapping / PrependToMapping / ModifyMapping)": re.compile(r"\b(Append|Prepend|Modify)ToMapping\b"),

@@ -1,3 +1,5 @@
+using System.Runtime.CompilerServices;
+using MauiSkiaUi.Core;
 using SkiaSharp;
 using Xunit;
 
@@ -106,6 +108,83 @@ public class RenderingTests
         // The UI's explicit value wins over the cancelled animation's last frame.
         Assert.Equal(0.8, box.Opacity);
         Assert.False(surface.NeedsFrame);
+    }
+
+    [Fact]
+    public async Task ACancelledTokenStopsTheRenderAnimationWhereItIsOnBothLayers()
+    {
+        var box = new SkUiBox { Color = Colors.Red, WidthRequest = 20, HeightRequest = 20 };
+        var node = new SkUiCoreBox().SetColor(Colors.Red);
+        node.SetWidth(20).SetHeight(20);
+        var root = new SkUiVerticalStackLayout { Children = { box, new SkUiCoreHost().SetContent(node) } };
+        using var surface = new SkUiTestSurface(root, 40, 60);
+        surface.Frame(0);
+
+        using var cancellation = new CancellationTokenSource();
+        var move = box.AnimateAsync(SkUiAnimatableProperty.TranslationX, 100, 1000, Easing.Linear, cancellation.Token);
+        var coreMove = node.AnimateAsync(SkUiAnimatableProperty.TranslationX, 100, 1000, Easing.Linear, cancellation.Token);
+        surface.Frame(10);
+        surface.Frame(510);
+        // The token holds the animations weakly: a collection while they run must not lose them.
+        GC.Collect();
+        GC.WaitForPendingFinalizers();
+        cancellation.Cancel();
+        surface.Frame(600);
+        surface.Frame(700);
+        Assert.False(await move.WaitAsync(TimeSpan.FromSeconds(5)));
+        Assert.False(await coreMove.WaitAsync(TimeSpan.FromSeconds(5)));
+        // The last shown value, about half way, not the target.
+        Assert.InRange(box.TranslationX, 30, 70);
+        Assert.InRange(node.TranslationX, 30, 70);
+        Assert.False(surface.NeedsFrame);
+
+        // A token cancelled already starts nothing.
+        Assert.False(await box.AnimateAsync(SkUiAnimatableProperty.Opacity, 0, 100, null, cancellation.Token));
+        Assert.False(await node.AnimateAsync(SkUiAnimatableProperty.Opacity, 0, 100, null, cancellation.Token));
+        Assert.Equal((1d, 1d), (box.Opacity, node.Opacity));
+    }
+
+    [Fact]
+    public void ALongLivedTokenDoesNotKeepAViewThatNeverShowsAlive()
+    {
+        using var cancellation = new CancellationTokenSource();
+        var (box, node) = AnimateUnshown(cancellation.Token);
+        GC.Collect();
+        GC.WaitForPendingFinalizers();
+        GC.Collect();
+        Assert.False(box.TryGetTarget(out _));
+        Assert.False(node.TryGetTarget(out _));
+        cancellation.Cancel();
+    }
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static (WeakReference<SkUiBox>, WeakReference<SkUiCoreBox>) AnimateUnshown(CancellationToken token)
+    {
+        // Never attached to a surface: the animations stay queued and never finish.
+        var box = new SkUiBox { Color = Colors.Red };
+        var node = new SkUiCoreBox().SetColor(Colors.Red);
+        _ = box.AnimateAsync(SkUiAnimatableProperty.Opacity, 0, 1000, null, token);
+        _ = node.AnimateAsync(SkUiAnimatableProperty.Opacity, 0, 1000, null, token);
+        return (new WeakReference<SkUiBox>(box), new WeakReference<SkUiCoreBox>(node));
+    }
+
+    [Fact]
+    public async Task ACancelledTokenStopsAViewAnimationWithoutApplyingItsEnd()
+    {
+        var box = new SkUiBox { Color = Colors.Red, WidthRequest = 20, HeightRequest = 20 };
+        var root = new SkUiContentView { Content = box };
+        using var surface = new SkUiTestSurface(root, 40, 40);
+        surface.Frame(0);
+
+        using var cancellation = new CancellationTokenSource();
+        var fade = SkUiViewAnimation.FadeOut(1000, Easing.Linear).RunAsync(box, cancellation.Token);
+        surface.Frame(10);
+        surface.Frame(510);
+        cancellation.Cancel();
+        surface.Frame(600);
+        surface.Frame(700);
+        Assert.False(await fade.WaitAsync(TimeSpan.FromSeconds(5)));
+        Assert.InRange(box.Opacity, 0.3, 0.7);
     }
 
     [Fact]

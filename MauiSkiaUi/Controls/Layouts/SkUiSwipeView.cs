@@ -316,6 +316,8 @@ public partial class SkUiSwipeView : SkUiView
         if (_exclusiveGroup is not { } group || _shownViews is not { } views)
             return;
         var root = SurfaceRoot(this);
+        // Picked first, closed after: a view that hides at once (Reduce Motion) leaves the list and prunes its dead entries.
+        List<SkUiSwipeView>? closing = null;
         for (var index = views.Count - 1; index >= 0; index--)
         {
             if (!views[index].TryGetTarget(out var other))
@@ -325,8 +327,12 @@ public partial class SkUiSwipeView : SkUiView
             }
             if (!ReferenceEquals(other, this) && other._exclusiveGroup == group && other._shownPart is not null && !other._dragging
                 && ReferenceEquals(SurfaceRoot(other), root))
-                other.Close();
+                (closing ??= []).Add(other);
         }
+        if (closing is null)
+            return;
+        foreach (var other in closing)
+            other.Close();
     }
 
     private static ISkUiRenderable SurfaceRoot(ISkUiRenderable node)

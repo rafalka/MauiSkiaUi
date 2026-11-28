@@ -1,10 +1,12 @@
+using System.Windows.Input;
+
 namespace MauiSkiaUi;
 
 /// <summary>
 /// A multiline text field drawn by SkiaUi (MAUI's <c>Editor</c>): wrapped lines, Return inserts a line break, the text scrolls inside
 /// the field to keep the caret in view (and by wheel or drag, handing what it cannot scroll to the scrollers around it), and
-/// <see cref="AutoSize"/> grows the field with its text. MAUI's <c>Editor</c> API by name; <see cref="Completed"/> is raised when it
-/// loses focus, as MAUI's. The Core twin is <see cref="Core.SkUiCoreEditor"/>.
+/// <see cref="AutoSize"/> grows the field with its text. MAUI's <c>Editor</c> API by name; <see cref="Completed"/>, then
+/// <see cref="ReturnCommand"/>, run when it loses focus, as MAUI's. The Core twin is <see cref="Core.SkUiCoreEditor"/>.
 /// </summary>
 public class SkUiEditor : SkUiInputView
 {
@@ -27,11 +29,32 @@ public class SkUiEditor : SkUiInputView
     /// </summary>
     public EditorAutoSizeOption AutoSize { get => (EditorAutoSizeOption)GetValue(AutoSizeProperty); set => SetValue(AutoSizeProperty, value); }
 
-    /// <summary>Raised when the editor loses focus after the user was in it (MAUI's <c>Editor.Completed</c>).</summary>
+    /// <summary>Bindable property for <see cref="ReturnCommand"/>.</summary>
+    public static readonly BindableProperty ReturnCommandProperty = BindableProperty.Create(nameof(ReturnCommand), typeof(ICommand), typeof(SkUiEditor));
+
+    /// <summary>Bindable property for <see cref="ReturnCommandParameter"/>.</summary>
+    public static readonly BindableProperty ReturnCommandParameterProperty = BindableProperty.Create(nameof(ReturnCommandParameter), typeof(object), typeof(SkUiEditor));
+
+    /// <summary>
+    /// Runs when the editor completes (after <see cref="Completed"/>, when it loses focus) and can execute, as MAUI 11's
+    /// <c>Editor.ReturnCommand</c>: Return itself inserts a line break.
+    /// </summary>
+    public ICommand? ReturnCommand { get => (ICommand?)GetValue(ReturnCommandProperty); set => SetValue(ReturnCommandProperty, value); }
+
+    /// <summary>The parameter of <see cref="ReturnCommand"/>.</summary>
+    public object? ReturnCommandParameter { get => GetValue(ReturnCommandParameterProperty); set => SetValue(ReturnCommandParameterProperty, value); }
+
+    /// <summary>Raised when the editor loses focus after the user was in it (MAUI's <c>Editor.Completed</c>), before <see cref="ReturnCommand"/>.</summary>
     public event EventHandler? Completed;
 
     /// <summary>Sets <see cref="AutoSize"/>.</summary>
     public SkUiEditor SetAutoSize(EditorAutoSizeOption value) { ThrowIfUndefined(value); AutoSize = value; return this; }
+
+    /// <summary>Sets <see cref="ReturnCommand"/>.</summary>
+    public SkUiEditor SetReturnCommand(ICommand? value) { ReturnCommand = value; return this; }
+
+    /// <summary>Sets <see cref="ReturnCommandParameter"/>.</summary>
+    public SkUiEditor SetReturnCommandParameter(object? value) { ReturnCommandParameter = value; return this; }
 
     /// <inheritdoc cref="SkUiInputView.SetText" />
     public new SkUiEditor SetText(string? value) { base.SetText(value); return this; }
@@ -164,6 +187,14 @@ public class SkUiEditor : SkUiInputView
     {
         base.OnPropertyChanged(propertyName);
         if (propertyName == nameof(IsFocused) && !IsFocused && IsEnabled)
-            Completed?.Invoke(this, EventArgs.Empty);
+            OnCompleted();
+    }
+
+    /// <summary>MAUI's <c>Editor.SendCompleted</c>: <see cref="Completed"/>, then <see cref="ReturnCommand"/> when it can execute.</summary>
+    private void OnCompleted()
+    {
+        Completed?.Invoke(this, EventArgs.Empty);
+        if (ReturnCommand is { } command && command.CanExecute(ReturnCommandParameter))
+            command.Execute(ReturnCommandParameter);
     }
 }
