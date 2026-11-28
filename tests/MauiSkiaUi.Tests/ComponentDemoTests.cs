@@ -92,7 +92,11 @@ public class ComponentDemoTests
     [Fact]
     public void AllPagesHaveWorkingEditorsAndResetWithoutHandlers()
     {
-        using var dispatcher = SkUiTestHelpers.UseTestDispatcher(); // MAUI's RadioButton template binds its content labels
+        // A dispatcher: MAUI's RadioButton template binds its content labels. With this thread as the UI thread, work other
+        // threads finish (an image load's completion, a page's async continuation) is queued instead of changing the tree
+        // inline on a pool thread while this test changes it ("Collection was modified" in MAUI's ApplyStyleSheets).
+        using var dispatcher = SkUiTestHelpers.UseUiThreadDispatcher();
+        using var ui = TestUiContext.Install();
         foreach (var demo in ComponentDemos.All)
         {
             var page = demo.Create();
