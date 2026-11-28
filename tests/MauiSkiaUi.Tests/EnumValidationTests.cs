@@ -67,30 +67,62 @@ public class EnumValidationTests
             Assert.Fail(string.Join(Environment.NewLine, failures.Order(StringComparer.Ordinal)));
     }
 
+    /// <summary>Enum properties without a one-value fluent setter of their own, with the reason.</summary>
+    private static readonly Dictionary<string, string> WithoutSetter = new(StringComparer.Ordinal)
+    {
+        ["SkUiAccessibility.LiveRegion"] = "attached: SkUiAccessibility.SetLiveRegion(view, value)",
+        ["SkUiShimmer.Skeleton"] = "attached: SkUiShimmer.SetSkeleton(view, value)",
+        ["SkUiAvatarView.FontAttributes"] = "set with SetFont(family, size, attributes), as on Core",
+        ["SkUiAvatarView.BadgePosition"] = "set with SetBadge(color, position, borderColor), as on Core",
+        ["SkUiMauiContentView.ScrollMode"] = "no fluent setter yet",
+        ["SkUiRefreshView.RefreshStyle"] = "no fluent setter yet",
+        ["SkUiRefreshView.RefreshCompletion"] = "no fluent setter yet",
+        ["SkUiCollectionView.Orientation"] = "no fluent setter yet",
+        ["SkUiCollectionView.VerticalScrollBarVisibility"] = "no fluent setter yet",
+        ["SkUiCollectionView.HorizontalScrollBarVisibility"] = "no fluent setter yet",
+        ["SkUiCollectionView.Overscroll"] = "no fluent setter yet",
+        ["SkUiCollectionView.RefreshStyle"] = "no fluent setter yet",
+        ["SkUiCollectionView.RefreshCompletion"] = "no fluent setter yet",
+        ["SkUiCollectionView.LoadMoreMode"] = "no fluent setter yet",
+        ["SkUiCollectionView.LoadMorePosition"] = "no fluent setter yet",
+    };
+
     [Fact]
     public void EveryFluentEnumSetterThrowsOnUndefinedValues()
     {
         var failures = new List<string>();
-        var probed = 0;
+        var withoutSetter = new List<string>();
+        var types = Assemblies.SelectMany(a => a.GetTypes()).Select(t => Closed(t)).OfType<Type>().ToList();
         foreach (var (name, property) in EnumProperties())
         {
-            var setter = property.DeclaringType.GetMethod($"Set{property.PropertyName}", BindingFlags.Public | BindingFlags.Instance, [property.ReturnType]);
-            var concrete = setter is null ? null : Concrete(property.DeclaringType);
-            if (concrete is null)
-                continue; // an attached property, or a property without a one-value fluent setter (SkUiMauiContentView.ScrollMode)
-            var target = Activator.CreateInstance(concrete)!;
             var undefined = Undefined(Nullable.GetUnderlyingType(property.ReturnType) ?? property.ReturnType);
-            probed++;
-            try
+            var probed = false;
+            // The declaring type's setter, and each derived type's that hides it ("public new SkUiEntry SetFontAttributes").
+            foreach (var type in types.Where(t => t == property.DeclaringType || t.IsSubclassOf(property.DeclaringType)))
             {
-                setter!.Invoke(target, [undefined]);
-                failures.Add($"{name}: Set{property.PropertyName} takes the undefined value {Convert.ToInt64(undefined)}");
+                var setter = type.GetMethod($"Set{property.PropertyName}", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly, [property.ReturnType]);
+                if (setter is null)
+                    continue;
+                if (Concrete(type, types) is not { } concrete)
+                {
+                    failures.Add($"{name}: no type to probe {type.Name}.{setter.Name} on");
+                    continue;
+                }
+                probed = true;
+                try
+                {
+                    setter.Invoke(Activator.CreateInstance(concrete), [undefined]);
+                    failures.Add($"{name}: {type.Name}.{setter.Name} takes the undefined value {Convert.ToInt64(undefined)}");
+                }
+                catch (TargetInvocationException e) when (e.InnerException is ArgumentOutOfRangeException)
+                {
+                }
             }
-            catch (TargetInvocationException e) when (e.InnerException is ArgumentOutOfRangeException)
-            {
-            }
+            if (!probed)
+                withoutSetter.Add(name);
         }
-        Assert.True(probed > 40, $"Only {probed} fluent setters were found");
+        failures.AddRange(withoutSetter.Except(WithoutSetter.Keys).Select(n => $"{n} has no fluent setter: add one, or list it in WithoutSetter"));
+        failures.AddRange(WithoutSetter.Keys.Except(withoutSetter).Select(n => $"{n} is listed in WithoutSetter but has a fluent setter now"));
         if (failures.Count > 0)
             Assert.Fail(string.Join(Environment.NewLine, failures.Order(StringComparer.Ordinal)));
     }
@@ -167,7 +199,8 @@ public class EnumValidationTests
 
     private static IEnumerable<(string Name, BindableProperty Property)> EnumProperties()
     {
-        foreach (var type in Assemblies.SelectMany(a => a.GetTypes()).Where(DeclaresBindableProperties).Select(Closed))
+        foreach (var type in Assemblies.SelectMany(a => a.GetTypes()).Where(DeclaresBindableProperties)
+                     .Select(t => Closed(t) ?? throw new InvalidOperationException($"Add an argument {t} takes to Closed.")))
         foreach (var field in type.GetFields(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static | BindingFlags.DeclaredOnly))
         {
             if (field.FieldType != typeof(BindableProperty) && field.FieldType != typeof(BindablePropertyKey))
@@ -188,16 +221,19 @@ public class EnumValidationTests
     }
 
     /// <summary><paramref name="type"/>, or the first type deriving from it, that can be made with no arguments.</summary>
-    private static Type? Concrete(Type type) =>
-        new[] { type }.Concat(Assemblies.SelectMany(a => a.GetTypes()).Where(t => t.IsSubclassOf(type)).OrderBy(t => t.FullName, StringComparer.Ordinal))
+    private static Type? Concrete(Type type, IEnumerable<Type> types) =>
+        new[] { type }.Concat(types.Where(t => t.IsSubclassOf(type)).OrderBy(t => t.FullName, StringComparer.Ordinal))
             .FirstOrDefault(t => !t.IsAbstract && !t.ContainsGenericParameters && t.GetConstructor(Type.EmptyTypes) is not null);
 
     private static bool DeclaresBindableProperties(Type type) =>
         type.GetFields(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static | BindingFlags.DeclaredOnly)
             .Any(f => f.FieldType == typeof(BindableProperty) || f.FieldType == typeof(BindablePropertyKey));
 
-    /// <summary>A generic type closed over the first of a few arguments its constraints take (its static fields can only be read then), or the type.</summary>
-    private static Type Closed(Type type)
+    /// <summary>
+    /// A generic type closed over the first of a few arguments its constraints take (its static fields can only be read and
+    /// it can only be made then), the type if it is not generic, or <c>null</c> if no argument fits.
+    /// </summary>
+    private static Type? Closed(Type type)
     {
         if (!type.IsGenericTypeDefinition)
             return type;
@@ -212,7 +248,7 @@ public class EnumValidationTests
                 // Violates a constraint: try the next.
             }
         }
-        throw new InvalidOperationException($"Add an argument {type} takes to Closed.");
+        return null;
     }
 
     private static IEnumerable<object> Defined(Type enumType)
