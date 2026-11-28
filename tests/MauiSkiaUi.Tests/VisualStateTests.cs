@@ -180,27 +180,44 @@ public class VisualStateTests
         Assert.False(button.IsPointerOver);
     }
 
+    /// <summary>Counts the pointer-over changes a Core node is told of.</summary>
+    internal sealed class CountingCoreBox : MauiSkiaUi.Core.SkUiCoreBox
+    {
+        public List<bool> Changes { get; } = [];
+
+        internal override void OnPointerOverChanged(bool isOver) => Changes.Add(isOver);
+    }
+
     [Fact]
     public void ACoreNodeRemovedWhileHoveredIsNoLongerPointerOver()
     {
-        var box = new MauiSkiaUi.Core.SkUiCoreBox();
+        var box = new CountingCoreBox();
         box.SetWidth(100).SetHeight(40).SetBackground(Colors.Red);
         var stack = new MauiSkiaUi.Core.SkUiCoreVerticalStackLayout().Add(box);
         var host = new MauiSkiaUi.Core.SkUiCoreHost().SetContent(stack);
         var root = new SkUiContentView { Content = host };
         SkUiTestHelpers.Arrange(root, 100, 40);
-        var changes = 0;
-        box.PropertyChanged += (_, e) => changes += e.PropertyName == nameof(box.IsPointerOver) ? 1 : 0;
+        var raised = 0;
+        box.PropertyChanged += (_, e) => raised += e.PropertyName == nameof(box.IsPointerOver) ? 1 : 0;
 
+        // Every move sets the whole hover chain; the node hears of the change once (Core input views re-record on it).
         root.Touch(new(0, SkUiTouchAction.HoverMoved, new Point(10, 10)));
         root.Touch(new(0, SkUiTouchAction.HoverMoved, new Point(12, 10)));
-        Assert.Equal((true, true, 1), (box.IsPointerOver, stack.IsPointerOver, changes)); // raised once, not per move
+        root.Touch(new(0, SkUiTouchAction.HoverMoved, new Point(14, 10)));
+        Assert.Equal((true, true, 1), (box.IsPointerOver, stack.IsPointerOver, raised));
+        Assert.Equal([true], box.Changes);
 
         stack.Remove(box); // the surface stays live; no hover event follows
-        Assert.Equal((false, true, 2), (box.IsPointerOver, stack.IsPointerOver, changes));
+        Assert.Equal((false, true, 2), (box.IsPointerOver, stack.IsPointerOver, raised));
+        Assert.Equal([true, false], box.Changes);
+
+        // The router still lists the detached node until this move: it is not told it left a second time.
+        root.Touch(new(0, SkUiTouchAction.HoverMoved, new Point(16, 10)));
+        Assert.Equal([true, false], box.Changes);
 
         host.SetContent(null); // the host lets its content go
         Assert.False(stack.IsPointerOver);
+        root.Touch(new(0, SkUiTouchAction.HoverExited, Point.Zero));
     }
 
     [Fact]

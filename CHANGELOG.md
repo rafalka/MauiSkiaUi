@@ -23,6 +23,8 @@ Publishing (the NuGet publish workflow, [docs/Releasing.md](docs/Releasing.md)) 
 - `SkUiCoreEntry`, `SkUiCoreEditor` and the other Core input views start with `TextTransform.Default`, as MAUI and the SkUi\* input views do (they reported `None`; both draw the text as typed).
 - `PanAxis` and `SwipeDirections` reject undefined values on both layers: the bindable properties ignore them, and `SetPanAxis` / `SetSwipeDirections` on views and Core nodes throw. They took any value before.
 - A Core node removed from its parent (or from its `SkUiCoreHost`) while a pointer hovers it is no longer pointer-over: Core input views, pickers and steppers no longer keep their hover look until the next hover move.
+- Core nodes hear of a hover change once, not on every pointer move over them: Core input views, pickers and steppers no longer re-record their content on each move. Core nodes now count as hovered when a subtree is cleared, so a hovered Core node under input-transparent views is cleared when it leaves.
+- `SkUiMarkdownView.Text` set to `null` (a binding) reads back as an empty string, as `SetText(null)` does.
 - `SkUiCoreImage.SetDownsample(width, height)` raises `PropertyChanged` for each value that changed (it raised `DownsampleWidth` only, also when just the height changed).
 
 ### Other

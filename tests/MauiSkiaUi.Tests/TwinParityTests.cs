@@ -107,6 +107,11 @@ public partial class TwinParityTests
             "SkUiCoreImage.SetSourceStream(Func`2, String)",
             "SkUiCoreImage.SetSourceFont(String, String, Double, Color, FontAttributes)",
         ]),
+        ("A null format from a binding falls back to the kind's default format; the fluent setters on both layers take a format string", [
+            "SkUiCoreDatePicker.Format validation",
+            "SkUiCoreTimePicker.Format validation",
+            "SkUiCoreDateTimePicker.Format validation",
+        ]),
         ("SetValue(BindableProperty, object) is BindableObject's: the slider's fluent setter is SetSliderValue", [
             "SkUiSlider.SetValue",
             "SkUiSlider.SetSliderValue(Double)",
@@ -433,7 +438,7 @@ public partial class TwinParityTests
         var skUiNode = Create(closedSkUi);
         var coreNode = Create(closedCore);
         var differing = new List<string>();
-        foreach (var (skUiProperty, coreProperty) in ComparableProperties(skUi, closedSkUi, closedCore))
+        foreach (var (skUiProperty, coreProperty, _) in ComparableProperties(skUi, closedSkUi, closedCore))
         {
             if (!Intended(core, coreProperty.Name + " default") && DefaultDifference(skUiProperty, coreProperty, skUiNode, coreNode) is { } difference)
                 differing.Add($"{core.Name}.{coreProperty.Name} default: {difference}");
@@ -448,10 +453,10 @@ public partial class TwinParityTests
         using var dispatcher = SkUiTestHelpers.UseTestDispatcher();
         var (closedSkUi, closedCore) = Instantiable(skUi, core);
         var differing = new List<string>();
-        foreach (var (skUiProperty, coreProperty) in ComparableProperties(skUi, closedSkUi, closedCore))
+        foreach (var (skUiProperty, coreProperty, bindable) in ComparableProperties(skUi, closedSkUi, closedCore))
         {
             if (!Intended(core, coreProperty.Name + " validation"))
-                differing.AddRange(ValidationDifferences(closedSkUi, closedCore, skUiProperty, coreProperty).Select(d => $"{core.Name}.{coreProperty.Name} validation: {d}"));
+                differing.AddRange(ValidationDifferences(closedSkUi, closedCore, skUiProperty, coreProperty, bindable).Select(d => $"{core.Name}.{coreProperty.Name} validation: {d}"));
         }
         Report(differing);
     }
@@ -464,20 +469,114 @@ public partial class TwinParityTests
         return Equals(skUiValue, coreValue) ? null : $"{Show(coreValue)}, {skUiNode.GetType().Name} {Show(skUiValue)}";
     }
 
-    /// <summary>The probes the two layers' fluent setters treat differently (none when either has no one-value setter).</summary>
-    private static IEnumerable<string> ValidationDifferences(Type skUi, Type core, PropertyInfo skUiProperty, PropertyInfo coreProperty)
+    /// <summary>
+    /// The probes the two layers' fluent setters treat differently, and those the SkUi bindable property treats unlike its
+    /// fluent setter: what <c>SetX</c> rejects the property's <c>validateValue</c> ignores (the value stays), and what it
+    /// takes the property takes. None when either layer has no one-value setter (the property test reports that).
+    /// </summary>
+    private static IEnumerable<string> ValidationDifferences(Type skUi, Type core, PropertyInfo skUiProperty, PropertyInfo coreProperty, BindableProperty? bindable)
     {
         var skUiSetter = Setter(skUi, skUiProperty.Name, skUiProperty.PropertyType);
         var coreSetter = Setter(core, coreProperty.Name, coreProperty.PropertyType);
         if (skUiSetter is null || coreSetter is null)
-            yield break; // the property test reports a missing setter
+            yield break;
         foreach (var probe in Probes(skUiProperty.PropertyType))
         {
-            var skUiRejects = Rejects(skUiSetter, Create(skUi), probe);
+            var viaSetter = Create(skUi);
+            var skUiRejects = Rejects(skUiSetter, viaSetter, probe);
             var coreRejects = Rejects(coreSetter, Create(core), probe);
             if (skUiRejects != coreRejects)
                 yield return $"{Show(probe)} {coreRejects}, {skUi.Name} {skUiRejects}";
+            if (bindable is null)
+                continue;
+            var viaBindable = (BindableObject)Create(skUi);
+            string? thrown = null;
+            try
+            {
+                viaBindable.SetValue(bindable, probe);
+            }
+            catch (Exception e)
+            {
+                thrown = e.GetType().Name;
+            }
+            if (thrown is not null)
+                yield return $"{Show(probe)}: {skUi.Name}.{bindable.PropertyName}Property throws {thrown} (validateValue ignores invalid values)";
+            else if (!Equals(skUiProperty.GetValue(viaSetter), skUiProperty.GetValue(viaBindable)))
+                yield return $"{Show(probe)}: {skUi.Name}.{bindable.PropertyName}Property gives {Show(skUiProperty.GetValue(viaBindable))}, Set{skUiProperty.Name} {Show(skUiProperty.GetValue(viaSetter))} ({skUiRejects})";
         }
+    }
+
+    [Theory]
+    [MemberData(nameof(Pairs))]
+    public void FluentSettersSetTheirProperty(Type skUi, Type core)
+    {
+        using var dispatcher = SkUiTestHelpers.UseTestDispatcher();
+        var (closedSkUi, closedCore) = Instantiable(skUi, core);
+        var differing = new List<string>();
+        foreach (var (skUiProperty, coreProperty, _) in ComparableProperties(skUi, closedSkUi, closedCore))
+        {
+            var skUiSetter = Setter(closedSkUi, skUiProperty.Name, skUiProperty.PropertyType);
+            var coreSetter = Setter(closedCore, coreProperty.Name, coreProperty.PropertyType);
+            if (skUiSetter is null || coreSetter is null)
+                continue;
+            // The first value SetX takes must give what the property setter gives (a copy-paste slip writing another
+            // property does not), and Core must take it and read back what SkUi does (coercion included).
+            var defaultValue = skUiProperty.GetValue(Create(closedSkUi));
+            foreach (var candidate in Candidates(skUiProperty.PropertyType).Where(c => !Equals(c, defaultValue)))
+            {
+                var viaSetter = Create(closedSkUi);
+                if (Rejects(skUiSetter, viaSetter, candidate) != "taken")
+                    continue;
+                var viaProperty = Create(closedSkUi);
+                skUiProperty.SetValue(viaProperty, candidate);
+                var skUiValue = skUiProperty.GetValue(viaSetter);
+                if (!Equals(skUiValue, skUiProperty.GetValue(viaProperty)))
+                    differing.Add($"{skUi.Name}.Set{skUiProperty.Name}({Show(candidate)}) gives {Show(skUiValue)}, the property setter {Show(skUiProperty.GetValue(viaProperty))}");
+                var coreNode = Create(closedCore);
+                var coreOutcome = Rejects(coreSetter, coreNode, candidate);
+                if (coreOutcome != "taken")
+                    differing.Add($"{core.Name}.Set{coreProperty.Name}({Show(candidate)}) {coreOutcome}, {skUi.Name} takes it");
+                else if (!Equals(coreProperty.GetValue(coreNode), skUiValue))
+                    differing.Add($"{core.Name}.Set{coreProperty.Name}({Show(candidate)}) reads back {Show(coreProperty.GetValue(coreNode))}, {skUi.Name} {Show(skUiValue)}");
+                break;
+            }
+        }
+        Report(differing);
+    }
+
+    /// <summary>Valid-looking values to set, in order; the first the SkUi control takes and reads back is used.</summary>
+    private static IEnumerable<object?> Candidates(Type type)
+    {
+        var value = Nullable.GetUnderlyingType(type) ?? type;
+        if (value == typeof(bool))
+            return [true, false];
+        if (value == typeof(double))
+            return [1d, 0.5, 2d, 12d, 0d, 0.25];
+        if (value == typeof(float))
+            return [1f, 0.5f, 2f, 0f];
+        if (value == typeof(int))
+            return [1, 2, 3, 0, 12];
+        if (value == typeof(long))
+            return [1L, 2L, 0L];
+        if (value == typeof(string))
+            return ["x", "Ab"];
+        if (value == typeof(Color))
+            return [Colors.Red, Colors.Blue];
+        if (value == typeof(TimeSpan))
+            return [TimeSpan.FromSeconds(1), TimeSpan.FromMilliseconds(250)];
+        if (value == typeof(Thickness))
+            return [new Thickness(3), new Thickness(1, 2, 3, 4)];
+        if (value == typeof(CornerRadius))
+            return [new CornerRadius(3), new CornerRadius(1, 2, 3, 4)];
+        if (value == typeof(Size))
+            return [new Size(10, 20), new Size(5, 5)];
+        if (value == typeof(Point))
+            return [new Point(3, 4), new Point(1, 1)];
+        if (value == typeof(Rect))
+            return [new Rect(1, 2, 3, 4), new Rect(0, 0, 10, 10)];
+        if (value.IsEnum)
+            return Enum.GetValues(value).Cast<object?>();
+        return [];
     }
 
     [Theory]
@@ -535,7 +634,7 @@ public partial class TwinParityTests
             {
                 "type" => !SameLayerType(skUiProperty.PropertyType, coreProperty.PropertyType),
                 "default" => DefaultDifference(skUiProperty, coreProperty, Create(createdSkUi), Create(createdCore)) is not null,
-                "validation" => ValidationDifferences(createdSkUi, createdCore, skUiProperty, coreProperty).Any(),
+                "validation" => ValidationDifferences(createdSkUi, createdCore, skUiProperty, coreProperty, Bindable(createdSkUi, name)).Any(),
                 _ => false,
             };
         }
@@ -652,7 +751,7 @@ public partial class TwinParityTests
     /// declares, looked up on the types created (<paramref name="skUi"/>, <paramref name="core"/>): what the default and
     /// validation tests compare.
     /// </summary>
-    private static IEnumerable<(PropertyInfo SkUi, PropertyInfo Core)> ComparableProperties(Type declaring, Type skUi, Type core)
+    private static IEnumerable<(PropertyInfo SkUi, PropertyInfo Core, BindableProperty Bindable)> ComparableProperties(Type declaring, Type skUi, Type core)
     {
         var declaringType = skUi;
         while (declaringType is not null && declaringType != declaring && !(declaringType.IsGenericType && declaringType.GetGenericTypeDefinition() == declaring))
@@ -665,7 +764,7 @@ public partial class TwinParityTests
             var coreProperty = Property(core, bindable.PropertyName);
             if (skUiProperty is null || coreProperty is null || skUiProperty.PropertyType != coreProperty.PropertyType || !IsSimple(skUiProperty.PropertyType))
                 continue;
-            yield return (skUiProperty, coreProperty);
+            yield return (skUiProperty, coreProperty, bindable);
         }
     }
 
@@ -769,13 +868,34 @@ public partial class TwinParityTests
         (type.IsGenericType && type.GetGenericTypeDefinition() == typeof(IEnumerable<>) ? type : null)?.GetGenericArguments()[0]
         ?? type.GetInterfaces().FirstOrDefault(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IEnumerable<>))?.GetGenericArguments()[0];
 
+    /// <summary>
+    /// Whether the type has a fluent <c>SetX</c> for property <paramref name="name"/>: one parameter that takes the property's
+    /// value (or its items, for a <c>params</c> array or span of a list property), returning the type or a base of it.
+    /// </summary>
     private static bool HasSetter(Type type, string name) =>
-        type.GetMethods(BindingFlags.Public | BindingFlags.Instance).Any(m =>
-            m.Name == "Set" + name && m.DeclaringType != typeof(BindableObject) && m.GetParameters().Length >= 1);
+        Property(type, name) is { } property && FluentSetters(type, name).Any(m => m.GetParameters()[0].ParameterType is var parameter
+            && (parameter.IsAssignableFrom(property.PropertyType)
+                || (ItemType(property.PropertyType) is { } item && (parameter.IsArray ? parameter.GetElementType() == item : ItemType(parameter) == item || parameter == typeof(ReadOnlySpan<>).MakeGenericType(item)))));
 
+    /// <summary>The bindable property behind a property of the type or its bases.</summary>
+    private static BindableProperty? Bindable(Type type, string name)
+    {
+        for (var t = type; t is not null && t != typeof(object); t = t.BaseType)
+        {
+            if (DeclaredBindables(t).FirstOrDefault(b => b.PropertyName == name) is { } bindable)
+                return bindable;
+        }
+        return null;
+    }
+
+    /// <summary>The fluent setter that takes a <paramref name="valueType"/> value, as the value tests call it.</summary>
     private static MethodInfo? Setter(Type type, string name, Type valueType) =>
-        type.GetMethods(BindingFlags.Public | BindingFlags.Instance).FirstOrDefault(m =>
-            m.Name == "Set" + name && m.DeclaringType != typeof(BindableObject) && m.GetParameters() is [var value] && value.ParameterType.IsAssignableFrom(valueType));
+        FluentSetters(type, name).FirstOrDefault(m => m.GetParameters()[0].ParameterType.IsAssignableFrom(valueType));
+
+    private static IEnumerable<MethodInfo> FluentSetters(Type type, string name) =>
+        type.GetMethods(BindingFlags.Public | BindingFlags.Instance).Where(m =>
+            m.Name == "Set" + name && m.DeclaringType != typeof(BindableObject) && m.GetParameters().Length == 1
+            && m.ReturnType != typeof(void) && m.ReturnType.IsAssignableFrom(type));
 
     /// <summary>A generic type closed with <c>double</c> (so NaN and infinity are probed), else <c>int</c>.</summary>
     private static Type? Closed(Type type)

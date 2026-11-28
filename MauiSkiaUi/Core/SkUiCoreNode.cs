@@ -1354,11 +1354,12 @@ public partial class SkUiCoreNode : ISkUiCoreNode, INotifyPropertyChanged, ISkUi
 
     void ISkUiInputNode.SetPointerOver(bool isOver)
     {
-        if (IsPointerOver != isOver)
-        {
-            IsPointerOver = isOver;
-            OnPropertyChanged(nameof(IsPointerOver));
-        }
+        // The router sets the whole hover chain on every move: an unchanged value does nothing (no re-record).
+        if (IsPointerOver == isOver)
+            return;
+        IsPointerOver = isOver;
+        SkUiHover.Changed(isOver);
+        OnPropertyChanged(nameof(IsPointerOver));
         OnPointerOverChanged(isOver);
         if (!isOver && TracksHover)
             OnHovered(null);

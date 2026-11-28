@@ -112,11 +112,18 @@ internal sealed class SkUiGestureSet(object owner)
 /// <summary>Pointer-over state of nodes that leave their surface.</summary>
 internal static class SkUiHover
 {
-    // SkUi* views that are pointer-over now (0 on touch-only devices: detaching then walks nothing). Interlocked:
+    // SkUi* views and Core nodes that are pointer-over now (0 on touch-only devices: detaching then walks nothing). Interlocked:
     // each surface's input runs on its UI thread, but headless tests drive surfaces from several threads.
     private static int _pointerOverCount;
 
-    /// <summary>A view became pointer-over (<paramref name="isOver"/>) or stopped being it.</summary>
+    /// <summary>The count of pointer-over views and nodes (tests save, zero and restore it: views a test leaves hovered keep it up).</summary>
+    internal static int PointerOverCount
+    {
+        get => Volatile.Read(ref _pointerOverCount);
+        set => Volatile.Write(ref _pointerOverCount, value);
+    }
+
+    /// <summary>A view or node became pointer-over (<paramref name="isOver"/>) or stopped being it.</summary>
     internal static void Changed(bool isOver)
     {
         if (isOver) Interlocked.Increment(ref _pointerOverCount);
