@@ -4,6 +4,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 SkiaUi (NuGet `SkiaUi.Maui`, namespace `MauiSkiaUi`) is a .NET MAUI library that draws UI with SkiaSharp on one surface per host instead of one platform view per control. User-facing overview: [README.md](README.md); contributor guide (solution layout, CI, adding a control): [Development.md](Development.md); architecture: [docs/design/Architecture.md](docs/design/Architecture.md); every doc: [docs/README.md](docs/README.md).
 
+## Definition of Done
+
+Never report a step, phase, or fix as done or working until you have verified it at runtime: on a device or simulator, with a headless repro, or with a test that fails without the change. If verification is blocked (for example, no simulator access or a locked phone), say the step is UNVERIFIED and explain why. Do not call it done.
+
 ## Commands
 
 ```bash
@@ -67,3 +71,15 @@ Follow JetBrains ReSharper's default C# code style and inspections. In particula
 - **Tests** are headless xUnit on real MAUI objects with offscreen Skia (`tests/MauiSkiaUi.Tests`, `InternalsVisibleTo`). Classes that load XAML at runtime (or construct controls that do) belong to `[Collection(RuntimeXamlCollection.Name)]`. Linux CI has no system fonts (text measures 0 wide, font images fail to load): text tests register the bundled Roboto Mono with `using var _ = SkUiTestHelpers.UseBundledFont();` and `FontFamily = SkUiTestHelpers.BundledFontFamily`, and tests that just need an image use PNG bytes (`ImageLoadingTests.Png`, `LeakImages`), never `FontImageSource`. Other CI differences (no dispatcher headless, Reduce Motion on devices, slow runners): [Testing.md](docs/design/Testing.md#writing-tests-for-ci). Leak scenarios live in `tests/Shared/MemoryLeaks` and run headless (`MemoryLeakTests`) and on devices.
 - **When a feature ships:** add an entry under `## Unreleased` in [CHANGELOG.md](CHANGELOG.md) (`### New features` / `### Breaking changes` / `### Fixes` / `### Other`); update the control's page in [docs/controls/](docs/controls/README.md), the design doc it touches, and the status in [Roadmap.md](docs/design/Roadmap.md) / [Requirements.md](docs/design/Requirements.md); give controls a page in the demo's component gallery (`MauiSkiaUiDemo/ComponentPages`, next to the native MAUI control where one exists). When MAUI parity or a gap changes, also update [docs/Migration.md](docs/Migration.md) and the migration skills in `plugins/skiaui-migration`. Parity never costs performance or architecture: where a MAUI API works against them, SkiaUi ships its own API plus a conversion path in those docs.
 - Reference designs (consult, don't copy wholesale): .NET MAUI (the layout model and API parity), Open-Maui, Avalonia, Uno, DrawnUi (native overlays), SkiaSharp, and Flutter for paint / compositor ideas only; what each is consulted for is in [Requirements.md](docs/design/Requirements.md#reference-sources). Docs index: [docs/README.md](docs/README.md); [docs/archive/](docs/archive/README.md) is design history, never updated.
+
+## PR Workflow
+
+- Create feature and fix branches from `devel`, not from the current branch.
+- Always fill in the repo's PR template ([.github/pull_request_template.md](.github/pull_request_template.md)) when opening a PR.
+- Before opening a PR, run two independent review rounds. Fix every confirmed finding and add a regression test for each bug fixed.
+
+## Device & Visual Testing
+
+- Use the dev.skiaui DevFlow extension to drive and tap drawn controls. Do not fall back to raw adb taps. If a dev.skiaui DevFlow command you need is missing, suggest adding it.
+- Before sending input or wheel events on Mac, bring the demo app window to the front and confirm it is the target window.
+- For visual changes, take screenshots and check corners, clipping, selection highlight timing, and text fit before you report success.
