@@ -100,7 +100,7 @@ public class EnumValidationTests
                     continue;
                 }
                 probed = true;
-                var target = Activator.CreateInstance(concrete);
+                var target = Make(concrete);
                 try
                 {
                     setter.Invoke(target, [undefined]);
@@ -161,6 +161,125 @@ public class EnumValidationTests
         dockChild.SetValue(DockLayout.DockPositionProperty, UndefinedDock);
         SkUiTestHelpers.Arrange(dock, 100, 50);
         Assert.Equal(docked, dockChild.Frame); // as None
+    }
+
+    /// <summary>Public enum setters that take only some of the defined values (an undefined one still throws), with the reason.</summary>
+    private static readonly Dictionary<string, string> SetterSubsets = new(StringComparer.Ordinal)
+    {
+        ["SkUiPicker.SetSelectionMode(SkUiSelectionMode)"] = "a picker selects one item or several: None and SingleDeselect are the collection view's",
+        ["SkUiCorePicker.SetSelectionMode(SkUiSelectionMode)"] = "a picker selects one item or several: None and SingleDeselect are the collection view's",
+        ["SkUiScrollEffect.SetOrientation(ScrollOrientation)"] = "an effect follows one scroll axis: Vertical or Horizontal",
+        ["SkUiScrollReveal.SetOrientation(ScrollOrientation)"] = "a reveal follows one scroll axis: Vertical or Horizontal",
+    };
+
+    /// <summary>
+    /// Every public instance <c>Set*</c> taking an enum, on every public type of the library and its packages (Core nodes and
+    /// plain objects included, not only the bindable properties' setters): it throws <see cref="ArgumentOutOfRangeException"/>
+    /// for an undefined value and takes every defined one (for a flags enum, all its flags together too). Other parameters
+    /// must be optional: they get their defaults.
+    /// </summary>
+    [Fact]
+    public void EveryPublicEnumSetterTakesDefinedValuesAndThrowsOnUndefinedOnes()
+    {
+        var failures = new List<string>();
+        var probed = new HashSet<string>(StringComparer.Ordinal);
+        var types = Assemblies.SelectMany(a => a.GetTypes()).Select(t => Closed(t)).OfType<Type>().ToList();
+        foreach (var type in types.Where(t => t.IsPublic || t.IsNestedPublic))
+        foreach (var setter in type.GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly))
+        {
+            if (!setter.Name.StartsWith("Set", StringComparison.Ordinal) || setter.IsSpecialName || setter.ContainsGenericParameters)
+                continue;
+            var parameters = setter.GetParameters();
+            var enums = parameters.Where(p => (Nullable.GetUnderlyingType(p.ParameterType) ?? p.ParameterType).IsEnum).ToList();
+            if (enums.Count != 1 || parameters.Any(p => p != enums[0] && !p.IsOptional))
+                continue;
+            var key = $"{type.Name}.{setter.Name}({string.Join(", ", parameters.Select(p => p.ParameterType.Name))})";
+            if (Concrete(type, types) is not { } concrete)
+            {
+                failures.Add($"{key}: no type to probe it on (add a factory to Factories)");
+                continue;
+            }
+            probed.Add(key);
+            var enumType = Nullable.GetUnderlyingType(enums[0].ParameterType) ?? enums[0].ParameterType;
+            var target = Make(concrete);
+            object?[] Arguments(object value) => [.. parameters.Select(p => p == enums[0] ? value : p.DefaultValue)];
+            try
+            {
+                setter.Invoke(target, Arguments(Undefined(enumType)));
+                failures.Add($"{key} takes an undefined value");
+            }
+            catch (TargetInvocationException e) when (e.InnerException is ArgumentOutOfRangeException)
+            {
+            }
+            catch (TargetInvocationException e)
+            {
+                failures.Add($"{key} throws {e.InnerException!.GetType().Name} for an undefined value");
+            }
+            if (Nullable.GetUnderlyingType(enums[0].ParameterType) is not null)
+            {
+                try
+                {
+                    setter.Invoke(target, Arguments(null!));
+                }
+                catch (TargetInvocationException e)
+                {
+                    failures.Add($"{key}(null) throws {e.InnerException!.GetType().Name}");
+                }
+            }
+            if (SetterSubsets.ContainsKey(key))
+                continue;
+            foreach (var value in Defined(enumType))
+            {
+                try
+                {
+                    setter.Invoke(target, Arguments(value));
+                }
+                catch (TargetInvocationException e)
+                {
+                    failures.Add($"{key}({value}) throws {e.InnerException!.GetType().Name}");
+                }
+            }
+        }
+        failures.AddRange(SetterSubsets.Keys.Except(probed).Select(k => $"{k} is listed in SetterSubsets but was not probed"));
+        // Guards against a filter that finds nothing: setters of each kind the probe must reach.
+        string[] expected =
+        [
+            "SkUiCoreNode.SetHorizontalAlignment(LayoutAlignment)", "SkUiCoreLabel.SetFontAttributes(FontAttributes)",
+            "SkUiCoreSpan.SetFontAttributes(Nullable`1)", "SkUiLabel.SetTextType(TextType)", "SkUiCoreScrollBar.SetVisibility(ScrollBarVisibility)",
+        ];
+        failures.AddRange(expected.Except(probed).Select(k => $"{k} was not probed"));
+        if (failures.Count > 0)
+            Assert.Fail(string.Join(Environment.NewLine, failures.Order(StringComparer.Ordinal)));
+    }
+
+    [Fact]
+    public void EnumInputsOutsideFluentSettersRejectUndefinedValues()
+    {
+        var child = new SkUiCoreBox();
+        var layout = new SkUiCoreAbsoluteLayout();
+        Assert.Throws<ArgumentOutOfRangeException>(() => layout.Add(child, new Rect(0, 0, 1, 1), (SkUiCoreAbsoluteLayoutFlags)64));
+        Assert.Empty(layout.Children); // checked before the child goes in
+        layout.Add(child, new Rect(0, 0, 1, 1), SkUiCoreAbsoluteLayoutFlags.All);
+        Assert.Throws<ArgumentOutOfRangeException>(() => layout.SetLayoutBounds(child, new Rect(0, 0, 1, 1), (SkUiCoreAbsoluteLayoutFlags)64));
+        Assert.Throws<ArgumentOutOfRangeException>(() => child.SetValue(SkUiCoreAbsoluteLayout.LayoutFlagsProperty, (SkUiCoreAbsoluteLayoutFlags)64));
+        Assert.Equal(SkUiCoreAbsoluteLayoutFlags.All, child.GetValue(SkUiCoreAbsoluteLayout.LayoutFlagsProperty));
+
+        Assert.Throws<ArgumentOutOfRangeException>(() => new SkUiFontImageSource("x", fontAttributes: (FontAttributes)8));
+        Assert.Throws<ArgumentOutOfRangeException>(() => new SkUiCoreImage().SetSourceFont("x", fontAttributes: (FontAttributes)8));
+        Assert.Equal(FontAttributes.Bold | FontAttributes.Italic, new SkUiFontImageSource("x", fontAttributes: FontAttributes.Bold | FontAttributes.Italic).FontAttributes);
+        Assert.Throws<ArgumentOutOfRangeException>(() => new SkUiCoreGridLength(1, (SkUiCoreGridUnitType)9));
+
+        var pan = new SkUiPanGestureRecognizer();
+        Assert.Throws<ArgumentOutOfRangeException>(() => pan.Axis = (SkUiPanAxis)9);
+        pan.Axis = SkUiPanAxis.Vertical;
+        Assert.Equal(SkUiPanAxis.Vertical, pan.Axis);
+        var swipe = new SkUiSwipeGestureRecognizer();
+        Assert.Throws<ArgumentOutOfRangeException>(() => swipe.Direction = (SwipeDirection)16);
+        swipe.Direction = SwipeDirection.Up | SwipeDirection.Left;
+        Assert.Equal(SwipeDirection.Up | SwipeDirection.Left, swipe.Direction);
+
+        Assert.Throws<ArgumentOutOfRangeException>(() => new SkUiPropertyAnimation((SkUiAnimatableProperty)99));
+        Assert.Throws<ArgumentOutOfRangeException>(() => new SkUiPropertyAnimation { Property = (SkUiAnimatableProperty)99 });
     }
 
     [Flags]
@@ -256,10 +375,34 @@ public class EnumValidationTests
         }
     }
 
-    /// <summary><paramref name="type"/>, or the first type deriving from it, that can be made with no arguments.</summary>
+    /// <summary>Types the probes can't make from a constructor alone.</summary>
+    private static readonly Dictionary<Type, Func<object>> Factories = new()
+    {
+        [typeof(SkUiCoreScrollBar)] = static () => new SkUiCoreScrollBar(new SkUiCoreScrollView(), ScrollOrientation.Vertical),
+    };
+
+    /// <summary><paramref name="type"/>, or the first type deriving from it, that <see cref="Make"/> can make.</summary>
     private static Type? Concrete(Type type, IEnumerable<Type> types) =>
         new[] { type }.Concat(types.Where(t => t.IsSubclassOf(type)).OrderBy(t => t.FullName, StringComparer.Ordinal))
-            .FirstOrDefault(t => !t.IsAbstract && !t.ContainsGenericParameters && t.GetConstructor(Type.EmptyTypes) is not null);
+            .FirstOrDefault(t => Factories.ContainsKey(t) || Constructor(t) is not null);
+
+    /// <summary>A constructor whose parameters are all optional or a <c>params</c> array, the shortest first.</summary>
+    private static ConstructorInfo? Constructor(Type type) =>
+        type.IsAbstract || type.ContainsGenericParameters
+            ? null
+            : type.GetConstructors()
+                .Where(c => c.GetParameters().All(p => p.IsOptional || p.IsDefined(typeof(ParamArrayAttribute))))
+                .OrderBy(c => c.GetParameters().Length)
+                .FirstOrDefault();
+
+    /// <summary>A fresh <paramref name="type"/> (one <see cref="Concrete"/> returned): optional parameters get their defaults, <c>params</c> arrays are empty.</summary>
+    private static object Make(Type type)
+    {
+        if (Factories.TryGetValue(type, out var factory))
+            return factory();
+        var constructor = Constructor(type)!;
+        return constructor.Invoke([.. constructor.GetParameters().Select(p => p.IsOptional ? p.DefaultValue : Array.CreateInstance(p.ParameterType.GetElementType()!, 0))]);
+    }
 
     private static bool DeclaresBindableProperties(Type type) =>
         type.GetFields(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static | BindingFlags.DeclaredOnly)

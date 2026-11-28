@@ -181,6 +181,7 @@ public partial class SkUiCoreNode : ISkUiCoreNode, INotifyPropertyChanged, ISkUi
     /// <summary>Sets <see cref="FlowDirection"/>.</summary>
     public SkUiCoreNode SetFlowDirection(FlowDirection value)
     {
+        SkUiValidate.ThrowIfNotDefined(value, nameof(value));
         if (SetProperty(ref _flowDirection, value, nameof(FlowDirection)))
             NotifyFlowDirectionChanged();
         return this;
@@ -699,6 +700,7 @@ public partial class SkUiCoreNode : ISkUiCoreNode, INotifyPropertyChanged, ISkUi
     /// <summary>Sets horizontal alignment within the parent's arrange slot.</summary>
     public SkUiCoreNode SetHorizontalAlignment(LayoutAlignment value)
     {
+        SkUiValidate.ThrowIfNotDefined(value, nameof(value));
         if (!SetProperty(ref _horizontalAlignment, value, nameof(HorizontalAlignment))) return this;
         InvalidateMeasure();
         return this;
@@ -707,6 +709,7 @@ public partial class SkUiCoreNode : ISkUiCoreNode, INotifyPropertyChanged, ISkUi
     /// <summary>Sets vertical alignment within the parent's arrange slot.</summary>
     public SkUiCoreNode SetVerticalAlignment(LayoutAlignment value)
     {
+        SkUiValidate.ThrowIfNotDefined(value, nameof(value));
         if (!SetProperty(ref _verticalAlignment, value, nameof(VerticalAlignment))) return this;
         InvalidateMeasure();
         return this;

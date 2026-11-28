@@ -97,6 +97,7 @@ public class SkUiCoreTable : SkUiCoreGrid
     /// <summary>Sets which track fill covers the other at intersections.</summary>
     public SkUiCoreTable SetTrackBackgroundOrder(SkUiCoreTableTrackBackgroundOrder value)
     {
+        SkUiValidate.ThrowIfNotDefined(value, nameof(value));
         if (!SetProperty(ref _trackBackgroundOrder, value, nameof(TrackBackgroundOrder))) return this;
         InvalidatePaint();
         return this;

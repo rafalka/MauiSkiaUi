@@ -75,8 +75,11 @@ public partial class SkUiCoreNode : ISkUiAccessibleNode
         SetSemantic(_semantics?.Hint, value, static (semantics, text) => semantics.Hint = text, nameof(SemanticHint));
 
     /// <summary>Sets <see cref="SemanticHeadingLevel"/>.</summary>
-    public SkUiCoreNode SetSemanticHeadingLevel(SemanticHeadingLevel value) =>
-        SetSemantic(SemanticHeadingLevel, value, static (semantics, level) => semantics.HeadingLevel = level, nameof(SemanticHeadingLevel));
+    public SkUiCoreNode SetSemanticHeadingLevel(SemanticHeadingLevel value)
+    {
+        SkUiValidate.ThrowIfNotDefined(value, nameof(value));
+        return SetSemantic(SemanticHeadingLevel, value, static (semantics, level) => semantics.HeadingLevel = level, nameof(SemanticHeadingLevel));
+    }
 
     /// <summary>Sets <see cref="IsInAccessibleTree"/>.</summary>
     public SkUiCoreNode SetIsInAccessibleTree(bool? value) =>

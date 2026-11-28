@@ -345,6 +345,7 @@ public class SkUiCoreLabel : SkUiCoreNode, ISkUiFontElement, ISkUiBorderElement
     /// <summary>Sets <see cref="TextDirection"/>.</summary>
     public SkUiCoreLabel SetTextDirection(SkUiTextDirection value)
     {
+        SkUiValidate.ThrowIfNotDefined(value, nameof(value));
         if (!SetProperty(ref _textDirection, value, nameof(TextDirection))) return this;
         InvalidateText();
         return this;

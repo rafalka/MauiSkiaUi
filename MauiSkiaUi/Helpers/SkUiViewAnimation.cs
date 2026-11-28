@@ -24,13 +24,23 @@ public sealed class SkUiPropertyAnimation
     /// <param name="to">End value; <c>null</c> ends at the view's own value (the one it had when the animation started).</param>
     public SkUiPropertyAnimation(SkUiAnimatableProperty property, double? from = null, double? to = null)
     {
+        SkUiValidate.ThrowIfNotDefined(property, nameof(property));
         _property = property;
         _from = from;
         _to = to;
     }
 
     /// <summary>The composite-time property.</summary>
-    public SkUiAnimatableProperty Property { get => _property; set { ThrowIfFrozen(); _property = value; } }
+    public SkUiAnimatableProperty Property
+    {
+        get => _property;
+        set
+        {
+            ThrowIfFrozen();
+            SkUiValidate.ThrowIfNotDefined(value, nameof(value));
+            _property = value;
+        }
+    }
 
     /// <summary>Start value, set when the animation starts; <c>null</c> (default) starts from the current value.</summary>
     public double? From { get => _from; set { ThrowIfFrozen(); _from = value; } }
