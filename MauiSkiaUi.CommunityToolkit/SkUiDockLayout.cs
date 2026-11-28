@@ -78,15 +78,23 @@ public class SkUiDockLayout : SkUiLayout, IDockLayout
     /// <summary>Gets a child's dock position.</summary>
     public static DockPosition GetDockPosition(BindableObject view) => (DockPosition)view.GetValue(DockPositionProperty);
 
-    /// <summary>Sets a child's dock position.</summary>
-    public static void SetDockPosition(BindableObject view, DockPosition value) => view.SetValue(DockPositionProperty, value);
+    /// <summary>Sets a child's dock position; throws on an undefined value (the toolkit's property takes it, and layout reads it as <see cref="DockPosition.None"/>).</summary>
+    public static void SetDockPosition(BindableObject view, DockPosition value)
+    {
+        if (!Enum.IsDefined(value))
+            throw new ArgumentOutOfRangeException(nameof(value), value, $"Not a defined {nameof(DockPosition)}.");
+        view.SetValue(DockPositionProperty, value);
+    }
 
     /// <inheritdoc />
-    public DockPosition GetDockPosition(IView view) => GetDockPosition((BindableObject)view);
+    /// <remarks>An undefined value the toolkit's property took reads as <see cref="DockPosition.None"/>.</remarks>
+    public DockPosition GetDockPosition(IView view) => GetDockPosition((BindableObject)view) is var value && Enum.IsDefined(value) ? value : DockPosition.None;
 
     /// <summary>Adds a drawn child docked at <paramref name="position"/>, as the toolkit's <see cref="DockLayout.Add(IView, DockPosition)"/>.</summary>
     public void Add(IView view, DockPosition position = DockPosition.None)
     {
+        if (!Enum.IsDefined(position))
+            throw new ArgumentOutOfRangeException(nameof(position), position, $"Not a defined {nameof(DockPosition)}.");
         base.Add(view); // not this overload: Add(view) would resolve here, to this method
         if (view is BindableObject bindable)
             SetDockPosition(bindable, position);

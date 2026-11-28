@@ -1,7 +1,9 @@
 using System.Reflection;
 using System.Runtime.InteropServices;
+using CommunityToolkit.Maui.Core;
 using CommunityToolkit.Maui.Layouts;
 using MauiSkiaUi.Core;
+using Microsoft.Maui.Layouts;
 using Xunit;
 
 namespace MauiSkiaUi.Tests;
@@ -28,12 +30,12 @@ public class EnumValidationTests
         ["SkUiPicker.SelectionMode"] = "a picker selects one item or several: None and SingleDeselect are the collection view's",
     };
 
-    /// <summary>MAUI's and the Community Toolkit's own properties SkiaUi exposes again: they validate as their owners do.</summary>
-    private static readonly BindableProperty[] Reused =
-    [
-        FlexLayout.OrderProperty, FlexLayout.GrowProperty, FlexLayout.ShrinkProperty, FlexLayout.AlignSelfProperty, FlexLayout.BasisProperty,
-        DockLayout.DockPositionProperty,
-    ];
+    /// <summary>
+    /// The enum properties SkiaUi exposes again from MAUI's <c>FlexLayout</c> and the Community Toolkit's <c>DockLayout</c>.
+    /// Their owners don't validate them and SkiaUi can't add a <c>validateValue</c>, so an undefined value is stored; SkiaUi's
+    /// static setters throw on one and layout reads one as the default (<see cref="ReusedAlignSelfAndDockPositionRejectUndefinedValuesAndLayOutAnUndefinedOneAsTheDefault"/>).
+    /// </summary>
+    private static readonly BindableProperty[] Reused = [FlexLayout.AlignSelfProperty, DockLayout.DockPositionProperty];
 
     private static readonly PropertyInfo ValidateValue =
         typeof(BindableProperty).GetProperty("ValidateValue", BindingFlags.Instance | BindingFlags.NonPublic)
@@ -77,7 +79,7 @@ public class EnumValidationTests
     };
 
     [Fact]
-    public void EveryFluentEnumSetterThrowsOnUndefinedValues()
+    public void EveryFluentEnumSetterTakesDefinedValuesAndThrowsOnUndefinedOnes()
     {
         var failures = new List<string>();
         var withoutSetter = new List<string>();
@@ -98,13 +100,28 @@ public class EnumValidationTests
                     continue;
                 }
                 probed = true;
+                var target = Activator.CreateInstance(concrete);
                 try
                 {
-                    setter.Invoke(Activator.CreateInstance(concrete), [undefined]);
+                    setter.Invoke(target, [undefined]);
                     failures.Add($"{name}: {type.Name}.{setter.Name} takes the undefined value {Convert.ToInt64(undefined)}");
                 }
                 catch (TargetInvocationException e) when (e.InnerException is ArgumentOutOfRangeException)
                 {
+                }
+                if (Subsets.ContainsKey(name))
+                    continue;
+                // Every defined value (for a flags enum, all its flags together too) goes through.
+                foreach (var value in Defined(Nullable.GetUnderlyingType(property.ReturnType) ?? property.ReturnType))
+                {
+                    try
+                    {
+                        setter.Invoke(target, [value]);
+                    }
+                    catch (TargetInvocationException e)
+                    {
+                        failures.Add($"{name}: {type.Name}.{setter.Name}({value}) throws {e.InnerException!.GetType().Name}");
+                    }
                 }
             }
             if (!probed)
@@ -114,6 +131,36 @@ public class EnumValidationTests
         failures.AddRange(WithoutSetter.Keys.Except(withoutSetter).Select(n => $"{n} is listed in WithoutSetter but has a fluent setter now"));
         if (failures.Count > 0)
             Assert.Fail(string.Join(Environment.NewLine, failures.Order(StringComparer.Ordinal)));
+    }
+
+    [Fact]
+    public void ReusedAlignSelfAndDockPositionRejectUndefinedValuesAndLayOutAnUndefinedOneAsTheDefault()
+    {
+        const FlexAlignSelf UndefinedAlign = (FlexAlignSelf)99;
+        const DockPosition UndefinedDock = (DockPosition)99;
+        var flexChild = new SkUiBox { WidthRequest = 20, HeightRequest = 10 };
+        var dockChild = new SkUiBox { HeightRequest = 10 };
+        Assert.Throws<ArgumentOutOfRangeException>(() => SkUiFlexLayout.SetAlignSelf(flexChild, UndefinedAlign));
+        Assert.Throws<ArgumentOutOfRangeException>(() => MauiSkiaUi.CommunityToolkit.SkUiDockLayout.SetDockPosition(dockChild, UndefinedDock));
+        Assert.Throws<ArgumentOutOfRangeException>(() => new MauiSkiaUi.CommunityToolkit.SkUiDockLayout().Add(new SkUiBox(), UndefinedDock));
+
+        // MAUI's and the Toolkit's properties take any value (XAML, FlexLayout.SetAlignSelf): layout reads it as the default.
+        var flex = new SkUiFlexLayout { AlignItems = FlexAlignItems.Start };
+        flex.Children.Add(flexChild);
+        FlexLayout.SetAlignSelf(flexChild, UndefinedAlign);
+        SkUiTestHelpers.Arrange(flex, 100, 50);
+        Assert.Equal(0, flexChild.Frame.Y);
+
+        var dock = new MauiSkiaUi.CommunityToolkit.SkUiDockLayout();
+        var right = new SkUiBox { WidthRequest = 30 };
+        dock.Add(right, DockPosition.Right);
+        dock.Add(dockChild, DockPosition.None);
+        dock.Add(new SkUiBox());
+        SkUiTestHelpers.Arrange(dock, 100, 50);
+        var docked = dockChild.Frame;
+        dockChild.SetValue(DockLayout.DockPositionProperty, UndefinedDock);
+        SkUiTestHelpers.Arrange(dock, 100, 50);
+        Assert.Equal(docked, dockChild.Frame); // as None
     }
 
     [Flags]
